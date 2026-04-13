@@ -73,9 +73,9 @@ Use `bun`. No `pnpm`, `npm`, `tsx`, or `vitest`.
 ## Production Binary
 
 ```bash
-make tmux-web    # single executable via bun build --compile
+make tmux-web    # self-contained executable with embedded assets
 ```
-Binary expects `dist/`, `fonts/`, `tmux.conf` to be in the same directory.
+Binary is standalone and can be run anywhere with `tmux` installed. It embeds all client assets, fonts, and the default `tmux.conf`.
 
 ## Deployment
 

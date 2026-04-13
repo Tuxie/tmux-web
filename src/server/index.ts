@@ -10,6 +10,7 @@ import { createWsServer } from './ws.js';
 import { generateSelfSignedCert } from './tls.js';
 import type { ServerConfig, TerminalBackend } from '../shared/types.js';
 import { DEFAULT_HOST, DEFAULT_PORT, DEFAULT_TERMINAL } from '../shared/constants.js';
+import { embeddedAssets } from './assets-embedded.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -74,20 +75,6 @@ const isCompiled = !process.execPath.endsWith('bun') && !process.execPath.endsWi
 // In compiled binary: look for assets next to the binary, fallback to /usr/local/share/tmux-web
 let projectRoot = isCompiled ? path.dirname(process.execPath) : path.resolve(import.meta.dir, '../..');
 
-if (isCompiled && !fs.existsSync(path.join(projectRoot, 'tmux.conf'))) {
-  const fallbacks = [
-    '/usr/local/share/tmux-web',
-    '/usr/share/tmux-web',
-    path.join(path.dirname(projectRoot), 'share/tmux-web'),
-  ];
-  for (const fallback of fallbacks) {
-    if (fs.existsSync(path.join(fallback, 'tmux.conf'))) {
-      projectRoot = fallback;
-      break;
-    }
-  }
-}
-
 const tmuxConfPath = path.join(projectRoot, 'tmux.conf');
 const htmlTemplatePath = path.join(projectRoot, 'src/client/index.html');
 const distDir = path.join(projectRoot, 'dist');
@@ -121,7 +108,38 @@ for (const searchPath of searchPaths) {
   }
 }
 
-const htmlTemplate = fs.readFileSync(htmlTemplatePath, 'utf-8');
+// Support embedded assets for template and config
+let htmlTemplate: string;
+const embeddedHtmlPath = embeddedAssets['src/client/index.html'];
+if (embeddedHtmlPath && await Bun.file(embeddedHtmlPath).exists()) {
+  htmlTemplate = await Bun.file(embeddedHtmlPath).text();
+} else {
+  htmlTemplate = fs.readFileSync(htmlTemplatePath, 'utf-8');
+}
+
+let effectiveTmuxConfPath = tmuxConfPath;
+const embeddedTmuxConfPath = embeddedAssets['tmux.conf'];
+if (embeddedTmuxConfPath && await Bun.file(embeddedTmuxConfPath).exists()) {
+  // If embedded, we MUST write it to a temp file because tmux needs a real path
+  const tmpPath = path.join(require('os').tmpdir(), `tmux-web-embedded-${Date.now()}.conf`);
+  fs.writeFileSync(tmpPath, await Bun.file(embeddedTmuxConfPath).text());
+  effectiveTmuxConfPath = tmpPath;
+  process.on('exit', () => { try { fs.unlinkSync(tmpPath); } catch {} });
+} else if (isCompiled && !fs.existsSync(tmuxConfPath)) {
+  const fallbacks = [
+    '/usr/local/share/tmux-web',
+    '/usr/share/tmux-web',
+    path.join(path.dirname(projectRoot), 'share/tmux-web'),
+  ];
+  for (const fallback of fallbacks) {
+    const p = path.join(fallback, 'tmux.conf');
+    if (fs.existsSync(p)) {
+      effectiveTmuxConfPath = p;
+      projectRoot = fallback;
+      break;
+    }
+  }
+}
 
 const handler = createHttpHandler({
   config,
@@ -131,6 +149,7 @@ const handler = createHttpHandler({
   projectRoot,
   ghosttyDistDir,
   ghosttyWasmPath,
+  isCompiled,
 });
 
 let server: http.Server | https.Server;
@@ -151,7 +170,7 @@ if (config.tls) {
   server = http.createServer(handler);
 }
 
-createWsServer(server, { config, tmuxConfPath });
+createWsServer(server, { config, tmuxConfPath: effectiveTmuxConfPath });
 
 const scheme = config.tls ? 'https' : 'http';
 server.listen(port, host, () => {

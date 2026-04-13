@@ -7,6 +7,7 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import { MIME_TYPES } from '../shared/constants.js';
 import type { ServerConfig, TerminalBackend } from '../shared/types.js';
 import { isAllowed } from './allowlist.js';
+import { embeddedAssets } from './assets-embedded.js';
 
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
@@ -19,6 +20,7 @@ export interface HttpHandlerOptions {
   projectRoot: string;
   ghosttyDistDir?: string;
   ghosttyWasmPath?: string;
+  isCompiled?: boolean;
 }
 
 function debug(config: ServerConfig, ...args: unknown[]): void {
@@ -31,6 +33,47 @@ function bundleName(terminal: TerminalBackend): string {
     case 'xterm': return 'xterm.js';
     case 'xterm-dev': return 'xterm-dev.js';
   }
+}
+
+function getAssetPath(key: string): string | null {
+  return embeddedAssets[key] || null;
+}
+
+async function readFile(filePath: string, assetKey?: string): Promise<{ data: Buffer | Uint8Array; contentType: string } | null> {
+  const ext = path.extname(filePath);
+  const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+
+  // Try embedded asset first
+  if (assetKey) {
+    const embeddedPath = getAssetPath(assetKey);
+    if (embeddedPath) {
+      try {
+        const file = Bun.file(embeddedPath);
+        if (await file.exists()) {
+          return { data: new Uint8Array(await file.arrayBuffer()), contentType };
+        }
+      } catch {}
+    }
+  }
+
+  // Fallback to filesystem
+  try {
+    if (fs.existsSync(filePath)) {
+      return { data: fs.readFileSync(filePath), contentType };
+    }
+  } catch {}
+
+  return null;
+}
+
+function serveFile(res: ServerResponse, data: Buffer | Uint8Array, contentType: string): void {
+  res.writeHead(200, { 'Content-Type': contentType });
+  res.end(data);
+}
+
+function serve404(res: ServerResponse): void {
+  res.writeHead(404);
+  res.end('Not Found');
 }
 
 function getTerminalVersions(projectRoot: string): Record<string, string> {
@@ -113,12 +156,22 @@ export function createHttpHandler(opts: HttpHandlerOptions) {
       if (!filename || filename.includes('/') || filename.includes('..')) {
         res.writeHead(400); res.end(); return;
       }
-      return serveFile(path.join(opts.fontsDir, filename), res);
+      const asset = await readFile(path.join(opts.fontsDir, filename), `fonts/${filename}`);
+      if (asset) return serveFile(res, asset.data, asset.contentType);
+      return serve404(res);
     }
 
     if (pathname === '/api/fonts') {
       try {
-        const files = fs.readdirSync(opts.fontsDir).filter(f => f.endsWith('.woff2')).sort();
+        let files: string[];
+        if (opts.isCompiled && Object.keys(embeddedAssets).some(k => k.startsWith('fonts/'))) {
+          files = Object.keys(embeddedAssets)
+            .filter(k => k.startsWith('fonts/') && k.endsWith('.woff2'))
+            .map(k => k.slice(6))
+            .sort();
+        } else {
+          files = fs.readdirSync(opts.fontsDir).filter(f => f.endsWith('.woff2')).sort();
+        }
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(files));
       } catch {
@@ -131,12 +184,18 @@ export function createHttpHandler(opts: HttpHandlerOptions) {
     if (pathname.startsWith('/dist/')) {
       const relative = pathname.slice(6);
       const filePath = path.join(distDir, relative);
-      // Try project dist first, fall back to ghostty-web dist
-      return serveFileWithFallback(filePath, opts.ghosttyDistDir ? path.join(opts.ghosttyDistDir, relative) : null, res);
+      const asset = await readFile(filePath, `dist/${relative}`) || 
+                    (opts.ghosttyDistDir ? await readFile(path.join(opts.ghosttyDistDir, relative), `dist/${relative}`) : null);
+      
+      if (asset) return serveFile(res, asset.data, asset.contentType);
+      return serve404(res);
     }
 
-    if (pathname === '/ghostty-vt.wasm' && opts.ghosttyWasmPath) {
-      return serveFile(opts.ghosttyWasmPath, res);
+    if (pathname === '/ghostty-vt.wasm') {
+      const asset = (opts.ghosttyWasmPath ? await readFile(opts.ghosttyWasmPath, 'ghostty-vt.wasm') : null) ||
+                    await readFile('', 'ghostty-vt.wasm');
+      if (asset) return serveFile(res, asset.data, asset.contentType);
+      return serve404(res);
     }
 
     if (pathname === '/api/sessions') {
@@ -181,44 +240,4 @@ export function createHttpHandler(opts: HttpHandlerOptions) {
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(makeHtml(req));
   };
-}
-
-function serveFile(filePath: string, res: ServerResponse): void {
-  const ext = path.extname(filePath);
-  const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
-      res.writeHead(404);
-      res.end('Not Found');
-      return;
-    }
-    res.writeHead(200, { 'Content-Type': contentType });
-    res.end(data);
-  });
-}
-
-function serveFileWithFallback(primary: string, fallback: string | null, res: ServerResponse): void {
-  const ext = path.extname(primary);
-  const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-  fs.readFile(primary, (err, data) => {
-    if (err && fallback) {
-      fs.readFile(fallback, (err2, data2) => {
-        if (err2) {
-          res.writeHead(404);
-          res.end('Not Found');
-          return;
-        }
-        res.writeHead(200, { 'Content-Type': contentType });
-        res.end(data2);
-      });
-      return;
-    }
-    if (err) {
-      res.writeHead(404);
-      res.end('Not Found');
-      return;
-    }
-    res.writeHead(200, { 'Content-Type': contentType });
-    res.end(data);
-  });
 }

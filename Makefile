@@ -45,7 +45,10 @@ test-e2e-headed: build
 
 # --- Production binary ---
 
-tmux-web: $(SRCS_SERVER) dist/client/ghostty.js
+src/server/assets-embedded.ts: build tmux.conf bun-build.ts scripts/generate-assets.ts
+	$(BUN) run scripts/generate-assets.ts
+
+tmux-web: build src/server/assets-embedded.ts
 	$(BUN) build src/server/index.ts --compile --minify --outfile tmux-web
 
 install: tmux-web
@@ -75,4 +78,4 @@ vendor:
 # --- Cleanup ---
 
 clean:
-	rm -rf dist tmux-web banner.cjs pkg.config.json _bundle.cjs pkg.config.json banner.cjs
+	rm -rf dist tmux-web banner.cjs pkg.config.json _bundle.cjs src/server/assets-embedded.ts
