@@ -69,8 +69,8 @@ install: tmux-web
 vendor:
 	git submodule update --init vendor/xterm.js
 	cd vendor/xterm.js && bun install
-	cd vendor/xterm.js && bun build src/browser/public/Terminal.ts --outdir lib --minify --target browser --naming xterm.mjs
-	cd vendor/xterm.js && bun build addons/addon-fit/src/FitAddon.ts --outdir addons/addon-fit/lib --minify --target browser --naming addon-fit.mjs
+	cd vendor/xterm.js && bun build src/browser/public/Terminal.ts --outdir lib --minify --target browser --entry-naming xterm.mjs
+	cd vendor/xterm.js && bun build addons/addon-fit/src/FitAddon.ts --outdir addons/addon-fit/lib --minify --target browser --entry-naming addon-fit.mjs
 	mkdir -p dist/client
 	cp vendor/xterm.js/lib/xterm.mjs dist/client/vendor-xterm.js
 	cp vendor/xterm.js/addons/addon-fit/lib/addon-fit.mjs dist/client/vendor-xterm-addon-fit.js
