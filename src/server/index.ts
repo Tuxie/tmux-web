@@ -95,13 +95,31 @@ const fontsDir = path.join(projectRoot, 'fonts');
 
 let ghosttyWasmPath: string | undefined;
 let ghosttyDistDir: string | undefined;
-// Always try to set up ghostty-web support, since clients can dynamically switch to ghostty
-// via the ?terminal=ghostty query parameter, regardless of the server's default terminal.
+
+// Always try to set up ghostty-web support.
+// Search order:
+// 1. Next to the binary (installed/compiled mode)
+// 2. In node_modules (dev mode)
+const searchPaths = [
+  projectRoot,
+  path.join(projectRoot, 'node_modules/ghostty-web'),
+];
+
+// Add path from require.resolve if available
 try {
-  const ghosttyRoot = path.dirname(require.resolve('ghostty-web'));
-  ghosttyDistDir = ghosttyRoot; // ghostty-web/dist/
-  ghosttyWasmPath = path.join(path.dirname(ghosttyRoot), 'ghostty-vt.wasm');
-} catch { /* ghostty-web not installed */ }
+  const ghosttyPkgDir = path.dirname(require.resolve('ghostty-web/package.json'));
+  searchPaths.push(ghosttyPkgDir);
+} catch {}
+
+for (const searchPath of searchPaths) {
+  const wasm = path.join(searchPath, 'ghostty-vt.wasm');
+  const dist = path.join(searchPath, 'dist');
+  if (fs.existsSync(wasm)) {
+    ghosttyWasmPath = wasm;
+    ghosttyDistDir = fs.existsSync(dist) ? dist : undefined;
+    break;
+  }
+}
 
 const htmlTemplate = fs.readFileSync(htmlTemplatePath, 'utf-8');
 

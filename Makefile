@@ -55,6 +55,11 @@ install: tmux-web
 	cp -rf dist fonts tmux.conf $(DESTDIR)$(SHAREDIR)/
 	mkdir -p $(DESTDIR)$(SHAREDIR)/src/client
 	cp src/client/index.html $(DESTDIR)$(SHAREDIR)/src/client/
+	# Install ghostty-web assets if available
+	@if [ -d node_modules/ghostty-web ]; then \
+		cp node_modules/ghostty-web/ghostty-vt.wasm $(DESTDIR)$(SHAREDIR)/; \
+		cp -rf node_modules/ghostty-web/dist/* $(DESTDIR)$(SHAREDIR)/dist/; \
+	fi
 
 # --- Vendor (optional: xterm.js from git HEAD) ---
 
