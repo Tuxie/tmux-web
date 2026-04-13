@@ -63,7 +63,7 @@ Use `bun`. No `pnpm`, `npm`, `tsx`, or `vitest`.
 
 ```
 --listen <host:port>     Bind address (default: 0.0.0.0:4022)
---terminal <backend>     ghostty or xterm (default: ghostty)
+--terminal <backend>     ghostty or xterm (default: xterm)
 --username <name>        Basic Auth user (default: $TMUX_WEB_USERNAME or current user)
 --password <pass>        Basic Auth pass (default: $TMUX_WEB_PASSWORD, required)
 --no-auth                Disable HTTP Basic Auth

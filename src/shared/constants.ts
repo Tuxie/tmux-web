@@ -8,7 +8,7 @@ export const DEFAULT_PORT = 4022;
 export const DEFAULT_HOST = '0.0.0.0';
 
 /** Default terminal backend. */
-export const DEFAULT_TERMINAL = 'ghostty' as const;
+export const DEFAULT_TERMINAL = 'xterm' as const;
 
 /** Keys handled by CSI-u forwarding: key name → CSI code. */
 export const CSI_U_KEYS: Record<string, number> = {
