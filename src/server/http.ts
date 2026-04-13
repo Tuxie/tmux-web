@@ -30,8 +30,8 @@ function debug(config: ServerConfig, ...args: unknown[]): void {
 function bundleName(terminal: TerminalBackend): string {
   switch (terminal) {
     case 'ghostty': return 'ghostty.js';
-    case 'xterm': return 'xterm.js';
-    case 'xterm-dev': return 'xterm-dev.js';
+    case 'xterm':
+    case 'xterm-dev': return 'xterm.js';
   }
 }
 
@@ -79,13 +79,30 @@ function serve404(res: ServerResponse): void {
 function getTerminalVersions(projectRoot: string): Record<string, string> {
   const versions: Record<string, string> = {};
 
-  // Get xterm version
+  // Check if we have a vendor build of xterm.js
+  let hasVendorXterm = false;
   try {
-    const xtermPkgPath = require.resolve('@xterm/xterm/package.json');
-    const xtermPkg = JSON.parse(fs.readFileSync(xtermPkgPath, 'utf-8'));
-    versions['xterm'] = 'xterm.js v' + xtermPkg.version;
-  } catch {
-    versions['xterm'] = 'xterm.js v6.0.0';
+    const vendorDir = path.join(projectRoot, 'vendor/xterm.js');
+    if (fs.existsSync(vendorDir)) {
+      const rev = execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
+        cwd: vendorDir,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'ignore']
+      }).trim();
+      versions['xterm'] = `xterm.js (HEAD, ${rev})`;
+      hasVendorXterm = true;
+    }
+  } catch {}
+
+  if (!hasVendorXterm) {
+    // Fallback to npm xterm version
+    try {
+      const xtermPkgPath = require.resolve('@xterm/xterm/package.json');
+      const xtermPkg = JSON.parse(fs.readFileSync(xtermPkgPath, 'utf-8'));
+      versions['xterm'] = 'xterm.js v' + xtermPkg.version;
+    } catch {
+      versions['xterm'] = 'xterm.js v6.0.0';
+    }
   }
 
   // Get ghostty-web version
@@ -97,19 +114,6 @@ function getTerminalVersions(projectRoot: string): Record<string, string> {
     versions['ghostty'] = 'ghostty-web v0.4.0';
   }
 
-  // Get xterm-dev git revision
-  try {
-    const vendorDir = path.join(projectRoot, 'vendor/xterm.js');
-    const rev = execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
-      cwd: vendorDir,
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'ignore']
-    }).trim();
-    versions['xterm-dev'] = `xterm.js HEAD (${rev})`;
-  } catch {
-    versions['xterm-dev'] = 'xterm.js HEAD';
-  }
-
   return versions;
 }
 
@@ -117,13 +121,13 @@ export function createHttpHandler(opts: HttpHandlerOptions) {
   const { config, distDir } = opts;
 
   // Support dynamic terminal selection via query parameter
-  function getEffectiveTerminal(req: IncomingMessage): 'ghostty' | 'xterm' | 'xterm-dev' {
+  function getEffectiveTerminal(req: IncomingMessage): TerminalBackend {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     const terminalParam = url.searchParams.get('terminal');
 
     // If a valid terminal is requested via query param, use it
     if (terminalParam && ['ghostty', 'xterm', 'xterm-dev'].includes(terminalParam)) {
-      return terminalParam as 'ghostty' | 'xterm' | 'xterm-dev';
+      return terminalParam as TerminalBackend;
     }
 
     // Otherwise use the server's configured terminal

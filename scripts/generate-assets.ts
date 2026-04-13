@@ -11,8 +11,18 @@ async function generate() {
   // Add files from dist/
   const distGlob = new Glob("dist/**/*");
   for (const file of distGlob.scanSync(projectRoot)) {
-    if (fs.statSync(path.join(projectRoot, file)).isFile()) {
-      assets.push({ key: file, path: "../../" + file });
+    const fullPath = path.join(projectRoot, file);
+    if (fs.statSync(fullPath).isFile()) {
+      // Only include ghostty.js and xterm.js bundles + css
+      const isBundle = file.startsWith("dist/client/") && (file.endsWith("ghostty.js") || file.endsWith("xterm.js") || file.endsWith("xterm.css"));
+      const isMap = file.endsWith(".map");
+      const isVendor = file.includes("vendor-xterm");
+      
+      if (isBundle || isMap || file.startsWith("dist/server/")) {
+        if (!isVendor && !file.includes("xterm-dev")) {
+          assets.push({ key: file, path: "../../" + file });
+        }
+      }
     }
   }
 

@@ -14,7 +14,8 @@ export class XtermAdapter implements TerminalAdapter {
   // Metric values remain at their initial calculations even after changing fonts.
   // Reload is required to properly initialize metrics with the new font.
   get requiresReloadForFontChange(): boolean {
-    return this.useVendor; // xterm-dev is the vendor build (DOM renderer)
+    // Return true if we are using the DOM renderer (vendor build)
+    return this.term?._core?.renderer?._renderer?._type === 'dom' || this.useVendor;
   }
 
   async init(container: HTMLElement, options: TerminalOptions): Promise<void> {
@@ -23,10 +24,16 @@ export class XtermAdapter implements TerminalAdapter {
 
     if (this.useVendor) {
       try {
-        xtermMod = await import('/dist/client/vendor-xterm.js');
-        FitAddonMod = await import('/dist/client/vendor-xterm-addon-fit.js');
+        // Try the unified bundle name first (used in production binary)
+        xtermMod = await import('/dist/client/xterm.js');
+        FitAddonMod = xtermMod; // FitAddon is bundled into xterm.js in the unified build
+        if (!xtermMod.Terminal) {
+          // If not unified, try the old vendor names (dev mode)
+          xtermMod = await import('/dist/client/vendor-xterm.js');
+          FitAddonMod = await import('/dist/client/vendor-xterm-addon-fit.js');
+        }
       } catch {
-        console.warn('[xterm-dev] vendor build not found, falling back to npm xterm — run: make vendor');
+        console.warn('[xterm] bundle not found, falling back to npm xterm');
         xtermMod = await import('@xterm/xterm');
         FitAddonMod = await import('@xterm/addon-fit');
       }

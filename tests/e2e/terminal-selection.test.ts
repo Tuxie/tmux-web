@@ -159,8 +159,8 @@ test.describe('terminal backend selection', () => {
     const options = await terminalSelect.locator('option').all();
     const optionValues = await Promise.all(options.map(opt => opt.getAttribute('value')));
 
-    // Should have all three terminals available
-    expect(optionValues.sort()).toEqual(['ghostty', 'xterm', 'xterm-dev'].sort());
+    // Should have available terminals
+    expect(optionValues.sort()).toEqual(['ghostty', 'xterm'].sort());
   });
 
   test('terminal selector displays versions', async ({ page }) => {
@@ -178,14 +178,11 @@ test.describe('terminal backend selection', () => {
     const optionTexts = await Promise.all(options.map(opt => opt.textContent()));
 
     // Verify we have version info for each terminal
-    // xterm.js: "xterm.js v6.0.0"
-    expect(optionTexts.some(text => /xterm\.js v\d+\.\d+\.\d+/.test(text || ''))).toBe(true);
+    // xterm.js: "xterm.js v6.0.0" or "xterm.js (HEAD, ...)"
+    expect(optionTexts.some(text => /xterm\.js (v\d+\.\d+\.\d+|\(HEAD, .+\))/.test(text || ''))).toBe(true);
 
     // ghostty: "ghostty-web v0.4.0"
     expect(optionTexts.some(text => /ghostty-web v\d+\.\d+\.\d+/.test(text || ''))).toBe(true);
-
-    // xterm-dev: "xterm.js HEAD (shortrev)"
-    expect(optionTexts.some(text => /xterm\.js HEAD \([a-f0-9]+\)/.test(text || ''))).toBe(true);
   });
 
   test('terminal remains usable after switching: session list populated', async ({ page }) => {

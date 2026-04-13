@@ -3,6 +3,7 @@ dist/
 tmux-web
 test-results/
 playwright-report/
+tmp/
 
 fonts/**
-# !fonts/*.woff2
+!fonts/*.woff2
