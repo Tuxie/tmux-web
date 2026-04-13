@@ -186,6 +186,17 @@ async function main() {
   adapter.onResize(({ cols, rows }) => connection.sendResize(cols, rows));
   window.addEventListener('resize', () => adapter.fit());
 
+  document.addEventListener('keydown', () => adapter.focus());
+
+  document.addEventListener('paste', (ev) => {
+    const text = ev.clipboardData?.getData('text/plain');
+    if (text) {
+      connection.send(text);
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+  });
+
   installMouseHandler({
     getMetrics: () => adapter.metrics,
     getCanvasRect: () => {

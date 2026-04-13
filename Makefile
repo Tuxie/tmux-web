@@ -38,10 +38,10 @@ test-unit:
 	$(BUN) test
 
 test-e2e: build
-	$(BUN) x playwright test
+	node node_modules/.bin/playwright test
 
 test-e2e-headed: build
-	$(BUN) x playwright test --headed
+	node node_modules/.bin/playwright test --headed
 
 # --- Production binary ---
 

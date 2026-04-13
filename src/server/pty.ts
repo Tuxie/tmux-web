@@ -64,6 +64,7 @@ export interface BunPty {
 export function spawnPty(opts: SpawnPtyOptions): BunPty {
   let onDataCallback: (data: string) => void = () => {};
   let onExitCallback: () => void = () => {};
+  const decoder = new TextDecoder('utf8');
 
   const proc = Bun.spawn([opts.command.file, ...opts.command.args], {
     env: opts.env as any,
@@ -72,7 +73,7 @@ export function spawnPty(opts: SpawnPtyOptions): BunPty {
       cols: opts.cols,
       rows: opts.rows,
       data(terminal, data) {
-        onDataCallback(data.toString());
+        onDataCallback(decoder.decode(data, { stream: true }));
       },
     },
   });

@@ -8,9 +8,9 @@
   "scripts": {
     "dev": "bun run bun-build.ts --watch & bun run --watch src/server/index.ts",
     "build": "bun run bun-build.ts",
-    "test": "bun test && bun x playwright test",
+    "test": "bun test && node node_modules/.bin/playwright test",
     "test:unit": "bun test",
-    "test:e2e": "bun x playwright test",
+    "test:e2e": "node node_modules/.bin/playwright test",
     "start": "bun src/server/index.ts"
   },
   "dependencies": {
