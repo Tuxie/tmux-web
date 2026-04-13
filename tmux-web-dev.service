@@ -1,0 +1,15 @@
+[Unit]
+Description=tmux-web-dev - Tmux Web Terminal (development mode)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/src/tmux-web
+ExecStart=/src/tmux-web/tmux-web-dev --listen=0.0.0.0:4022 --allow-ip 192.168.0.100 --allow-ip 192.168.0.111 --terminal xterm-dev --debug
+Restart=on-failure
+RestartSec=2s
+
+Environment=PATH=/home/linuxbrew/.linuxbrew/bin:/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+tmux-web
+test-results/
+playwright-report/
+
+fonts/**
+# !fonts/*.woff2

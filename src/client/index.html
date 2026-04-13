@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TuxieTerm</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%231e1e1e'/%3E%3Crect x='0' y='0' width='32' height='7' rx='4' fill='%23333'/%3E%3Crect x='0' y='4' width='32' height='3' fill='%23333'/%3E%3Ccircle cx='5' cy='3.5' r='1.5' fill='%23ff5f57'/%3E%3Ccircle cx='10' cy='3.5' r='1.5' fill='%23febc2e'/%3E%3Ccircle cx='15' cy='3.5' r='1.5' fill='%2328c840'/%3E%3Ctext x='4' y='23' font-family='monospace' font-size='11' fill='%2300ff88'%3E%26gt%3B_%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/dist/client/xterm.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; background: #1e1e1e; }
+    #topbar {
+      display: flex;
+      align-items: center;
+      height: 28px;
+      background: #262626;
+      padding: 0 6px;
+      gap: 4px;
+      font-family: 'MOsOul Nerd Font', 'ZedMono Nerd Font', 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: #d4d4d4;
+      user-select: none;
+      -webkit-user-select: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
+      transition: transform 0.3s ease;
+      pointer-events: none;
+    }
+    #topbar > * { pointer-events: auto; }
+    #topbar.hidden { transform: translateY(-100%); }
+    #topbar.hidden > * { pointer-events: none; }
+    #topbar .tb-btn {
+      background: none;
+      border: none;
+      color: #d4d4d4;
+      border-radius: 3px;
+      padding: 2px 8px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    #topbar .tb-btn:hover { background: #333; }
+    #topbar .tb-btn:active { background: #444; }
+    #topbar select {
+      background: #1e1e1e;
+      border: 1px solid #555;
+      color: #d4d4d4;
+      border-radius: 3px;
+      padding: 2px 6px;
+      font-family: inherit;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    #topbar select:hover { background: #333; }
+    #topbar .tb-sep { width: 12px; }
+    #topbar .win-tab {
+      background: none;
+      border: 1px solid transparent;
+      color: #888;
+      border-radius: 3px;
+      padding: 2px 8px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    #topbar .win-tab:hover { background: #333; color: #d4d4d4; }
+    #topbar .win-tab.active { color: #d4d4d4; border-color: #555; }
+    #terminal { position: absolute; top: 3px; left: 3px; right: 3px; bottom: 3px; }
+    body.topbar-pinned #terminal { top: 31px; }
+    .xterm .xterm-viewport { overflow-y: hidden !important; }
+    #menu-dropdown input[type="range"] { accent-color: #aaa; cursor: pointer; }
+    #menu-dropdown input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+    #menu-dropdown input[type="number"]::-webkit-inner-spin-button,
+    #menu-dropdown input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  </style>
+</head>
+<body>
+  <div id="topbar">
+    <select id="session-select" title="Switch tmux session"></select>
+    <button class="tb-btn" id="btn-new-session" title="New session">+</button>
+    <div class="tb-sep"></div>
+    <div id="win-tabs" style="display:flex;gap:2px;"></div>
+    <div style="flex:1"></div>
+    <div id="menu-wrap" style="position:relative">
+      <button class="tb-btn" id="btn-menu" title="Settings" style="padding:2px 8px;font-size:18px">☰</button>
+      <div id="menu-dropdown" hidden style="position:absolute;top:calc(100% + 4px);right:0;background:#262626;border:1px solid #555;border-radius:4px;min-width:270px;z-index:100;padding:4px 0;box-shadow:0 4px 12px rgba(0,0,0,0.5)">
+        <label style="display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;font-size:13px;white-space:nowrap" onmouseover="this.style.background='#333'" onmouseout="this.style.background=''"><input type="checkbox" id="chk-autohide" checked> Autohide toolbar</label>
+        <label style="display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;font-size:13px;white-space:nowrap" onmouseover="this.style.background='#333'" onmouseout="this.style.background=''"><input type="checkbox" id="chk-fullscreen"> Fullscreen</label>
+        <hr style="border:none;border-top:1px solid #444;margin:4px 0">
+        <div style="display:flex;align-items:center;gap:6px;padding:5px 12px;font-size:13px;white-space:nowrap">
+          <span style="color:#999;min-width:72px">Terminal</span>
+          <select id="inp-terminal" style="flex:1;background:#1e1e1e;border:1px solid #555;color:#d4d4d4;border-radius:2px;padding:1px 4px;font-family:inherit;font-size:12px;cursor:pointer">
+            <option value="ghostty">ghostty-web</option>
+            <option value="xterm">xterm</option>
+            <option value="xterm-dev">xterm-dev</option>
+          </select>
+        </div>
+        <hr style="border:none;border-top:1px solid #444;margin:4px 0">
+        <div style="display:flex;align-items:center;gap:6px;padding:5px 12px;font-size:13px;white-space:nowrap">
+          <span style="color:#999;min-width:72px">Font source</span>
+          <select id="inp-fontsource" style="flex:1;background:#1e1e1e;border:1px solid #555;color:#d4d4d4;border-radius:2px;padding:1px 4px;font-family:inherit;font-size:12px;cursor:pointer">
+            <option value="bundled">Local</option>
+            <option value="custom">Custom</option>
+            <option value="google">Google Fonts</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;padding:5px 12px;font-size:13px;white-space:nowrap">
+          <span style="color:#999;min-width:72px">Name</span>
+          <select id="inp-font-bundled" style="flex:1;background:#1e1e1e;border:1px solid #555;color:#d4d4d4;border-radius:2px;padding:1px 4px;font-family:inherit;font-size:12px;cursor:pointer"></select>
+          <input type="text" id="inp-font" style="flex:1;background:#1e1e1e;border:1px solid #555;color:#d4d4d4;border-radius:2px;padding:1px 4px;font-family:inherit;font-size:12px">
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;padding:5px 12px;font-size:13px;white-space:nowrap">
+          <span style="color:#999;min-width:72px">Size</span>
+          <input type="range" id="sld-fontsize" min="8" max="30" step="0.5" style="flex:1">
+          <input type="number" id="inp-fontsize" min="8" max="30" step="0.5" style="width:46px;background:#1e1e1e;border:1px solid #555;color:#d4d4d4;border-radius:2px;padding:1px 4px;font-family:inherit;font-size:12px">
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;padding:5px 12px;font-size:13px;white-space:nowrap">
+          <span style="color:#999;min-width:72px">Height</span>
+          <input type="range" id="sld-lineheight" min="0.5" max="2" step="0.05" style="flex:1">
+          <input type="number" id="inp-lineheight" min="0.5" max="2" step="0.05" style="width:46px;background:#1e1e1e;border:1px solid #555;color:#d4d4d4;border-radius:2px;padding:1px 4px;font-family:inherit;font-size:12px">
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="terminal"></div>
+  <!-- __CONFIG__ -->
+  <script type="module" src="__BUNDLE__"></script>
+</body>
+</html>
