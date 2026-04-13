@@ -107,7 +107,7 @@ test.describe('font change rendering: xterm-dev', () => {
     // Get a different bundled font
     const otherFont = await page.evaluate(() => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('mOsOul'))?.value ?? '';
+      return Array.from(sel.options).find(o => !o.value.includes('IosevkaNerdFontMono-Regular'))?.value ?? '';
     });
     expect(otherFont).toBeTruthy();
 
@@ -145,7 +145,7 @@ test.describe('font change rendering: xterm-dev', () => {
     // Get a different font
     const otherFont = await page.evaluate(() => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('mOsOul'))?.value ?? '';
+      return Array.from(sel.options).find(o => !o.value.includes('IosevkaNerdFontMono-Regular'))?.value ?? '';
     });
 
     // Change font using the dropdown
@@ -180,7 +180,7 @@ test.describe('font change rendering: ghostty', () => {
     // Get a different bundled font
     const otherFont = await page.evaluate(() => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('mOsOul'))?.value ?? '';
+      return Array.from(sel.options).find(o => !o.value.includes('IosevkaNerdFontMono-Regular'))?.value ?? '';
     });
     expect(otherFont).toBeTruthy();
 
@@ -243,7 +243,7 @@ test.describe('font change rendering: ghostty', () => {
     // Get a different font
     const otherFont = await page.evaluate(() => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('mOsOul'))?.value ?? '';
+      return Array.from(sel.options).find(o => !o.value.includes('IosevkaNerdFontMono-Regular'))?.value ?? '';
     });
     expect(otherFont).toBeTruthy();
 

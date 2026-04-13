@@ -9,6 +9,9 @@ import { test, expect } from '@playwright/test';
 import { mockApis, injectWsSpy, waitForWsOpen } from './helpers.js';
 
 async function openMenu(page: import('@playwright/test').Page): Promise<void> {
+  // Reveal topbar
+  await page.mouse.move(640, 10);
+  await page.waitForTimeout(100);
   // Assumes mouse is already hovering topbar to prevent autohide
   await page.click('#btn-menu');
   await expect(page.locator('#menu-dropdown')).toBeVisible();
@@ -21,27 +24,19 @@ async function waitForFontList(page: import('@playwright/test').Page): Promise<v
   );
 }
 
-async function getSettings(page: import('@playwright/test').Page): Promise<Record<string, any>> {
-  return page.evaluate(() => {
-    const name = 'tmux-web-settings=';
-    const decodedCookie = decodeURIComponent(document.cookie);
-    const cookies = decodedCookie.split(';');
-    for (const cookie of cookies) {
-      const trimmed = cookie.trim();
-      if (trimmed.startsWith(name)) {
-        try {
-          return JSON.parse(trimmed.substring(name.length));
-        } catch {
-          return {};
-        }
-      }
-    }
-    return {};
-  });
-}
-
 test.describe('font and line height memory', () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, context }) => {
+    await context.clearCookies();
+    await page.addInitScript(() => {
+      const settings = {
+        fontSource: 'bundled',
+        fontFamily: 'IosevkaNerdFontMono-Regular',
+        fontSize: 18,
+        lineHeight: 1.125
+      };
+      document.cookie = `tmux-web-settings=${encodeURIComponent(JSON.stringify(settings))}; path=/;`;
+      localStorage.clear();
+    });
     await injectWsSpy(page);
     await mockApis(page, ['main'], []);
     await page.goto('/main');
@@ -50,28 +45,17 @@ test.describe('font and line height memory', () => {
   });
 
   test('bundled font selection is remembered when switching sources', async ({ page }) => {
-    // Keep mouse hovering topbar to prevent autohide from closing the menu
-    await page.mouse.move(640, 10);
-
-    // Open menu first to populate font list
     await openMenu(page);
-
-    // Wait for fonts to load
-    await page.waitForFunction(
-      () => (document.getElementById('inp-font-bundled') as HTMLSelectElement)?.options.length > 0,
-      { timeout: 5000 },
-    );
 
     // Get a non-default bundled font
     const otherFont = await page.evaluate(() => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('mOsOul'))?.value ?? '';
+      return Array.from(sel.options).find(o => !o.value.includes('IosevkaNerdFontMono-Regular'))?.value ?? '';
     });
     expect(otherFont).toBeTruthy();
 
     // Select a different bundled font
     await page.selectOption('#inp-font-bundled', otherFont);
-    // Manually trigger change event in case selectOption doesn't
     await page.locator('#inp-font-bundled').dispatchEvent('change');
 
     // Wait for the commit to save settings
@@ -101,14 +85,10 @@ test.describe('font and line height memory', () => {
     await page.selectOption('#inp-fontsource', 'custom');
 
     // Wait for input to be visible after source change
-    await page.waitForFunction(
-      () => !(document.getElementById('inp-font') as HTMLInputElement).hidden,
-      { timeout: 5000 }
-    );
+    await expect(page.locator('#inp-font')).toBeVisible();
 
     await page.fill('#inp-font', 'monospace');
-    // Blur the input to trigger change event
-    await page.press('#inp-font', 'Tab');
+    await page.press('#inp-font', 'Enter'); // trigger change
 
     // Wait for custom font to be saved
     await page.waitForFunction(
@@ -136,36 +116,18 @@ test.describe('font and line height memory', () => {
     await page.selectOption('#inp-fontsource', 'bundled');
 
     // Wait for the font value to be restored
-    await page.waitForFunction(
-      (font) => {
-        const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-        return sel.value === font;
-      },
-      otherFont,
-      { timeout: 5000 }
-    );
-
-    const selectedFont = await page.inputValue('#inp-font-bundled');
-    expect(selectedFont).toBe(otherFont);
+    await expect(page.locator('#inp-font-bundled')).toHaveValue(otherFont);
   });
 
   test('custom font text is remembered when switching sources', async ({ page }) => {
-    await page.mouse.move(640, 10);
     const customFontName = 'My Custom Font';
 
-    // Open menu and switch to custom source
     await openMenu(page);
     await page.selectOption('#inp-fontsource', 'custom');
-
-    // Wait for input to be visible after source change
-    await page.waitForFunction(
-      () => !(document.getElementById('inp-font') as HTMLInputElement).hidden,
-      { timeout: 5000 }
-    );
+    await expect(page.locator('#inp-font')).toBeVisible();
 
     await page.fill('#inp-font', customFontName);
-    // Blur the input to trigger change event
-    await page.press('#inp-font', 'Tab');
+    await page.press('#inp-font', 'Enter');
 
     // Wait for custom font to be saved
     await page.waitForFunction(
@@ -192,61 +154,19 @@ test.describe('font and line height memory', () => {
 
     // Switch to bundled
     await page.selectOption('#inp-fontsource', 'bundled');
-
-    // Wait for bundled to be set
-    await page.waitForFunction(
-      () => {
-        const name = 'tmux-web-settings=';
-        const decodedCookie = decodeURIComponent(document.cookie);
-        const cookies = decodedCookie.split(';');
-        for (const cookie of cookies) {
-          const trimmed = cookie.trim();
-          if (trimmed.startsWith(name)) {
-            try {
-              const settings = JSON.parse(trimmed.substring(name.length));
-              return settings.fontSource === 'bundled';
-            } catch {
-              return false;
-            }
-          }
-        }
-        return false;
-      },
-      { timeout: 5000 }
-    );
+    await page.waitForTimeout(100);
 
     // Switch back to custom — the font name should be restored
     await page.selectOption('#inp-fontsource', 'custom');
-
-    // Wait for the input to have the correct value
-    await page.waitForFunction(
-      (font) => {
-        const inp = document.getElementById('inp-font') as HTMLInputElement;
-        return inp.value === font;
-      },
-      customFontName,
-      { timeout: 5000 }
-    );
-
-    const restoredFont = await page.inputValue('#inp-font');
-    expect(restoredFont).toBe(customFontName);
+    await expect(page.locator('#inp-font')).toHaveValue(customFontName);
   });
 
   test('line height is remembered per bundled font', async ({ page }) => {
-    await page.mouse.move(640, 10);
-
-    // Open menu first to populate font list
     await openMenu(page);
-
-    // Wait for fonts to load
-    await page.waitForFunction(
-      () => (document.getElementById('inp-font-bundled') as HTMLSelectElement)?.options.length > 0,
-      { timeout: 5000 },
-    );
 
     const otherFont = await page.evaluate(() => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('mOsOul'))?.value ?? '';
+      return Array.from(sel.options).find(o => !o.value.includes('IosevkaNerdFontMono-Regular'))?.value ?? '';
     });
     expect(otherFont).toBeTruthy();
 
@@ -264,7 +184,7 @@ test.describe('font and line height memory', () => {
     await page.waitForTimeout(100);
 
     // Switch back to default font — line height should return to 1.5
-    await page.selectOption('#inp-font-bundled', 'mOsOul Nerd Font');
+    await page.selectOption('#inp-font-bundled', 'IosevkaNerdFontMono-Regular');
 
     // Wait for line height to be restored
     await page.waitForFunction(
@@ -280,10 +200,9 @@ test.describe('font and line height memory', () => {
   });
 
   test('persists across page reload', async ({ page }) => {
-    await page.mouse.move(640, 10);
     const otherFont = await page.evaluate(() => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('mOsOul'))?.value ?? '';
+      return Array.from(sel.options).find(o => !o.value.includes('IosevkaNerdFontMono-Regular'))?.value ?? '';
     });
     expect(otherFont).toBeTruthy();
 
@@ -303,11 +222,9 @@ test.describe('font and line height memory', () => {
     await waitForFontList(page);
 
     // Verify the font and line height are restored
-    await page.mouse.move(640, 10);
     await openMenu(page);
-    const selectedFont = await page.inputValue('#inp-font-bundled');
+    await expect(page.locator('#inp-font-bundled')).toHaveValue(otherFont);
     const lineHeight = await page.inputValue('#inp-lineheight');
-    expect(selectedFont).toBe(otherFont);
     expect(parseFloat(lineHeight)).toBeCloseTo(0.85, 1);
   });
 });

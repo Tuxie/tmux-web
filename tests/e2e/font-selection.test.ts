@@ -28,9 +28,9 @@ async function getBundledFontStyle(page: import('@playwright/test').Page): Promi
   return page.evaluate(() => document.getElementById('bundled-font-style')?.textContent ?? '');
 }
 
-/** Returns true when the browser has loaded the named font at 16px. */
+/** Returns true when the browser has loaded the named font at 18px. */
 async function isFontLoaded(page: import('@playwright/test').Page, name: string): Promise<boolean> {
-  return page.evaluate((n) => document.fonts.check(`16px "${n}"`), name);
+  return page.evaluate((n) => document.fonts.check(`18px "${n}"`), name);
 }
 
 /** Returns term.options.fontFamily from the xterm adapter (empty string if unavailable). */
@@ -63,7 +63,18 @@ test.describe('font selection: xterm', () => {
   test.beforeAll(async () => { server = await startBackendServer('xterm', PORTS.xterm); });
   test.afterAll(() => killServer(server));
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, context }) => {
+    await context.clearCookies();
+    await page.addInitScript(() => {
+      const settings = {
+        fontSource: 'bundled',
+        fontFamily: 'IosevkaNerdFontMono-Regular',
+        fontSize: 18,
+        lineHeight: 1.125
+      };
+      document.cookie = `tmux-web-settings=${encodeURIComponent(JSON.stringify(settings))}; path=/;`;
+      localStorage.clear();
+    });
     await injectWsSpy(page);
     await mockApis(page, ['main'], []);
     await page.goto(`${base}/main`);
@@ -73,7 +84,7 @@ test.describe('font selection: xterm', () => {
 
   test('default load: @font-face injected with correct woff2 URL', async ({ page }) => {
     const rule = await getBundledFontStyle(page);
-    expect(rule).toContain('mOsOul Nerd Font');
+    expect(rule).toContain('IosevkaNerdFontMono-Regular');
     expect(rule).toMatch(/\/fonts\/.+\.woff2/);
     expect(rule).toContain('format("woff2")');
   });
@@ -81,15 +92,15 @@ test.describe('font selection: xterm', () => {
   test('default load: browser successfully loads the font file', async ({ page }) => {
     // Fails if the server returns 404 (e.g. due to URL-encoding not being decoded)
     await page.waitForFunction(
-      () => document.fonts.check('16px "mOsOul Nerd Font"'),
+      () => document.fonts.check('18px "IosevkaNerdFontMono-Regular"'),
       { timeout: 5000 },
     );
-    expect(await isFontLoaded(page, 'mOsOul Nerd Font')).toBe(true);
+    expect(await isFontLoaded(page, 'IosevkaNerdFontMono-Regular')).toBe(true);
   });
 
-  test('default load: xterm receives mOsOul Nerd Font as fontFamily', async ({ page }) => {
+  test('default load: xterm receives IosevkaNerdFontMono-Regular as fontFamily', async ({ page }) => {
     const fontFamily = await getXtermFontFamily(page);
-    expect(fontFamily).toContain('mOsOul Nerd Font');
+    expect(fontFamily).toContain('IosevkaNerdFontMono-Regular');
   });
 
   test('switching bundled font updates @font-face and xterm options', async ({ page }) => {
@@ -98,7 +109,7 @@ test.describe('font selection: xterm', () => {
     // Pick the first font in the list that isn't the default
     const otherFont = await page.evaluate(() => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('mOsOul'))?.value ?? '';
+      return Array.from(sel.options).find(o => !o.value.includes('IosevkaNerdFontMono-Regular'))?.value ?? '';
     });
     expect(otherFont).toBeTruthy();
 
@@ -134,7 +145,18 @@ test.describe('font selection: xterm-dev', () => {
   test.beforeAll(async () => { server = await startBackendServer('xterm-dev', PORTS['xterm-dev']); });
   test.afterAll(() => killServer(server));
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, context }) => {
+    await context.clearCookies();
+    await page.addInitScript(() => {
+      const settings = {
+        fontSource: 'bundled',
+        fontFamily: 'IosevkaNerdFontMono-Regular',
+        fontSize: 18,
+        lineHeight: 1.125
+      };
+      document.cookie = `tmux-web-settings=${encodeURIComponent(JSON.stringify(settings))}; path=/;`;
+      localStorage.clear();
+    });
     await injectWsSpy(page);
     await mockApis(page, ['main'], []);
     await page.goto(`${base}/main`);
@@ -144,15 +166,15 @@ test.describe('font selection: xterm-dev', () => {
 
   test('default load: browser successfully loads the font file', async ({ page }) => {
     await page.waitForFunction(
-      () => document.fonts.check('16px "mOsOul Nerd Font"'),
+      () => document.fonts.check('18px "IosevkaNerdFontMono-Regular"'),
       { timeout: 5000 },
     );
-    expect(await isFontLoaded(page, 'mOsOul Nerd Font')).toBe(true);
+    expect(await isFontLoaded(page, 'IosevkaNerdFontMono-Regular')).toBe(true);
   });
 
-  test('default load: xterm-dev receives mOsOul Nerd Font as fontFamily', async ({ page }) => {
+  test('default load: xterm-dev receives IosevkaNerdFontMono-Regular as fontFamily', async ({ page }) => {
     const fontFamily = await getXtermFontFamily(page);
-    expect(fontFamily).toContain('mOsOul Nerd Font');
+    expect(fontFamily).toContain('IosevkaNerdFontMono-Regular');
   });
 });
 
@@ -160,7 +182,18 @@ test.describe('font selection: xterm-dev', () => {
 // ghostty (uses the shared webServer from playwright.config.ts at port 4023)
 // ---------------------------------------------------------------------------
 test.describe('font selection: ghostty', () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, context }) => {
+    await context.clearCookies();
+    await page.addInitScript(() => {
+      const settings = {
+        fontSource: 'bundled',
+        fontFamily: 'IosevkaNerdFontMono-Regular',
+        fontSize: 18,
+        lineHeight: 1.125
+      };
+      document.cookie = `tmux-web-settings=${encodeURIComponent(JSON.stringify(settings))}; path=/;`;
+      localStorage.clear();
+    });
     await injectWsSpy(page);
     await mockApis(page, ['main'], []);
     await page.goto('/main');
@@ -170,7 +203,7 @@ test.describe('font selection: ghostty', () => {
 
   test('default load: @font-face injected with correct woff2 URL', async ({ page }) => {
     const rule = await getBundledFontStyle(page);
-    expect(rule).toContain('mOsOul Nerd Font');
+    expect(rule).toContain('IosevkaNerdFontMono-Regular');
     expect(rule).toMatch(/\/fonts\/.+\.woff2/);
   });
 
@@ -178,9 +211,9 @@ test.describe('font selection: ghostty', () => {
     // ghostty-web expects a bare font name, not a CSS stack — this verifies the
     // @font-face declaration was injected and the woff2 was actually fetched.
     await page.waitForFunction(
-      () => document.fonts.check('16px "mOsOul Nerd Font"'),
+      () => document.fonts.check('18px "IosevkaNerdFontMono-Regular"'),
       { timeout: 5000 },
     );
-    expect(await isFontLoaded(page, 'mOsOul Nerd Font')).toBe(true);
+    expect(await isFontLoaded(page, 'IosevkaNerdFontMono-Regular')).toBe(true);
   });
 });

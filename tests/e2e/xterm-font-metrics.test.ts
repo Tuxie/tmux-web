@@ -86,7 +86,7 @@ test.describe('xterm-dev font changes', () => {
     // Get a different font
     const otherFont = await page.evaluate(() => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('mOsOul'))?.value ?? '';
+      return Array.from(sel.options).find(o => !o.value.includes('IosevkaNerdFontMono-Regular'))?.value ?? '';
     });
     expect(otherFont).toBeTruthy();
 
@@ -127,7 +127,7 @@ test.describe('xterm-dev font changes', () => {
     // Get a different font
     const otherFont = await page.evaluate(() => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('mOsOul'))?.value ?? '';
+      return Array.from(sel.options).find(o => !o.value.includes('IosevkaNerdFontMono-Regular'))?.value ?? '';
     });
 
     // Change font
@@ -159,7 +159,7 @@ test.describe('xterm-dev font changes', () => {
     const fonts = await page.evaluate(() => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
       return Array.from(sel.options)
-        .filter(o => !o.value.includes('mOsOul'))
+        .filter(o => !o.value.includes('IosevkaNerdFontMono-Regular'))
         .slice(0, 2)
         .map(o => o.value);
     });

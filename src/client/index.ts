@@ -24,7 +24,7 @@ async function loadBundledFont(fontName: string): Promise<void> {
     document.head.appendChild(style);
   }
   style.textContent = `@font-face { font-family: "${fontName}"; src: url("${url}") format("woff2"); }`;
-  try { await document.fonts.load(`16px "${fontName}"`); } catch { /* ignore */ }
+  try { await document.fonts.load(`18px "${fontName}"`); } catch { /* ignore */ }
 }
 
 async function loadGoogleFont(fontName: string): Promise<void> {
@@ -44,7 +44,7 @@ async function loadGoogleFont(fontName: string): Promise<void> {
       setTimeout(resolve, 3000);
     });
   }
-  try { await document.fonts.load(`16px "${fontName}"`); } catch { /* ignore */ }
+  try { await document.fonts.load(`18px "${fontName}"`); } catch { /* ignore */ }
 }
 
 function fontFamilyCss(s: TerminalSettings): string {

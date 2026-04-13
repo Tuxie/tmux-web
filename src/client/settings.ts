@@ -19,8 +19,8 @@ export interface TerminalSettings {
 
 export const DEFAULT_SETTINGS: TerminalSettings = {
   fontSource: 'bundled',
-  fontFamily: 'mOsOul Nerd Font',
-  fontSize: 16,
+  fontFamily: 'IosevkaNerdFontMono-Regular',
+  fontSize: 18,
   lineHeight: 1.125,  // matches old lineHeightPadding:2 at fontSize 16
 };
 
