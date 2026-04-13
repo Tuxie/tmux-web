@@ -24,7 +24,7 @@ function parseListenAddr(addr: string): { host: string; port: number } {
   return { host: addr.slice(0, i), port: Number(addr.slice(i + 1)) };
 }
 
-async function main() {
+async function startServer() {
   const { values: args } = parseArgs({
     options: {
       listen:       { type: 'string',  short: 'l', default: `${DEFAULT_HOST}:${DEFAULT_PORT}` },
@@ -70,10 +70,7 @@ Options:
     debug: !!args.debug,
   };
 
-  // Resolve paths — detect compiled Bun binary vs dev mode
   const isCompiled = !process.execPath.endsWith('bun') && !process.execPath.endsWith('bun.exe');
-  // In dev: import.meta.dir = /src/tmux-web/src/server → projectRoot = /src/tmux-web
-  // In compiled binary: look for assets next to the binary, fallback to /usr/local/share/tmux-web
   let projectRoot = isCompiled ? path.dirname(process.execPath) : path.resolve(import.meta.dir, '../..');
 
   const tmuxConfPath = path.join(projectRoot, 'tmux.conf');
@@ -84,16 +81,11 @@ Options:
   let ghosttyWasmPath: string | undefined;
   let ghosttyDistDir: string | undefined;
 
-  // Always try to set up ghostty-web support.
-  // Search order:
-  // 1. Next to the binary (installed/compiled mode)
-  // 2. In node_modules (dev mode)
   const searchPaths = [
     projectRoot,
     path.join(projectRoot, 'node_modules/ghostty-web'),
   ];
 
-  // Add path from require.resolve if available
   try {
     const ghosttyPkgDir = path.dirname(require.resolve('ghostty-web/package.json'));
     searchPaths.push(ghosttyPkgDir);
@@ -109,10 +101,9 @@ Options:
     }
   }
 
-  // Support embedded assets for template and config
   let htmlTemplate: string;
   const embeddedHtmlPath = embeddedAssets['src/client/index.html'];
-  if (embeddedHtmlPath && await Bun.file(embeddedHtmlPath).exists()) {
+  if (embeddedHtmlPath) {
     htmlTemplate = await Bun.file(embeddedHtmlPath).text();
   } else {
     htmlTemplate = fs.readFileSync(htmlTemplatePath, 'utf-8');
@@ -120,8 +111,7 @@ Options:
 
   let effectiveTmuxConfPath = tmuxConfPath;
   const embeddedTmuxConfPath = embeddedAssets['tmux.conf'];
-  if (embeddedTmuxConfPath && await Bun.file(embeddedTmuxConfPath).exists()) {
-    // If embedded, we MUST write it to a temp file because tmux needs a real path
+  if (embeddedTmuxConfPath) {
     const tmpPath = path.join(require('os').tmpdir(), `tmux-web-embedded-${Date.now()}.conf`);
     fs.writeFileSync(tmpPath, await Bun.file(embeddedTmuxConfPath).text());
     effectiveTmuxConfPath = tmpPath;
@@ -136,13 +126,13 @@ Options:
       const p = path.join(fallback, 'tmux.conf');
       if (fs.existsSync(p)) {
         effectiveTmuxConfPath = p;
-        projectRoot = fallback; // Update projectRoot for other assets
+        projectRoot = fallback;
         break;
       }
     }
   }
 
-  const handler = await createHttpHandler({
+  const handler = createHttpHandler({
     config,
     htmlTemplate,
     distDir,
@@ -179,7 +169,7 @@ Options:
   });
 }
 
-main().catch(err => {
+startServer().catch(err => {
   console.error(err);
   process.exit(1);
 });
