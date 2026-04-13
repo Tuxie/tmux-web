@@ -16,23 +16,32 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const require = createRequire(import.meta.url);
 
-const { values: args } = parseArgs({
-  options: {
-    listen:       { type: 'string',  short: 'l', default: `${DEFAULT_HOST}:${DEFAULT_PORT}` },
-    terminal:     { type: 'string',  default: DEFAULT_TERMINAL },
-    'allow-ip':   { type: 'string',  multiple: true, default: [] as string[] },
-    tls:          { type: 'boolean', default: false },
-    'tls-cert':   { type: 'string' },
-    'tls-key':    { type: 'string' },
-    test:         { type: 'boolean', short: 't', default: false },
-    debug:        { type: 'boolean', short: 'd', default: false },
-    help:         { type: 'boolean', short: 'h', default: false },
-  },
-  strict: true,
-});
+function parseListenAddr(addr: string): { host: string; port: number } {
+  const ipv6 = addr.match(/^\[(.+)\]:(\d+)$/);
+  if (ipv6) return { host: ipv6[1]!, port: Number(ipv6[2]!) };
+  const i = addr.lastIndexOf(':');
+  if (i < 0) return { host: DEFAULT_HOST, port: Number(addr) };
+  return { host: addr.slice(0, i), port: Number(addr.slice(i + 1)) };
+}
 
-if (args.help) {
-  console.log(`Usage: tmux-web [options]
+async function main() {
+  const { values: args } = parseArgs({
+    options: {
+      listen:       { type: 'string',  short: 'l', default: `${DEFAULT_HOST}:${DEFAULT_PORT}` },
+      terminal:     { type: 'string',  default: DEFAULT_TERMINAL },
+      'allow-ip':   { type: 'string',  multiple: true, default: [] as string[] },
+      tls:          { type: 'boolean', default: false },
+      'tls-cert':   { type: 'string' },
+      'tls-key':    { type: 'string' },
+      test:         { type: 'boolean', short: 't', default: false },
+      debug:        { type: 'boolean', short: 'd', default: false },
+      help:         { type: 'boolean', short: 'h', default: false },
+    },
+    strict: true,
+  });
+
+  if (args.help) {
+    console.log(`Usage: tmux-web [options]
 
 Options:
   -l, --listen <host:port>     Address to listen on (default: ${DEFAULT_HOST}:${DEFAULT_PORT})
@@ -44,135 +53,133 @@ Options:
   -t, --test                   Test mode: use cat PTY, bypass IP allowlist
   -d, --debug                  Log debug messages to stderr
   -h, --help                   Show this help`);
-  process.exit(0);
-}
-
-function parseListenAddr(addr: string): { host: string; port: number } {
-  const ipv6 = addr.match(/^\[(.+)\]:(\d+)$/);
-  if (ipv6) return { host: ipv6[1]!, port: Number(ipv6[2]!) };
-  const i = addr.lastIndexOf(':');
-  if (i < 0) return { host: DEFAULT_HOST, port: Number(addr) };
-  return { host: addr.slice(0, i), port: Number(addr.slice(i + 1)) };
-}
-
-const { host, port } = parseListenAddr(args.listen!);
-
-const config: ServerConfig = {
-  host,
-  port,
-  terminal: (args.terminal as TerminalBackend) || DEFAULT_TERMINAL,
-  allowedIps: new Set(args['allow-ip'] as string[]),
-  tls: !!args.tls,
-  tlsCert: args['tls-cert'] as string | undefined,
-  tlsKey: args['tls-key'] as string | undefined,
-  testMode: !!args.test,
-  debug: !!args.debug,
-};
-
-// Resolve paths — detect compiled Bun binary vs dev mode
-const isCompiled = !process.execPath.endsWith('bun') && !process.execPath.endsWith('bun.exe');
-// In dev: import.meta.dir = /src/tmux-web/src/server → projectRoot = /src/tmux-web
-// In compiled binary: look for assets next to the binary, fallback to /usr/local/share/tmux-web
-let projectRoot = isCompiled ? path.dirname(process.execPath) : path.resolve(import.meta.dir, '../..');
-
-const tmuxConfPath = path.join(projectRoot, 'tmux.conf');
-const htmlTemplatePath = path.join(projectRoot, 'src/client/index.html');
-const distDir = path.join(projectRoot, 'dist');
-const fontsDir = path.join(projectRoot, 'fonts');
-
-let ghosttyWasmPath: string | undefined;
-let ghosttyDistDir: string | undefined;
-
-// Always try to set up ghostty-web support.
-// Search order:
-// 1. Next to the binary (installed/compiled mode)
-// 2. In node_modules (dev mode)
-const searchPaths = [
-  projectRoot,
-  path.join(projectRoot, 'node_modules/ghostty-web'),
-];
-
-// Add path from require.resolve if available
-try {
-  const ghosttyPkgDir = path.dirname(require.resolve('ghostty-web/package.json'));
-  searchPaths.push(ghosttyPkgDir);
-} catch {}
-
-for (const searchPath of searchPaths) {
-  const wasm = path.join(searchPath, 'ghostty-vt.wasm');
-  const dist = path.join(searchPath, 'dist');
-  if (fs.existsSync(wasm)) {
-    ghosttyWasmPath = wasm;
-    ghosttyDistDir = fs.existsSync(dist) ? dist : undefined;
-    break;
+    process.exit(0);
   }
-}
 
-// Support embedded assets for template and config
-let htmlTemplate: string;
-const embeddedHtmlPath = embeddedAssets['src/client/index.html'];
-if (embeddedHtmlPath && await Bun.file(embeddedHtmlPath).exists()) {
-  htmlTemplate = await Bun.file(embeddedHtmlPath).text();
-} else {
-  htmlTemplate = fs.readFileSync(htmlTemplatePath, 'utf-8');
-}
+  const { host, port } = parseListenAddr(args.listen!);
 
-let effectiveTmuxConfPath = tmuxConfPath;
-const embeddedTmuxConfPath = embeddedAssets['tmux.conf'];
-if (embeddedTmuxConfPath && await Bun.file(embeddedTmuxConfPath).exists()) {
-  // If embedded, we MUST write it to a temp file because tmux needs a real path
-  const tmpPath = path.join(require('os').tmpdir(), `tmux-web-embedded-${Date.now()}.conf`);
-  fs.writeFileSync(tmpPath, await Bun.file(embeddedTmuxConfPath).text());
-  effectiveTmuxConfPath = tmpPath;
-  process.on('exit', () => { try { fs.unlinkSync(tmpPath); } catch {} });
-} else if (isCompiled && !fs.existsSync(tmuxConfPath)) {
-  const fallbacks = [
-    '/usr/local/share/tmux-web',
-    '/usr/share/tmux-web',
-    path.join(path.dirname(projectRoot), 'share/tmux-web'),
+  const config: ServerConfig = {
+    host,
+    port,
+    terminal: (args.terminal as TerminalBackend) || DEFAULT_TERMINAL,
+    allowedIps: new Set(args['allow-ip'] as string[]),
+    tls: !!args.tls,
+    tlsCert: args['tls-cert'] as string | undefined,
+    tlsKey: args['tls-key'] as string | undefined,
+    testMode: !!args.test,
+    debug: !!args.debug,
+  };
+
+  // Resolve paths — detect compiled Bun binary vs dev mode
+  const isCompiled = !process.execPath.endsWith('bun') && !process.execPath.endsWith('bun.exe');
+  // In dev: import.meta.dir = /src/tmux-web/src/server → projectRoot = /src/tmux-web
+  // In compiled binary: look for assets next to the binary, fallback to /usr/local/share/tmux-web
+  let projectRoot = isCompiled ? path.dirname(process.execPath) : path.resolve(import.meta.dir, '../..');
+
+  const tmuxConfPath = path.join(projectRoot, 'tmux.conf');
+  const htmlTemplatePath = path.join(projectRoot, 'src/client/index.html');
+  const distDir = path.join(projectRoot, 'dist');
+  const fontsDir = path.join(projectRoot, 'fonts');
+
+  let ghosttyWasmPath: string | undefined;
+  let ghosttyDistDir: string | undefined;
+
+  // Always try to set up ghostty-web support.
+  // Search order:
+  // 1. Next to the binary (installed/compiled mode)
+  // 2. In node_modules (dev mode)
+  const searchPaths = [
+    projectRoot,
+    path.join(projectRoot, 'node_modules/ghostty-web'),
   ];
-  for (const fallback of fallbacks) {
-    const p = path.join(fallback, 'tmux.conf');
-    if (fs.existsSync(p)) {
-      effectiveTmuxConfPath = p;
-      projectRoot = fallback;
+
+  // Add path from require.resolve if available
+  try {
+    const ghosttyPkgDir = path.dirname(require.resolve('ghostty-web/package.json'));
+    searchPaths.push(ghosttyPkgDir);
+  } catch {}
+
+  for (const searchPath of searchPaths) {
+    const wasm = path.join(searchPath, 'ghostty-vt.wasm');
+    const dist = path.join(searchPath, 'dist');
+    if (fs.existsSync(wasm)) {
+      ghosttyWasmPath = wasm;
+      ghosttyDistDir = fs.existsSync(dist) ? dist : undefined;
       break;
     }
   }
-}
 
-const handler = createHttpHandler({
-  config,
-  htmlTemplate,
-  distDir,
-  fontsDir,
-  projectRoot,
-  ghosttyDistDir,
-  ghosttyWasmPath,
-  isCompiled,
-});
-
-let server: http.Server | https.Server;
-
-if (config.tls) {
-  let cert: string;
-  let key: string;
-  if (config.tlsCert && config.tlsKey) {
-    cert = fs.readFileSync(config.tlsCert, 'utf-8');
-    key = fs.readFileSync(config.tlsKey, 'utf-8');
+  // Support embedded assets for template and config
+  let htmlTemplate: string;
+  const embeddedHtmlPath = embeddedAssets['src/client/index.html'];
+  if (embeddedHtmlPath && await Bun.file(embeddedHtmlPath).exists()) {
+    htmlTemplate = await Bun.file(embeddedHtmlPath).text();
   } else {
-    const generated = generateSelfSignedCert();
-    cert = generated.cert;
-    key = generated.key;
+    htmlTemplate = fs.readFileSync(htmlTemplatePath, 'utf-8');
   }
-  server = https.createServer({ cert, key }, handler);
-} else {
-  server = http.createServer(handler);
+
+  let effectiveTmuxConfPath = tmuxConfPath;
+  const embeddedTmuxConfPath = embeddedAssets['tmux.conf'];
+  if (embeddedTmuxConfPath && await Bun.file(embeddedTmuxConfPath).exists()) {
+    // If embedded, we MUST write it to a temp file because tmux needs a real path
+    const tmpPath = path.join(require('os').tmpdir(), `tmux-web-embedded-${Date.now()}.conf`);
+    fs.writeFileSync(tmpPath, await Bun.file(embeddedTmuxConfPath).text());
+    effectiveTmuxConfPath = tmpPath;
+    process.on('exit', () => { try { fs.unlinkSync(tmpPath); } catch {} });
+  } else if (isCompiled && !fs.existsSync(tmuxConfPath)) {
+    const fallbacks = [
+      '/usr/local/share/tmux-web',
+      '/usr/share/tmux-web',
+      path.join(path.dirname(projectRoot), 'share/tmux-web'),
+    ];
+    for (const fallback of fallbacks) {
+      const p = path.join(fallback, 'tmux.conf');
+      if (fs.existsSync(p)) {
+        effectiveTmuxConfPath = p;
+        projectRoot = fallback; // Update projectRoot for other assets
+        break;
+      }
+    }
+  }
+
+  const handler = await createHttpHandler({
+    config,
+    htmlTemplate,
+    distDir,
+    fontsDir,
+    projectRoot,
+    ghosttyDistDir,
+    ghosttyWasmPath,
+    isCompiled,
+  });
+
+  let server: http.Server | https.Server;
+
+  if (config.tls) {
+    let cert: string;
+    let key: string;
+    if (config.tlsCert && config.tlsKey) {
+      cert = fs.readFileSync(config.tlsCert, 'utf-8');
+      key = fs.readFileSync(config.tlsKey, 'utf-8');
+    } else {
+      const generated = generateSelfSignedCert();
+      cert = generated.cert;
+      key = generated.key;
+    }
+    server = https.createServer({ cert, key }, handler);
+  } else {
+    server = http.createServer(handler);
+  }
+
+  createWsServer(server, { config, tmuxConfPath: effectiveTmuxConfPath });
+
+  const scheme = config.tls ? 'https' : 'http';
+  server.listen(port, host, () => {
+    console.log(`tmux-web listening on ${scheme}://${host}:${port} (terminal: ${config.terminal})`);
+  });
 }
 
-createWsServer(server, { config, tmuxConfPath: effectiveTmuxConfPath });
-
-const scheme = config.tls ? 'https' : 'http';
-server.listen(port, host, () => {
-  console.log(`tmux-web listening on ${scheme}://${host}:${port} (terminal: ${config.terminal})`);
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
 });

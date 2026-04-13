@@ -49,7 +49,7 @@ src/server/assets-embedded.ts: build tmux.conf bun-build.ts scripts/generate-ass
 	$(BUN) run scripts/generate-assets.ts
 
 tmux-web: build src/server/assets-embedded.ts
-	$(BUN) build src/server/index.ts --compile --minify --outfile tmux-web
+	$(BUN) build src/server/index.ts --compile --minify --sourcemap --bytecode --outfile tmux-web
 
 install: tmux-web
 	mkdir -p $(DESTDIR)$(BINDIR)
