@@ -320,7 +320,7 @@ test.describe('terminal backend selection with real server', () => {
   test.beforeAll(async () => {
     server = await startServer(
       'bun',
-      ['src/server/index.ts', '--test', `--listen=127.0.0.1:${PORT}`, '--terminal=ghostty'],
+      ['src/server/index.ts', '--test', `--listen=127.0.0.1:${PORT}`, '--no-auth', '--terminal=ghostty'],
     );
   });
 
@@ -417,7 +417,7 @@ test.describe('terminal backend selection starting with xterm', () => {
   test.beforeAll(async () => {
     server = await startServer(
       'bun',
-      ['src/server/index.ts', '--test', `--listen=127.0.0.1:${PORT}`, '--terminal=xterm'],
+      ['src/server/index.ts', '--test', `--listen=127.0.0.1:${PORT}`, '--no-auth', '--terminal=xterm'],
     );
   });
 
@@ -470,7 +470,7 @@ test.describe('terminal backend selection starting with xterm-dev', () => {
   test.beforeAll(async () => {
     server = await startServer(
       'bun',
-      ['src/server/index.ts', '--test', `--listen=127.0.0.1:${PORT}`, '--terminal=xterm-dev'],
+      ['src/server/index.ts', '--test', `--listen=127.0.0.1:${PORT}`, '--no-auth', '--terminal=xterm-dev'],
     );
   });
 

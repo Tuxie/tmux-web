@@ -59,6 +59,11 @@ export interface ServerConfig {
   tlsKey?: string;
   testMode: boolean;
   debug: boolean;
+  auth: {
+    enabled: boolean;
+    username?: string;
+    password?: string;
+  };
 }
 
 /** Config injected into the HTML page for the client. */

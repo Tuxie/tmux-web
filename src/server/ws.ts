@@ -9,6 +9,7 @@ import type { ServerConfig, WindowInfo } from '../shared/types.js';
 import { processData, frameTTMessage } from './protocol.js';
 import { buildPtyCommand, buildPtyEnv, spawnPty, sanitizeSession } from './pty.js';
 import { isAllowed } from './allowlist.js';
+import { isAuthorized } from './http.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -32,10 +33,18 @@ export function createWsServer(
     const remoteIp = (socket as any).remoteAddress || '';
     debug(config, `WS upgrade from ${remoteIp}`);
     if (!config.testMode && !isAllowed(remoteIp, config.allowedIps)) {
-      debug(config, `WS upgrade from ${remoteIp} - rejected`);
+      debug(config, `WS upgrade from ${remoteIp} - rejected (IP)`);
       socket.destroy();
       return;
     }
+
+    if (!isAuthorized(req, config)) {
+      debug(config, `WS upgrade from ${remoteIp} - unauthorized`);
+      socket.write('HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm="tmux-web"\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     if (url.pathname.startsWith('/ws')) {
       debug(config, `WS upgrade from ${remoteIp} - allowed`);

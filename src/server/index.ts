@@ -5,6 +5,7 @@ import path from 'path';
 import { parseArgs } from 'util';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
+import { userInfo } from 'os';
 import { createHttpHandler } from './http.js';
 import { createWsServer } from './ws.js';
 import { generateSelfSignedCert } from './tls.js';
@@ -30,6 +31,9 @@ async function startServer() {
       listen:       { type: 'string',  short: 'l', default: `${DEFAULT_HOST}:${DEFAULT_PORT}` },
       terminal:     { type: 'string',  default: DEFAULT_TERMINAL },
       'allow-ip':   { type: 'string',  multiple: true, default: [] as string[] },
+      username:     { type: 'string' },
+      password:     { type: 'string' },
+      'no-auth':    { type: 'boolean', default: false },
       tls:          { type: 'boolean', default: false },
       'tls-cert':   { type: 'string' },
       'tls-key':    { type: 'string' },
@@ -45,8 +49,11 @@ async function startServer() {
 
 Options:
   -l, --listen <host:port>     Address to listen on (default: ${DEFAULT_HOST}:${DEFAULT_PORT})
-      --terminal <backend>     Terminal backend: ghostty, xterm, xterm-dev (default: ghostty)
+      --terminal <backend>     Terminal backend: ghostty, xterm (default: ghostty)
       --allow-ip <ip>          Allow IP address (repeatable; localhost always allowed)
+      --username <name>        HTTP Basic Auth username (default: $TMUX_WEB_USERNAME or current user)
+      --password <pass>        HTTP Basic Auth password (default: $TMUX_WEB_PASSWORD, required)
+      --no-auth                Disable HTTP Basic Auth
       --tls                    Enable HTTPS with self-signed certificate
       --tls-cert <path>        TLS certificate file (use with --tls-key)
       --tls-key <path>         TLS private key file (use with --tls-cert)
@@ -58,6 +65,15 @@ Options:
 
   const { host, port } = parseListenAddr(args.listen!);
 
+  const authEnabled = !args['no-auth'];
+  const username = args.username || process.env.TMUX_WEB_USERNAME || userInfo().username;
+  const password = args.password || process.env.TMUX_WEB_PASSWORD;
+
+  if (authEnabled && !password) {
+    console.error('Error: --password or $TMUX_WEB_PASSWORD is required unless --no-auth is used.');
+    process.exit(1);
+  }
+
   const config: ServerConfig = {
     host,
     port,
@@ -68,6 +84,11 @@ Options:
     tlsKey: args['tls-key'] as string | undefined,
     testMode: !!args.test,
     debug: !!args.debug,
+    auth: {
+      enabled: authEnabled,
+      username,
+      password,
+    },
   };
 
   const isCompiled = !process.execPath.endsWith('bun') && !process.execPath.endsWith('bun.exe');
@@ -132,7 +153,7 @@ Options:
     }
   }
 
-  const handler = createHttpHandler({
+  const handler = await createHttpHandler({
     config,
     htmlTemplate,
     distDir,

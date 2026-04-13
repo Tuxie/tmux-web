@@ -117,6 +117,25 @@ function getTerminalVersions(projectRoot: string): Record<string, string> {
   return versions;
 }
 
+export function isAuthorized(req: IncomingMessage, config: ServerConfig): boolean {
+  if (!config.auth.enabled) return true;
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return false;
+
+  const match = authHeader.match(/^Basic (.+)$/i);
+  if (!match) return false;
+
+  const credentials = Buffer.from(match[1]!, 'base64').toString('utf8');
+  const index = credentials.indexOf(':');
+  if (index < 0) return false;
+
+  const user = credentials.slice(0, index);
+  const pass = credentials.slice(index + 1);
+
+  return user === config.auth.username && pass === config.auth.password;
+}
+
 export function createHttpHandler(opts: HttpHandlerOptions) {
   const { config, distDir } = opts;
 
@@ -144,11 +163,19 @@ export function createHttpHandler(opts: HttpHandlerOptions) {
   return async (req: IncomingMessage, res: ServerResponse) => {
     const remoteIp = req.socket.remoteAddress || '';
     if (!config.testMode && !isAllowed(remoteIp, config.allowedIps)) {
-      debug(config, `HTTP ${req.method} ${req.url} from ${remoteIp} - rejected`);
+      debug(config, `HTTP ${req.method} ${req.url} from ${remoteIp} - rejected (IP)`);
       res.writeHead(403);
       res.end('Forbidden');
       return;
     }
+
+    if (!isAuthorized(req, config)) {
+      debug(config, `HTTP ${req.method} ${req.url} from ${remoteIp} - unauthorized`);
+      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="tmux-web"' });
+      res.end('Unauthorized');
+      return;
+    }
+
     debug(config, `HTTP ${req.method} ${req.url} from ${remoteIp}`);
 
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);

@@ -17,7 +17,7 @@ all: tmux-web
 
 dev:
 	$(BUN) bun-build.ts --watch &
-	$(BUN) --watch src/server/index.ts
+	$(BUN) --watch src/server/index.ts --no-auth
 
 # --- Build ---
 
