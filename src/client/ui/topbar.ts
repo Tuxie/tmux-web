@@ -385,6 +385,18 @@ export class Topbar {
       });
       this.winTabs.appendChild(btn);
     }
+
+    // Add [+] button to create a new window
+    const addBtn = document.createElement('button');
+    addBtn.className = 'tb-btn';
+    addBtn.textContent = '+';
+    addBtn.title = 'New Window';
+    addBtn.style.marginLeft = '2px';
+    addBtn.style.fontWeight = 'bold';
+    addBtn.addEventListener('click', () => {
+      this.opts.send('\x13\x03'); // Ctrl-S Ctrl-C (Prefix + C-c)
+    });
+    this.winTabs.appendChild(addBtn);
   }
 
   updateSession(session: string): void {
