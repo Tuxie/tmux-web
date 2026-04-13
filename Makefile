@@ -9,7 +9,7 @@ SHAREDIR  = $(PREFIX)/share/tmux-web
 SRCS_CLIENT := $(shell find src/client src/shared -name "*.ts") bun-build.ts
 SRCS_SERVER := $(shell find src/server src/shared -name "*.ts")
 
-.PHONY: all dev clean test test-unit test-e2e test-e2e-headed vendor install
+.PHONY: all dev clean test test-unit test-e2e test-e2e-headed vendor install build build-client build-server
 
 all: tmux-web
 
@@ -37,18 +37,18 @@ test: test-unit test-e2e
 test-unit:
 	$(BUN) test
 
-test-e2e: build
+test-e2e: dist/client/ghostty.js
 	node node_modules/.bin/playwright test
 
-test-e2e-headed: build
+test-e2e-headed: dist/client/ghostty.js
 	node node_modules/.bin/playwright test --headed
 
 # --- Production binary ---
 
-src/server/assets-embedded.ts: build tmux.conf bun-build.ts scripts/generate-assets.ts
+src/server/assets-embedded.ts: dist/client/ghostty.js tmux.conf bun-build.ts scripts/generate-assets.ts
 	$(BUN) run scripts/generate-assets.ts
 
-tmux-web: build src/server/assets-embedded.ts
+tmux-web: $(SRCS_SERVER) src/server/assets-embedded.ts
 	$(BUN) build src/server/index.ts --compile --minify --sourcemap --bytecode --outfile tmux-web
 
 install: tmux-web
