@@ -1,6 +1,6 @@
 {
   "name": "tmux-web",
-  "version": "0.9.10",
+  "version": "1.0.0",
   "type": "module",
   "private": true,
   "description": "Browser-based tmux frontend with multiple terminal backends",

@@ -21,7 +21,7 @@ export const DEFAULT_SETTINGS: TerminalSettings = {
   fontSource: 'bundled',
   fontFamily: 'Iosevka Nerd Font Mono',
   fontSize: 18,
-  lineHeight: 1.125,  // matches old lineHeightPadding:2 at fontSize 16
+  lineHeight: 0.85,
 };
 
 const COOKIE_NAME = 'tmux-web-settings';

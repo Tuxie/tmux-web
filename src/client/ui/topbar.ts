@@ -69,6 +69,13 @@ export class Topbar {
     const menuWrap = document.getElementById('menu-wrap') as HTMLElement;
     const menuBtn = document.getElementById('btn-menu') as HTMLButtonElement;
     const dropdown = document.getElementById('menu-dropdown') as HTMLElement;
+    const footerLeft = document.getElementById('menu-footer-left');
+    const footerRight = document.getElementById('menu-footer-right');
+    if (footerLeft && footerRight) {
+      const version = (window as any).__TMUX_WEB_CONFIG?.version ?? '';
+      footerLeft.textContent = `tmux-web v${version}`;
+      footerRight.textContent = '© Per Wigren <per@wigren.eu>';
+    }
 
     // Reopen the menu if a settings-change reload happened while it was open
     // menu-reopen flag is consumed synchronously by an inline <script> in index.html
@@ -91,6 +98,7 @@ export class Topbar {
         chkFs.checked = !!document.fullscreenElement;
       } else {
         this.opts.focus();
+        this.show();
       }
     });
 
@@ -101,6 +109,7 @@ export class Topbar {
       if (!dropdown.hidden && !menuWrap.contains(ev.target as Node)) {
         dropdown.hidden = true;
         this.opts.focus();
+        this.show();
       }
     });
   }

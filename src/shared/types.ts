@@ -71,4 +71,5 @@ export interface ServerConfig {
 /** Config injected into the HTML page for the client. */
 export interface ClientConfig {
   terminal: TerminalBackend;
+  version: string;
 }

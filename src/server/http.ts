@@ -8,6 +8,7 @@ import { MIME_TYPES } from '../shared/constants.js';
 import type { ServerConfig, TerminalBackend } from '../shared/types.js';
 import { isAllowed } from './allowlist.js';
 import { embeddedAssets } from './assets-embedded.js';
+import pkg from '../../package.json' with { type: 'json' };
 
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
@@ -155,7 +156,7 @@ export function createHttpHandler(opts: HttpHandlerOptions) {
   const makeHtml = (req: IncomingMessage) => {
     const terminal = getEffectiveTerminal(req);
     return opts.htmlTemplate
-      .replace('<!-- __CONFIG__ -->', `<script>window.__TMUX_WEB_CONFIG = ${JSON.stringify({ terminal })}</script>`)
+      .replace('<!-- __CONFIG__ -->', `<script>window.__TMUX_WEB_CONFIG = ${JSON.stringify({ terminal, version: pkg.version })}</script>`)
       .replace('__BUNDLE__', `/dist/client/${bundleName(terminal)}`);
   };
 
