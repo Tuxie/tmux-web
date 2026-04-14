@@ -67,6 +67,8 @@ The binary embeds the client bundle, fonts, and default `tmux.conf`. It can be c
 --no-tls                 Disable HTTPS and fallback to HTTP
 --tls-cert <file>        Use a specific TLS certificate
 --tls-key <file>         Use a specific TLS private key
+--tmux <path>            Path to tmux executable (default: tmux)
+--tmux-conf <path>       Alternative tmux.conf to load instead of user default
 --test                   Test mode: `cat` instead of tmux, bypass IP allowlist
 ```
 
@@ -92,7 +94,7 @@ source-file -q ~/.config/tmux/tmux.conf
 source-file -q ~/.tmux.conf
 ```
 
-Your existing tmux configuration keeps working; tmux-web simply ensures the required options are set first.
+Your existing tmux configuration keeps working; tmux-web simply ensures the required options are set first. You can also specify an alternative config to source using `--tmux-conf <path>`, which replaces the default `source-file` commands. To use a specific tmux executable, pass `--tmux <path>`.
 
 ## Security
 

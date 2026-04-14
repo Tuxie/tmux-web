@@ -7,7 +7,7 @@ Browser-based tmux frontend. Support ghostty-web + xterm.js backends. Run as sys
 - **Server** — TypeScript, Bun runtime (`src/server/`)
 - **Client** — TypeScript, bundle via `bun-build.ts` (`src/client/`)
 - **Terminal backends** — ghostty-web 0.4.0, xterm.js 6.0.0
-- **PTY** — Bun native `Bun.spawn` with `terminal` support, spawn `tmux -f tmux.conf`
+- **PTY** — Bun native `Bun.spawn` with `terminal` support, spawn `tmux -f tmux.conf` (or custom `--tmux`)
 - **Auth** — HTTP Basic Auth (enabled by default) + IP allowlist via `--allow-ip`
 - **TLS** — HTTPS enabled by default (self-signed or custom cert)
 
@@ -97,7 +97,7 @@ systemctl --user status tmux-web
 source-file -q ~/.config/tmux/tmux.conf
 source-file -q ~/.tmux.conf
 ```
-User override via own config. Server pass via `tmux -f <path>`.
+User override via own config. Server pass via `tmux -f <path>`. Alternative config can be supplied via `--tmux-conf`.
 
 ---
 

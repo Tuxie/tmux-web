@@ -230,7 +230,7 @@ export function createHttpHandler(opts: HttpHandlerOptions) {
 
     if (pathname === '/api/sessions') {
       try {
-        const { stdout } = await execFileAsync('tmux', ['list-sessions', '-F', '#{session_name}']);
+        const { stdout } = await execFileAsync(config.tmuxBin, ['list-sessions', '-F', '#{session_name}']);
         const sessions = stdout.trim().split('\n').filter(Boolean);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(sessions));
@@ -244,7 +244,7 @@ export function createHttpHandler(opts: HttpHandlerOptions) {
     if (pathname === '/api/windows') {
       const sess = url.searchParams.get('session') || 'main';
       try {
-        const { stdout } = await execFileAsync('tmux', [
+        const { stdout } = await execFileAsync(config.tmuxBin, [
           'list-windows', '-t', sess, '-F', '#{window_index}:#{window_name}:#{window_active}',
         ]);
         const windows = stdout.trim().split('\n').filter(Boolean).map(line => {

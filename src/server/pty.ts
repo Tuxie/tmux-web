@@ -10,6 +10,7 @@ export interface PtyCommandOptions {
   testMode: boolean;
   session: string;
   tmuxConfPath: string;
+  tmuxBin: string;
 }
 
 export function sanitizeSession(raw: string): string {
@@ -27,7 +28,7 @@ export function buildPtyCommand(opts: PtyCommandOptions): PtyCommand {
   }
   const session = sanitizeSession(opts.session);
   return {
-    file: 'tmux',
+    file: opts.tmuxBin,
     args: ['-f', opts.tmuxConfPath, 'new-session', '-A', '-s', session],
   };
 }

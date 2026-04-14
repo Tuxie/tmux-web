@@ -61,9 +61,9 @@ export function createWsServer(
   return wss;
 }
 
-async function sendWindowState(ws: WebSocket, sessionName: string): Promise<void> {
+async function sendWindowState(ws: WebSocket, sessionName: string, config: ServerConfig): Promise<void> {
   try {
-    const { stdout } = await execFileAsync('tmux', [
+    const { stdout } = await execFileAsync(config.tmuxBin, [
       'list-windows', '-t', sessionName, '-F', '#{window_index}:#{window_name}:#{window_active}',
     ]);
     const windows: WindowInfo[] = stdout.trim().split('\n').filter(Boolean).map(line => {
@@ -94,7 +94,7 @@ function handleConnection(
 
   debug(config, `WS connected from ${remoteIp} session=${session} cols=${cols} rows=${rows}`);
 
-  const command = buildPtyCommand({ testMode: config.testMode, session, tmuxConfPath });
+  const command = buildPtyCommand({ testMode: config.testMode, session, tmuxConfPath, tmuxBin: config.tmuxBin });
   const env = buildPtyEnv(config.terminal);
   const ptyProcess = spawnPty({ command, env, cols, rows, terminal: config.terminal });
   debug(config, `PTY spawned for session=${session} cmd=${command.file}`);
@@ -112,7 +112,7 @@ function handleConnection(
     if (result.titleChanged && result.detectedTitle !== lastTitle) {
       lastTitle = result.detectedTitle || '';
       if (result.detectedSession) lastSession = result.detectedSession;
-      sendWindowState(ws, lastSession);
+      sendWindowState(ws, lastSession, config);
     }
   });
 

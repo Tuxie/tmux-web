@@ -46,6 +46,8 @@ export function parseConfig(argv: string[]): ConfigResult {
       'no-tls':     { type: 'boolean', default: false },
       'tls-cert':   { type: 'string' },
       'tls-key':    { type: 'string' },
+      'tmux':       { type: 'string',  default: 'tmux' },
+      'tmux-conf':  { type: 'string' },
       test:         { type: 'boolean', short: 't', default: false },
       debug:        { type: 'boolean', short: 'd', default: false },
       help:         { type: 'boolean', short: 'h', default: false },
@@ -69,6 +71,8 @@ export function parseConfig(argv: string[]): ConfigResult {
     tls: !!args.tls && !args['no-tls'],
     tlsCert: args['tls-cert'] as string | undefined,
     tlsKey: args['tls-key'] as string | undefined,
+    tmuxBin: args.tmux as string,
+    tmuxConf: args['tmux-conf'] as string | undefined,
     testMode: !!args.test,
     debug: !!args.debug,
     auth: {
@@ -98,6 +102,8 @@ Options:
       --no-tls                 Disable HTTPS
       --tls-cert <path>        TLS certificate file (use with --tls-key)
       --tls-key <path>         TLS private key file (use with --tls-cert)
+      --tmux <path>            Path to tmux executable (default: tmux)
+      --tmux-conf <path>       Alternative tmux.conf to load instead of user default
   -t, --test                   Test mode: use cat PTY, bypass IP allowlist
   -d, --debug                  Log debug messages to stderr
   -h, --help                   Show this help`);
@@ -154,12 +160,13 @@ Options:
 
   let effectiveTmuxConfPath = tmuxConfPath;
   const embeddedTmuxConfPath = embeddedAssets['tmux.conf'];
+  let baseTmuxConfContent = '';
+
   if (embeddedTmuxConfPath) {
-    const tmpPath = path.join(require('os').tmpdir(), `tmux-web-embedded-${Date.now()}.conf`);
-    fs.writeFileSync(tmpPath, await Bun.file(embeddedTmuxConfPath).text());
-    effectiveTmuxConfPath = tmpPath;
-    process.on('exit', () => { try { fs.unlinkSync(tmpPath); } catch {} });
-  } else if (isCompiled && !fs.existsSync(tmuxConfPath)) {
+    baseTmuxConfContent = await Bun.file(embeddedTmuxConfPath).text();
+  } else if (fs.existsSync(tmuxConfPath)) {
+    baseTmuxConfContent = fs.readFileSync(tmuxConfPath, 'utf-8');
+  } else if (isCompiled) {
     const fallbacks = [
       '/usr/local/share/tmux-web',
       '/usr/share/tmux-web',
@@ -168,11 +175,24 @@ Options:
     for (const fallback of fallbacks) {
       const p = path.join(fallback, 'tmux.conf');
       if (fs.existsSync(p)) {
-        effectiveTmuxConfPath = p;
+        baseTmuxConfContent = fs.readFileSync(p, 'utf-8');
         projectRoot = fallback;
         break;
       }
     }
+  }
+
+  if (embeddedTmuxConfPath || config.tmuxConf) {
+    if (config.tmuxConf) {
+      baseTmuxConfContent = baseTmuxConfContent.replace(/^source-file -q .*$/gm, '');
+      baseTmuxConfContent += `\nsource-file -q ${config.tmuxConf}\n`;
+    }
+    const tmpPath = path.join(require('os').tmpdir(), `tmux-web-embedded-${Date.now()}.conf`);
+    fs.writeFileSync(tmpPath, baseTmuxConfContent);
+    effectiveTmuxConfPath = tmpPath;
+    process.on('exit', () => { try { fs.unlinkSync(tmpPath); } catch {} });
+  } else if (isCompiled && !fs.existsSync(tmuxConfPath)) {
+    effectiveTmuxConfPath = path.join(projectRoot, 'tmux.conf');
   }
 
   const handler = await createHttpHandler({

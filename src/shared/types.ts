@@ -59,6 +59,8 @@ export interface ServerConfig {
   tlsKey?: string;
   testMode: boolean;
   debug: boolean;
+  tmuxBin: string;
+  tmuxConf?: string;
   auth: {
     enabled: boolean;
     username?: string;

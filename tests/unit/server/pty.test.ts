@@ -22,21 +22,21 @@ describe('sanitizeSession', () => {
 
 describe('buildPtyCommand', () => {
   it('returns cat command in test mode', () => {
-    const cmd = buildPtyCommand({ testMode: true, session: 'main', tmuxConfPath: '/tmp/tmux.conf' });
+    const cmd = buildPtyCommand({ testMode: true, session: 'main', tmuxConfPath: '/tmp/tmux.conf', tmuxBin: 'tmux' });
     expect(cmd.file).toBe('cat');
     expect(cmd.args).toEqual([]);
   });
   it('returns tmux command with -f flag in production mode', () => {
-    const cmd = buildPtyCommand({ testMode: false, session: 'dev', tmuxConfPath: '/etc/tmux-web.conf' });
+    const cmd = buildPtyCommand({ testMode: false, session: 'dev', tmuxConfPath: '/etc/tmux-web.conf', tmuxBin: 'tmux' });
     expect(cmd.file).toBe('tmux');
     expect(cmd.args).toEqual(['-f', '/etc/tmux-web.conf', 'new-session', '-A', '-s', 'dev']);
   });
   it('sanitizes session name', () => {
-    const cmd = buildPtyCommand({ testMode: false, session: 'foo;rm', tmuxConfPath: '/tmp/t.conf' });
+    const cmd = buildPtyCommand({ testMode: false, session: 'foo;rm', tmuxConfPath: '/tmp/t.conf', tmuxBin: 'tmux' });
     expect(cmd.args.at(-1)).toBe('foorm');
   });
   it('defaults empty session to "main"', () => {
-    const cmd = buildPtyCommand({ testMode: false, session: '', tmuxConfPath: '/tmp/t.conf' });
+    const cmd = buildPtyCommand({ testMode: false, session: '', tmuxConfPath: '/tmp/t.conf', tmuxBin: 'tmux' });
     expect(cmd.args.at(-1)).toBe('main');
   });
 });
