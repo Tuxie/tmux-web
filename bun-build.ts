@@ -15,30 +15,68 @@ const commonOpts: BuildOptions = {
   external: ["/dist/ghostty-web.js"],
 };
 
+/**
+ * Build vendor/xterm.js bundles using bun from the vendor directory.
+ * Must run from vendor dir so bun picks up vendor's tsconfig.json which
+ * sets experimentalDecorators:true (required for xterm's DI parameter
+ * decorators — incompatible with bun's default TC39 stage-3 transform).
+ */
+function buildVendorXterm(vendorDir: string): void {
+  const buildEntry = (entry: string, outdir: string, name: string) => {
+    const result = Bun.spawnSync(
+      ["bun", "build", entry, "--outdir", outdir, "--minify", "--target", "browser", "--entry-naming", name],
+      { cwd: vendorDir, stdio: ["ignore", "inherit", "inherit"] }
+    );
+    if (result.exitCode !== 0) {
+      throw new Error(`vendor xterm build failed: ${entry}`);
+    }
+  };
+
+  buildEntry(
+    "src/browser/public/Terminal.ts",
+    "lib",
+    "xterm.mjs"
+  );
+  buildEntry(
+    "addons/addon-fit/src/FitAddon.ts",
+    "addons/addon-fit/lib",
+    "addon-fit.mjs"
+  );
+}
+
 async function buildClient() {
   const configs = [
     { name: "ghostty", outfile: "ghostty.js" },
   ];
 
   const vendorXtermDir = path.join(import.meta.dir, "vendor/xterm.js");
-  const hasVendorXterm = fs.existsSync(path.join(vendorXtermDir, "src/browser/public/Terminal.ts"));
+  const vendorXtermEntry = path.join(vendorXtermDir, "src/browser/public/Terminal.ts");
+  const vendorXtermMjs = path.join(vendorXtermDir, "lib/xterm.mjs");
+  const vendorFitMjs = path.join(vendorXtermDir, "addons/addon-fit/lib/addon-fit.mjs");
+  const hasVendorSrc = fs.existsSync(vendorXtermEntry);
 
   const plugins: BunPlugin[] = [];
-  if (hasVendorXterm) {
-    console.log(`Using vendor/xterm.js for xterm.js bundle`);
+
+  if (hasVendorSrc) {
+    // Build vendor bundle if not yet built or stale
+    if (!fs.existsSync(vendorXtermMjs) || !fs.existsSync(vendorFitMjs)) {
+      console.log("Building vendor/xterm.js with bun...");
+      buildVendorXterm(vendorXtermDir);
+    }
+    console.log("Using vendor/xterm.js pre-built bundles");
     plugins.push({
       name: "vendor-xterm",
       setup(builder) {
-        builder.onResolve({ filter: /^@xterm\/xterm$/ }, () => {
-          return { path: path.join(vendorXtermDir, "src/browser/public/Terminal.ts") };
-        });
-        builder.onResolve({ filter: /^@xterm\/addon-fit$/ }, () => {
-          return { path: path.join(vendorXtermDir, "addons/addon-fit/src/FitAddon.ts") };
-        });
+        builder.onResolve({ filter: /^@xterm\/xterm$/ }, () => ({
+          path: vendorXtermMjs,
+        }));
+        builder.onResolve({ filter: /^@xterm\/addon-fit$/ }, () => ({
+          path: vendorFitMjs,
+        }));
       }
     });
   } else {
-    console.log(`Using npm @xterm/xterm for xterm.js bundle`);
+    console.log("Using npm @xterm/xterm for xterm.js bundle");
   }
 
   // Build xterm.js
