@@ -1,9 +1,11 @@
 node_modules/
 dist/
 tmux-web
+index.js.map
 test-results/
 playwright-report/
 tmp/
+docs/superpowers/
 
 fonts/**
 !fonts/*.woff2
