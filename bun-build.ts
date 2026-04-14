@@ -80,29 +80,34 @@ async function buildClient() {
   const vendorFitMjs = path.join(vendorXtermDir, "addons/addon-fit/lib/addon-fit.mjs");
   const hasVendorSrc = fs.existsSync(vendorXtermEntry);
 
-  const plugins: BunPlugin[] = [];
-
-  if (hasVendorSrc) {
-    // Build vendor bundle if not yet built or stale
-    if (!fs.existsSync(vendorXtermMjs) || !fs.existsSync(vendorFitMjs)) {
-      console.log("Building vendor/xterm.js with bun...");
-      buildVendorXterm(vendorXtermDir);
-    }
-    console.log("Using vendor/xterm.js pre-built bundles");
-    plugins.push({
-      name: "vendor-xterm",
-      setup(builder) {
-        builder.onResolve({ filter: /^@xterm\/xterm$/ }, () => ({
-          path: vendorXtermMjs,
-        }));
-        builder.onResolve({ filter: /^@xterm\/addon-fit$/ }, () => ({
-          path: vendorFitMjs,
-        }));
-      }
-    });
-  } else {
-    console.log("Using npm @xterm/xterm for xterm.js bundle");
+  if (!hasVendorSrc) {
+    throw new Error(
+      "vendor/xterm.js submodule is missing. The release binary MUST use the vendored xterm.js, not the npm version. " +
+      "Run `git submodule update --init vendor/xterm.js` and try again."
+    );
   }
+
+  if (!fs.existsSync(vendorXtermMjs) || !fs.existsSync(vendorFitMjs)) {
+    console.log("Building vendor/xterm.js with bun...");
+    buildVendorXterm(vendorXtermDir);
+  }
+
+  const vendorRev = Bun.spawnSync(
+    ["git", "rev-parse", "HEAD"],
+    { cwd: vendorXtermDir, stdout: "pipe" }
+  ).stdout.toString().trim();
+  if (!/^[0-9a-f]{40}$/.test(vendorRev)) {
+    throw new Error(`failed to read vendor/xterm.js git HEAD: ${vendorRev}`);
+  }
+  console.log(`Using vendor/xterm.js pre-built bundles (rev ${vendorRev})`);
+
+  const plugins: BunPlugin[] = [{
+    name: "vendor-xterm",
+    setup(builder) {
+      builder.onResolve({ filter: /^@xterm\/xterm$/ }, () => ({ path: vendorXtermMjs }));
+      builder.onResolve({ filter: /^@xterm\/addon-fit$/ }, () => ({ path: vendorFitMjs }));
+    },
+  }];
 
   // Build xterm.js
   configs.push({ name: "xterm", outfile: "xterm.js" });
@@ -123,11 +128,16 @@ async function buildClient() {
     }
   }
 
-  // Copy xterm.css — prefer vendor copy, fall back to npm
-  const vendorCss = path.join(vendorXtermDir, "css/xterm.css");
-  const cssSrc = fs.existsSync(vendorCss)
-    ? vendorCss
-    : "node_modules/@xterm/xterm/css/xterm.css";
+  // Append a marker with the vendor xterm.js git rev to the xterm bundle.
+  // scripts/verify-vendor-xterm.ts (and the release workflow) greps for this
+  // sentinel to confirm the compiled binary embeds the vendored xterm — not
+  // the npm version — matching the commit recorded in the submodule pointer.
+  const xtermBundle = "dist/client/xterm.js";
+  const marker = `\n/* tmux-web: vendor xterm.js rev ${vendorRev} */\n`;
+  fs.appendFileSync(xtermBundle, marker);
+
+  // Copy vendor xterm.css (npm fallback removed — vendor is mandatory).
+  const cssSrc = path.join(vendorXtermDir, "css/xterm.css");
   try {
     const xtermCss = await Bun.file(cssSrc).bytes();
     await Bun.write("dist/client/xterm.css", xtermCss);

@@ -2,6 +2,41 @@
 
 Browser-based tmux frontend. Support ghostty-web + xterm.js backends. Run as systemd user service.
 
+---
+
+## ⚠️ CRITICAL — xterm.js MUST come from `vendor/xterm.js`, NEVER from npm
+
+The release binary **MUST** embed the xterm.js built from the
+`vendor/xterm.js` git submodule (pinned to a specific upstream HEAD
+commit). It **MUST NOT** fall back to the npm `@xterm/xterm@6.0.0`
+package. This has silently regressed at least five times and burned
+hours of debugging. Treat any change touching `bun-build.ts`,
+`Makefile`, the vendor tsconfig patching, or `release.yml` as
+load-bearing.
+
+- `bun-build.ts` throws hard if `vendor/xterm.js` is absent. Do not
+  re-introduce an npm fallback.
+- `bun-build.ts` appends a sentinel `tmux-web: vendor xterm.js rev <SHA>`
+  to `dist/client/xterm.js` — the release workflow greps for it via
+  `scripts/verify-vendor-xterm.ts`.
+- CI step "Verify compiled binary embeds vendor/xterm.js" runs that
+  script against the compiled binary. A regression fails the release.
+
+### Before pushing a release tag (or any change to the build pipeline)
+
+You **MUST** run the release workflow locally with `act` and confirm
+the verify step passes. Only push the tag after act is green:
+
+```bash
+act -j build --matrix name:linux-x64 -P ubuntu-latest=catthehacker/ubuntu:act-latest
+```
+
+The upload-artifact step fails under `act` (no runtime token) — that
+is expected and fine. Everything preceding it, including unit tests
+and `verify-vendor-xterm.ts`, must succeed.
+
+---
+
 ## Architecture
 
 - **Server** — TypeScript, Bun runtime (`src/server/`)

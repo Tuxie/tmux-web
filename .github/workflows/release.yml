@@ -52,6 +52,17 @@ jobs:
         if: runner.os == 'macOS'
         run: codesign --sign - --force tmux-web
 
+      # Post-compile verification: block release if the compiled binary
+      # serves the npm @xterm/xterm bundle instead of vendor/xterm.js.
+      # This has regressed several times; see CLAUDE.md.
+      - name: Run unit tests
+        if: matrix.target == 'bun-linux-x64' || matrix.target == 'bun-darwin-arm64'
+        run: bun test
+
+      - name: Verify compiled binary embeds vendor/xterm.js
+        if: matrix.target == 'bun-linux-x64' || matrix.target == 'bun-darwin-arm64'
+        run: bun scripts/verify-vendor-xterm.ts ./tmux-web
+
       - name: Package release
         run: |
           mkdir -p release/tmux-web-${{ github.ref_name }}-${{ matrix.name }}
