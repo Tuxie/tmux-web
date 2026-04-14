@@ -89,7 +89,7 @@ async function startServer() {
 
 Options:
   -l, --listen <host:port>     Address to listen on (default: ${DEFAULT_HOST}:${DEFAULT_PORT})
-      --terminal <backend>     Terminal backend: ghostty, xterm, xterm-dev (default: ${DEFAULT_TERMINAL})
+      --terminal <backend>     Terminal backend: ghostty, xterm (default: ${DEFAULT_TERMINAL})
       --allow-ip <ip>          Allow IP address (repeatable; localhost always allowed)
       --username <name>        HTTP Basic Auth username (default: $TMUX_WEB_USERNAME or current user)
       --password <pass>        HTTP Basic Auth password (default: $TMUX_WEB_PASSWORD, required)

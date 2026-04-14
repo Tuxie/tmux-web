@@ -12,7 +12,7 @@ const BINARY = './tmux-web';
 const BINARY_EXISTS = existsSync(BINARY);
 
 // Ports chosen to avoid conflicts with the default (4023) and dev tests (4040-4042)
-const PORT = { ghostty: 4043, xterm: 4044, 'xterm-dev': 4046 };
+const PORT = { ghostty: 4043, xterm: 4044 };
 
 function startBinaryServer(terminal: string, port: number): Promise<ChildProcess> {
   return startServer(
@@ -196,99 +196,6 @@ test.describe('binary: xterm', () => {
     await expect(page.locator('#terminal .xterm')).toBeVisible({ timeout: 10_000 });
 
     // .xterm-viewport has overflow-y:scroll by default; verify no scrollbar track
-    const scrollbarWidth = await page.evaluate(() => {
-      const viewport = document.querySelector('.xterm .xterm-viewport') as HTMLElement;
-      return viewport ? viewport.offsetWidth - viewport.clientWidth : 0;
-    });
-    expect(scrollbarWidth).toBe(0);
-  });
-
-  test('no scrollbar after overflow content when topbar is pinned from page load', async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem('topbar-autohide', 'false'));
-    await injectWsSpy(page);
-    await mockApis(page, ['main'], []);
-    await page.goto(`${base}/main`);
-    await waitForWsOpen(page);
-
-    await expect(page.locator('#terminal .xterm')).toBeVisible({ timeout: 10_000 });
-
-    const lines = Array.from({ length: 80 }, (_, i) => `overflow ${i + 1}`).join('\r\n') + '\r\n';
-    await writeToTerminal(page, lines);
-
-    const scrollbarWidth = await page.evaluate(() => {
-      const viewport = document.querySelector('.xterm .xterm-viewport') as HTMLElement;
-      return viewport ? viewport.offsetWidth - viewport.clientWidth : 0;
-    });
-    expect(scrollbarWidth).toBe(0);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// xterm-dev (vendor HEAD or npm fallback depending on build-time vendor state)
-// ---------------------------------------------------------------------------
-test.describe('binary: xterm-dev', () => {
-  test.skip(!BINARY_EXISTS, 'binary not built — run: make tmux-web');
-
-  let server: ChildProcess;
-  const base = `http://127.0.0.1:${PORT['xterm-dev']}`;
-
-  test.beforeAll(async () => { server = await startBinaryServer('xterm-dev', PORT['xterm-dev']); });
-  test.afterAll(() => killServer(server));
-
-  test('receives keyboard input immediately on load', async ({ page }) => {
-    await injectWsSpy(page);
-    await mockApis(page, ['main'], []);
-    await page.goto(`${base}/main`);
-    await waitForWsOpen(page);
-    await page.evaluate(() => { (window as any).__wsSent = []; });
-
-    await page.keyboard.press('a');
-
-    await page.waitForFunction(
-      () => (window as any).__wsSent.includes('a'),
-      { timeout: 3000 },
-    );
-  });
-
-  test('starts and renders text', async ({ page }) => {
-    await injectWsSpy(page);
-    await mockApis(page, ['main'], []);
-    await page.goto(`${base}/main`);
-    await waitForWsOpen(page);
-
-    await expect(page.locator('#terminal .xterm')).toBeVisible({ timeout: 10_000 });
-
-    await writeToTerminal(page, 'hello binary xterm-dev\r\n');
-    await expect(page.locator('#terminal .xterm-rows')).toContainText('hello binary xterm-dev', { timeout: 5_000 });
-  });
-
-  test('text rows start at top-left of #terminal with no phantom elements above', async ({ page }) => {
-    await injectWsSpy(page);
-    await mockApis(page, ['main'], []);
-    await page.goto(`${base}/main`);
-    await waitForWsOpen(page);
-
-    await writeToTerminal(page, 'top-left binary xterm-dev\r\n');
-
-    const rows = page.locator('#terminal .xterm-rows');
-    await expect(rows).toContainText('top-left binary xterm-dev', { timeout: 5_000 });
-
-    const termBox = await page.locator('#terminal').boundingBox();
-    const rowsBox = await rows.boundingBox();
-    expect(rowsBox!.y).toBeGreaterThanOrEqual(termBox!.y);
-    expect(rowsBox!.y - termBox!.y).toBeLessThan(10);
-    expect(rowsBox!.x).toBeGreaterThanOrEqual(termBox!.x);
-    expect(rowsBox!.x - termBox!.x).toBeLessThan(15);
-  });
-
-  test('no browser scrollbar in terminal area', async ({ page }) => {
-    await injectWsSpy(page);
-    await mockApis(page, ['main'], []);
-    await page.goto(`${base}/main`);
-    await waitForWsOpen(page);
-
-    await expect(page.locator('#terminal .xterm')).toBeVisible({ timeout: 10_000 });
-
     const scrollbarWidth = await page.evaluate(() => {
       const viewport = document.querySelector('.xterm .xterm-viewport') as HTMLElement;
       return viewport ? viewport.offsetWidth - viewport.clientWidth : 0;

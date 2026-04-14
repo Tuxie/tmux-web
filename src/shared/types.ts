@@ -46,7 +46,7 @@ export interface ResizeMessage {
 }
 
 /** Terminal backend identifier. */
-export type TerminalBackend = 'ghostty' | 'xterm' | 'xterm-dev';
+export type TerminalBackend = 'ghostty' | 'xterm';
 
 /** Server configuration derived from CLI args. */
 export interface ServerConfig {

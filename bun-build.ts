@@ -23,22 +23,8 @@ async function buildClient() {
   const vendorXtermDir = path.join(import.meta.dir, "vendor/xterm.js");
   const hasVendorXterm = fs.existsSync(vendorXtermDir);
 
-  if (hasVendorXterm) {
-    console.log("Using vendor/xterm.js for xterm.js bundle");
-    // Build xterm.js using vendor files
-    configs.push({ name: "xterm", outfile: "xterm.js" });
-  } else {
-    console.log("Using npm @xterm/xterm for xterm.js bundle");
-    configs.push({ name: "xterm", outfile: "xterm.js" });
-  }
-
-  // In development mode, we might want to specifically build both if they exist,
-  // but for the unified 'xterm.js' name, we follow the priority.
-  // We can add xterm-dev.js specifically for dev if needed.
-  if (!process.env.PRODUCTION && hasVendorXterm) {
-    // Add a specific xterm-dev bundle if you want to test npm version while vendor exists,
-    // or vice versa. For now let's just stick to the priority for xterm.js.
-  }
+  // Build xterm.js
+  configs.push({ name: "xterm", outfile: "xterm.js" });
 
   for (const { name, outfile } of configs) {
     const result = await build({

@@ -4,45 +4,24 @@ import type { CellMetrics, TerminalOptions } from '../../shared/types.js';
 export class XtermAdapter implements TerminalAdapter {
   private term!: any;
   private fitAddon!: any;
-  private useVendor: boolean;
 
-  constructor(useVendor: boolean = false) {
-    this.useVendor = useVendor;
-  }
+  constructor() {}
 
-  // xterm-dev (DOM renderer) doesn't properly recalculate metrics after font changes.
+  // xterm (DOM renderer) doesn't properly recalculate metrics after font changes.
   // Metric values remain at their initial calculations even after changing fonts.
   // Reload is required to properly initialize metrics with the new font.
   get requiresReloadForFontChange(): boolean {
-    // Return true if we are using the DOM renderer (vendor build)
-    return this.term?._core?.renderer?._renderer?._type === 'dom' || this.useVendor;
+    // Return true if we are using the DOM renderer
+    return this.term?._core?.renderer?._renderer?._type === 'dom';
   }
 
   async init(container: HTMLElement, options: TerminalOptions): Promise<void> {
-    let xtermMod: any;
-    let FitAddonMod: any;
+    const [{ Terminal }, { FitAddon }] = await Promise.all([
+      import('@xterm/xterm'),
+      import('@xterm/addon-fit')
+    ]);
 
-    if (this.useVendor) {
-      try {
-        // Try the unified bundle name first (used in production binary)
-        xtermMod = await import('/dist/client/xterm.js');
-        FitAddonMod = xtermMod; // FitAddon is bundled into xterm.js in the unified build
-        if (!xtermMod.Terminal) {
-          // If not unified, try the old vendor names (dev mode)
-          xtermMod = await import('/dist/client/vendor-xterm.js');
-          FitAddonMod = await import('/dist/client/vendor-xterm-addon-fit.js');
-        }
-      } catch {
-        console.warn('[xterm] bundle not found, falling back to npm xterm');
-        xtermMod = await import('@xterm/xterm');
-        FitAddonMod = await import('@xterm/addon-fit');
-      }
-    } else {
-      xtermMod = await import('@xterm/xterm');
-      FitAddonMod = await import('@xterm/addon-fit');
-    }
-
-    this.term = new xtermMod.Terminal({
+    this.term = new Terminal({
       fontFamily: options.fontFamily,
       // xterm throws for lineHeight < 1; clamp to 1 here, patched below after open()
       fontSize: options.fontSize,
@@ -52,7 +31,7 @@ export class XtermAdapter implements TerminalAdapter {
       scrollback: 0,
     });
 
-    this.fitAddon = new FitAddonMod.FitAddon();
+    this.fitAddon = new FitAddon();
     this.term.loadAddon(this.fitAddon);
     this.term.open(container);
     this._applyLineHeight(options.lineHeight);

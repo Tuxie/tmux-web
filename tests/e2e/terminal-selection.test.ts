@@ -1,5 +1,5 @@
 /**
- * Verify that users can switch between terminal backends (ghostty, xterm, xterm-dev)
+ * Verify that users can switch between terminal backends (ghostty, xterm)
  * in the configuration menu without restarting the server.
  *
  * Switching terminals causes a page reload with the new terminal backend.
@@ -160,7 +160,7 @@ test.describe('terminal backend selection', () => {
     const optionValues = await Promise.all(options.map(opt => opt.getAttribute('value')));
 
     // Should have available terminals
-    expect(optionValues.sort()).toEqual(['ghostty', 'xterm', 'xterm-dev'].sort());
+    expect(optionValues.sort()).toEqual(['ghostty', 'xterm'].sort());
   });
 
   test('terminal selector displays versions', async ({ page }) => {
@@ -429,59 +429,6 @@ test.describe('terminal backend selection starting with xterm', () => {
     // Verify initial state
     const initialTerminal = await page.evaluate(() => (window as any).__TMUX_WEB_CONFIG.terminal);
     expect(initialTerminal).toBe('xterm');
-
-    // Switch terminal to ghostty
-    await page.mouse.move(640, 10);
-    await page.click('#btn-menu');
-    const navPromise = page.waitForNavigation({ timeout: 10000 });
-    await page.selectOption('#inp-terminal', 'ghostty');
-    await navPromise;
-
-    // Re-inject WebSocket spy for new page
-    await injectWsSpy(page);
-    await waitForWsOpen(page);
-
-    // Verify terminal changed
-    const terminalAfter = await page.evaluate(() => (window as any).__TMUX_WEB_CONFIG.terminal);
-    expect(terminalAfter).toBe('ghostty');
-
-    // Verify adapter exists
-    const adapterExists = await page.evaluate(() => (window as any).__adapter !== undefined);
-    expect(adapterExists).toBe(true);
-
-    // Verify sessions can be loaded
-    const sessions = await page.locator('#session-select option').all();
-    expect(sessions.length).toBeGreaterThan(0);
-
-    // Verify menu can still be opened
-    await page.mouse.move(640, 10);
-    await page.click('#btn-menu');
-    await expect(page.locator('#menu-dropdown')).toBeVisible();
-  });
-});
-
-test.describe('terminal backend selection starting with xterm-dev', () => {
-  let server: ChildProcess;
-  const PORT = 4102;
-  const BASE_URL = `http://127.0.0.1:${PORT}`;
-
-  test.beforeAll(async () => {
-    server = await startServer(
-      'bun',
-      ['src/server/index.ts', '--test', `--listen=127.0.0.1:${PORT}`, '--no-auth', '--terminal=xterm-dev', '--no-tls'],
-    );
-  });
-
-  test.afterAll(() => killServer(server));
-
-  test('can switch from xterm-dev to ghostty', async ({ page }) => {
-    await injectWsSpy(page);
-    await page.goto(`${BASE_URL}/main`);
-    await waitForWsOpen(page);
-
-    // Verify initial state
-    const initialTerminal = await page.evaluate(() => (window as any).__TMUX_WEB_CONFIG.terminal);
-    expect(initialTerminal).toBe('xterm-dev');
 
     // Switch terminal to ghostty
     await page.mouse.move(640, 10);

@@ -10,7 +10,6 @@ import { type ChildProcess } from 'child_process';
 import { mockApis, injectWsSpy, waitForWsOpen, startServer, killServer } from './helpers.js';
 
 const PORT_XTERM = 4060;
-const PORT_XTERM_DEV = 4061;
 
 function startBackendServer(terminal: string, port: number): Promise<ChildProcess> {
   return startServer(
@@ -89,35 +88,6 @@ test.describe('menu stays open during settings changes: xterm', () => {
       return Array.from(sel.options).find(o => !o.value.includes('Iosevka Nerd Font Mono'))?.value ?? '';
     });
     await page.selectOption('#inp-font-bundled', otherFont);
-    await expect(page.locator('#menu-dropdown')).toBeVisible();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// xterm-dev — same in-place behaviour
-// ---------------------------------------------------------------------------
-test.describe('menu stays open during settings changes: xterm-dev', () => {
-  let server: ChildProcess;
-  const base = `http://127.0.0.1:${PORT_XTERM_DEV}`;
-
-  test.beforeAll(async () => { server = await startBackendServer('xterm-dev', PORT_XTERM_DEV); });
-  test.afterAll(() => killServer(server));
-
-  test.beforeEach(async ({ page }) => {
-    await injectWsSpy(page);
-    await mockApis(page, ['main'], []);
-    await page.goto(`${base}/main`);
-    await waitForWsOpen(page);
-    await openMenu(page);
-  });
-
-  test('menu stays open after font size change', async ({ page }) => {
-    await setNumberInput(page, '#inp-fontsize', '20');
-    await expect(page.locator('#menu-dropdown')).toBeVisible();
-  });
-
-  test('menu stays open after line height change', async ({ page }) => {
-    await setNumberInput(page, '#inp-lineheight', '0.9');
     await expect(page.locator('#menu-dropdown')).toBeVisible();
   });
 });

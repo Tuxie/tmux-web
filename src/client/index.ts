@@ -67,8 +67,8 @@ async function main() {
     const { GhosttyAdapter } = await import('./adapters/ghostty.js');
     adapter = new GhosttyAdapter();
   } else {
-    const { XtermAdapter } = await import('./adapters/xterm.js');
-    adapter = new XtermAdapter(config.terminal === 'xterm-dev');
+    const { XtermAdapter } = await import('./adapters/xterm.ts');
+    adapter = new XtermAdapter();
   }
 
   const container = document.getElementById('terminal')!;

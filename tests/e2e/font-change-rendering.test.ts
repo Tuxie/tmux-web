@@ -10,7 +10,6 @@ import { test, expect } from '@playwright/test';
 import { type ChildProcess } from 'child_process';
 import { mockApis, injectWsSpy, waitForWsOpen, startServer, killServer } from './helpers.js';
 
-const PORT_XTERM_DEV = 4070;
 const PORT_GHOSTTY = 4071;
 
 function startBackendServer(terminal: string, port: number): Promise<ChildProcess> {
@@ -74,97 +73,6 @@ async function openMenuAndChangeFont(page: import('@playwright/test').Page, newF
 
   await page.click('#btn-menu'); // close menu
 }
-
-// ---------------------------------------------------------------------------
-// xterm-dev: DOM-based renderer, can directly measure character cell size
-// ---------------------------------------------------------------------------
-test.describe('font change rendering: xterm-dev', () => {
-  let server: ChildProcess;
-  const base = `http://127.0.0.1:${PORT_XTERM_DEV}`;
-
-  test.beforeAll(async () => { server = await startBackendServer('xterm-dev', PORT_XTERM_DEV); });
-  test.afterAll(() => killServer(server));
-
-  test('xterm font-family option updates after font change', async ({ page }) => {
-    await injectWsSpy(page);
-    await mockApis(page, ['main'], []);
-    await page.goto(`${base}/main`);
-    await waitForWsOpen(page);
-
-    // Get initial font from adapter
-    const fontBefore = await page.evaluate(() => (window as any).__adapter?.term?.options?.fontFamily);
-    console.log('Font before change:', fontBefore);
-
-    // Open menu to populate font list
-    await page.mouse.move(640, 10);
-    await page.click('#btn-menu');
-    await expect(page.locator('#menu-dropdown')).toBeVisible();
-    await page.waitForFunction(
-      () => (document.getElementById('inp-font-bundled') as HTMLSelectElement)?.options.length > 0,
-      { timeout: 5000 },
-    );
-
-    // Get a different bundled font
-    const otherFont = await page.evaluate(() => {
-      const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('Iosevka Nerd Font Mono'))?.value ?? '';
-    });
-    expect(otherFont).toBeTruthy();
-
-    // Change font using the dropdown
-    await page.selectOption('#inp-font-bundled', otherFont);
-    await page.locator('#inp-font-bundled').dispatchEvent('change');
-
-    // Wait for adapter to update
-    await page.waitForTimeout(300);
-
-    // Check that xterm's fontFamily option was updated
-    const fontAfter = await page.evaluate(() => (window as any).__adapter?.term?.options?.fontFamily);
-    console.log('Font after change:', fontAfter);
-    console.log('Expected font:', otherFont);
-
-    // The xterm adapter should have been updated with the new font
-    expect(fontAfter).toContain(otherFont);
-  });
-
-  test('text renders correctly after font change (no corruption)', async ({ page }) => {
-    await injectWsSpy(page);
-    await mockApis(page, ['main'], []);
-    await page.goto(`${base}/main`);
-    await waitForWsOpen(page);
-
-    // Open menu to populate font list
-    await page.mouse.move(640, 10);
-    await page.click('#btn-menu');
-    await expect(page.locator('#menu-dropdown')).toBeVisible();
-    await page.waitForFunction(
-      () => (document.getElementById('inp-font-bundled') as HTMLSelectElement)?.options.length > 0,
-      { timeout: 5000 },
-    );
-
-    // Get a different font
-    const otherFont = await page.evaluate(() => {
-      const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('Iosevka Nerd Font Mono'))?.value ?? '';
-    });
-
-    // Change font using the dropdown
-    await page.selectOption('#inp-font-bundled', otherFont);
-    await page.locator('#inp-font-bundled').dispatchEvent('change');
-    await page.waitForTimeout(300);
-
-    // Verify the xterm adapter received the updated font
-    const fontAfter = await page.evaluate(() => (window as any).__adapter?.term?.options?.fontFamily);
-    expect(fontAfter).toContain(otherFont);
-
-    // Send test text and verify it appears without corruption
-    // (if spacing was wrong, text might appear cut off or overlapped)
-    await page.evaluate(() => (window as any).__mockWsReceive('Test text after font change\r\n'));
-
-    // xterm renders to DOM — verify the text is visible and readable
-    await expect(page.locator('#terminal .xterm-rows')).toContainText('Test text after font change', { timeout: 5000 });
-  });
-});
 
 // ---------------------------------------------------------------------------
 // ghostty: Canvas-based renderer. Font changes trigger reload so we just

@@ -48,9 +48,6 @@ describe('buildPtyEnv', () => {
   it('sets TERM to xterm-256color for xterm backend', () => {
     expect(buildPtyEnv('xterm').TERM).toBe('xterm-256color');
   });
-  it('sets TERM to xterm-256color for xterm-dev backend', () => {
-    expect(buildPtyEnv('xterm-dev').TERM).toBe('xterm-256color');
-  });
   it('sets COLORTERM to truecolor', () => {
     expect(buildPtyEnv('ghostty').COLORTERM).toBe('truecolor');
   });

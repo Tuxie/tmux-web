@@ -30,8 +30,7 @@ function debug(config: ServerConfig, ...args: unknown[]): void {
 function bundleName(terminal: TerminalBackend): string {
   switch (terminal) {
     case 'ghostty': return 'ghostty.js';
-    case 'xterm':
-    case 'xterm-dev': return 'xterm.js';
+    case 'xterm': return 'xterm.js';
   }
 }
 
@@ -114,10 +113,6 @@ function getTerminalVersions(projectRoot: string): Record<string, string> {
     versions['ghostty'] = 'ghostty-web v0.4.0';
   }
 
-  if (versions['xterm']) {
-    versions['xterm-dev'] = versions['xterm'] + ' (dev)';
-  }
-
   return versions;
 }
 
@@ -149,7 +144,7 @@ export function createHttpHandler(opts: HttpHandlerOptions) {
     const terminalParam = url.searchParams.get('terminal');
 
     // If a valid terminal is requested via query param, use it
-    if (terminalParam && ['ghostty', 'xterm', 'xterm-dev'].includes(terminalParam)) {
+    if (terminalParam && ['ghostty', 'xterm'].includes(terminalParam)) {
       return terminalParam as TerminalBackend;
     }
 

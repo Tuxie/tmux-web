@@ -19,7 +19,7 @@ async function generate() {
       const isVendor = file.includes("vendor-xterm");
       
       if (isBundle || isMap || file.startsWith("dist/server/")) {
-        if (!isVendor && !file.includes("xterm-dev")) {
+        if (!isVendor) {
           assets.push({ key: file, path: "../../" + file });
         }
       }
