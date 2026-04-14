@@ -46,7 +46,7 @@ jobs:
 
       - name: Compile binary
         run: |
-          bun build src/server/index.ts --compile --minify --sourcemap --bytecode --target=${{ matrix.target }} --outfile tmux-web
+          BUN_NO_CODESIGN_MACHO_BINARY=1 bun build src/server/index.ts --compile --minify --sourcemap --bytecode --target=${{ matrix.target }} --outfile tmux-web
 
       - name: Ad-hoc sign macOS binary
         if: runner.os == 'macOS'
