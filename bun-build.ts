@@ -31,17 +31,20 @@ function buildVendorXterm(vendorDir: string): void {
     "src/browser/tsconfig.json",
     "src/common/tsconfig.json",
     "src/headless/tsconfig.json",
-    "addons/addon-fit/tsconfig.json",
   ];
   for (const rel of patchTargets) {
     const p = path.join(vendorDir, rel);
     if (!fs.existsSync(p)) continue;
-    const cfg = JSON.parse(fs.readFileSync(p, "utf8"));
-    cfg.compilerOptions ??= {};
-    if (!cfg.compilerOptions.experimentalDecorators) {
-      cfg.compilerOptions.experimentalDecorators = true;
-      fs.writeFileSync(p, JSON.stringify(cfg, null, 2));
-    }
+    const raw = fs.readFileSync(p, "utf8");
+    if (raw.includes('"experimentalDecorators"')) continue;
+    // Textual insert (not JSON.parse) because tsconfigs contain JSONC comments
+    // and path strings like "common/*" that break naive comment stripping.
+    const patched = raw.replace(
+      /"compilerOptions"\s*:\s*\{/,
+      '"compilerOptions": {\n    "experimentalDecorators": true,'
+    );
+    if (patched === raw) throw new Error(`failed to patch ${p}`);
+    fs.writeFileSync(p, patched);
   }
 
   const buildEntry = (entry: string, outdir: string, name: string) => {

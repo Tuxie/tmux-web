@@ -80,8 +80,8 @@ tmp/.vendor-xterm-built: $(VENDOR_XTERM_HEAD)
 	@# and bun falls back to TC39 stage-3, producing a runtime crash
 	@# ("Cannot read properties of undefined (reading 'value')"). Inline the
 	@# flag directly into each per-dir tsconfig that bun actually reads.
-	@for f in vendor/xterm.js/src/browser/tsconfig.json vendor/xterm.js/src/common/tsconfig.json vendor/xterm.js/src/headless/tsconfig.json vendor/xterm.js/addons/addon-fit/tsconfig.json; do \
-		bun -e "const fs=require('fs');const p='$$f';const d=JSON.parse(fs.readFileSync(p));d.compilerOptions.experimentalDecorators=true;fs.writeFileSync(p,JSON.stringify(d,null,2))"; \
+	@for f in vendor/xterm.js/src/browser/tsconfig.json vendor/xterm.js/src/common/tsconfig.json vendor/xterm.js/src/headless/tsconfig.json; do \
+		bun -e "const fs=require('fs');const p='$$f';const r=fs.readFileSync(p,'utf8');if(r.includes('\"experimentalDecorators\"'))process.exit(0);const o=r.replace(/\"compilerOptions\"\s*:\s*\{/, '\"compilerOptions\": {\n    \"experimentalDecorators\": true,');if(o===r)throw new Error('patch failed: '+p);fs.writeFileSync(p,o)"; \
 	done
 	@mkdir -p tmp
 	@touch $@
