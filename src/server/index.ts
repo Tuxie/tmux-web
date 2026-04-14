@@ -25,8 +25,16 @@ function parseListenAddr(addr: string): { host: string; port: number } {
   return { host: addr.slice(0, i), port: Number(addr.slice(i + 1)) };
 }
 
-async function startServer() {
+export interface ConfigResult {
+  config: ServerConfig | null;
+  host: string;
+  port: number;
+  help?: boolean;
+}
+
+export function parseConfig(argv: string[]): ConfigResult {
   const { values: args } = parseArgs({
+    args: argv,
     options: {
       listen:       { type: 'string',  short: 'l', default: `${DEFAULT_HOST}:${DEFAULT_PORT}` },
       terminal:     { type: 'string',  default: DEFAULT_TERMINAL },
@@ -44,7 +52,38 @@ async function startServer() {
     strict: true,
   });
 
-  if (args.help) {
+  if (args.help) return { config: null, host: '', port: 0, help: true };
+
+  const { host, port } = parseListenAddr(args.listen!);
+
+  const authEnabled = !args['no-auth'];
+  const username = args.username || process.env.TMUX_WEB_USERNAME || userInfo().username;
+  const password = args.password || process.env.TMUX_WEB_PASSWORD;
+
+  const config: ServerConfig = {
+    host,
+    port,
+    terminal: (args.terminal as TerminalBackend) || DEFAULT_TERMINAL,
+    allowedIps: new Set(args['allow-ip'] as string[]),
+    tls: !!args.tls,
+    tlsCert: args['tls-cert'] as string | undefined,
+    tlsKey: args['tls-key'] as string | undefined,
+    testMode: !!args.test,
+    debug: !!args.debug,
+    auth: {
+      enabled: authEnabled,
+      username,
+      password,
+    },
+  };
+
+  return { config, host, port };
+}
+
+async function startServer() {
+  const { config, host, port, help } = parseConfig(process.argv.slice(2));
+
+  if (help) {
     console.log(`Usage: tmux-web [options]
 
 Options:
@@ -63,33 +102,14 @@ Options:
     process.exit(0);
   }
 
-  const { host, port } = parseListenAddr(args.listen!);
-
-  const authEnabled = !args['no-auth'];
-  const username = args.username || process.env.TMUX_WEB_USERNAME || userInfo().username;
-  const password = args.password || process.env.TMUX_WEB_PASSWORD;
-
-  if (authEnabled && !password) {
-    console.error('Error: --password or $TMUX_WEB_PASSWORD is required unless --no-auth is used.');
+  if (!config) {
     process.exit(1);
   }
 
-  const config: ServerConfig = {
-    host,
-    port,
-    terminal: (args.terminal as TerminalBackend) || DEFAULT_TERMINAL,
-    allowedIps: new Set(args['allow-ip'] as string[]),
-    tls: !!args.tls,
-    tlsCert: args['tls-cert'] as string | undefined,
-    tlsKey: args['tls-key'] as string | undefined,
-    testMode: !!args.test,
-    debug: !!args.debug,
-    auth: {
-      enabled: authEnabled,
-      username,
-      password,
-    },
-  };
+  if (config.auth.enabled && !config.auth.password) {
+    console.error('Error: --password or $TMUX_WEB_PASSWORD is required unless --no-auth is used.');
+    process.exit(1);
+  }
 
   const isCompiled = !process.execPath.endsWith('bun') && !process.execPath.endsWith('bun.exe');
   let projectRoot = isCompiled ? path.dirname(process.execPath) : path.resolve(import.meta.dir, '../..');
@@ -190,7 +210,9 @@ Options:
   });
 }
 
-startServer().catch(err => {
-  console.error(err);
-  process.exit(1);
-});
+if (import.meta.main) {
+  startServer().catch(err => {
+    console.error(err);
+    process.exit(1);
+  });
+}
