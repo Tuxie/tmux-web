@@ -168,9 +168,11 @@ async function main() {
     }
   }
 
-  const wsUrl = buildWsUrl(session, adapter.cols, adapter.rows);
   connection = new Connection({
-    url: wsUrl,
+    getUrl: () => {
+      const currentSession = location.pathname.replace(/^\/+|\/+$/g, '') || 'main';
+      return buildWsUrl(currentSession, adapter.cols, adapter.rows);
+    },
     onMessage: handleMessage,
     onOpen: () => {
       connection.sendResize(adapter.cols, adapter.rows);

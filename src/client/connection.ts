@@ -1,7 +1,7 @@
 import type { ResizeMessage } from '../shared/types.js';
 
 export interface ConnectionOptions {
-  url: string;
+  getUrl: () => string;
   onMessage: (data: string) => void;
   onOpen: () => void;
   onClose: () => void;
@@ -17,7 +17,7 @@ export class Connection {
   }
 
   connect(): void {
-    this.ws = new WebSocket(this.opts.url);
+    this.ws = new WebSocket(this.opts.getUrl());
     this.ws.onopen = () => this.opts.onOpen();
     this.ws.onmessage = (e) => {
       if (typeof e.data === 'string') this.opts.onMessage(e.data);
