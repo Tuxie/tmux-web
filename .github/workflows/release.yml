@@ -53,7 +53,6 @@ jobs:
           mkdir -p release/tmux-web-${{ matrix.name }}
           cp tmux-web release/tmux-web-${{ matrix.name }}/
           cp README.md release/tmux-web-${{ matrix.name }}/
-          cp tmux.conf release/tmux-web-${{ matrix.name }}/
           cp tmux-web.service release/tmux-web-${{ matrix.name }}/
           cd release
           tar -cJf tmux-web-${{ matrix.name }}.tar.xz tmux-web-${{ matrix.name }}

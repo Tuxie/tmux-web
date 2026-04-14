@@ -54,6 +54,11 @@ make tmux-web
 
 The binary embeds the client bundle, fonts, and default `tmux.conf`. It can be copied to any host with `tmux` installed.
 
+**macOS Users**: Binaries downloaded via a web browser are flagged with a quarantine attribute by macOS Gatekeeper. Because these binaries are not signed with a paid Apple Developer account, macOS may say the file is "damaged" or "cannot be verified". You must remove the quarantine flag before running it:
+```bash
+xattr -d com.apple.quarantine tmux-web-darwin-*
+```
+
 ## CLI options
 
 ```
