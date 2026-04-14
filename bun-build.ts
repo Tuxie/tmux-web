@@ -17,11 +17,33 @@ const commonOpts: BuildOptions = {
 
 /**
  * Build vendor/xterm.js bundles using bun from the vendor directory.
- * Must run from vendor dir so bun picks up vendor's tsconfig.json which
- * sets experimentalDecorators:true (required for xterm's DI parameter
- * decorators — incompatible with bun's default TC39 stage-3 transform).
+ * xterm.js uses legacy TypeScript parameter decorators for its DI system.
+ * Without experimentalDecorators bun applies TC39 stage-3 transforms that
+ * call decorators with (target, context) instead of (target, key, descriptor),
+ * causing a runtime crash: "Cannot read properties of undefined (reading 'value')".
+ *
+ * bun does NOT follow tsconfig "extends", so vendor's per-dir tsconfigs (which
+ * inherit experimentalDecorators via tsconfig-library-base) lose the flag.
+ * Patch each per-dir tsconfig bun actually reads to inline the flag.
  */
 function buildVendorXterm(vendorDir: string): void {
+  const patchTargets = [
+    "src/browser/tsconfig.json",
+    "src/common/tsconfig.json",
+    "src/headless/tsconfig.json",
+    "addons/addon-fit/tsconfig.json",
+  ];
+  for (const rel of patchTargets) {
+    const p = path.join(vendorDir, rel);
+    if (!fs.existsSync(p)) continue;
+    const cfg = JSON.parse(fs.readFileSync(p, "utf8"));
+    cfg.compilerOptions ??= {};
+    if (!cfg.compilerOptions.experimentalDecorators) {
+      cfg.compilerOptions.experimentalDecorators = true;
+      fs.writeFileSync(p, JSON.stringify(cfg, null, 2));
+    }
+  }
+
   const buildEntry = (entry: string, outdir: string, name: string) => {
     const result = Bun.spawnSync(
       ["bun", "build", entry, "--outdir", outdir, "--minify", "--target", "browser", "--entry-naming", name],

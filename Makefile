@@ -74,6 +74,15 @@ VENDOR_XTERM_HEAD := $(wildcard .git/modules/vendor/xterm.js/HEAD)
 tmp/.vendor-xterm-built: $(VENDOR_XTERM_HEAD)
 	git submodule update --init vendor/xterm.js
 	cd vendor/xterm.js && bun install && rm -f bun.lock
+	@# xterm.js DI uses legacy TS parameter decorators. bun does not follow
+	@# tsconfig "extends", so vendor's per-dir tsconfigs (which rely on
+	@# tsconfig-library-base for experimentalDecorators) get the flag dropped
+	@# and bun falls back to TC39 stage-3, producing a runtime crash
+	@# ("Cannot read properties of undefined (reading 'value')"). Inline the
+	@# flag directly into each per-dir tsconfig that bun actually reads.
+	@for f in vendor/xterm.js/src/browser/tsconfig.json vendor/xterm.js/src/common/tsconfig.json vendor/xterm.js/src/headless/tsconfig.json vendor/xterm.js/addons/addon-fit/tsconfig.json; do \
+		bun -e "const fs=require('fs');const p='$$f';const d=JSON.parse(fs.readFileSync(p));d.compilerOptions.experimentalDecorators=true;fs.writeFileSync(p,JSON.stringify(d,null,2))"; \
+	done
 	@mkdir -p tmp
 	@touch $@
 
