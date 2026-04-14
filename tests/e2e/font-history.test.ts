@@ -30,7 +30,7 @@ test.describe('font and line height memory', () => {
     await page.addInitScript(() => {
       const settings = {
         fontSource: 'bundled',
-        fontFamily: 'IosevkaNerdFontMono-Regular',
+        fontFamily: 'Iosevka Nerd Font Mono',
         fontSize: 18,
         lineHeight: 1.125
       };
@@ -50,7 +50,7 @@ test.describe('font and line height memory', () => {
     // Get a non-default bundled font
     const otherFont = await page.evaluate(() => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('IosevkaNerdFontMono-Regular'))?.value ?? '';
+      return Array.from(sel.options).find(o => !o.value.includes('Iosevka Nerd Font Mono'))?.value ?? '';
     });
     expect(otherFont).toBeTruthy();
 
@@ -166,7 +166,7 @@ test.describe('font and line height memory', () => {
 
     const otherFont = await page.evaluate(() => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('IosevkaNerdFontMono-Regular'))?.value ?? '';
+      return Array.from(sel.options).find(o => !o.value.includes('Iosevka Nerd Font Mono'))?.value ?? '';
     });
     expect(otherFont).toBeTruthy();
 
@@ -184,7 +184,7 @@ test.describe('font and line height memory', () => {
     await page.waitForTimeout(100);
 
     // Switch back to default font — line height should return to 1.5
-    await page.selectOption('#inp-font-bundled', 'IosevkaNerdFontMono-Regular');
+    await page.selectOption('#inp-font-bundled', 'Iosevka Nerd Font Mono');
 
     // Wait for line height to be restored
     await page.waitForFunction(
@@ -202,7 +202,7 @@ test.describe('font and line height memory', () => {
   test('persists across page reload', async ({ page }) => {
     const otherFont = await page.evaluate(() => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('IosevkaNerdFontMono-Regular'))?.value ?? '';
+      return Array.from(sel.options).find(o => !o.value.includes('Iosevka Nerd Font Mono'))?.value ?? '';
     });
     expect(otherFont).toBeTruthy();
 

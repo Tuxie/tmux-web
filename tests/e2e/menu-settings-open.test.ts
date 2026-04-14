@@ -86,7 +86,7 @@ test.describe('menu stays open during settings changes: xterm', () => {
     );
     const otherFont = await page.evaluate(() => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('IosevkaNerdFontMono-Regular'))?.value ?? '';
+      return Array.from(sel.options).find(o => !o.value.includes('Iosevka Nerd Font Mono'))?.value ?? '';
     });
     await page.selectOption('#inp-font-bundled', otherFont);
     await expect(page.locator('#menu-dropdown')).toBeVisible();

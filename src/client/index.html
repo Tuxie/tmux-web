@@ -4,6 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>TuxieTerm</title>
+  <script>
+    // Consume menu-reopen flag synchronously during HTML parse, before any deferred
+    // module script. This avoids a race where Playwright-style fast interactions
+    // (click + reload) fire on a freshly-loaded page before topbar.setupMenu() runs.
+    // If the flag lingered in sessionStorage, a subsequent unrelated reload would
+    // unexpectedly reopen the menu.
+    try {
+      if (sessionStorage.getItem('tmux-web:menu-reopen')) {
+        sessionStorage.removeItem('tmux-web:menu-reopen');
+        window.__menuReopen = true;
+      }
+    } catch (e) {}
+  </script>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%231e1e1e'/%3E%3Crect x='0' y='0' width='32' height='7' rx='4' fill='%23333'/%3E%3Crect x='0' y='4' width='32' height='3' fill='%23333'/%3E%3Ccircle cx='5' cy='3.5' r='1.5' fill='%23ff5f57'/%3E%3Ccircle cx='10' cy='3.5' r='1.5' fill='%23febc2e'/%3E%3Ccircle cx='15' cy='3.5' r='1.5' fill='%2328c840'/%3E%3Ctext x='4' y='23' font-family='monospace' font-size='11' fill='%2300ff88'%3E%26gt%3B_%3C/text%3E%3C/svg%3E" />
   <link rel="stylesheet" href="/dist/client/xterm.css">
   <style>
@@ -16,7 +29,7 @@
       background: #262626;
       padding: 0 6px;
       gap: 4px;
-      font-family: 'IosevkaNerdFontMono-Regular', 'MOsOul Nerd Font', 'ZedMono Nerd Font', 'JetBrains Mono', monospace;
+      font-family: 'Iosevka Nerd Font Mono', 'MOsOul Nerd Font', 'ZedMono Nerd Font', 'JetBrains Mono', monospace;
       font-size: 13px;
       color: #d4d4d4;
       user-select: none;

@@ -68,7 +68,7 @@ test.describe('font selection: xterm', () => {
     await page.addInitScript(() => {
       const settings = {
         fontSource: 'bundled',
-        fontFamily: 'IosevkaNerdFontMono-Regular',
+        fontFamily: 'Iosevka Nerd Font Mono',
         fontSize: 18,
         lineHeight: 1.125
       };
@@ -84,7 +84,7 @@ test.describe('font selection: xterm', () => {
 
   test('default load: @font-face injected with correct woff2 URL', async ({ page }) => {
     const rule = await getBundledFontStyle(page);
-    expect(rule).toContain('IosevkaNerdFontMono-Regular');
+    expect(rule).toContain('Iosevka Nerd Font Mono');
     expect(rule).toMatch(/\/fonts\/.+\.woff2/);
     expect(rule).toContain('format("woff2")');
   });
@@ -92,15 +92,15 @@ test.describe('font selection: xterm', () => {
   test('default load: browser successfully loads the font file', async ({ page }) => {
     // Fails if the server returns 404 (e.g. due to URL-encoding not being decoded)
     await page.waitForFunction(
-      () => document.fonts.check('18px "IosevkaNerdFontMono-Regular"'),
+      () => document.fonts.check('18px "Iosevka Nerd Font Mono"'),
       { timeout: 5000 },
     );
-    expect(await isFontLoaded(page, 'IosevkaNerdFontMono-Regular')).toBe(true);
+    expect(await isFontLoaded(page, 'Iosevka Nerd Font Mono')).toBe(true);
   });
 
-  test('default load: xterm receives IosevkaNerdFontMono-Regular as fontFamily', async ({ page }) => {
+  test('default load: xterm receives Iosevka Nerd Font Mono as fontFamily', async ({ page }) => {
     const fontFamily = await getXtermFontFamily(page);
-    expect(fontFamily).toContain('IosevkaNerdFontMono-Regular');
+    expect(fontFamily).toContain('Iosevka Nerd Font Mono');
   });
 
   test('switching bundled font updates @font-face and xterm options', async ({ page }) => {
@@ -109,7 +109,7 @@ test.describe('font selection: xterm', () => {
     // Pick the first font in the list that isn't the default
     const otherFont = await page.evaluate(() => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('IosevkaNerdFontMono-Regular'))?.value ?? '';
+      return Array.from(sel.options).find(o => !o.value.includes('Iosevka Nerd Font Mono'))?.value ?? '';
     });
     expect(otherFont).toBeTruthy();
 
@@ -150,7 +150,7 @@ test.describe('font selection: xterm-dev', () => {
     await page.addInitScript(() => {
       const settings = {
         fontSource: 'bundled',
-        fontFamily: 'IosevkaNerdFontMono-Regular',
+        fontFamily: 'Iosevka Nerd Font Mono',
         fontSize: 18,
         lineHeight: 1.125
       };
@@ -166,15 +166,15 @@ test.describe('font selection: xterm-dev', () => {
 
   test('default load: browser successfully loads the font file', async ({ page }) => {
     await page.waitForFunction(
-      () => document.fonts.check('18px "IosevkaNerdFontMono-Regular"'),
+      () => document.fonts.check('18px "Iosevka Nerd Font Mono"'),
       { timeout: 5000 },
     );
-    expect(await isFontLoaded(page, 'IosevkaNerdFontMono-Regular')).toBe(true);
+    expect(await isFontLoaded(page, 'Iosevka Nerd Font Mono')).toBe(true);
   });
 
-  test('default load: xterm-dev receives IosevkaNerdFontMono-Regular as fontFamily', async ({ page }) => {
+  test('default load: xterm-dev receives Iosevka Nerd Font Mono as fontFamily', async ({ page }) => {
     const fontFamily = await getXtermFontFamily(page);
-    expect(fontFamily).toContain('IosevkaNerdFontMono-Regular');
+    expect(fontFamily).toContain('Iosevka Nerd Font Mono');
   });
 });
 
@@ -187,7 +187,7 @@ test.describe('font selection: ghostty', () => {
     await page.addInitScript(() => {
       const settings = {
         fontSource: 'bundled',
-        fontFamily: 'IosevkaNerdFontMono-Regular',
+        fontFamily: 'Iosevka Nerd Font Mono',
         fontSize: 18,
         lineHeight: 1.125
       };
@@ -203,7 +203,7 @@ test.describe('font selection: ghostty', () => {
 
   test('default load: @font-face injected with correct woff2 URL', async ({ page }) => {
     const rule = await getBundledFontStyle(page);
-    expect(rule).toContain('IosevkaNerdFontMono-Regular');
+    expect(rule).toContain('Iosevka Nerd Font Mono');
     expect(rule).toMatch(/\/fonts\/.+\.woff2/);
   });
 
@@ -211,9 +211,9 @@ test.describe('font selection: ghostty', () => {
     // ghostty-web expects a bare font name, not a CSS stack — this verifies the
     // @font-face declaration was injected and the woff2 was actually fetched.
     await page.waitForFunction(
-      () => document.fonts.check('18px "IosevkaNerdFontMono-Regular"'),
+      () => document.fonts.check('18px "Iosevka Nerd Font Mono"'),
       { timeout: 5000 },
     );
-    expect(await isFontLoaded(page, 'IosevkaNerdFontMono-Regular')).toBe(true);
+    expect(await isFontLoaded(page, 'Iosevka Nerd Font Mono')).toBe(true);
   });
 });

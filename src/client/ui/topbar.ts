@@ -71,8 +71,11 @@ export class Topbar {
     const dropdown = document.getElementById('menu-dropdown') as HTMLElement;
 
     // Reopen the menu if a settings-change reload happened while it was open
-    if (sessionStorage.getItem('tmux-web:menu-reopen')) {
-      sessionStorage.removeItem('tmux-web:menu-reopen');
+    // menu-reopen flag is consumed synchronously by an inline <script> in index.html
+    // (via window.__menuReopen) to avoid a race where the flag lingers in sessionStorage
+    // if a subsequent reload happens before this module script runs.
+    if ((window as any).__menuReopen) {
+      (window as any).__menuReopen = false;
       dropdown.hidden = false;
       const chkFs = document.getElementById('chk-fullscreen') as HTMLInputElement;
       if (chkFs) chkFs.checked = !!document.fullscreenElement;

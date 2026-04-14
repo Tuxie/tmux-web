@@ -5,7 +5,7 @@ import asset2 from "../../dist/client/ghostty.js" with { type: "file" };
 import asset3 from "../../dist/client/xterm.js" with { type: "file" };
 import asset4 from "../../dist/client/xterm.css" with { type: "file" };
 import asset5 from "../../fonts/mOsOul Nerd Font.woff2" with { type: "file" };
-import asset6 from "../../fonts/IosevkaNerdFontMono-Regular.woff2" with { type: "file" };
+import asset6 from "../../fonts/Iosevka Nerd Font Mono.woff2" with { type: "file" };
 import asset7 from "../../fonts/Topaz8 Amiga1200 Nerd Font.woff2" with { type: "file" };
 import asset8 from "../../fonts/MicroKnight Nerd Font.woff2" with { type: "file" };
 import asset9 from "../../tmux.conf" with { type: "file" };
@@ -24,7 +24,7 @@ export const embeddedAssets: Record<string, string> = {
   "dist/client/xterm.js": asset3,
   "dist/client/xterm.css": asset4,
   "fonts/mOsOul Nerd Font.woff2": asset5,
-  "fonts/IosevkaNerdFontMono-Regular.woff2": asset6,
+  "fonts/Iosevka Nerd Font Mono.woff2": asset6,
   "fonts/Topaz8 Amiga1200 Nerd Font.woff2": asset7,
   "fonts/MicroKnight Nerd Font.woff2": asset8,
   "tmux.conf": asset9,
