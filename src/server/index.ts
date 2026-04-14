@@ -42,7 +42,8 @@ export function parseConfig(argv: string[]): ConfigResult {
       username:     { type: 'string' },
       password:     { type: 'string' },
       'no-auth':    { type: 'boolean', default: false },
-      tls:          { type: 'boolean', default: false },
+      tls:          { type: 'boolean', default: true },
+      'no-tls':     { type: 'boolean', default: false },
       'tls-cert':   { type: 'string' },
       'tls-key':    { type: 'string' },
       test:         { type: 'boolean', short: 't', default: false },
@@ -65,7 +66,7 @@ export function parseConfig(argv: string[]): ConfigResult {
     port,
     terminal: (args.terminal as TerminalBackend) || DEFAULT_TERMINAL,
     allowedIps: new Set(args['allow-ip'] as string[]),
-    tls: !!args.tls,
+    tls: !!args.tls && !args['no-tls'],
     tlsCert: args['tls-cert'] as string | undefined,
     tlsKey: args['tls-key'] as string | undefined,
     testMode: !!args.test,
@@ -93,7 +94,8 @@ Options:
       --username <name>        HTTP Basic Auth username (default: $TMUX_WEB_USERNAME or current user)
       --password <pass>        HTTP Basic Auth password (default: $TMUX_WEB_PASSWORD, required)
       --no-auth                Disable HTTP Basic Auth
-      --tls                    Enable HTTPS with self-signed certificate
+      --tls                    Enable HTTPS with self-signed certificate (default)
+      --no-tls                 Disable HTTPS
       --tls-cert <path>        TLS certificate file (use with --tls-key)
       --tls-key <path>         TLS private key file (use with --tls-cert)
   -t, --test                   Test mode: use cat PTY, bypass IP allowlist
