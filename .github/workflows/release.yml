@@ -48,6 +48,10 @@ jobs:
         run: |
           bun build src/server/index.ts --compile --minify --sourcemap --bytecode --target=${{ matrix.target }} --outfile tmux-web
 
+      - name: Ad-hoc sign macOS binary
+        if: runner.os == 'macOS'
+        run: codesign --sign - --force tmux-web
+
       - name: Package release
         run: |
           mkdir -p release/tmux-web-${{ matrix.name }}
