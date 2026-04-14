@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: true
 
@@ -59,7 +59,7 @@ jobs:
           tar -cJf tmux-web-${{ matrix.name }}.tar.xz tmux-web-${{ matrix.name }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tmux-web-${{ matrix.name }}-artifact
           path: release/tmux-web-${{ matrix.name }}.tar.xz
@@ -71,14 +71,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: tmux-web-*-artifact
           path: artifacts
           merge-multiple: true
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: artifacts/*.tar.xz
         env:
