@@ -1,7 +1,7 @@
 import { build, type BuildOptions, type BunPlugin } from "bun";
+import fs from "node:fs";
 import path from "node:path";
 import { watch } from "node:fs";
-import { resolveVendoredXtermBundle } from "./src/build/xterm-source.js";
 
 const isWatch = Bun.argv.includes("--watch");
 
@@ -20,21 +20,26 @@ async function buildClient() {
     { name: "ghostty", outfile: "ghostty.js" },
   ];
 
-  const vendoredXterm = await resolveVendoredXtermBundle(import.meta.dir);
+  const vendorXtermDir = path.join(import.meta.dir, "vendor/xterm.js");
+  const hasVendorXterm = fs.existsSync(path.join(vendorXtermDir, "src/browser/public/Terminal.ts"));
 
   const plugins: BunPlugin[] = [];
-  console.log(`Using vendored xterm.js package artifacts for xterm.js bundle`);
-  plugins.push({
-    name: "vendor-xterm",
-    setup(builder) {
-      builder.onResolve({ filter: /^@xterm\/xterm$/ }, () => {
-        return { path: vendoredXterm.xtermEntry! };
-      });
-      builder.onResolve({ filter: /^@xterm\/addon-fit$/ }, () => {
-        return { path: vendoredXterm.fitEntry! };
-      });
-    }
-  });
+  if (hasVendorXterm) {
+    console.log(`Using vendor/xterm.js for xterm.js bundle`);
+    plugins.push({
+      name: "vendor-xterm",
+      setup(builder) {
+        builder.onResolve({ filter: /^@xterm\/xterm$/ }, () => {
+          return { path: path.join(vendorXtermDir, "src/browser/public/Terminal.ts") };
+        });
+        builder.onResolve({ filter: /^@xterm\/addon-fit$/ }, () => {
+          return { path: path.join(vendorXtermDir, "addons/addon-fit/src/FitAddon.ts") };
+        });
+      }
+    });
+  } else {
+    console.log(`Using npm @xterm/xterm for xterm.js bundle`);
+  }
 
   // Build xterm.js
   configs.push({ name: "xterm", outfile: "xterm.js" });
@@ -55,9 +60,13 @@ async function buildClient() {
     }
   }
 
-  // Copy xterm.css
+  // Copy xterm.css — prefer vendor copy, fall back to npm
+  const vendorCss = path.join(vendorXtermDir, "css/xterm.css");
+  const cssSrc = fs.existsSync(vendorCss)
+    ? vendorCss
+    : "node_modules/@xterm/xterm/css/xterm.css";
   try {
-    const xtermCss = await Bun.file(vendoredXterm.cssPath).bytes();
+    const xtermCss = await Bun.file(cssSrc).bytes();
     await Bun.write("dist/client/xterm.css", xtermCss);
     console.log("Copied xterm.css to dist/client/xterm.css");
   } catch (e) {

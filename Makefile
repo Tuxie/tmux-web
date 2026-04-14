@@ -48,7 +48,7 @@ test-e2e-headed: dist/client/ghostty.js
 src/server/assets-embedded.ts: dist/client/ghostty.js tmux.conf bun-build.ts scripts/generate-assets.ts
 	$(BUN) run scripts/generate-assets.ts
 
-tmux-web: dist/client/ghostty.js $(SRCS_SERVER) src/server/assets-embedded.ts
+tmux-web: dist/client/vendor-xterm.js dist/client/vendor-xterm-addon-fit.js $(SRCS_SERVER) src/server/assets-embedded.ts
 	$(BUN) build src/server/index.ts --compile --minify --sourcemap --bytecode --outfile tmux-web
 
 install: tmux-web
@@ -67,15 +67,27 @@ install: tmux-web
 # --- Vendor (optional: xterm.js from git HEAD) ---
 VENDOR_XTERM_HEAD := $(wildcard .git/modules/vendor/xterm.js/HEAD)
 
+# $(wildcard ...) returns empty string if submodule not yet initialised, so
+# the stamp has no prerequisites and is simply rebuilt when missing.
+# Once the submodule exists the HEAD file is tracked as a real dependency,
+# triggering a reinstall whenever the submodule commit changes.
 tmp/.vendor-xterm-built: $(VENDOR_XTERM_HEAD)
 	git submodule update --init vendor/xterm.js
 	cd vendor/xterm.js && bun install && rm -f bun.lock
-	cd vendor/xterm.js && node bin/esbuild.mjs --prod
-	cd vendor/xterm.js && node bin/esbuild.mjs --prod --addon=fit
 	@mkdir -p tmp
 	@touch $@
 
-vendor: tmp/.vendor-xterm-built
+dist/client/vendor-xterm.js: tmp/.vendor-xterm-built
+	cd vendor/xterm.js && bun build src/browser/public/Terminal.ts --outdir lib --minify --target browser --entry-naming xterm.mjs
+	@mkdir -p dist/client
+	cp vendor/xterm.js/lib/xterm.mjs $@
+
+dist/client/vendor-xterm-addon-fit.js: tmp/.vendor-xterm-built
+	cd vendor/xterm.js && bun build addons/addon-fit/src/FitAddon.ts --outdir addons/addon-fit/lib --minify --target browser --entry-naming addon-fit.mjs
+	@mkdir -p dist/client
+	cp vendor/xterm.js/addons/addon-fit/lib/addon-fit.mjs $@
+
+vendor: dist/client/vendor-xterm.js dist/client/vendor-xterm-addon-fit.js
 
 # --- Cleanup ---
 
