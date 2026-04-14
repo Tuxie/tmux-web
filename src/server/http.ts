@@ -79,30 +79,21 @@ function serve404(res: ServerResponse): void {
 function getTerminalVersions(projectRoot: string): Record<string, string> {
   const versions: Record<string, string> = {};
 
-  // Check if we have a vendor build of xterm.js
-  let hasVendorXterm = false;
+  // Vendor xterm.js rev is baked into dist/client/xterm.js by bun-build.ts
+  // as a sentinel comment. Read it from the embedded asset (or disk, when
+  // running from source). That is the source of truth in the compiled binary.
+  const xtermAssetPath = embeddedAssets['dist/client/xterm.js']
+    ?? path.join(projectRoot, 'dist/client/xterm.js');
   try {
-    const vendorDir = path.join(projectRoot, 'vendor/xterm.js');
-    if (fs.existsSync(vendorDir)) {
-      const rev = execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
-        cwd: vendorDir,
-        encoding: 'utf-8',
-        stdio: ['pipe', 'pipe', 'ignore']
-      }).trim();
-      versions['xterm'] = `xterm.js (HEAD, ${rev})`;
-      hasVendorXterm = true;
+    const bundle = fs.readFileSync(xtermAssetPath, 'utf-8');
+    const m = bundle.match(/tmux-web: vendor xterm\.js rev ([0-9a-f]{40})/);
+    if (m) {
+      versions['xterm'] = `xterm.js (HEAD, ${m[1].slice(0, 7)})`;
+    } else {
+      versions['xterm'] = 'xterm.js (unknown)';
     }
-  } catch {}
-
-  if (!hasVendorXterm) {
-    // Fallback to npm xterm version
-    try {
-      const xtermPkgPath = require.resolve('@xterm/xterm/package.json');
-      const xtermPkg = JSON.parse(fs.readFileSync(xtermPkgPath, 'utf-8'));
-      versions['xterm'] = 'xterm.js v' + xtermPkg.version;
-    } catch {
-      versions['xterm'] = 'xterm.js v6.0.0';
-    }
+  } catch {
+    versions['xterm'] = 'xterm.js (unknown)';
   }
 
   // Get ghostty-web version
