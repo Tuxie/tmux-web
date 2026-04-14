@@ -1,0 +1,85 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build for ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: bun-linux-x64
+            name: linux-x64
+          - os: ubuntu-latest
+            target: bun-linux-arm64
+            name: linux-arm64
+          - os: macos-latest
+            target: bun-darwin-x64
+            name: darwin-x64
+          - os: macos-latest
+            target: bun-darwin-arm64
+            name: darwin-arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build frontend and generate assets
+        run: |
+          bun run bun-build.ts
+          bun run scripts/generate-assets.ts
+
+      - name: Compile binary
+        run: |
+          bun build src/server/index.ts --compile --minify --sourcemap --bytecode --target=${{ matrix.target }} --outfile tmux-web
+
+      - name: Package release
+        run: |
+          mkdir -p release/tmux-web-${{ matrix.name }}
+          cp tmux-web release/tmux-web-${{ matrix.name }}/
+          cp README.md release/tmux-web-${{ matrix.name }}/
+          cp tmux.conf release/tmux-web-${{ matrix.name }}/
+          cp tmux-web.service release/tmux-web-${{ matrix.name }}/
+          cd release
+          tar -cJf tmux-web-${{ matrix.name }}.tar.xz tmux-web-${{ matrix.name }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tmux-web-${{ matrix.name }}-artifact
+          path: release/tmux-web-${{ matrix.name }}.tar.xz
+          retention-days: 1
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tmux-web-*-artifact
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.tar.xz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

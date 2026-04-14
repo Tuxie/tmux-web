@@ -1,4 +1,4 @@
-import { build, type BuildOptions } from "bun";
+import { build, type BuildOptions, type BunPlugin } from "bun";
 import fs from "node:fs";
 import path from "node:path";
 import { watch } from "node:fs";
@@ -12,7 +12,7 @@ const commonOpts: BuildOptions = {
   outdir: "dist/client",
   sourcemap: "external",
   minify: !isWatch,
-  external: ["/dist/ghostty-web.js", "/dist/client/vendor-xterm.js", "/dist/client/vendor-xterm-addon-fit.js"],
+  external: ["/dist/ghostty-web.js"],
 };
 
 async function buildClient() {
@@ -21,7 +21,25 @@ async function buildClient() {
   ];
 
   const vendorXtermDir = path.join(import.meta.dir, "vendor/xterm.js");
-  const hasVendorXterm = fs.existsSync(vendorXtermDir);
+  const hasVendorXterm = fs.existsSync(path.join(vendorXtermDir, "src/browser/public/Terminal.ts"));
+
+  const plugins: BunPlugin[] = [];
+  if (hasVendorXterm) {
+    console.log(`Using vendor/xterm.js for xterm.js bundle`);
+    plugins.push({
+      name: "vendor-xterm",
+      setup(builder) {
+        builder.onResolve({ filter: /^@xterm\/xterm$/ }, () => {
+          return { path: path.join(vendorXtermDir, "src/browser/public/Terminal.ts") };
+        });
+        builder.onResolve({ filter: /^@xterm\/addon-fit$/ }, () => {
+          return { path: path.join(vendorXtermDir, "addons/addon-fit/src/FitAddon.ts") };
+        });
+      }
+    });
+  } else {
+    console.log(`Using npm @xterm/xterm for xterm.js bundle`);
+  }
 
   // Build xterm.js
   configs.push({ name: "xterm", outfile: "xterm.js" });
@@ -30,8 +48,7 @@ async function buildClient() {
     const result = await build({
       ...commonOpts,
       naming: outfile,
-      // If it's the xterm bundle and we have vendor, we might need special handling
-      // but src/client/adapters/xterm.ts already handles the import fallback.
+      plugins,
     });
     if (!result.success) {
       console.error(`Build failed for ${name} client:`);
