@@ -54,18 +54,18 @@ jobs:
 
       - name: Package release
         run: |
-          mkdir -p release/tmux-web-${{ matrix.name }}
-          cp tmux-web release/tmux-web-${{ matrix.name }}/
-          cp README.md release/tmux-web-${{ matrix.name }}/
-          cp tmux-web.service release/tmux-web-${{ matrix.name }}/
+          mkdir -p release/tmux-web-${{ github.ref_name }}-${{ matrix.name }}
+          cp tmux-web release/tmux-web-${{ github.ref_name }}-${{ matrix.name }}/
+          cp README.md release/tmux-web-${{ github.ref_name }}-${{ matrix.name }}/
+          cp tmux-web.service release/tmux-web-${{ github.ref_name }}-${{ matrix.name }}/
           cd release
-          tar -cJf tmux-web-${{ matrix.name }}.tar.xz tmux-web-${{ matrix.name }}
+          tar -cJf tmux-web-${{ github.ref_name }}-${{ matrix.name }}.tar.xz tmux-web-${{ github.ref_name }}-${{ matrix.name }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: tmux-web-${{ matrix.name }}-artifact
-          path: release/tmux-web-${{ matrix.name }}.tar.xz
+          name: tmux-web-${{ github.ref_name }}-${{ matrix.name }}-artifact
+          path: release/tmux-web-${{ github.ref_name }}-${{ matrix.name }}.tar.xz
           retention-days: 1
 
   release:
