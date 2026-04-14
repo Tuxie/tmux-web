@@ -114,6 +114,10 @@ function getTerminalVersions(projectRoot: string): Record<string, string> {
     versions['ghostty'] = 'ghostty-web v0.4.0';
   }
 
+  if (versions['xterm']) {
+    versions['xterm-dev'] = versions['xterm'] + ' (dev)';
+  }
+
   return versions;
 }
 

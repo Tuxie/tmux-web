@@ -160,7 +160,7 @@ test.describe('terminal backend selection', () => {
     const optionValues = await Promise.all(options.map(opt => opt.getAttribute('value')));
 
     // Should have available terminals
-    expect(optionValues.sort()).toEqual(['ghostty', 'xterm'].sort());
+    expect(optionValues.sort()).toEqual(['ghostty', 'xterm', 'xterm-dev'].sort());
   });
 
   test('terminal selector displays versions', async ({ page }) => {

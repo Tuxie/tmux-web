@@ -6,7 +6,7 @@ Browser-based tmux frontend. Support ghostty-web + xterm.js backends. Run as sys
 
 - **Server** — TypeScript, Bun runtime (`src/server/`)
 - **Client** — TypeScript, bundle via `bun-build.ts` (`src/client/`)
-- **Terminal backends** — ghostty-web 0.4.0, xterm.js 6.0.0, xterm.js HEAD (git submodule)
+- **Terminal backends** — ghostty-web 0.4.0, xterm.js 6.0.0, xterm-dev (DOM renderer), xterm.js HEAD (git submodule)
 - **PTY** — Bun native `Bun.spawn` with `terminal` support, spawn `tmux -f tmux.conf`
 - **Auth** — HTTP Basic Auth (enabled by default) + IP allowlist via `--allow-ip`
 - **TLS** — HTTPS enabled by default (self-signed or custom cert)
