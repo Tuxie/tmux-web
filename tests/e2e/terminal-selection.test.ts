@@ -320,9 +320,8 @@ test.describe('terminal backend selection with real server', () => {
   test.beforeAll(async () => {
     server = await startServer(
       'bun',
-      ['src/server/index.ts', '--test', `--listen=127.0.0.1:${PORT}`, '--no-auth', '--terminal=ghostty'],
-    );
-  });
+      ['src/server/index.ts', '--test', `--listen=127.0.0.1:${PORT}`, '--no-auth', '--terminal=ghostty', '--no-tls'],
+    );  });
 
   test.afterAll(() => killServer(server));
 
@@ -417,9 +416,8 @@ test.describe('terminal backend selection starting with xterm', () => {
   test.beforeAll(async () => {
     server = await startServer(
       'bun',
-      ['src/server/index.ts', '--test', `--listen=127.0.0.1:${PORT}`, '--no-auth', '--terminal=xterm'],
-    );
-  });
+      ['src/server/index.ts', '--test', `--listen=127.0.0.1:${PORT}`, '--no-auth', '--terminal=xterm', '--no-tls'],
+    );  });
 
   test.afterAll(() => killServer(server));
 
@@ -470,7 +468,7 @@ test.describe('terminal backend selection starting with xterm-dev', () => {
   test.beforeAll(async () => {
     server = await startServer(
       'bun',
-      ['src/server/index.ts', '--test', `--listen=127.0.0.1:${PORT}`, '--no-auth', '--terminal=xterm-dev'],
+      ['src/server/index.ts', '--test', `--listen=127.0.0.1:${PORT}`, '--no-auth', '--terminal=xterm-dev', '--no-tls'],
     );
   });
 

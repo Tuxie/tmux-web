@@ -9,7 +9,7 @@ Browser-based tmux frontend. Support ghostty-web + xterm.js backends. Run as sys
 - **Terminal backends** — ghostty-web 0.4.0, xterm.js 6.0.0, xterm.js HEAD (git submodule)
 - **PTY** — Bun native `Bun.spawn` with `terminal` support, spawn `tmux -f tmux.conf`
 - **Auth** — HTTP Basic Auth (enabled by default) + IP allowlist via `--allow-ip`
-- **TLS** — optional self-signed HTTPS via `--tls`
+- **TLS** — HTTPS enabled by default (self-signed or custom cert)
 
 ## Project Structure
 
@@ -54,7 +54,7 @@ make dev             # watch mode (client + server)
 make test            # unit (bun test) + e2e (playwright)
 make test-unit       # bun test only
 make test-e2e        # playwright only
-bun src/server/index.ts --test --listen 127.0.0.1:4022 --no-auth
+bun src/server/index.ts --test --listen 127.0.0.1:4022 --no-auth --no-tls
 ```
 
 Use `bun`. No `pnpm`, `npm`, `tsx`, or `vitest`.
@@ -68,7 +68,8 @@ Use `bun`. No `pnpm`, `npm`, `tsx`, or `vitest`.
 --password <pass>        Basic Auth pass (default: $TMUX_WEB_PASSWORD, required)
 --no-auth                Disable HTTP Basic Auth
 --allow-ip <ip>          Allow IP (repeatable; localhost always allowed)
---tls                    Enable HTTPS with self-signed cert
+--tls                    Enable HTTPS with self-signed cert (default)
+--no-tls                 Disable HTTPS and fallback to HTTP
 --tls-cert / --tls-key   Custom TLS certificate files
 --test                   Test mode: cat PTY, bypass IP allowlist
 ```

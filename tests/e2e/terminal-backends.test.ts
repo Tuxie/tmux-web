@@ -15,7 +15,7 @@ const PORT = { ghostty: 4040, xterm: 4041, 'xterm-dev': 4042 };
 function startDevServer(terminal: string, port: number): Promise<ChildProcess> {
   return startServer(
     'bun',
-    ['src/server/index.ts', '--test', `--terminal=${terminal}`, `--listen=127.0.0.1:${port}`, '--no-auth'],
+    ['src/server/index.ts', '--test', `--terminal=${terminal}`, `--listen=127.0.0.1:${port}`, '--no-auth', '--no-tls'],
   );
 }
 

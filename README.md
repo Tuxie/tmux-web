@@ -6,7 +6,7 @@ A browser-based frontend for [tmux](https://github.com/tmux/tmux). Attach to you
 
 `tmux` is an excellent terminal multiplexer, but reaching a remote session normally requires SSH and a local terminal emulator. That is fine on a laptop, less fine on a tablet, a Chromebook, a borrowed machine, or any context where installing an SSH client and configuring keys is inconvenient.
 
-tmux-web exposes a single tmux server over HTTP(S) so you can:
+tmux-web exposes a single tmux server over HTTPS (default) so you can:
 
 - Attach to long-running sessions from anywhere with a browser.
 - Share a terminal on devices without a native terminal (iPad, Chromebook, kiosk).
@@ -25,7 +25,7 @@ It is intentionally small: a Bun server, a static client bundle, and a thin adap
 - **URL-as-session** — the path (`/dev`, `/work`) maps to a tmux session name; bookmarkable.
 - **Reconnect-safe** — WebSocket reconnect resyncs the terminal size automatically.
 - **HTTP Basic Auth** — on by default.
-- **Optional TLS** — self-signed or bring-your-own certificate.
+- **TLS by default** — self-signed certificate auto-generated if none provided.
 - **IP allowlist** — restrict access by client IP in addition to auth.
 - **Single static binary** — `make tmux-web` produces a self-contained executable with embedded assets.
 
@@ -43,7 +43,7 @@ make build
 TMUX_WEB_PASSWORD=changeme bun src/server/index.ts --listen 127.0.0.1:4022
 ```
 
-Then open <http://127.0.0.1:4022> and log in with your OS username and the password you set.
+Then open <https://127.0.0.1:4022> and log in with your OS username and the password you set. (Note: browser will show a certificate warning for the auto-generated self-signed cert).
 
 To build a standalone binary:
 
@@ -63,7 +63,8 @@ The binary embeds the client bundle, fonts, and default `tmux.conf`. It can be c
 --password <pass>        Basic Auth password (default: $TMUX_WEB_PASSWORD, required unless --no-auth)
 --no-auth                Disable HTTP Basic Auth
 --allow-ip <ip>          Allow a client IP (repeatable; localhost is always allowed)
---tls                    Enable HTTPS with a self-signed certificate
+--tls                    Enable HTTPS with a self-signed certificate (default)
+--no-tls                 Disable HTTPS and fallback to HTTP
 --tls-cert <file>        Use a specific TLS certificate
 --tls-key <file>         Use a specific TLS private key
 --test                   Test mode: `cat` instead of tmux, bypass IP allowlist
@@ -98,8 +99,9 @@ Your existing tmux configuration keeps working; tmux-web simply ensures the requ
 tmux-web exposes an interactive shell over the network. Treat it accordingly.
 
 - **Always set a password.** Basic Auth is enabled by default and the server refuses to start without a password unless `--no-auth` is given explicitly.
-- **Never bind to a public interface without TLS.** Basic Auth credentials are base64-encoded, not encrypted. Either terminate TLS in front of tmux-web (nginx, Caddy, Cloudflare Tunnel, Tailscale Funnel) or run it with `--tls`.
-- **Prefer localhost + reverse proxy** for production deployments. `--listen 127.0.0.1:4022` behind nginx/Caddy with a real certificate is the recommended setup.
+- **TLS is enabled by default.** Basic Auth credentials are encrypted in transit. If you provide no certificate, a self-signed one is generated.
+- **Never bind to a public interface without TLS.** If you use `--no-tls`, ensure you are terminating TLS in front of tmux-web (nginx, Caddy, Cloudflare Tunnel, Tailscale Funnel).
+- **Prefer localhost + reverse proxy** for production deployments. `--listen 127.0.0.1:4022` behind nginx/Caddy with a real certificate is the recommended setup. Use `--no-tls` if the proxy handles TLS.
 - **Use `--allow-ip`** to restrict access to known client IPs when binding beyond localhost. Localhost is always allowed so local health checks keep working.
 - **Rotate the password** if the service has ever been exposed without TLS.
 - **Consider a VPN or overlay network** (Tailscale, WireGuard) rather than exposing tmux-web directly to the internet.

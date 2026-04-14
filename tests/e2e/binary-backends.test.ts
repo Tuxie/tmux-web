@@ -17,7 +17,7 @@ const PORT = { ghostty: 4043, xterm: 4044, 'xterm-dev': 4046 };
 function startBinaryServer(terminal: string, port: number): Promise<ChildProcess> {
   return startServer(
     BINARY,
-    ['--test', `--terminal=${terminal}`, `--listen=127.0.0.1:${port}`, '--no-auth'],
+    ['--test', `--terminal=${terminal}`, `--listen=127.0.0.1:${port}`, '--no-auth', '--no-tls'],
     30_000, // compiled binary cold-start can be slower than bun run src/server/index.ts
   );
 }
