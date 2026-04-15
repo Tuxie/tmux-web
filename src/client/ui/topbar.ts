@@ -2,8 +2,6 @@ import {
   loadSettings,
   saveSettings,
   DEFAULT_SETTINGS,
-  getTerminalBackend,
-  setTerminalBackend,
   getTopbarAutohide,
   setTopbarAutohide,
   getActiveThemeName,
@@ -47,7 +45,6 @@ export class Topbar {
     this.setupAutoHide();
     this.setupMenu();
     this.setupFullscreenCheckbox();
-    this.setupTerminalSelector();
     // setupSettingsInputs wires event listeners synchronously and returns a
     // promise for the async font-list fetch. We await here so that callers of
     // init() can rely on fonts being populated (e.g. before opening WebSocket).
@@ -134,43 +131,6 @@ export class Topbar {
     document.addEventListener('fullscreenchange', () => {
       chkFs.checked = !!document.fullscreenElement;
       this.show();
-    });
-  }
-
-  private setupTerminalSelector(): void {
-    const selTerminal = document.getElementById('inp-terminal') as HTMLSelectElement;
-    const config = (window as any).__TMUX_WEB_CONFIG;
-
-    // Fetch and display terminal versions
-    fetch('/api/terminal-versions')
-      .then(r => r.json())
-      .then((versions: Record<string, string>) => {
-        // Update option labels with versions
-        const options = selTerminal.querySelectorAll('option');
-        options.forEach(opt => {
-          const value = opt.value;
-          const version = versions[value];
-          if (version) {
-            opt.textContent = version;
-          }
-        });
-      })
-      .catch(() => {
-        // If version fetch fails, keep original labels
-      });
-
-    // Set current terminal as selected
-    selTerminal.value = config.terminal;
-
-    // Handle terminal selection changes
-    selTerminal.addEventListener('change', () => {
-      const newTerminal = selTerminal.value;
-      // Store preference in cookie
-      setTerminalBackend(newTerminal);
-      // Reload with the new terminal as query parameter
-      const url = new URL(window.location.href);
-      url.searchParams.set('terminal', newTerminal);
-      window.location.href = url.toString();
     });
   }
 
