@@ -10,7 +10,7 @@ import { loadSettings, getActiveThemeName } from './settings.js';
 import { getTopbarAutohide } from './prefs.js';
 import type { TerminalSettings } from './settings.js';
 import { applyTheme, loadAllFonts, readBorderInsets } from './theme.js';
-import { XtermAdapter } from './adapters/xterm.js';
+import { XtermAdapter } from './adapters/xterm.ts';
 
 declare global {
   interface Window {

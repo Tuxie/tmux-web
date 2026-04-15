@@ -20,7 +20,7 @@ interface AllSettings extends TerminalSettings {
   themeFontTouched?: Record<string, boolean>;
 }
 
-function getCookie(): Partial<AllSettings> {
+function getCookie(): AllSettings {
   const name = COOKIE_NAME + '=';
   const decodedCookie = decodeURIComponent(document.cookie);
   const cookies = decodedCookie.split(';');
@@ -37,7 +37,7 @@ function getCookie(): Partial<AllSettings> {
   return {};
 }
 
-function setCookie(value: Partial<AllSettings>): void {
+function setCookie(value: AllSettings): void {
   // Set cookie with 1 year expiration
   const date = new Date();
   date.setTime(date.getTime() + 365 * 24 * 60 * 60 * 1000);
@@ -55,8 +55,8 @@ export function loadSettings(): TerminalSettings {
     const raw = sessionStorage.getItem(SS_KEY);
     if (raw) {
       const ss = JSON.parse(raw) as AllSettings;
-      // Restore the cookie so other callers see the correct values even after
-      // the cookie was overwritten by init scripts.
+      // Restore the cookie so other callers (getTopbarAutohide etc.) see the
+      // correct values even after the cookie was overwritten by init scripts.
       const all = getCookie();
       setCookie({ ...all, ...ss });
       return { ...DEFAULT_SETTINGS, ...ss };
