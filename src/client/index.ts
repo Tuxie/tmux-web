@@ -6,20 +6,21 @@ import { Topbar } from './ui/topbar.js';
 import { installMouseHandler, getSgrCoords, buildSgrSequence } from './ui/mouse.js';
 import { installKeyboardHandler } from './ui/keyboard.js';
 import { handleClipboard } from './ui/clipboard.js';
-import { loadSettings, getActiveThemeName } from './settings.js';
 import { getTopbarAutohide } from './prefs.js';
-import type { TerminalSettings } from './settings.js';
-import { applyTheme, loadAllFonts, readBorderInsets } from './theme.js';
+import { applyTheme, loadAllFonts, listThemes, readBorderInsets } from './theme.js';
+import { fetchColours, composeTheme, type ITheme } from './colours.js';
+import {
+  loadSessionSettings,
+  saveSessionSettings,
+  DEFAULT_SESSION_SETTINGS,
+  type SessionSettings,
+} from './session-settings.js';
 import { XtermAdapter } from './adapters/xterm.ts';
 
 declare global {
   interface Window {
     __TMUX_WEB_CONFIG: ClientConfig;
   }
-}
-
-function fontFamilyCss(s: TerminalSettings): string {
-  return `"${s.fontFamily}", monospace`;
 }
 
 function applyTerminalInsets(): void {
@@ -34,90 +35,94 @@ function applyTerminalInsets(): void {
 
 async function main() {
   const adapter: TerminalAdapter = new XtermAdapter();
-
   const container = document.getElementById('terminal')!;
 
-  // Pre-apply pinned topbar class so the container has the correct size during
-  // the first adapter.init() → fit() call. topbar.init() later reads the same
-  // value and calls applyPinnedClass() redundantly, which is harmless.
-  if (!getTopbarAutohide()) {
-    document.body.classList.add('topbar-pinned');
-  }
+  if (!getTopbarAutohide()) document.body.classList.add('topbar-pinned');
 
+  const [themes, colours] = await Promise.all([listThemes(), fetchColours()]);
   await loadAllFonts();
-  await applyTheme(getActiveThemeName());
+
+  const sessionName = location.pathname.replace(/^\/+|\/+$/g, '') || 'main';
+  const currentTheme = themes.find(t => t.name === DEFAULT_SESSION_SETTINGS.theme) ?? themes[0];
+  const themeDefaults = currentTheme ? {
+    colours: currentTheme.defaultColours,
+    fontFamily: currentTheme.defaultFont,
+    fontSize: currentTheme.defaultFontSize,
+    lineHeight: currentTheme.defaultLineHeight,
+  } : undefined;
+
+  let settings = loadSessionSettings(sessionName, null, {
+    defaults: DEFAULT_SESSION_SETTINGS,
+    themeDefaults,
+  });
+  saveSessionSettings(sessionName, settings);
+
+  await applyTheme(settings.theme);
   applyTerminalInsets();
 
-  const settings = loadSettings();
+  const colourByName = new Map(colours.map(c => [c.name, c.theme]));
+  const coloursOrDefault = (name: string): ITheme =>
+    colourByName.get(name) ?? { foreground: '#d4d4d4', background: '#1e1e1e' };
+
   await adapter.init(container, {
-    fontFamily: fontFamilyCss(settings),
+    fontFamily: `"${settings.fontFamily}", monospace`,
     fontSize: settings.fontSize,
     lineHeight: settings.lineHeight,
-    theme: { background: '#1e1e1e', foreground: '#d4d4d4' },
+    theme: composeTheme(coloursOrDefault(settings.colours), settings.opacity),
   });
   adapter.focus();
   (window as any).__adapter = adapter;
 
-  const session = location.pathname.replace(/^\/+|\/+$/g, '') || 'main';
-  let connection: Connection;
-
   let appliedFontKey = settings.fontFamily;
+  let connection: Connection;
 
   const topbar = new Topbar({
     send: (data) => connection.send(data),
     focus: () => adapter.focus(),
+    getLiveSettings: () => settings,
     onAutohideChange: () => {
       applyTerminalInsets();
       adapter.fit();
     },
-    onThemeChange: () => {
-      applyTerminalInsets();
-      adapter.fit();
-    },
-    onSettingsChange: (s) => {
-      // Check if font changed and adapter requires reload for font changes
-      const newFontKey = s.fontFamily;
-      const fontChanged = newFontKey !== appliedFontKey;
+    onSettingsChange: async (s) => {
+      const themeChanged = s.theme !== settings.theme;
+      const fontChanged = s.fontFamily !== appliedFontKey;
+      settings = s;
+      saveSessionSettings(sessionName, s);
+
+      if (themeChanged) {
+        await applyTheme(s.theme);
+        applyTerminalInsets();
+      }
+
+      adapter.setTheme(composeTheme(coloursOrDefault(s.colours), s.opacity));
 
       if (fontChanged && adapter.requiresReloadForFontChange) {
-        // Adapter can't recalculate metrics after font change — reload page
         const _dd = document.getElementById('menu-dropdown') as HTMLElement | null;
         if (_dd && !_dd.hidden) sessionStorage.setItem('tmux-web:menu-reopen', '1');
-        appliedFontKey = newFontKey;
+        appliedFontKey = s.fontFamily;
         location.reload();
         return;
       }
 
-      // Apply adapter options immediately so the terminal reflects the change
-      // before the font file is fetched. The browser will render with the new
-      // font once the download completes.
       if (adapter.updateOptions) {
         adapter.updateOptions({
-          fontFamily: fontFamilyCss(s),
+          fontFamily: `"${s.fontFamily}", monospace`,
           fontSize: s.fontSize,
           lineHeight: s.lineHeight,
         });
-      } else {
+      } else if (fontChanged) {
         const _dd = document.getElementById('menu-dropdown') as HTMLElement | null;
         if (_dd && !_dd.hidden) sessionStorage.setItem('tmux-web:menu-reopen', '1');
         location.reload();
         return;
       }
 
-      // Load font in the background after the adapter is already updated.
-      // After the font loads, re-fit the terminal so xterm recalculates character
-      // cell metrics with the actual rendered font. Without this, text appears
-      // cramped/overlapped because xterm calculates dimensions before the font loads.
       if (fontChanged) {
-        appliedFontKey = newFontKey;
-        document.fonts.load(`18px "${s.fontFamily}"`).then(() => {
-          // Font has loaded — now re-fit with correct metrics
-          adapter.fit();
-        }).catch(() => {
-          // Even if font loading failed, re-fit to apply any CSS changes
-          adapter.fit();
-        });
+        appliedFontKey = s.fontFamily;
+        document.fonts.load(`18px "${s.fontFamily}"`).then(() => adapter.fit()).catch(() => adapter.fit());
       }
+      adapter.fit();
     },
   });
   await topbar.init();
