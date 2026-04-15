@@ -10,12 +10,12 @@ import { test, expect } from '@playwright/test';
 import { type ChildProcess } from 'child_process';
 import { mockApis, injectWsSpy, waitForWsOpen, startServer, killServer } from './helpers.js';
 
-const PORT_GHOSTTY = 4071;
+const PORT_XTERM = 4071;
 
-function startBackendServer(terminal: string, port: number): Promise<ChildProcess> {
+function startXtermServer(port: number): Promise<ChildProcess> {
   return startServer(
     'bun',
-    ['src/server/index.ts', '--test', `--terminal=${terminal}`, `--listen=127.0.0.1:${port}`, '--no-auth', '--no-tls'],
+    ['src/server/index.ts', '--test', `--listen=127.0.0.1:${port}`, '--no-auth', '--no-tls'],
   );
 }
 
@@ -28,6 +28,27 @@ async function getAdapterMetrics(page: import('@playwright/test').Page): Promise
       cols: adapter.cols,
       rows: adapter.rows,
     };
+  });
+}
+
+async function readSettingsCookie(page: import('@playwright/test').Page): Promise<Record<string, unknown>> {
+  return page.evaluate(() => {
+    const name = 'tmux-web-settings=';
+    const decodedCookie = decodeURIComponent(document.cookie);
+    for (const cookie of decodedCookie.split(';')) {
+      const trimmed = cookie.trim();
+      if (trimmed.startsWith(name)) {
+        try { return JSON.parse(trimmed.substring(name.length)); } catch {}
+      }
+    }
+    return {};
+  });
+}
+
+async function getOtherBundledFont(page: import('@playwright/test').Page): Promise<string> {
+  return page.evaluate(() => {
+    const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
+    return Array.from(sel.options).find(o => !o.value.includes('Iosevka Nerd Font Mono'))?.value ?? '';
   });
 }
 
@@ -74,130 +95,87 @@ async function openMenuAndChangeFont(page: import('@playwright/test').Page, newF
   await page.click('#btn-menu'); // close menu
 }
 
-// ---------------------------------------------------------------------------
-// ghostty: Canvas-based renderer. Font changes trigger reload so we just
-// verify the reload happened and new metrics are correct.
-// ---------------------------------------------------------------------------
-test.describe('font change rendering: ghostty', () => {
-  test('font setting persists across page reload triggered by font change', async ({ page }) => {
+test.describe('font change rendering: xterm', () => {
+  let server: ChildProcess;
+  const base = `http://127.0.0.1:${PORT_XTERM}`;
+
+  test.beforeAll(async () => { server = await startXtermServer(PORT_XTERM); });
+  test.afterAll(() => killServer(server));
+
+  test.beforeEach(async ({ page, context }) => {
+    await context.clearCookies();
+    await page.addInitScript(() => {
+      const settings = {
+        fontFamily: 'Iosevka Nerd Font Mono',
+        fontSize: 18,
+        lineHeight: 1.125,
+      };
+      document.cookie = `tmux-web-settings=${encodeURIComponent(JSON.stringify(settings))}; path=/;`;
+      localStorage.clear();
+    });
     await injectWsSpy(page);
     await mockApis(page, ['main'], []);
-    await page.goto('/main');
+    await page.goto(`${base}/main`);
     await waitForWsOpen(page);
-
-    // Get a different bundled font
-    const otherFont = await page.evaluate(() => {
-      const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('Iosevka Nerd Font Mono'))?.value ?? '';
-    });
-    expect(otherFont).toBeTruthy();
-
-    // Set up route handlers for the reload
-    await page.route('/api/sessions', route =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: '["main"]' })
-    );
-    await page.route('/api/windows**', route =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
-    );
-
-    // Open menu
-    await page.mouse.move(640, 10);
-    await page.click('#btn-menu');
-    await expect(page.locator('#menu-dropdown')).toBeVisible();
-
-    // Wait for font list
     await page.waitForFunction(
       () => (document.getElementById('inp-font-bundled') as HTMLSelectElement)?.options.length > 0,
       { timeout: 5000 },
     );
-
-    // Trigger reload by changing font
-    const navPromise = page.waitForNavigation({ timeout: 10000 });
-    await page.selectOption('#inp-font-bundled', otherFont);
-    await navPromise;
-
-    // Wait for terminal to be ready after reload
-    await waitForWsOpen(page);
-    await page.waitForFunction(
-      () => (window as any).__adapter !== undefined,
-      { timeout: 10000 },
-    );
-
-    // Verify the font was loaded from settings and applied to ghostty
-    const finalSettings = await page.evaluate(() => {
-      const name = 'tmux-web-settings=';
-      const decodedCookie = decodeURIComponent(document.cookie);
-      for (const cookie of decodedCookie.split(';')) {
-        const trimmed = cookie.trim();
-        if (trimmed.startsWith(name)) {
-          try { return JSON.parse(trimmed.substring(name.length)); } catch {}
-        }
-      }
-      return {};
-    });
-    expect(finalSettings.fontFamily).toBe(otherFont);
+    await expect(page.locator('#terminal .xterm')).toBeVisible({ timeout: 10000 });
   });
 
-  test('canvas renders correctly after reload with new font', async ({ page }) => {
-    await injectWsSpy(page);
-    await mockApis(page, ['main'], []);
-    await page.goto('/main');
-    await waitForWsOpen(page);
-
-    // Wait for canvas to appear
-    const canvas = page.locator('#terminal canvas').first();
-    await expect(canvas).toBeVisible({ timeout: 10000 });
-
-    // Get a different font
-    const otherFont = await page.evaluate(() => {
-      const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('Iosevka Nerd Font Mono'))?.value ?? '';
-    });
+  test('font change updates xterm options and persisted settings without reloading', async ({ page }) => {
+    const otherFont = await getOtherBundledFont(page);
     expect(otherFont).toBeTruthy();
 
-    // Set up route handlers for reload
-    await page.route('/api/sessions', route =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: '["main"]' })
-    );
-    await page.route('/api/windows**', route =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
-    );
+    const metricsBefore = await getAdapterMetrics(page);
+    const navigationCountBefore = await page.evaluate(() => performance.getEntriesByType('navigation').length);
 
-    // Trigger reload
-    await page.mouse.move(640, 10);
-    await page.click('#btn-menu');
-    await expect(page.locator('#menu-dropdown')).toBeVisible();
+    await openMenuAndChangeFont(page, otherFont);
 
     await page.waitForFunction(
-      () => (document.getElementById('inp-font-bundled') as HTMLSelectElement)?.options.length > 0,
+      (font) => document.fonts.check(`18px "${font}"`),
+      otherFont,
+      { timeout: 5000 },
+    );
+    await page.waitForFunction(
+      (font) => ((window as any).__adapter?.term?.options?.fontFamily ?? '').includes(font),
+      otherFont,
       { timeout: 5000 },
     );
 
-    const navPromise = page.waitForNavigation({ timeout: 10000 });
-    await page.selectOption('#inp-font-bundled', otherFont);
-    await navPromise;
+    const settings = await readSettingsCookie(page);
+    const metricsAfter = await getAdapterMetrics(page);
+    const navigationCountAfter = await page.evaluate(() => performance.getEntriesByType('navigation').length);
 
-    // Wait for terminal to be ready after reload
-    await waitForWsOpen(page);
-    await expect(canvas).toBeVisible({ timeout: 10000 });
-
-    // Verify canvas is rendering and has dimensions
-    const boxAfter = await canvas.boundingBox();
-    expect(boxAfter!.width).toBeGreaterThan(0);
-    expect(boxAfter!.height).toBeGreaterThan(0);
-
-    // Verify the font was persisted in settings
-    const settings = await page.evaluate(() => {
-      const name = 'tmux-web-settings=';
-      const decodedCookie = decodeURIComponent(document.cookie);
-      for (const cookie of decodedCookie.split(';')) {
-        const trimmed = cookie.trim();
-        if (trimmed.startsWith(name)) {
-          try { return JSON.parse(trimmed.substring(name.length)); } catch {}
-        }
-      }
-      return {};
-    });
     expect(settings.fontFamily).toBe(otherFont);
+    expect(navigationCountAfter).toBe(navigationCountBefore);
+    expect(metricsAfter.width).toBeGreaterThan(0);
+    expect(metricsAfter.height).toBeGreaterThan(0);
+    expect(metricsAfter.cols).toBeGreaterThan(0);
+    expect(metricsAfter.rows).toBeGreaterThan(0);
+    expect(
+      metricsAfter.width !== metricsBefore.width ||
+      metricsAfter.height !== metricsBefore.height ||
+      metricsAfter.cols !== metricsBefore.cols ||
+      metricsAfter.rows !== metricsBefore.rows,
+    ).toBe(true);
+  });
+
+  test('xterm remains rendered and usable after font change', async ({ page }) => {
+    const otherFont = await getOtherBundledFont(page);
+    expect(otherFont).toBeTruthy();
+
+    await openMenuAndChangeFont(page, otherFont);
+    await page.waitForFunction(
+      (font) => ((window as any).__adapter?.term?.options?.fontFamily ?? '').includes(font),
+      otherFont,
+      { timeout: 5000 },
+    );
+
+    await page.evaluate(() => { (window as any).__mockWsReceive('font change render\r\n'); });
+
+    await expect(page.locator('#terminal .xterm')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#terminal .xterm-rows')).toContainText('font change render', { timeout: 5000 });
   });
 });

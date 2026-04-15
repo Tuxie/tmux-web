@@ -15,10 +15,10 @@ import { mockApis, injectWsSpy, waitForWsOpen, startServer, killServer } from '.
 // Ports chosen to avoid conflicts with default (4023) and terminal-backends (4040-4042)
 const PORTS = { xterm: 4050 };
 
-function startBackendServer(terminal: string, port: number): Promise<ChildProcess> {
+function startXtermServer(port: number): Promise<ChildProcess> {
   return startServer(
     'bun',
-    ['src/server/index.ts', '--test', `--terminal=${terminal}`, `--listen=127.0.0.1:${port}`, '--no-auth', '--no-tls'],
+    ['src/server/index.ts', '--test', `--listen=127.0.0.1:${port}`, '--no-auth', '--no-tls'],
   );
 }
 
@@ -54,7 +54,7 @@ test.describe('font selection: xterm', () => {
   let server: ChildProcess;
   const base = `http://127.0.0.1:${PORTS.xterm}`;
 
-  test.beforeAll(async () => { server = await startBackendServer('xterm', PORTS.xterm); });
+  test.beforeAll(async () => { server = await startXtermServer(PORTS.xterm); });
   test.afterAll(() => killServer(server));
 
   test.beforeEach(async ({ page, context }) => {
@@ -103,36 +103,5 @@ test.describe('font selection: xterm', () => {
     // xterm options must be updated
     const fontFamily = await getXtermFontFamily(page);
     expect(fontFamily).toContain(otherFont);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// ghostty (uses the shared webServer from playwright.config.ts at port 4023)
-// ---------------------------------------------------------------------------
-test.describe('font selection: ghostty', () => {
-  test.beforeEach(async ({ page, context }) => {
-    await context.clearCookies();
-    await page.addInitScript(() => {
-      const settings = {
-        fontFamily: 'Iosevka Nerd Font Mono',
-        fontSize: 18,
-        lineHeight: 1.125
-      };
-      document.cookie = `tmux-web-settings=${encodeURIComponent(JSON.stringify(settings))}; path=/;`;
-      localStorage.clear();
-    });
-    await injectWsSpy(page);
-    await mockApis(page, ['main'], []);
-    await page.goto('/main');
-    await waitForWsOpen(page);
-    await waitForFontList(page);
-  });
-
-  test('default load: browser successfully loads the font file', async ({ page }) => {
-    await page.waitForFunction(
-      () => document.fonts.check('18px "Iosevka Nerd Font Mono"'),
-      { timeout: 5000 },
-    );
-    expect(await isFontLoaded(page, 'Iosevka Nerd Font Mono')).toBe(true);
   });
 });

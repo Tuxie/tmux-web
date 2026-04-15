@@ -58,8 +58,8 @@ test('terminal focused after interacting with font-size input then closing menu'
   await page.click('#btn-menu');
   await expect(page.locator('#menu-dropdown')).toBeHidden();
 
-  // Blurring the number input fires 'change', which may reload the page (ghostty
-  // has no updateOptions). Wait for the WebSocket to be open before checking focus.
+  // Blurring the number input fires 'change'; wait for the socket to settle
+  // before checking that focus returned to the terminal.
   await waitForWsOpen(page);
   await expectTerminalFocused(page);
 });
@@ -75,7 +75,7 @@ test('terminal focused after interacting with font picker then closing menu', as
   await page.mouse.click(400, 400);
   await expect(page.locator('#menu-dropdown')).toBeHidden();
 
-  // Blurring the text input fires 'change', which may reload the page on ghostty.
+  // Wait for any follow-up settings work to settle before checking focus.
   await waitForWsOpen(page);
   await expectTerminalFocused(page);
 });
