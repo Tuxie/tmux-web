@@ -31,6 +31,9 @@ export function parseConfig(argv: string[]): ConfigResult {
     args: argv,
     options: {
       listen:       { type: 'string',  short: 'l', default: `${DEFAULT_HOST}:${DEFAULT_PORT}` },
+      // Temporary compatibility alias: accept legacy --terminal callers so
+      // strict arg parsing does not fail while backend selection is removed.
+      terminal:     { type: 'string' },
       'allow-ip':   { type: 'string',  multiple: true, default: [] as string[] },
       username:     { type: 'string' },
       password:     { type: 'string' },
