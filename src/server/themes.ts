@@ -120,13 +120,26 @@ function findPack(packDir: string, packs: PackInfo[]): PackInfo | null {
   return packs.find(pack => pack.dir === packDir) ?? null;
 }
 
-export function readPackFile(packDir: string, file: string, packs: PackInfo[]): { fullPath: string } | null {
-  if (!file || file.includes('..') || file.includes('/') || file.includes('\\') || file.startsWith('.')) {
-    return null;
+export function isValidPackRelPath(rel: string): boolean {
+  if (!rel) return false;
+  if (rel.startsWith('/') || rel.startsWith('\\')) return false;
+  if (rel.includes('\\')) return false;
+  const segments = rel.split('/');
+  for (const seg of segments) {
+    if (seg === '' || seg === '.' || seg === '..') return false;
+    if (seg.startsWith('.')) return false;
   }
+  return true;
+}
+
+export function readPackFile(packDir: string, file: string, packs: PackInfo[]): { fullPath: string } | null {
+  if (!isValidPackRelPath(file)) return null;
   const pack = findPack(packDir, packs);
   if (!pack) return null;
   const fullPath = path.join(pack.fullPath, file);
-  if (!fs.existsSync(fullPath)) return null;
-  return { fullPath };
+  const resolved = path.resolve(fullPath);
+  const root = path.resolve(pack.fullPath);
+  if (!resolved.startsWith(root + path.sep) && resolved !== root) return null;
+  if (!fs.existsSync(resolved)) return null;
+  return { fullPath: resolved };
 }
