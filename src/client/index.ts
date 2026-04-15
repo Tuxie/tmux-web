@@ -9,6 +9,7 @@ import { handleClipboard } from './ui/clipboard.js';
 import { loadSettings, getTopbarAutohide, getActiveThemeName } from './settings.js';
 import type { TerminalSettings } from './settings.js';
 import { applyTheme, loadAllFonts, readBorderInsets } from './theme.js';
+import { XtermAdapter } from './adapters/xterm.ts';
 
 declare global {
   interface Window {
@@ -31,7 +32,6 @@ function applyTerminalInsets(): void {
 }
 
 async function main() {
-  const { XtermAdapter } = await import('./adapters/xterm.ts');
   const adapter: TerminalAdapter = new XtermAdapter();
 
   const container = document.getElementById('terminal')!;
