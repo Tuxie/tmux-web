@@ -9,6 +9,7 @@ import type { ServerConfig } from '../shared/types.js';
 import { isAllowed } from './allowlist.js';
 import { embeddedAssets } from './assets-embedded.js';
 import {
+  listColours,
   listFonts,
   listPacks,
   listThemes,
@@ -183,6 +184,14 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
     if (pathname === '/api/themes') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(listThemes(packs)));
+      return;
+    }
+
+    if (pathname === '/api/colours') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(listColours(packs).map(c => ({
+        name: c.name, variant: c.variant, theme: c.theme,
+      }))));
       return;
     }
 
