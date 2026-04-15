@@ -1,24 +1,13 @@
-export type FontSource = 'bundled' | 'custom' | 'google';
-
 export interface TerminalSettings {
-  fontSource: FontSource;
   fontFamily: string;
   fontSize: number;
   lineHeight: number;
-  // Remember last font selected per source
-  lastFontPerSource?: {
-    bundled?: string;
-    custom?: string;
-    google?: string;
-  };
-  // Remember line height per font
   lineHeightPerFont?: {
     [fontName: string]: number;
   };
 }
 
 export const DEFAULT_SETTINGS: TerminalSettings = {
-  fontSource: 'bundled',
   fontFamily: 'Iosevka Nerd Font Mono',
   fontSize: 18,
   lineHeight: 0.85,
@@ -29,6 +18,8 @@ const COOKIE_NAME = 'tmux-web-settings';
 interface AllSettings extends TerminalSettings {
   topbarAutohide?: boolean;
   terminal?: string;
+  theme?: string;
+  themeFontTouched?: Record<string, boolean>;
 }
 
 function getCookie(): AllSettings {
@@ -66,7 +57,6 @@ export function loadSettings(): TerminalSettings {
     const raw = sessionStorage.getItem(SS_KEY);
     if (raw) {
       const ss = JSON.parse(raw) as AllSettings;
-      if ((ss as any).fontSource === 'local') ss.fontSource = 'custom';
       // Restore the cookie so other callers (getTopbarAutohide etc.) see the
       // correct values even after the cookie was overwritten by init scripts.
       const all = getCookie();
@@ -75,8 +65,6 @@ export function loadSettings(): TerminalSettings {
     }
   } catch {}
   const all = getCookie();
-  // Migrate: 'local' was renamed to 'custom'
-  if ((all as any).fontSource === 'local') all.fontSource = 'custom';
   return { ...DEFAULT_SETTINGS, ...all };
 }
 
@@ -105,4 +93,23 @@ export function getTerminalBackend(): string | null {
 export function setTerminalBackend(value: string): void {
   const all = getCookie();
   setCookie({ ...all, terminal: value });
+}
+
+export function getActiveThemeName(): string {
+  return getCookie().theme || 'Default';
+}
+
+export function setActiveThemeName(name: string): void {
+  const all = getCookie();
+  setCookie({ ...all, theme: name });
+}
+
+export function isThemeFontTouched(theme: string): boolean {
+  return !!getCookie().themeFontTouched?.[theme];
+}
+
+export function markThemeFontTouched(theme: string): void {
+  const all = getCookie();
+  const map = { ...(all.themeFontTouched ?? {}), [theme]: true };
+  setCookie({ ...all, themeFontTouched: map });
 }

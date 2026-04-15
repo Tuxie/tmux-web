@@ -64,14 +64,12 @@ test('terminal focused after interacting with font-size input then closing menu'
   await expectTerminalFocused(page);
 });
 
-test('terminal focused after interacting with font-name input then closing menu', async ({ page }) => {
+test('terminal focused after interacting with font picker then closing menu', async ({ page }) => {
   await page.click('#btn-menu');
   await expect(page.locator('#menu-dropdown')).toBeVisible();
 
-  // #inp-font is only visible when source is 'custom' — switch to it first
-  await page.selectOption('#inp-fontsource', 'custom');
-  await page.click('#inp-font');
-  await page.fill('#inp-font', 'monospace');
+  await page.click('#inp-font-bundled');
+  await page.keyboard.press('ArrowDown');
 
   // Close by clicking outside
   await page.mouse.click(400, 400);

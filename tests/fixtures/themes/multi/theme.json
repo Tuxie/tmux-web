@@ -1,0 +1,8 @@
+{
+  "author": "x",
+  "fonts": [{ "file": "F.woff2", "family": "Shared" }],
+  "themes": [
+    { "name": "Foo Brown", "css": "brown.css", "defaultFont": "Shared" },
+    { "name": "Foo Green", "css": "green.css" }
+  ]
+}

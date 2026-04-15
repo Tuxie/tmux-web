@@ -1,0 +1,106 @@
+body { background: #1e1e1e; }
+
+#topbar {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  background: #262626;
+  padding: 0 6px;
+  gap: 4px;
+  font-family: 'Iosevka Nerd Font Mono', 'MOsOul Nerd Font', 'ZedMono Nerd Font', 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: #d4d4d4;
+  user-select: none;
+  -webkit-user-select: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  transition: transform 0.3s ease;
+  pointer-events: none;
+}
+
+#topbar > * { pointer-events: auto; }
+#topbar.hidden { transform: translateY(-100%); }
+#topbar.hidden > * { pointer-events: none; }
+
+#tb-session, #tb-windows, #tb-right { display: flex; align-items: center; gap: 4px; }
+#tb-spacer { flex: 1; }
+#tb-windows #win-tabs { display: flex; gap: 2px; }
+
+#topbar .tb-btn {
+  background: none;
+  border: none;
+  color: #d4d4d4;
+  border-radius: 3px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+#topbar .tb-btn:hover { background: #333; }
+#topbar .tb-btn:active { background: #444; }
+
+#topbar select {
+  background: #1e1e1e;
+  border: 1px solid #555;
+  color: #d4d4d4;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+#topbar select:hover { background: #333; }
+#topbar .tb-sep { width: 12px; }
+
+#topbar .win-tab {
+  background: none;
+  border: 1px solid transparent;
+  color: #888;
+  border-radius: 3px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+#topbar .win-tab:hover { background: #333; color: #d4d4d4; }
+#topbar .win-tab.active { color: #d4d4d4; border-color: #555; }
+
+#btn-menu { padding: 2px 8px; font-size: 18px; }
+
+#menu-wrap { position: relative; }
+
+#menu-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: #262626;
+  border: 1px solid #555;
+  border-radius: 4px;
+  min-width: 270px;
+  z-index: 100;
+  padding: 4px 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.menu-row:hover { background: #333; }
+
+#menu-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 12px;
+  font-size: 11px;
+  color: #888;
+  white-space: nowrap;
+}
+
+#terminal { position: absolute; left: 3px; right: 3px; bottom: 3px; top: 3px; }
+body.topbar-pinned #terminal { top: 31px; }

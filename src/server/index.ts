@@ -48,6 +48,8 @@ export function parseConfig(argv: string[]): ConfigResult {
       'tls-key':    { type: 'string' },
       'tmux':       { type: 'string',  default: 'tmux' },
       'tmux-conf':  { type: 'string' },
+      'themes-dir': { type: 'string' },
+      'theme':      { type: 'string' },
       test:         { type: 'boolean', short: 't', default: false },
       debug:        { type: 'boolean', short: 'd', default: false },
       help:         { type: 'boolean', short: 'h', default: false },
@@ -80,6 +82,8 @@ export function parseConfig(argv: string[]): ConfigResult {
       username,
       password,
     },
+    themesDir: args['themes-dir'] as string | undefined,
+    theme: args.theme as string | undefined,
   };
 
   return { config, host, port };
@@ -104,6 +108,8 @@ Options:
       --tls-key <path>         TLS private key file (use with --tls-cert)
       --tmux <path>            Path to tmux executable (default: tmux)
       --tmux-conf <path>       Alternative tmux.conf to load instead of user default
+      --themes-dir <path>      User theme-pack directory override
+      --theme <name>           Initial theme name
   -t, --test                   Test mode: use cat PTY, bypass IP allowlist
   -d, --debug                  Log debug messages to stderr
   -h, --help                   Show this help`);
@@ -121,11 +127,14 @@ Options:
 
   const isCompiled = !process.execPath.endsWith('bun') && !process.execPath.endsWith('bun.exe');
   let projectRoot = isCompiled ? path.dirname(process.execPath) : path.resolve(import.meta.dir, '../..');
+  const themesUserDir = config.themesDir
+    ?? path.join(process.env.HOME ?? '', '.config/tmux-web/themes');
 
   const tmuxConfPath = path.join(projectRoot, 'tmux.conf');
   const htmlTemplatePath = path.join(projectRoot, 'src/client/index.html');
   const distDir = path.join(projectRoot, 'dist');
   const fontsDir = path.join(projectRoot, 'fonts');
+  const themesBundledDir = path.join(projectRoot, 'themes');
 
   let ghosttyWasmPath: string | undefined;
   let ghosttyDistDir: string | undefined;
@@ -200,6 +209,8 @@ Options:
     htmlTemplate,
     distDir,
     fontsDir,
+    themesUserDir,
+    themesBundledDir,
     projectRoot,
     ghosttyDistDir,
     ghosttyWasmPath,

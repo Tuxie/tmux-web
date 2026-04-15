@@ -145,6 +145,15 @@ async function buildClient() {
   } catch (e) {
     console.error("Failed to copy xterm.css:", e);
   }
+
+  // Copy base.css to dist
+  try {
+    const baseCss = await Bun.file(path.join(import.meta.dir, 'src/client/base.css')).bytes();
+    await Bun.write('dist/client/base.css', baseCss);
+    console.log('Copied base.css to dist/client/base.css');
+  } catch (e) {
+    console.error('Failed to copy base.css:', e);
+  }
 }
 
 async function runBuild() {

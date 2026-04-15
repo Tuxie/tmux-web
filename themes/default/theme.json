@@ -1,0 +1,7 @@
+{
+  "author": "tmux-web",
+  "version": "1",
+  "themes": [
+    { "name": "Default", "css": "default.css" }
+  ]
+}

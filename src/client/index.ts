@@ -6,8 +6,9 @@ import { Topbar } from './ui/topbar.js';
 import { installMouseHandler, getSgrCoords, buildSgrSequence } from './ui/mouse.js';
 import { installKeyboardHandler } from './ui/keyboard.js';
 import { handleClipboard } from './ui/clipboard.js';
-import { loadSettings, setTerminalBackend, getTopbarAutohide } from './settings.js';
+import { loadSettings, setTerminalBackend, getTopbarAutohide, getActiveThemeName } from './settings.js';
 import type { TerminalSettings } from './settings.js';
+import { applyTheme, loadAllFonts, readBorderInsets } from './theme.js';
 
 declare global {
   interface Window {
@@ -15,42 +16,18 @@ declare global {
   }
 }
 
-async function loadBundledFont(fontName: string): Promise<void> {
-  const url = `/fonts/${encodeURIComponent(fontName)}.woff2`;
-  let style = document.getElementById('bundled-font-style') as HTMLStyleElement | null;
-  if (!style) {
-    style = document.createElement('style');
-    style.id = 'bundled-font-style';
-    document.head.appendChild(style);
-  }
-  style.textContent = `@font-face { font-family: "${fontName}"; src: url("${url}") format("woff2"); }`;
-  try { await document.fonts.load(`18px "${fontName}"`); } catch { /* ignore */ }
-}
-
-async function loadGoogleFont(fontName: string): Promise<void> {
-  const url = `https://fonts.googleapis.com/css2?family=${fontName.trim().replace(/ /g, '+')}&display=swap`;
-  let link = document.getElementById('google-fonts-link') as HTMLLinkElement | null;
-  if (!link) {
-    link = document.createElement('link');
-    link.id = 'google-fonts-link';
-    link.rel = 'stylesheet';
-    document.head.appendChild(link);
-  }
-  if (link.href !== url) {
-    await new Promise<void>(resolve => {
-      link!.onload = () => resolve();
-      link!.onerror = () => resolve();
-      link!.href = url;
-      setTimeout(resolve, 3000);
-    });
-  }
-  try { await document.fonts.load(`18px "${fontName}"`); } catch { /* ignore */ }
-}
-
 function fontFamilyCss(s: TerminalSettings): string {
-  if (s.fontSource === 'bundled') return `"${s.fontFamily}", monospace`;
-  if (s.fontSource === 'google') return `"${s.fontFamily}", monospace`;
-  return s.fontFamily; // custom: raw CSS font-family string
+  return `"${s.fontFamily}", monospace`;
+}
+
+function applyTerminalInsets(): void {
+  const terminal = document.getElementById('terminal')!;
+  const insets = readBorderInsets();
+  const pinned = document.body.classList.contains('topbar-pinned');
+  terminal.style.top = `${(pinned ? 28 : 3) + insets.top}px`;
+  terminal.style.right = `${insets.right || 3}px`;
+  terminal.style.bottom = `${insets.bottom || 3}px`;
+  terminal.style.left = `${insets.left || 3}px`;
 }
 
 async function main() {
@@ -80,9 +57,11 @@ async function main() {
     document.body.classList.add('topbar-pinned');
   }
 
+  await loadAllFonts();
+  await applyTheme(getActiveThemeName());
+  applyTerminalInsets();
+
   const settings = loadSettings();
-  if (settings.fontSource === 'bundled') await loadBundledFont(settings.fontFamily);
-  else if (settings.fontSource === 'google') await loadGoogleFont(settings.fontFamily);
   await adapter.init(container, {
     fontFamily: fontFamilyCss(settings),
     fontSize: settings.fontSize,
@@ -95,15 +74,22 @@ async function main() {
   const session = location.pathname.replace(/^\/+|\/+$/g, '') || 'main';
   let connection: Connection;
 
-  let appliedFontKey = `${settings.fontSource}:${settings.fontFamily}`;
+  let appliedFontKey = settings.fontFamily;
 
   const topbar = new Topbar({
     send: (data) => connection.send(data),
     focus: () => adapter.focus(),
-    onAutohideChange: () => adapter.fit(),
+    onAutohideChange: () => {
+      applyTerminalInsets();
+      adapter.fit();
+    },
+    onThemeChange: () => {
+      applyTerminalInsets();
+      adapter.fit();
+    },
     onSettingsChange: (s) => {
       // Check if font changed and adapter requires reload for font changes
-      const newFontKey = `${s.fontSource}:${s.fontFamily}`;
+      const newFontKey = s.fontFamily;
       const fontChanged = newFontKey !== appliedFontKey;
 
       if (fontChanged && adapter.requiresReloadForFontChange) {
@@ -139,13 +125,7 @@ async function main() {
       // cramped/overlapped because xterm calculates dimensions before the font loads.
       if (fontChanged) {
         appliedFontKey = newFontKey;
-        const fontLoadPromise = s.fontSource === 'bundled'
-          ? loadBundledFont(s.fontFamily)
-          : s.fontSource === 'google'
-            ? loadGoogleFont(s.fontFamily)
-            : Promise.resolve();
-
-        fontLoadPromise.then(() => {
+        document.fonts.load(`18px "${s.fontFamily}"`).then(() => {
           // Font has loaded — now re-fit with correct metrics
           adapter.fit();
         }).catch(() => {
@@ -156,7 +136,8 @@ async function main() {
     },
   });
   await topbar.init();
-  adapter.fit(); // re-fit in case topbar started pinned (topbar-pinned CSS changes layout)
+  applyTerminalInsets();
+  adapter.fit();
 
   function handleMessage(data: string) {
     const { terminalData, messages } = extractTTMessages(data);

@@ -1,0 +1,25 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; }
+
+#frame-bg, #frame-top, #frame-right, #frame-bottom, #frame-left,
+#frame-tl, #frame-tr, #frame-bl, #frame-br {
+  position: absolute;
+  pointer-events: none;
+}
+
+.xterm .xterm-viewport { overflow-y: hidden !important; }
+
+#menu-dropdown input[type="range"] { accent-color: #aaa; cursor: pointer; }
+#menu-dropdown input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+#menu-dropdown input[type="number"]::-webkit-inner-spin-button,
+#menu-dropdown input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+.menu-row { display: flex; align-items: center; gap: 8px; padding: 5px 12px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+.menu-row-static { cursor: default; gap: 6px; }
+.menu-label { color: #999; min-width: 72px; }
+.menu-input-select, .menu-input-number {
+  background: #1e1e1e; border: 1px solid #555; color: #d4d4d4;
+  border-radius: 2px; padding: 1px 4px; font-family: inherit; font-size: 12px;
+}
+.menu-input-number { width: 46px; }
+.menu-hr { border: none; border-top: 1px solid #444; margin: 4px 0; }

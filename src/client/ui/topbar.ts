@@ -1,10 +1,24 @@
-import { loadSettings, saveSettings, DEFAULT_SETTINGS, getTerminalBackend, setTerminalBackend, getTopbarAutohide, setTopbarAutohide } from '../settings.js';
-import type { TerminalSettings, FontSource } from '../settings.js';
+import {
+  loadSettings,
+  saveSettings,
+  DEFAULT_SETTINGS,
+  getTerminalBackend,
+  setTerminalBackend,
+  getTopbarAutohide,
+  setTopbarAutohide,
+  getActiveThemeName,
+  setActiveThemeName,
+  isThemeFontTouched,
+  markThemeFontTouched,
+} from '../settings.js';
+import type { TerminalSettings } from '../settings.js';
+import { applyTheme, getActiveTheme, listFonts, listThemes } from '../theme.js';
 
 export interface TopbarOptions {
   send: (data: string) => void;
   focus: () => void;
   onAutohideChange?: () => void;
+  onThemeChange?: () => void;
   onSettingsChange?: (s: TerminalSettings) => void | Promise<void>;
 }
 
@@ -163,37 +177,19 @@ export class Topbar {
   // Returns a Promise that resolves once the async font list fetch completes.
   // All event listeners are wired synchronously before the fetch, so UI events
   // fired during the fetch are handled correctly.
-  private setupSettingsInputs(): Promise<void> {
+  private async setupSettingsInputs(): Promise<void> {
     const settings = loadSettings();
-    const fontHistory = settings.lastFontPerSource || {};
     const lineHeightPerFont = settings.lineHeightPerFont || {};
 
-    const selSource = document.getElementById('inp-fontsource') as HTMLSelectElement;
-    const selFontBundled = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-    const inpFont = document.getElementById('inp-font') as HTMLInputElement;
+    const themeSelect = document.getElementById('inp-theme') as HTMLSelectElement;
+    const fontSelect = document.getElementById('inp-font-bundled') as HTMLSelectElement;
     const sldSize = document.getElementById('sld-fontsize') as HTMLInputElement;
     const inpSize = document.getElementById('inp-fontsize') as HTMLInputElement;
     const sldHeight = document.getElementById('sld-lineheight') as HTMLInputElement;
     const inpHeight = document.getElementById('inp-lineheight') as HTMLInputElement;
 
-    const applySourceVisibility = (source: FontSource) => {
-      selFontBundled.hidden = source !== 'bundled';
-      inpFont.hidden = source === 'bundled';
-    };
-
-    // Tracks the intended bundled font selection. When switching to 'bundled' source
-    // before the async font list has loaded, selFontBundled.value assignment silently
-    // fails. We remember the desired value here and apply it once options are available.
-    let desiredBundledFont: string =
-      settings.fontSource === 'bundled'
-        ? settings.fontFamily
-        : (fontHistory['bundled'] || DEFAULT_SETTINGS.fontFamily);
-
-    selSource.value = settings.fontSource;
-    inpFont.value = settings.fontFamily;
     sldSize.value = inpSize.value = String(settings.fontSize);
     sldHeight.value = inpHeight.value = String(settings.lineHeight);
-    applySourceVisibility(settings.fontSource);
 
     const updateLineHeightFromHistory = (fontName: string) => {
       const savedHeight = lineHeightPerFont[fontName];
@@ -203,67 +199,32 @@ export class Topbar {
     };
 
     const commit = () => {
-      const source = selSource.value as FontSource;
-      const fontFamily = source === 'bundled'
-        ? (selFontBundled.value || desiredBundledFont || DEFAULT_SETTINGS.fontFamily)
-        : (inpFont.value.trim() || DEFAULT_SETTINGS.fontFamily);
+      const fontFamily = fontSelect.value || DEFAULT_SETTINGS.fontFamily;
       const lineHeight = parseFloat(inpHeight.value) || DEFAULT_SETTINGS.lineHeight;
-
-      // Only update fontHistory for the current source with the actual selected font.
-      // This preserves other sources' history even if the current dropdown is empty.
-      if (source === 'bundled' && selFontBundled.value) {
-        fontHistory['bundled'] = selFontBundled.value;
-      } else if (source === 'custom' && inpFont.value.trim()) {
-        fontHistory['custom'] = inpFont.value.trim();
-      } else if (source === 'google' && inpFont.value.trim()) {
-        fontHistory['google'] = inpFont.value.trim();
-      }
-      // Always update line height for the current font
       if (fontFamily) {
         lineHeightPerFont[fontFamily] = lineHeight;
       }
 
       const s: TerminalSettings = {
-        fontSource: source,
         fontFamily,
         fontSize: parseFloat(inpSize.value) || DEFAULT_SETTINGS.fontSize,
         lineHeight,
-        lastFontPerSource: fontHistory,
         lineHeightPerFont,
       };
+      settings.fontFamily = s.fontFamily;
+      settings.fontSize = s.fontSize;
+      settings.lineHeight = s.lineHeight;
+      settings.lineHeightPerFont = lineHeightPerFont;
       saveSettings(s);
       this.opts.onSettingsChange?.(s);
     };
 
-    selSource.addEventListener('change', () => {
-      const newSource = selSource.value as FontSource;
-      applySourceVisibility(newSource);
-
-      // Restore the last font used with this source
-      const lastFont = fontHistory[newSource];
-      if (lastFont) {
-        if (newSource === 'bundled') {
-          desiredBundledFont = lastFont;
-          // Apply immediately if options are available; otherwise the fetch
-          // completion callback will apply desiredBundledFont once loaded.
-          if (selFontBundled.options.length > 0) selFontBundled.value = lastFont;
-          updateLineHeightFromHistory(lastFont);
-        } else {
-          inpFont.value = lastFont;
-          updateLineHeightFromHistory(lastFont);
-        }
-      }
-      commit();
-    });
-
-    selFontBundled.addEventListener('change', () => {
-      const font = selFontBundled.value;
-      desiredBundledFont = font;
+    fontSelect.addEventListener('change', () => {
+      const font = fontSelect.value;
       updateLineHeightFromHistory(font);
+      markThemeFontTouched(getActiveTheme());
       commit();
     });
-
-    inpFont.addEventListener('change', commit);
 
     sldSize.addEventListener('input', () => { inpSize.value = sldSize.value; commit(); });
     inpSize.addEventListener('change', () => { sldSize.value = inpSize.value; commit(); });
@@ -271,20 +232,58 @@ export class Topbar {
     sldHeight.addEventListener('input', () => { inpHeight.value = sldHeight.value; commit(); });
     inpHeight.addEventListener('change', () => { sldHeight.value = inpHeight.value; commit(); });
 
-    // Fetch font list last — all event listeners are already wired so any UI
-    // events that fire during the fetch are handled correctly.
-    return fetch('/api/fonts').then(r => r.json()).then((files: string[]) => {
-      selFontBundled.innerHTML = '';
-      for (const f of files) {
-        const name = f.replace(/\.woff2$/, '');
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        selFontBundled.appendChild(opt);
+    const [fonts, themes] = await Promise.all([listFonts(), listThemes()]);
+
+    fontSelect.innerHTML = '';
+    for (const font of fonts) {
+      const opt = document.createElement('option');
+      opt.value = font.family;
+      opt.textContent = font.family;
+      fontSelect.appendChild(opt);
+    }
+    const availableFonts = new Set(fonts.map(font => font.family));
+    const initialFont = availableFonts.has(settings.fontFamily)
+      ? settings.fontFamily
+      : (availableFonts.has(DEFAULT_SETTINGS.fontFamily) ? DEFAULT_SETTINGS.fontFamily : (fonts[0]?.family ?? DEFAULT_SETTINGS.fontFamily));
+    fontSelect.value = initialFont;
+    if (initialFont !== settings.fontFamily) {
+      settings.fontFamily = initialFont;
+      saveSettings({ ...settings, lineHeightPerFont });
+    }
+    updateLineHeightFromHistory(initialFont);
+
+    themeSelect.innerHTML = '';
+    for (const theme of themes) {
+      const opt = document.createElement('option');
+      opt.value = theme.name;
+      opt.textContent = theme.name;
+      themeSelect.appendChild(opt);
+    }
+    const currentTheme = themes.some(theme => theme.name === getActiveThemeName())
+      ? getActiveThemeName()
+      : getActiveTheme();
+    themeSelect.value = currentTheme;
+
+    themeSelect.addEventListener('change', async () => {
+      const name = themeSelect.value;
+      setActiveThemeName(name);
+      await applyTheme(name);
+      const theme = themes.find(candidate => candidate.name === name);
+      if (theme?.defaultFont && !isThemeFontTouched(name)) {
+        const font = fonts.find(candidate => candidate.family === theme.defaultFont);
+        if (font) {
+          fontSelect.value = font.family;
+          updateLineHeightFromHistory(font.family);
+          commit();
+        }
       }
-      // Apply the desired selection now that options exist.
-      selFontBundled.value = desiredBundledFont;
-    }).catch(() => {});
+      this.opts.onThemeChange?.();
+    });
+
+    // Reset the select after listeners are attached so a fallback font is persisted.
+    if (fontSelect.value !== initialFont) {
+      fontSelect.value = initialFont;
+    }
   }
 
   toggleFullscreen(): void {

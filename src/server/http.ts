@@ -1,4 +1,5 @@
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { execFile, execFileSync } from 'child_process';
 import { promisify } from 'util';
@@ -8,6 +9,13 @@ import { MIME_TYPES } from '../shared/constants.js';
 import type { ServerConfig, TerminalBackend } from '../shared/types.js';
 import { isAllowed } from './allowlist.js';
 import { embeddedAssets } from './assets-embedded.js';
+import {
+  listFonts,
+  listPacks,
+  listThemes,
+  readPackFile,
+  type PackInfo,
+} from './themes.js';
 import pkg from '../../package.json' with { type: 'json' };
 
 const execFileAsync = promisify(execFile);
@@ -18,6 +26,8 @@ export interface HttpHandlerOptions {
   htmlTemplate: string;
   distDir: string;
   fontsDir: string;
+  themesUserDir: string;
+  themesBundledDir: string;
   projectRoot: string;
   ghosttyDistDir?: string;
   ghosttyWasmPath?: string;
@@ -37,6 +47,26 @@ function bundleName(terminal: TerminalBackend): string {
 
 function getAssetPath(key: string): string | null {
   return embeddedAssets[key] || null;
+}
+
+async function materializeBundledThemes(): Promise<string | null> {
+  const keys = Object.keys(embeddedAssets).filter(key => key.startsWith('themes/'));
+  if (keys.length === 0) return null;
+
+  const root = path.join(os.tmpdir(), `tmux-web-themes-${process.pid}`);
+  for (const key of keys) {
+    const src = embeddedAssets[key]!;
+    const dest = path.join(root, key.slice('themes/'.length));
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    const bytes = new Uint8Array(await Bun.file(src).arrayBuffer());
+    fs.writeFileSync(dest, bytes);
+  }
+  process.on('exit', () => {
+    try {
+      fs.rmSync(root, { recursive: true, force: true });
+    } catch {}
+  });
+  return root;
 }
 
 async function readFile(filePath: string, assetKey?: string): Promise<{ data: Buffer | Uint8Array; contentType: string } | null> {
@@ -127,8 +157,13 @@ export function isAuthorized(req: IncomingMessage, config: ServerConfig): boolea
   return user === config.auth.username && pass === config.auth.password;
 }
 
-export function createHttpHandler(opts: HttpHandlerOptions) {
+export async function createHttpHandler(opts: HttpHandlerOptions) {
   const { config, distDir } = opts;
+  let bundledDir: string | null = opts.themesBundledDir;
+  if (opts.isCompiled) {
+    bundledDir = await materializeBundledThemes();
+  }
+  const packs: PackInfo[] = listPacks(opts.themesUserDir, bundledDir);
 
   // Support dynamic terminal selection via query parameter
   function getEffectiveTerminal(req: IncomingMessage): TerminalBackend {
@@ -184,23 +219,45 @@ export function createHttpHandler(opts: HttpHandlerOptions) {
     }
 
     if (pathname === '/api/fonts') {
-      try {
-        let files: string[];
-        if (opts.isCompiled && Object.keys(embeddedAssets).some(k => k.startsWith('fonts/'))) {
-          files = Object.keys(embeddedAssets)
-            .filter(k => k.startsWith('fonts/') && k.endsWith('.woff2'))
-            .map(k => k.slice(6))
-            .sort();
-        } else {
-          files = fs.readdirSync(opts.fontsDir).filter(f => f.endsWith('.woff2')).sort();
-        }
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(files));
-      } catch {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end('[]');
-      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(listFonts(packs)));
       return;
+    }
+
+    if (pathname === '/api/themes') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(listThemes(packs)));
+      return;
+    }
+
+    if (pathname.startsWith('/themes/')) {
+      const rest = pathname.slice('/themes/'.length);
+      const slash = rest.indexOf('/');
+      if (slash < 0) {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
+      let packDir: string;
+      let fileName: string;
+      try {
+        packDir = decodeURIComponent(rest.slice(0, slash));
+        fileName = decodeURIComponent(rest.slice(slash + 1));
+      } catch {
+        res.writeHead(400);
+        res.end();
+        return;
+      }
+      const found = readPackFile(packDir, fileName, packs);
+      if (!found) {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
+      const ext = path.extname(fileName);
+      const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+      const data = new Uint8Array(await Bun.file(found.fullPath).arrayBuffer());
+      return serveFile(res, data, contentType);
     }
 
     if (pathname.startsWith('/dist/')) {

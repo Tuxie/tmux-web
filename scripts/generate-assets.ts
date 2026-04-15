@@ -14,7 +14,10 @@ async function generate() {
     const fullPath = path.join(projectRoot, file);
     if (fs.statSync(fullPath).isFile()) {
       // Only include ghostty.js and xterm.js bundles + css
-      const isBundle = file.startsWith("dist/client/") && (file.endsWith("ghostty.js") || file.endsWith("xterm.js") || file.endsWith("xterm.css"));
+      const isBundle = file.startsWith("dist/client/") && (
+        file.endsWith("ghostty.js") || file.endsWith("xterm.js") ||
+        file.endsWith("xterm.css") || file.endsWith("base.css")
+      );
       const isMap = file.endsWith(".map");
       const isVendor = file.includes("vendor-xterm");
       
@@ -30,6 +33,14 @@ async function generate() {
   const fontsGlob = new Glob("fonts/**/*");
   for (const file of fontsGlob.scanSync(projectRoot)) {
     if (fs.statSync(path.join(projectRoot, file)).isFile() && file.endsWith(".woff2")) {
+      assets.push({ key: file, path: "../../" + file });
+    }
+  }
+
+  // Add files from themes/ (recursive — every file in every pack)
+  const themesGlob = new Glob("themes/**/*");
+  for (const file of themesGlob.scanSync(projectRoot)) {
+    if (fs.statSync(path.join(projectRoot, file)).isFile()) {
       assets.push({ key: file, path: "../../" + file });
     }
   }

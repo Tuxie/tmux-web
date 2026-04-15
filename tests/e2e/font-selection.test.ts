@@ -4,10 +4,9 @@
  * Verifies that fonts chosen in the settings menu are actually applied to the
  * terminal — both at initial page load and when changed live via the menu.
  *
- * Three things must all be true for a font to render correctly:
- *   1. @font-face CSS was injected pointing at the right /fonts/ URL.
- *   2. The browser successfully fetched the font file (document.fonts.check).
- *   3. The terminal adapter received the correct fontFamily option.
+ * Two things must both be true for a font to render correctly:
+ *   1. The browser successfully fetched the font file (document.fonts.check).
+ *   2. The terminal adapter received the correct fontFamily option.
  */
 import { test, expect } from '@playwright/test';
 import { type ChildProcess } from 'child_process';
@@ -21,11 +20,6 @@ function startBackendServer(terminal: string, port: number): Promise<ChildProces
     'bun',
     ['src/server/index.ts', '--test', `--terminal=${terminal}`, `--listen=127.0.0.1:${port}`, '--no-auth', '--no-tls'],
   );
-}
-
-/** Returns the CSS injected by loadBundledFont(), or '' if absent. */
-async function getBundledFontStyle(page: import('@playwright/test').Page): Promise<string> {
-  return page.evaluate(() => document.getElementById('bundled-font-style')?.textContent ?? '');
 }
 
 /** Returns true when the browser has loaded the named font at 18px. */
@@ -67,7 +61,6 @@ test.describe('font selection: xterm', () => {
     await context.clearCookies();
     await page.addInitScript(() => {
       const settings = {
-        fontSource: 'bundled',
         fontFamily: 'Iosevka Nerd Font Mono',
         fontSize: 18,
         lineHeight: 1.125
@@ -82,15 +75,7 @@ test.describe('font selection: xterm', () => {
     await waitForFontList(page);
   });
 
-  test('default load: @font-face injected with correct woff2 URL', async ({ page }) => {
-    const rule = await getBundledFontStyle(page);
-    expect(rule).toContain('Iosevka Nerd Font Mono');
-    expect(rule).toMatch(/\/fonts\/.+\.woff2/);
-    expect(rule).toContain('format("woff2")');
-  });
-
   test('default load: browser successfully loads the font file', async ({ page }) => {
-    // Fails if the server returns 404 (e.g. due to URL-encoding not being decoded)
     await page.waitForFunction(
       () => document.fonts.check('18px "Iosevka Nerd Font Mono"'),
       { timeout: 5000 },
@@ -115,23 +100,9 @@ test.describe('font selection: xterm', () => {
 
     await page.selectOption('#inp-font-bundled', otherFont);
 
-    // @font-face must now reference the new font
-    const rule = await getBundledFontStyle(page);
-    expect(rule).toContain(otherFont);
-
     // xterm options must be updated
     const fontFamily = await getXtermFontFamily(page);
     expect(fontFamily).toContain(otherFont);
-  });
-
-  test('switching to Custom source: xterm gets the raw CSS font-family', async ({ page }) => {
-    await openMenu(page);
-    await page.selectOption('#inp-fontsource', 'custom');
-    await page.fill('#inp-font', 'Fira Code, monospace');
-    await page.locator('#inp-font').dispatchEvent('change');
-
-    const fontFamily = await getXtermFontFamily(page);
-    expect(fontFamily).toBe('Fira Code, monospace');
   });
 });
 
@@ -143,7 +114,6 @@ test.describe('font selection: ghostty', () => {
     await context.clearCookies();
     await page.addInitScript(() => {
       const settings = {
-        fontSource: 'bundled',
         fontFamily: 'Iosevka Nerd Font Mono',
         fontSize: 18,
         lineHeight: 1.125
@@ -158,15 +128,7 @@ test.describe('font selection: ghostty', () => {
     await waitForFontList(page);
   });
 
-  test('default load: @font-face injected with correct woff2 URL', async ({ page }) => {
-    const rule = await getBundledFontStyle(page);
-    expect(rule).toContain('Iosevka Nerd Font Mono');
-    expect(rule).toMatch(/\/fonts\/.+\.woff2/);
-  });
-
   test('default load: browser successfully loads the font file', async ({ page }) => {
-    // ghostty-web expects a bare font name, not a CSS stack — this verifies the
-    // @font-face declaration was injected and the woff2 was actually fetched.
     await page.waitForFunction(
       () => document.fonts.check('18px "Iosevka Nerd Font Mono"'),
       { timeout: 5000 },
