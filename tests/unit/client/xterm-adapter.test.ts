@@ -1,9 +1,21 @@
 import { describe, expect, mock, test } from 'bun:test';
+import type { TerminalTheme } from '../../../src/shared/types.js';
 
 describe('XtermAdapter', () => {
-  test('exposes setTheme method on prototype', async () => {
+  test('writes theme through to the underlying terminal options', async () => {
     const { XtermAdapter } = await import('../../../src/client/adapters/xterm.ts');
-    expect(typeof XtermAdapter.prototype.setTheme).toBe('function');
+    const adapter = new XtermAdapter();
+    const theme: TerminalTheme = {
+      background: '#000000',
+      foreground: '#ffffff',
+    };
+    (adapter as any).term = {
+      options: {},
+    };
+
+    adapter.setTheme(theme);
+
+    expect((adapter as any).term.options.theme).toBe(theme);
   });
 
   test('passes allowTransparency to the xterm Terminal constructor', async () => {
@@ -60,7 +72,10 @@ describe('XtermAdapter', () => {
       fontFamily: 'monospace',
       fontSize: 14,
       lineHeight: 1,
-      theme: { background: '#000000' } as any,
+      theme: {
+        background: '#000000',
+        foreground: '#ffffff',
+      },
     });
 
     expect(terminalCtor.mock.calls[0]?.[0]).toMatchObject({ allowTransparency: true });
