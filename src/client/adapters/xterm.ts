@@ -30,6 +30,7 @@ export class XtermAdapter implements TerminalAdapter {
       allowTransparency: true,
       allowProposedApi: true,
       scrollback: 0,
+      scrollbar: { showScrollbar: false },
     });
 
     this.fitAddon = new FitAddon();
