@@ -5,7 +5,10 @@
     {
       "name": "AmigaOS 3.1",
       "css": "amiga.css",
-      "defaultFont": "Topaz8 Amiga1200 Nerd Font"
+      "defaultFont": "Topaz8 Amiga1200 Nerd Font",
+      "defaultFontSize": 16,
+      "defaultLineHeight": 1.0,
+      "defaultColours": "Monokai"
     }
   ]
 }

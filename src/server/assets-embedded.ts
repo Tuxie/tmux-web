@@ -9,10 +9,20 @@ import asset6 from "../../fonts/Topaz8 Amiga1200 Nerd Font.woff2" with { type: "
 import asset7 from "../../fonts/MicroKnight Nerd Font.woff2" with { type: "file" };
 import asset8 from "../../themes/default/default.css" with { type: "file" };
 import asset9 from "../../themes/default/theme.json" with { type: "file" };
-import asset10 from "../../themes/amiga/theme.json" with { type: "file" };
-import asset11 from "../../themes/amiga/amiga.css" with { type: "file" };
-import asset12 from "../../tmux.conf" with { type: "file" };
-import asset13 from "../../src/client/index.html" with { type: "file" };
+import asset10 from "../../themes/default/colours/tomorrow.toml" with { type: "file" };
+import asset11 from "../../themes/default/colours/solarized-dark.toml" with { type: "file" };
+import asset12 from "../../themes/default/colours/nord.toml" with { type: "file" };
+import asset13 from "../../themes/default/colours/monokai.toml" with { type: "file" };
+import asset14 from "../../themes/default/colours/tokyo-night.toml" with { type: "file" };
+import asset15 from "../../themes/default/colours/solarized-light.toml" with { type: "file" };
+import asset16 from "../../themes/default/colours/gruvbox-dark.toml" with { type: "file" };
+import asset17 from "../../themes/default/colours/gruvbox-light.toml" with { type: "file" };
+import asset18 from "../../themes/default/colours/dracula.toml" with { type: "file" };
+import asset19 from "../../themes/default/colours/catppuccin-mocha.toml" with { type: "file" };
+import asset20 from "../../themes/amiga/theme.json" with { type: "file" };
+import asset21 from "../../themes/amiga/amiga.css" with { type: "file" };
+import asset22 from "../../tmux.conf" with { type: "file" };
+import asset23 from "../../src/client/index.html" with { type: "file" };
 
 export const embeddedAssets: Record<string, string> = {
   "dist/client/xterm.css": asset0,
@@ -25,8 +35,18 @@ export const embeddedAssets: Record<string, string> = {
   "fonts/MicroKnight Nerd Font.woff2": asset7,
   "themes/default/default.css": asset8,
   "themes/default/theme.json": asset9,
-  "themes/amiga/theme.json": asset10,
-  "themes/amiga/amiga.css": asset11,
-  "tmux.conf": asset12,
-  "src/client/index.html": asset13,
+  "themes/default/colours/tomorrow.toml": asset10,
+  "themes/default/colours/solarized-dark.toml": asset11,
+  "themes/default/colours/nord.toml": asset12,
+  "themes/default/colours/monokai.toml": asset13,
+  "themes/default/colours/tokyo-night.toml": asset14,
+  "themes/default/colours/solarized-light.toml": asset15,
+  "themes/default/colours/gruvbox-dark.toml": asset16,
+  "themes/default/colours/gruvbox-light.toml": asset17,
+  "themes/default/colours/dracula.toml": asset18,
+  "themes/default/colours/catppuccin-mocha.toml": asset19,
+  "themes/amiga/theme.json": asset20,
+  "themes/amiga/amiga.css": asset21,
+  "tmux.conf": asset22,
+  "src/client/index.html": asset23,
 };

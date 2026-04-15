@@ -7,7 +7,19 @@
     { "file": "Topaz8 Amiga1200 Nerd Font.woff2", "family": "Topaz8 Amiga1200 Nerd Font" },
     { "file": "mOsOul Nerd Font.woff2", "family": "mOsOul Nerd Font" }
   ],
+  "colours": [
+    { "file": "colours/gruvbox-dark.toml", "name": "Gruvbox Dark", "variant": "dark" },
+    { "file": "colours/gruvbox-light.toml", "name": "Gruvbox Light", "variant": "light" },
+    { "file": "colours/solarized-dark.toml", "name": "Solarized Dark", "variant": "dark" },
+    { "file": "colours/solarized-light.toml", "name": "Solarized Light", "variant": "light" },
+    { "file": "colours/dracula.toml", "name": "Dracula", "variant": "dark" },
+    { "file": "colours/nord.toml", "name": "Nord", "variant": "dark" },
+    { "file": "colours/tokyo-night.toml", "name": "Tokyo Night", "variant": "dark" },
+    { "file": "colours/catppuccin-mocha.toml", "name": "Catppuccin Mocha", "variant": "dark" },
+    { "file": "colours/monokai.toml", "name": "Monokai", "variant": "dark" },
+    { "file": "colours/tomorrow.toml", "name": "Tomorrow", "variant": "light" }
+  ],
   "themes": [
-    { "name": "Default", "css": "default.css" }
+    { "name": "Default", "css": "default.css", "defaultColours": "Gruvbox Dark" }
   ]
 }
