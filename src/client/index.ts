@@ -8,7 +8,7 @@ import { installKeyboardHandler } from './ui/keyboard.js';
 import { handleClipboard } from './ui/clipboard.js';
 import { getTopbarAutohide } from './prefs.js';
 import { applyTheme, loadAllFonts, listThemes, readBorderInsets } from './theme.js';
-import { fetchColours, composeBgColor, composeTheme, type ITheme } from './colours.js';
+import { fetchColours, composeTheme, type ITheme } from './colours.js';
 import {
   loadSessionSettings,
   saveSessionSettings,
@@ -68,12 +68,11 @@ async function main() {
   const coloursOrDefault = (name: string): ITheme =>
     colourByName.get(name) ?? { foreground: '#d4d4d4', background: '#1e1e1e' };
 
-  container.style.backgroundColor = composeBgColor(coloursOrDefault(settings.colours), settings.opacity);
   await adapter.init(container, {
     fontFamily: `"${settings.fontFamily}", monospace`,
     fontSize: settings.fontSize,
     lineHeight: settings.lineHeight,
-    theme: composeTheme(coloursOrDefault(settings.colours)),
+    theme: composeTheme(coloursOrDefault(settings.colours), settings.opacity),
   });
   adapter.focus();
   (window as any).__adapter = adapter;
@@ -100,8 +99,7 @@ async function main() {
         applyTerminalInsets();
       }
 
-      container.style.backgroundColor = composeBgColor(coloursOrDefault(s.colours), s.opacity);
-      adapter.setTheme(composeTheme(coloursOrDefault(s.colours)));
+      adapter.setTheme(composeTheme(coloursOrDefault(s.colours), s.opacity));
 
       if (fontChanged && adapter.requiresReloadForFontChange) {
         const _dd = document.getElementById('menu-dropdown') as HTMLElement | null;

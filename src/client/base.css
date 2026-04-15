@@ -7,7 +7,7 @@ html, body { height: 100%; overflow: hidden; }
   pointer-events: none;
 }
 
-.xterm .xterm-viewport { overflow-y: hidden !important; }
+.xterm .xterm-viewport { overflow-y: hidden !important; background-color: #0000 !important; }
 
 #menu-dropdown input[type="range"] { accent-color: #aaa; cursor: pointer; }
 #menu-dropdown input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
