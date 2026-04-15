@@ -8,7 +8,7 @@ export default defineConfig({
     viewport: { width: 1280, height: 720 },
   },
   webServer: {
-    command: 'bun src/server/index.ts --test --terminal=ghostty --listen 127.0.0.1:4023 --no-auth --no-tls',
+    command: 'bun src/server/index.ts --test --listen 127.0.0.1:4023 --no-auth --no-tls',
     url: 'http://127.0.0.1:4023',
     reuseExistingServer: false,
     stdout: 'pipe',

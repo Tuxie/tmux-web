@@ -12,6 +12,8 @@ import { fetchColours, composeTheme, type ITheme } from './colours.js';
 import {
   loadSessionSettings,
   saveSessionSettings,
+  getLiveSessionSettings,
+  setLastActiveSession,
   DEFAULT_SESSION_SETTINGS,
   type SessionSettings,
 } from './session-settings.js';
@@ -51,10 +53,12 @@ async function main() {
     lineHeight: currentTheme.defaultLineHeight,
   } : undefined;
 
-  let settings = loadSessionSettings(sessionName, null, {
+  const liveSettings = getLiveSessionSettings(sessionName);
+  let settings = loadSessionSettings(sessionName, liveSettings, {
     defaults: DEFAULT_SESSION_SETTINGS,
     themeDefaults,
   });
+  setLastActiveSession(sessionName);
   saveSessionSettings(sessionName, settings);
 
   await applyTheme(settings.theme);

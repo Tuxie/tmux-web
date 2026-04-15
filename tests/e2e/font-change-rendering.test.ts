@@ -31,18 +31,12 @@ async function getAdapterMetrics(page: import('@playwright/test').Page): Promise
   });
 }
 
-async function readSettingsCookie(page: import('@playwright/test').Page): Promise<Record<string, unknown>> {
-  return page.evaluate(() => {
-    const name = 'tmux-web-settings=';
-    const decodedCookie = decodeURIComponent(document.cookie);
-    for (const cookie of decodedCookie.split(';')) {
-      const trimmed = cookie.trim();
-      if (trimmed.startsWith(name)) {
-        try { return JSON.parse(trimmed.substring(name.length)); } catch {}
-      }
-    }
-    return {};
-  });
+async function readSessionSettings(page: import('@playwright/test').Page, session = 'main'): Promise<Record<string, unknown>> {
+  return page.evaluate((s) => {
+    try {
+      return JSON.parse(localStorage.getItem(`tmux-web-session:${s}`) || '{}');
+    } catch { return {}; }
+  }, session);
 }
 
 async function getOtherBundledFont(page: import('@playwright/test').Page): Promise<string> {
@@ -70,23 +64,13 @@ async function openMenuAndChangeFont(page: import('@playwright/test').Page, newF
   await page.selectOption('#inp-font-bundled', newFont);
   await page.locator('#inp-font-bundled').dispatchEvent('change');
 
-  // Wait for the change to propagate
+  // Wait for the change to propagate to localStorage
   await page.waitForFunction(
     (font) => {
-      const name = 'tmux-web-settings=';
-    const decodedCookie = decodeURIComponent(document.cookie);
-    const cookies = decodedCookie.split(';');
-    let settings = {};
-    for (const cookie of cookies) {
-      const trimmed = cookie.trim();
-      if (trimmed.startsWith(name)) {
-        try {
-          settings = JSON.parse(trimmed.substring(name.length));
-        } catch {}
-        break;
-      }
-    }
-      return settings.fontFamily === font;
+      try {
+        const s = JSON.parse(localStorage.getItem('tmux-web-session:main') || '{}');
+        return s.fontFamily === font;
+      } catch { return false; }
     },
     newFont,
     { timeout: 5000 },
@@ -105,13 +89,16 @@ test.describe('font change rendering: xterm', () => {
   test.beforeEach(async ({ page, context }) => {
     await context.clearCookies();
     await page.addInitScript(() => {
+      localStorage.clear();
       const settings = {
+        theme: 'Default',
+        colours: 'Gruvbox Dark',
         fontFamily: 'Iosevka Nerd Font Mono',
         fontSize: 18,
         lineHeight: 1.125,
+        opacity: 0,
       };
-      document.cookie = `tmux-web-settings=${encodeURIComponent(JSON.stringify(settings))}; path=/;`;
-      localStorage.clear();
+      localStorage.setItem('tmux-web-session:main', JSON.stringify(settings));
     });
     await injectWsSpy(page);
     await mockApis(page, ['main'], []);
@@ -144,7 +131,7 @@ test.describe('font change rendering: xterm', () => {
       { timeout: 5000 },
     );
 
-    const settings = await readSettingsCookie(page);
+    const settings = await readSessionSettings(page);
     const metricsAfter = await getAdapterMetrics(page);
     const navigationCountAfter = await page.evaluate(() => performance.getEntriesByType('navigation').length);
 

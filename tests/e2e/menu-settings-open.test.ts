@@ -11,10 +11,10 @@ import { mockApis, injectWsSpy, waitForWsOpen, startServer, killServer } from '.
 
 const PORT_XTERM = 4060;
 
-function startBackendServer(terminal: string, port: number): Promise<ChildProcess> {
+function startBackendServer(port: number): Promise<ChildProcess> {
   return startServer(
     'bun',
-    ['src/server/index.ts', '--test', `--terminal=${terminal}`, `--listen=127.0.0.1:${port}`, '--no-auth', '--no-tls'],
+    ['src/server/index.ts', '--test', `--listen=127.0.0.1:${port}`, '--no-auth', '--no-tls'],
   );
 }
 
@@ -47,7 +47,7 @@ test.describe('menu stays open during settings changes: xterm', () => {
   let server: ChildProcess;
   const base = `http://127.0.0.1:${PORT_XTERM}`;
 
-  test.beforeAll(async () => { server = await startBackendServer('xterm', PORT_XTERM); });
+  test.beforeAll(async () => { server = await startBackendServer(PORT_XTERM); });
   test.afterAll(() => killServer(server));
 
   test.beforeEach(async ({ page }) => {
@@ -92,92 +92,3 @@ test.describe('menu stays open during settings changes: xterm', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// ghostty — settings change triggers location.reload(); the menu must
-// reopen automatically after the page comes back up.
-// ---------------------------------------------------------------------------
-test.describe('menu stays open during settings changes: ghostty', () => {
-  test.beforeEach(async ({ page }) => {
-    await injectWsSpy(page);
-    await mockApis(page, ['main'], []);
-    await page.goto('/main');
-    await waitForWsOpen(page);
-    await openMenu(page);
-  });
-
-  test('menu reopens after page reload triggered by font size change', async ({ page }) => {
-    // Font size change on ghostty triggers location.reload() — the menu must
-    // reopen on the reloaded page.
-    await page.route('/api/sessions', route =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: '["main"]' })
-    );
-    await page.route('/api/windows**', route =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
-    );
-
-    const navigationPromise = page.waitForNavigation({ timeout: 10000 });
-    await setNumberInput(page, '#inp-fontsize', '20');
-    await navigationPromise;
-
-    // After reload the menu must be visible again
-    await expect(page.locator('#menu-dropdown')).toBeVisible({ timeout: 5000 });
-  });
-
-  test('menu reopens after page reload triggered by line height change', async ({ page }) => {
-    await page.route('/api/sessions', route =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: '["main"]' })
-    );
-    await page.route('/api/windows**', route =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
-    );
-
-    const navigationPromise = page.waitForNavigation({ timeout: 10000 });
-    await setNumberInput(page, '#inp-lineheight', '0.9');
-    await navigationPromise;
-
-    await expect(page.locator('#menu-dropdown')).toBeVisible({ timeout: 5000 });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// ghostty — terminal sizing after settings-change reload with pinned topbar.
-// The terminal must fit within the viewport after reload, not extend below it.
-// ---------------------------------------------------------------------------
-test.describe('terminal size after reload with pinned topbar: ghostty', () => {
-  test('terminal fits viewport after settings-change reload', async ({ page }) => {
-    // Pin the topbar before page load
-    await page.addInitScript(() => localStorage.setItem('topbar-autohide', 'false'));
-    await injectWsSpy(page);
-    await mockApis(page, ['main'], []);
-    await page.goto('/main');
-    await waitForWsOpen(page);
-
-    const viewport = page.viewportSize()!;
-
-    // Sanity check: terminal fits before the reload
-    const before = await page.locator('#terminal').boundingBox();
-    expect(before!.y + before!.height).toBeLessThanOrEqual(viewport.height);
-
-    // Open menu and change font size → triggers location.reload() on ghostty
-    await openMenu(page);
-    const navigationPromise = page.waitForNavigation({ timeout: 10000 });
-    await setNumberInput(page, '#inp-fontsize', '20');
-    await navigationPromise;
-
-    // Wait for terminal to fully initialise after reload
-    await page.waitForFunction(
-      () => (window as any).__wsSent?.some((m: string) => m.startsWith('{"type":"resize"')),
-      { timeout: 10000 },
-    );
-
-    // Terminal container must fit within the viewport
-    const after = await page.locator('#terminal').boundingBox();
-    expect(after!.y + after!.height).toBeLessThanOrEqual(viewport.height);
-
-    // The page itself must not scroll — no content pushed below the fold
-    const scrollOverflow = await page.evaluate(
-      () => document.documentElement.scrollHeight - document.documentElement.clientHeight,
-    );
-    expect(scrollOverflow).toBe(0);
-  });
-});

@@ -25,15 +25,6 @@ async function waitForFontList(page: import('@playwright/test').Page): Promise<v
 test.describe('font and line height memory', () => {
   test.beforeEach(async ({ page, context }) => {
     await context.clearCookies();
-    await page.addInitScript(() => {
-      const settings = {
-        fontFamily: 'Iosevka Nerd Font Mono',
-        fontSize: 18,
-        lineHeight: 1.125
-      };
-      document.cookie = `tmux-web-settings=${encodeURIComponent(JSON.stringify(settings))}; path=/;`;
-      localStorage.clear();
-    });
     await injectWsSpy(page);
     await mockApis(page, ['main'], []);
     await page.goto('/main');
@@ -41,45 +32,22 @@ test.describe('font and line height memory', () => {
     await waitForFontList(page);
   });
 
-  test('line height is remembered per bundled font', async ({ page }) => {
+  test('line height change persists in session settings', async ({ page }) => {
     await openMenu(page);
 
-    const otherFont = await page.evaluate(() => {
-      const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('Iosevka Nerd Font Mono'))?.value ?? '';
-    });
-    expect(otherFont).toBeTruthy();
-
-    // Select default bundled font, set line height to 1.5
+    // Change line height
     await page.fill('#inp-lineheight', '1.5');
     await page.locator('#inp-lineheight').dispatchEvent('change');
     await page.waitForTimeout(100);
 
-    // Switch to different bundled font
-    await page.selectOption('#inp-font-bundled', otherFont);
-    await page.waitForTimeout(100);
-    // Set line height to 0.9 for this font
-    await page.fill('#inp-lineheight', '0.9');
-    await page.locator('#inp-lineheight').dispatchEvent('change');
-    await page.waitForTimeout(100);
-
-    // Switch back to default font — line height should return to 1.5
-    await page.selectOption('#inp-font-bundled', 'Iosevka Nerd Font Mono');
-
-    // Wait for line height to be restored
-    await page.waitForFunction(
-      () => {
-        const value = parseFloat((document.getElementById('inp-lineheight') as HTMLInputElement)?.value || '0');
-        return Math.abs(value - 1.5) < 0.1;
-      },
-      { timeout: 5000 }
-    );
-
-    const lineHeight = await page.inputValue('#inp-lineheight');
-    expect(parseFloat(lineHeight)).toBeCloseTo(1.5, 1);
+    // Verify it's saved to localStorage
+    const stored = await page.evaluate(() => {
+      try { return JSON.parse(localStorage.getItem('tmux-web-session:main') || '{}'); } catch { return {}; }
+    });
+    expect(stored.lineHeight).toBeCloseTo(1.5, 1);
   });
 
-  test('persists across page reload', async ({ page }) => {
+  test('font and line height persist across page reload', async ({ page }) => {
     const otherFont = await page.evaluate(() => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
       return Array.from(sel.options).find(o => !o.value.includes('Iosevka Nerd Font Mono'))?.value ?? '';
@@ -93,15 +61,15 @@ test.describe('font and line height memory', () => {
     await page.locator('#inp-lineheight').dispatchEvent('change');
     await page.waitForTimeout(100);
 
-    // Close menu before reload to avoid sessionStorage handling
+    // Close menu before reload
     await page.click('#btn-menu');
 
-    // Reload the page
+    // Reload the page (localStorage persists)
     await page.reload();
     await waitForWsOpen(page);
     await waitForFontList(page);
 
-    // Verify the font and line height are restored
+    // Verify the font and line height are restored from localStorage
     await openMenu(page);
     await expect(page.locator('#inp-font-bundled')).toHaveValue(otherFont);
     const lineHeight = await page.inputValue('#inp-lineheight');

@@ -26,7 +26,9 @@ test.describe('theming', () => {
 
   test('unknown saved theme falls back to Default without crashing', async ({ page }) => {
     await page.addInitScript(() => {
-      document.cookie = 'tmux-web-settings=' + encodeURIComponent(JSON.stringify({ theme: 'NoSuchTheme' })) + '; path=/';
+      localStorage.setItem('tmux-web-session:main',
+        JSON.stringify({ theme: 'NoSuchTheme', colours: 'Gruvbox Dark', fontFamily: 'Iosevka Nerd Font Mono',
+                         fontSize: 18, lineHeight: 0.85, opacity: 0 }));
     });
     await page.goto('/');
     await expect(page.locator('#terminal')).toBeVisible();
