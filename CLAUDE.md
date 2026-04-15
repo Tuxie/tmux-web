@@ -1,6 +1,6 @@
 # tmux-web
 
-Browser-based tmux frontend. Support ghostty-web + xterm.js backends. Run as systemd user service.
+Browser-based tmux frontend. Uses xterm.js as terminal backend. Run as systemd user service.
 
 ---
 
@@ -41,7 +41,7 @@ and `verify-vendor-xterm.ts`, must succeed.
 
 - **Server** — TypeScript, Bun runtime (`src/server/`)
 - **Client** — TypeScript, bundle via `bun-build.ts` (`src/client/`)
-- **Terminal backends** — ghostty-web 0.4.0, xterm.js 6.0.0
+- **Terminal backend** — xterm.js 6.0.0 (from `vendor/xterm.js` submodule)
 - **PTY** — Bun native `Bun.spawn` with `terminal` support, spawn `tmux -f tmux.conf` (or custom `--tmux`)
 - **Auth** — HTTP Basic Auth (enabled by default) + IP allowlist via `--allow-ip`
 - **TLS** — HTTPS enabled by default (self-signed or custom cert)
@@ -63,7 +63,6 @@ src/
     index.html       # HTML template
     adapters/        # Terminal backend abstraction
       types.ts       # TerminalAdapter interface
-      ghostty.ts     # ghostty-web adapter
       xterm.ts       # xterm.js adapter
     ui/              # UI modules
       topbar.ts      # Session dropdown, window tabs, fullscreen
@@ -98,7 +97,6 @@ Use `bun`. No `pnpm`, `npm`, `tsx`, or `vitest`.
 
 ```
 --listen <host:port>     Bind address (default: 0.0.0.0:4022)
---terminal <backend>     ghostty or xterm (default: xterm)
 --username <name>        Basic Auth user (default: $TMUX_WEB_USERNAME or current user)
 --password <pass>        Basic Auth pass (default: $TMUX_WEB_PASSWORD, required)
 --no-auth                Disable HTTP Basic Auth
@@ -140,6 +138,37 @@ User override via own config. Server pass via `tmux -f <path>`. Alternative conf
 
 `TerminalAdapter` interface (`src/client/adapters/types.ts`) abstract terminal emulator. UI modules interact with interface only.
 
+## Colour Schemes
+
+Theme packs contribute colour schemes alongside font and theming assets.
+
+### How it works
+
+- `theme.json` lists colour files in a `colours[]` array. Each entry is a relative path within the pack (e.g. `colours/gruvbox-dark.toml`). **All paths must be forward-slash separated, no `..` or leading `/`** (validated by `isValidPackRelPath` in `src/server/themes.ts`).
+- `.toml` files use **Alacritty colour format** (`[colors.primary]`, `[colors.normal]`, `[colors.bright]`). Parsed server-side via `import { TOML } from 'bun'` in `src/server/colours.ts` → xterm `ITheme`.
+- `/api/colours` returns `ColourInfo[]` (name + parsed `ITheme`) for the UI.
+
+### Per-session storage
+
+Session settings are stored in `localStorage['tmux-web-session:<name>']` as JSON:
+
+```ts
+interface SessionSettings {
+  theme: string;       // theme pack name, e.g. "Default"
+  colours: string;     // colour scheme name, e.g. "Gruvbox Dark"
+  fontFamily: string;
+  fontSize: number;
+  lineHeight: number;
+  opacity: number;     // 0-100 (%)
+}
+```
+
+`loadSessionSettings` in `src/client/session-settings.ts` merges stored values with defaults. New sessions inherit settings from the last-active session (tracked in `localStorage['tmux-web-last-session']`).
+
+### Theme-switch semantics
+
+When the user switches theme, `colours`, `fontFamily`, `fontSize`, and `lineHeight` are **unconditionally overwritten** with the new theme's defaults (`theme.json` fields `defaultColours`, `defaultFont`, `defaultFontSize`, `defaultLineHeight`). This avoids stale cross-theme combinations.
+
 ## Server-Client Protocol
 
 Out-of-band messages: `\x00TT:<json>` in WS stream.
@@ -156,35 +185,31 @@ Server logic: `src/server/protocol.ts` (pure). Client parse: `src/client/protoco
 
 ## Workarounds and Tweaks
 
-### 1. Line height padding
-
-ghostty-web no `lineHeight` option. Adapter add 2px to `term.renderer.metrics.height` before first `fit()`. xterm adapter use native `lineHeight`.
-
-### 2. Mouse wheel forwarding
+### 1. Mouse wheel forwarding
 
 Forward `\x1b[<64;col;rowM` / `\x1b[<65;col;rowM` (up/down). Shift+wheel bypass for native scroll. `src/client/ui/mouse.ts` + `src/client/index.ts`.
 
-### 3. Mouse button + drag forwarding
+### 2. Mouse button + drag forwarding
 
 Backends no forward mouse button as SGR for tmux.
 **Fix:** `src/client/ui/mouse.ts` register `mousedown`/`mouseup`/`mousemove` on **`document`** (capture). `stopPropagation()` prevent terminal from see event. Shift+click bypass for native selection.
 
 Format: `\x1b[<btn;col;rowM` (press), `\x1b[<btn;col;rowm` (release), motion add 32 to btn.
 
-### 4. CSI-u keyboard sequences
+### 3. CSI-u keyboard sequences
 
 Emulators no send CSI-u for modified special keys. `src/client/ui/keyboard.ts` intercept `keydown` (capture) and send `\x1b[<code>;<mod>u`.
 Keys: Enter (13), Tab (9), Backspace (127), Escape (27). Only with modifiers.
 
-### 5. OSC 52 clipboard (tmux to browser)
+### 4. OSC 52 clipboard (tmux to browser)
 
 Intercepted **server-side** (`src/server/protocol.ts`). Sequence strip from PTY, base64 payload send as `\x00TT:{"clipboard":"..."}`. Client decode via `atob()`, write to `navigator.clipboard` (`src/client/ui/clipboard.ts`).
 
-### 6. Reconnect size sync
+### 5. Reconnect size sync
 
 WS reconnect: call `adapter.fit()`, send `{"type":"resize"}` on `ws.onopen`. `src/client/connection.ts`.
 
-### 7. Topbar UI
+### 6. Topbar UI
 
 32px toolbar overlay terminal. `src/client/ui/topbar.ts`:
 
@@ -196,13 +221,13 @@ WS reconnect: call `adapter.fit()`, send `{"type":"resize"}` on `ws.onopen`. `sr
 **Auto-hide:** slide out after 1s. Reappear on mouse near top or window/fullscreen change.
 **Focus:** `mousedown` + `preventDefault()` on buttons prevent focus theft. `adapter.focus()` call after interact.
 
-### 8. Keyboard shortcuts
+### 7. Keyboard shortcuts
 
 `src/client/ui/keyboard.ts`, document capture:
 - **Cmd+R / Shift+Cmd+R** — passthrough to browser
 - **Cmd+F** — toggle fullscreen
 
-### 9. URL = session name
+### 8. URL = session name
 
 URL path = tmux session name (e.g. `/dev`). URL update via `history.replaceState` on session change.
 
@@ -214,6 +239,13 @@ IDs (do not rename):
 - `#win-tabs` — window buttons
 - `#btn-fullscreen` — toggle button
 - `#btn-new-session` — "+" button
+- `#inp-theme` — theme `<select>`
+- `#inp-colours` — colour scheme `<select>`
+- `#inp-font-bundled` — bundled font `<select>`
+- `#inp-fontsize` / `#sld-fontsize` — font size number/slider
+- `#inp-lineheight` / `#sld-lineheight` — line height number/slider
+- `#inp-opacity` / `#sld-opacity` — opacity number/slider
+- `#btn-reset-colours` / `#btn-reset-font` — reset to theme defaults
 
 ## Tests
 

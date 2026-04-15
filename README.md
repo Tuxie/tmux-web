@@ -17,11 +17,12 @@ It is intentionally small: a Bun server, a static client bundle, and a thin adap
 
 ## Features
 
-- **Real terminal emulators in the browser** — choose between [xterm.js](https://xtermjs.org/) (default) and [ghostty-web](https://ghostty.org/).
+- **Real terminal emulator in the browser** — [xterm.js](https://xtermjs.org/) built from a pinned vendor submodule.
 - **Full mouse support** — click, drag, wheel, and SGR mouse reporting are forwarded to tmux.
 - **Modern keyboard support** — CSI-u sequences for modified special keys (Ctrl+Enter, Shift+Tab, etc.).
 - **OSC 52 clipboard** — `tmux` copy actions land in the browser clipboard automatically.
 - **Session and window switcher** — auto-hiding toolbar with a session dropdown, per-window tabs, a "new session" button, and a fullscreen toggle.
+- **Colour schemes** — Alacritty-format colour packs selectable per session; opacity slider; settings persist across reloads in `localStorage`.
 - **URL-as-session** — the path (`/dev`, `/work`) maps to a tmux session name; bookmarkable.
 - **Reconnect-safe** — WebSocket reconnect resyncs the terminal size automatically.
 - **HTTP Basic Auth** — on by default.
@@ -63,7 +64,6 @@ xattr -d com.apple.quarantine tmux-web-darwin-*
 
 ```
 --listen <host:port>     Bind address (default: 0.0.0.0:4022)
---terminal <backend>     Terminal backend: ghostty or xterm (default: xterm)
 --username <name>        Basic Auth user (default: $TMUX_WEB_USERNAME or current user)
 --password <pass>        Basic Auth password (default: $TMUX_WEB_PASSWORD, required unless --no-auth)
 --no-auth                Disable HTTP Basic Auth
@@ -117,7 +117,7 @@ tmux-web exposes an interactive shell over the network. Treat it accordingly.
 ## Architecture
 
 - **Server** (`src/server/`) — TypeScript on Bun. HTTP, WebSocket, PTY lifecycle, OSC interception, TLS, IP allowlist.
-- **Client** (`src/client/`) — TypeScript, bundled with `bun-build.ts`. Thin UI around a `TerminalAdapter` interface that abstracts xterm.js and ghostty-web.
+- **Client** (`src/client/`) — TypeScript, bundled with `bun-build.ts`. Thin UI around a `TerminalAdapter` interface backed by xterm.js.
 - **PTY** — `Bun.spawn` with `terminal` support, spawning `tmux -f tmux.conf`.
 - **Out-of-band protocol** — session/window/clipboard updates are multiplexed into the PTY stream as `\x00TT:<json>` frames and stripped client-side.
 
