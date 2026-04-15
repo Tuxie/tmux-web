@@ -6,7 +6,7 @@ import { Topbar } from './ui/topbar.js';
 import { installMouseHandler, getSgrCoords, buildSgrSequence } from './ui/mouse.js';
 import { installKeyboardHandler } from './ui/keyboard.js';
 import { handleClipboard } from './ui/clipboard.js';
-import { loadSettings, setTerminalBackend, getTopbarAutohide, getActiveThemeName } from './settings.js';
+import { loadSettings, getTopbarAutohide, getActiveThemeName } from './settings.js';
 import type { TerminalSettings } from './settings.js';
 import { applyTheme, loadAllFonts, readBorderInsets } from './theme.js';
 
@@ -31,22 +31,8 @@ function applyTerminalInsets(): void {
 }
 
 async function main() {
-  const config = window.__TMUX_WEB_CONFIG;
-
-  // Keep cookie in sync with the current terminal config.
-  // The server handles all terminal selection (via query parameter or default config),
-  // so the client just needs to remember what's currently loaded.
-  // This prevents redirect loops when server restarts with a different --terminal.
-  setTerminalBackend(config.terminal);
-
-  let adapter: TerminalAdapter;
-  if (config.terminal === 'ghostty') {
-    const { GhosttyAdapter } = await import('./adapters/ghostty.js');
-    adapter = new GhosttyAdapter();
-  } else {
-    const { XtermAdapter } = await import('./adapters/xterm.ts');
-    adapter = new XtermAdapter();
-  }
+  const { XtermAdapter } = await import('./adapters/xterm.ts');
+  const adapter: TerminalAdapter = new XtermAdapter();
 
   const container = document.getElementById('terminal')!;
 
@@ -111,8 +97,6 @@ async function main() {
           lineHeight: s.lineHeight,
         });
       } else {
-        // ghostty has no updateOptions — reload so init() picks up the new font
-        // from the start. Preserve menu-open state so it reopens after reload.
         const _dd = document.getElementById('menu-dropdown') as HTMLElement | null;
         if (_dd && !_dd.hidden) sessionStorage.setItem('tmux-web:menu-reopen', '1');
         location.reload();

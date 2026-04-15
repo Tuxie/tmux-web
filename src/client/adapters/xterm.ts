@@ -1,5 +1,5 @@
 import type { TerminalAdapter } from './types.js';
-import type { CellMetrics, TerminalOptions } from '../../shared/types.js';
+import type { CellMetrics, TerminalOptions, TerminalTheme } from '../../shared/types.js';
 
 export class XtermAdapter implements TerminalAdapter {
   private term!: any;
@@ -81,6 +81,10 @@ export class XtermAdapter implements TerminalAdapter {
   }
   attachCustomWheelEventHandler(handler: (ev: WheelEvent) => boolean): void {
     this.term.attachCustomWheelEventHandler(handler);
+  }
+
+  setTheme(theme: TerminalTheme): void {
+    this.term.options.theme = theme;
   }
 
   updateOptions(opts: Partial<TerminalOptions>): void {

@@ -1,4 +1,4 @@
-import type { CellMetrics, TerminalOptions } from '../../shared/types.js';
+import type { CellMetrics, TerminalOptions, TerminalTheme } from '../../shared/types.js';
 
 export interface TerminalAdapter {
   init(container: HTMLElement, options: TerminalOptions): Promise<void>;
@@ -13,6 +13,7 @@ export interface TerminalAdapter {
   focus(): void;
   readonly element: HTMLElement;
   attachCustomWheelEventHandler(handler: (ev: WheelEvent) => boolean): void;
+  setTheme(theme: TerminalTheme): void;
   updateOptions?(opts: Partial<TerminalOptions>): void;
   /** If true, font changes require page reload to properly recalculate metrics */
   readonly requiresReloadForFontChange?: boolean;
