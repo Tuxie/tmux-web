@@ -4,6 +4,20 @@ export interface CellMetrics {
   height: number;
 }
 
+/** Full xterm.js ITheme-compatible colour map (Alacritty convention). */
+export interface ITheme {
+  foreground?: string;
+  background?: string;
+  cursor?: string;
+  cursorAccent?: string;
+  selectionBackground?: string;
+  selectionForeground?: string;
+  black?: string; red?: string; green?: string; yellow?: string;
+  blue?: string; magenta?: string; cyan?: string; white?: string;
+  brightBlack?: string; brightRed?: string; brightGreen?: string; brightYellow?: string;
+  brightBlue?: string; brightMagenta?: string; brightCyan?: string; brightWhite?: string;
+}
+
 /** Terminal color theme. */
 export interface TerminalTheme {
   background: string;
