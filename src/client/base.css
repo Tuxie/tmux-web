@@ -9,6 +9,8 @@ html, body { height: 100%; overflow: hidden; }
 
 #page { position: absolute; inset: 0; }
 #terminal { background-color: #0000; }
+#terminal .terminal,
+.xterm-scrollable-element { background-color: #0000 !important; }
 .xterm .xterm-viewport { overflow-y: hidden !important; background-color: #0000 !important; }
 
 #menu-dropdown input[type="range"] { accent-color: #aaa; cursor: pointer; }
