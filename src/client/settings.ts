@@ -55,7 +55,7 @@ export function loadSettings(): TerminalSettings {
     const raw = sessionStorage.getItem(SS_KEY);
     if (raw) {
       const ss = JSON.parse(raw) as AllSettings;
-      // Restore the cookie so other callers (getTopbarAutohide etc.) see the
+      // Restore the cookie so other callers that still read it see the
       // correct values even after the cookie was overwritten by init scripts.
       const all = getCookie();
       setCookie({ ...all, ...ss });
