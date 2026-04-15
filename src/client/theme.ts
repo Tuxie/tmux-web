@@ -3,6 +3,9 @@ export type ThemeInfo = {
   pack: string;
   css: string;
   defaultFont?: string;
+  defaultFontSize?: number;
+  defaultLineHeight?: number;
+  defaultColours?: string;
   author?: string;
   version?: string;
   source: 'user' | 'bundled';
