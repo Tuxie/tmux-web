@@ -1,0 +1,11 @@
+{
+  "author": "tmux-web",
+  "version": "1",
+  "themes": [
+    {
+      "name": "AmigaOS 3.1",
+      "css": "amiga.css",
+      "defaultFont": "Topaz8 Amiga1200 Nerd Font"
+    }
+  ]
+}
