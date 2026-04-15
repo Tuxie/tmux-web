@@ -68,7 +68,8 @@ async function main() {
   const coloursOrDefault = (name: string): ITheme =>
     colourByName.get(name) ?? { foreground: '#d4d4d4', background: '#1e1e1e' };
 
-  container.style.backgroundColor = composeBgColor(coloursOrDefault(settings.colours), settings.opacity);
+  const page = document.getElementById('page')!;
+  page.style.backgroundColor = composeBgColor(coloursOrDefault(settings.colours), settings.opacity);
   await adapter.init(container, {
     fontFamily: `"${settings.fontFamily}", monospace`,
     fontSize: settings.fontSize,
@@ -100,7 +101,7 @@ async function main() {
         applyTerminalInsets();
       }
 
-      container.style.backgroundColor = composeBgColor(coloursOrDefault(s.colours), s.opacity);
+      page.style.backgroundColor = composeBgColor(coloursOrDefault(s.colours), s.opacity);
       adapter.setTheme(composeTheme(coloursOrDefault(s.colours)));
 
       if (fontChanged && adapter.requiresReloadForFontChange) {

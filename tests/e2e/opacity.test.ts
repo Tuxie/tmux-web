@@ -7,9 +7,9 @@ async function waitForMenuInputs(page: import('@playwright/test').Page): Promise
   );
 }
 
-test("opacity slider sets rgba background-color on #terminal", async ({ page }) => {
+test("opacity slider sets rgba background-color on #page", async ({ page }) => {
   await page.goto("/");
-  await page.waitForSelector("#terminal");
+  await page.waitForSelector("#page");
 
   await page.click("#btn-menu");
   await waitForMenuInputs(page);
@@ -17,7 +17,7 @@ test("opacity slider sets rgba background-color on #terminal", async ({ page }) 
   await page.fill("#inp-opacity", "50");
   await page.dispatchEvent("#inp-opacity", "change");
 
-  const bg = await page.evaluate(() => document.getElementById('terminal')!.style.backgroundColor);
+  const bg = await page.evaluate(() => document.getElementById('page')!.style.backgroundColor);
   expect(bg).toMatch(/rgba\([^)]+,\s*0\.5\)$/);
 });
 
