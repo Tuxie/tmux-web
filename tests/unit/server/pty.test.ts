@@ -42,23 +42,20 @@ describe('buildPtyCommand', () => {
 });
 
 describe('buildPtyEnv', () => {
-  it('sets TERM to ghostty for ghostty backend', () => {
-    expect(buildPtyEnv('ghostty').TERM).toBe('ghostty');
-  });
-  it('sets TERM to xterm-256color for xterm backend', () => {
-    expect(buildPtyEnv('xterm').TERM).toBe('xterm-256color');
+  it('sets TERM to xterm-256color', () => {
+    expect(buildPtyEnv().TERM).toBe('xterm-256color');
   });
   it('sets COLORTERM to truecolor', () => {
-    expect(buildPtyEnv('ghostty').COLORTERM).toBe('truecolor');
+    expect(buildPtyEnv().COLORTERM).toBe('truecolor');
   });
   it('sets LC_ALL to C.UTF-8', () => {
-    expect(buildPtyEnv('ghostty').LC_ALL).toBe('C.UTF-8');
+    expect(buildPtyEnv().LC_ALL).toBe('C.UTF-8');
   });
   it('strips EDITOR and VISUAL', () => {
     const prev = { EDITOR: process.env.EDITOR, VISUAL: process.env.VISUAL };
     process.env.EDITOR = 'vim';
     process.env.VISUAL = 'code';
-    const env = buildPtyEnv('ghostty');
+    const env = buildPtyEnv();
     expect(env.EDITOR).toBeUndefined();
     expect(env.VISUAL).toBeUndefined();
     process.env.EDITOR = prev.EDITOR;

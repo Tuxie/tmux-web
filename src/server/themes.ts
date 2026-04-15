@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { alacrittyTomlToITheme, type ITheme } from './colours.js';
 
 export type FontInfo = {
   family: string;
@@ -13,16 +14,34 @@ export type ThemeInfo = {
   pack: string;
   css: string;
   defaultFont?: string;
+  defaultFontSize?: number;
+  defaultLineHeight?: number;
+  defaultColours?: string;
   author?: string;
   version?: string;
   source: 'user' | 'bundled';
+};
+
+export type ColourInfo = {
+  name: string;
+  variant?: 'dark' | 'light';
+  pack: string;
+  source: 'user' | 'bundled';
+  theme: ITheme;
 };
 
 export type PackManifest = {
   author?: string;
   version?: string;
   fonts?: { file: string; family: string }[];
-  themes?: { name: string; css: string; defaultFont?: string }[];
+  colours?: { file: string; name: string; variant?: 'dark' | 'light' }[];
+  themes?: {
+    name: string; css: string;
+    defaultFont?: string;
+    defaultFontSize?: number;
+    defaultLineHeight?: number;
+    defaultColours?: string;
+  }[];
 };
 
 export type PackInfo = {
@@ -86,6 +105,9 @@ export function listThemes(packs: PackInfo[]): ThemeInfo[] {
         pack: pack.dir,
         css: theme.css,
         defaultFont: theme.defaultFont,
+        defaultFontSize: theme.defaultFontSize,
+        defaultLineHeight: theme.defaultLineHeight,
+        defaultColours: theme.defaultColours,
         author: pack.manifest.author,
         version: pack.manifest.version,
         source: pack.source,
@@ -110,6 +132,39 @@ export function listFonts(packs: PackInfo[]): FontInfo[] {
     }
   }
   return [...seen.values()].sort((a, b) => a.family.localeCompare(b.family));
+}
+
+export function listColours(packs: PackInfo[]): ColourInfo[] {
+  const seen = new Map<string, ColourInfo>();
+  for (const pack of packs) {
+    for (const entry of pack.manifest.colours ?? []) {
+      if (!entry.name || !entry.file) continue;
+      if (!isValidPackRelPath(entry.file)) {
+        console.warn(`[themes] pack '${pack.dir}': colour '${entry.name}' has invalid file path '${entry.file}'`);
+        continue;
+      }
+      if (seen.has(entry.name)) {
+        console.warn(`[themes] duplicate colour name '${entry.name}' in pack '${pack.dir}' (${pack.source}); overwriting`);
+      }
+      const fullPath = path.join(pack.fullPath, entry.file);
+      let theme: ITheme;
+      try {
+        const src = fs.readFileSync(fullPath, 'utf8');
+        theme = alacrittyTomlToITheme(src);
+      } catch (e) {
+        console.warn(`[themes] pack '${pack.dir}': failed to parse colour '${entry.name}' from '${entry.file}': ${e}`);
+        continue;
+      }
+      seen.set(entry.name, {
+        name: entry.name,
+        variant: entry.variant,
+        pack: pack.dir,
+        source: pack.source,
+        theme,
+      });
+    }
+  }
+  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function resolveTheme(name: string, packs: PackInfo[]): ThemeInfo | null {
