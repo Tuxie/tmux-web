@@ -12,12 +12,18 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
   };
 }
 
-export function composeTheme(theme: ITheme, opacityPct: number): ITheme {
+/** rgba() string for #terminal's background-color, controlled by the opacity slider. */
+export function composeBgColor(theme: ITheme, opacityPct: number): string {
   const bg = theme.background ?? '#000000';
   const { r, g, b } = hexToRgb(bg);
   const alpha = Math.max(0, Math.min(100, opacityPct)) / 100;
   const alphaStr = alpha === 0 ? '0' : alpha === 1 ? '1' : String(alpha);
-  return { ...theme, background: `rgba(${r},${g},${b},${alphaStr})` };
+  return `rgba(${r},${g},${b},${alphaStr})`;
+}
+
+/** Pass the theme through unchanged so xterm uses the hex background for internal colour math. */
+export function composeTheme(theme: ITheme): ITheme {
+  return theme;
 }
 
 export async function fetchColours(): Promise<Array<{ name: string; variant?: string; theme: ITheme }>> {
