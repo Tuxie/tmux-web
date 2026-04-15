@@ -1,22 +1,21 @@
-import {
-  loadSettings,
-  saveSettings,
-  DEFAULT_SETTINGS,
-  getActiveThemeName,
-  setActiveThemeName,
-  isThemeFontTouched,
-  markThemeFontTouched,
-} from '../settings.js';
-import type { TerminalSettings } from '../settings.js';
 import { getTopbarAutohide, setTopbarAutohide } from '../prefs.js';
-import { applyTheme, getActiveTheme, listFonts, listThemes } from '../theme.js';
+import { applyTheme, listFonts, listThemes } from '../theme.js';
+import { fetchColours } from '../colours.js';
+import {
+  loadSessionSettings,
+  saveSessionSettings,
+  applyThemeDefaults,
+  DEFAULT_SESSION_SETTINGS,
+  type SessionSettings,
+  type ThemeDefaults,
+} from '../session-settings.js';
 
 export interface TopbarOptions {
   send: (data: string) => void;
   focus: () => void;
+  getLiveSettings: () => SessionSettings | null;
   onAutohideChange?: () => void;
-  onThemeChange?: () => void;
-  onSettingsChange?: (s: TerminalSettings) => void | Promise<void>;
+  onSettingsChange?: (s: SessionSettings) => void | Promise<void>;
 }
 
 export class Topbar {
@@ -133,84 +132,27 @@ export class Topbar {
     });
   }
 
-  // Returns a Promise that resolves once the async font list fetch completes.
-  // All event listeners are wired synchronously before the fetch, so UI events
-  // fired during the fetch are handled correctly.
-  private async setupSettingsInputs(): Promise<void> {
-    const settings = loadSettings();
-    const lineHeightPerFont = settings.lineHeightPerFont || {};
+  private get sessionName(): string {
+    return location.pathname.replace(/^\/+|\/+$/g, '') || 'main';
+  }
 
+  // Returns a Promise that resolves once the async data fetches complete.
+  private async setupSettingsInputs(): Promise<void> {
     const themeSelect = document.getElementById('inp-theme') as HTMLSelectElement;
+    const coloursSelect = document.getElementById('inp-colours') as HTMLSelectElement;
+    const btnResetColours = document.getElementById('btn-reset-colours') as HTMLButtonElement;
     const fontSelect = document.getElementById('inp-font-bundled') as HTMLSelectElement;
+    const btnResetFont = document.getElementById('btn-reset-font') as HTMLButtonElement;
     const sldSize = document.getElementById('sld-fontsize') as HTMLInputElement;
     const inpSize = document.getElementById('inp-fontsize') as HTMLInputElement;
     const sldHeight = document.getElementById('sld-lineheight') as HTMLInputElement;
     const inpHeight = document.getElementById('inp-lineheight') as HTMLInputElement;
+    const sldOpacity = document.getElementById('sld-opacity') as HTMLInputElement;
+    const inpOpacity = document.getElementById('inp-opacity') as HTMLInputElement;
 
-    sldSize.value = inpSize.value = String(settings.fontSize);
-    sldHeight.value = inpHeight.value = String(settings.lineHeight);
+    const [fonts, themes, colours] = await Promise.all([listFonts(), listThemes(), fetchColours()]);
 
-    const updateLineHeightFromHistory = (fontName: string) => {
-      const savedHeight = lineHeightPerFont[fontName];
-      if (savedHeight !== undefined) {
-        sldHeight.value = inpHeight.value = String(savedHeight);
-      }
-    };
-
-    const commit = () => {
-      const fontFamily = fontSelect.value || DEFAULT_SETTINGS.fontFamily;
-      const lineHeight = parseFloat(inpHeight.value) || DEFAULT_SETTINGS.lineHeight;
-      if (fontFamily) {
-        lineHeightPerFont[fontFamily] = lineHeight;
-      }
-
-      const s: TerminalSettings = {
-        fontFamily,
-        fontSize: parseFloat(inpSize.value) || DEFAULT_SETTINGS.fontSize,
-        lineHeight,
-        lineHeightPerFont,
-      };
-      settings.fontFamily = s.fontFamily;
-      settings.fontSize = s.fontSize;
-      settings.lineHeight = s.lineHeight;
-      settings.lineHeightPerFont = lineHeightPerFont;
-      saveSettings(s);
-      this.opts.onSettingsChange?.(s);
-    };
-
-    fontSelect.addEventListener('change', () => {
-      const font = fontSelect.value;
-      updateLineHeightFromHistory(font);
-      markThemeFontTouched(getActiveTheme());
-      commit();
-    });
-
-    sldSize.addEventListener('input', () => { inpSize.value = sldSize.value; commit(); });
-    inpSize.addEventListener('change', () => { sldSize.value = inpSize.value; commit(); });
-
-    sldHeight.addEventListener('input', () => { inpHeight.value = sldHeight.value; commit(); });
-    inpHeight.addEventListener('change', () => { sldHeight.value = inpHeight.value; commit(); });
-
-    const [fonts, themes] = await Promise.all([listFonts(), listThemes()]);
-
-    fontSelect.innerHTML = '';
-    for (const font of fonts) {
-      const opt = document.createElement('option');
-      opt.value = font.family;
-      opt.textContent = font.family;
-      fontSelect.appendChild(opt);
-    }
-    const availableFonts = new Set(fonts.map(font => font.family));
-    const initialFont = availableFonts.has(settings.fontFamily)
-      ? settings.fontFamily
-      : (availableFonts.has(DEFAULT_SETTINGS.fontFamily) ? DEFAULT_SETTINGS.fontFamily : (fonts[0]?.family ?? DEFAULT_SETTINGS.fontFamily));
-    fontSelect.value = initialFont;
-    if (initialFont !== settings.fontFamily) {
-      settings.fontFamily = initialFont;
-      saveSettings({ ...settings, lineHeightPerFont });
-    }
-    updateLineHeightFromHistory(initialFont);
-
+    // Populate theme select
     themeSelect.innerHTML = '';
     for (const theme of themes) {
       const opt = document.createElement('option');
@@ -218,31 +160,98 @@ export class Topbar {
       opt.textContent = theme.name;
       themeSelect.appendChild(opt);
     }
-    const currentTheme = themes.some(theme => theme.name === getActiveThemeName())
-      ? getActiveThemeName()
-      : getActiveTheme();
-    themeSelect.value = currentTheme;
+
+    // Populate colours select
+    coloursSelect.innerHTML = '';
+    for (const col of colours) {
+      const opt = document.createElement('option');
+      opt.value = col.name;
+      opt.textContent = col.name;
+      coloursSelect.appendChild(opt);
+    }
+
+    // Populate font select
+    fontSelect.innerHTML = '';
+    for (const font of fonts) {
+      const opt = document.createElement('option');
+      opt.value = font.family;
+      opt.textContent = font.family;
+      fontSelect.appendChild(opt);
+    }
+
+    const getSettings = (): SessionSettings => {
+      const live = this.opts.getLiveSettings();
+      return loadSessionSettings(this.sessionName, live, { defaults: DEFAULT_SESSION_SETTINGS });
+    };
+
+    const syncUi = (s: SessionSettings) => {
+      themeSelect.value = s.theme;
+      coloursSelect.value = s.colours;
+      fontSelect.value = s.fontFamily;
+      sldSize.value = inpSize.value = String(s.fontSize);
+      sldHeight.value = inpHeight.value = String(s.lineHeight);
+      sldOpacity.value = inpOpacity.value = String(s.opacity);
+    };
+
+    syncUi(getSettings());
+
+    const commit = (patch: Partial<SessionSettings>) => {
+      const current = getSettings();
+      const updated: SessionSettings = { ...current, ...patch };
+      saveSessionSettings(this.sessionName, updated);
+      this.opts.onSettingsChange?.(updated);
+    };
 
     themeSelect.addEventListener('change', async () => {
       const name = themeSelect.value;
-      setActiveThemeName(name);
       await applyTheme(name);
-      const theme = themes.find(candidate => candidate.name === name);
-      if (theme?.defaultFont && !isThemeFontTouched(name)) {
-        const font = fonts.find(candidate => candidate.family === theme.defaultFont);
-        if (font) {
-          fontSelect.value = font.family;
-          updateLineHeightFromHistory(font.family);
-          commit();
-        }
-      }
-      this.opts.onThemeChange?.();
+      const theme = themes.find(t => t.name === name);
+      const td: ThemeDefaults = {};
+      if (theme?.defaultColours) td.colours = theme.defaultColours;
+      if (theme?.defaultFont) td.fontFamily = theme.defaultFont;
+      if (theme?.defaultFontSize !== undefined) td.fontSize = theme.defaultFontSize;
+      if (theme?.defaultLineHeight !== undefined) td.lineHeight = theme.defaultLineHeight;
+      const current = getSettings();
+      const updated = applyThemeDefaults({ ...current, theme: name }, td);
+      saveSessionSettings(this.sessionName, updated);
+      syncUi(updated);
+      this.opts.onSettingsChange?.(updated);
     });
 
-    // Reset the select after listeners are attached so a fallback font is persisted.
-    if (fontSelect.value !== initialFont) {
-      fontSelect.value = initialFont;
-    }
+    coloursSelect.addEventListener('change', () => {
+      commit({ colours: coloursSelect.value });
+    });
+
+    btnResetColours.addEventListener('click', () => {
+      const current = getSettings();
+      const theme = themes.find(t => t.name === current.theme);
+      if (theme?.defaultColours) {
+        coloursSelect.value = theme.defaultColours;
+        commit({ colours: theme.defaultColours });
+      }
+    });
+
+    fontSelect.addEventListener('change', () => {
+      commit({ fontFamily: fontSelect.value });
+    });
+
+    btnResetFont.addEventListener('click', () => {
+      const current = getSettings();
+      const theme = themes.find(t => t.name === current.theme);
+      if (theme?.defaultFont) {
+        fontSelect.value = theme.defaultFont;
+        commit({ fontFamily: theme.defaultFont });
+      }
+    });
+
+    sldSize.addEventListener('input', () => { inpSize.value = sldSize.value; commit({ fontSize: parseFloat(sldSize.value) }); });
+    inpSize.addEventListener('change', () => { sldSize.value = inpSize.value; commit({ fontSize: parseFloat(inpSize.value) }); });
+
+    sldHeight.addEventListener('input', () => { inpHeight.value = sldHeight.value; commit({ lineHeight: parseFloat(sldHeight.value) }); });
+    inpHeight.addEventListener('change', () => { sldHeight.value = inpHeight.value; commit({ lineHeight: parseFloat(inpHeight.value) }); });
+
+    sldOpacity.addEventListener('input', () => { inpOpacity.value = sldOpacity.value; commit({ opacity: parseInt(sldOpacity.value, 10) }); });
+    inpOpacity.addEventListener('change', () => { sldOpacity.value = inpOpacity.value; commit({ opacity: parseInt(inpOpacity.value, 10) }); });
   }
 
   toggleFullscreen(): void {
