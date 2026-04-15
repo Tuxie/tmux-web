@@ -3,19 +3,13 @@ import http from 'http';
 import https from 'https';
 import path from 'path';
 import { parseArgs } from 'util';
-import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
 import { userInfo } from 'os';
 import { createHttpHandler } from './http.js';
 import { createWsServer } from './ws.js';
 import { generateSelfSignedCert } from './tls.js';
-import type { ServerConfig, TerminalBackend } from '../shared/types.js';
-import { DEFAULT_HOST, DEFAULT_PORT, DEFAULT_TERMINAL } from '../shared/constants.js';
+import type { ServerConfig } from '../shared/types.js';
+import { DEFAULT_HOST, DEFAULT_PORT } from '../shared/constants.js';
 import { embeddedAssets } from './assets-embedded.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const require = createRequire(import.meta.url);
 
 function parseListenAddr(addr: string): { host: string; port: number } {
   const ipv6 = addr.match(/^\[(.+)\]:(\d+)$/);
@@ -37,7 +31,6 @@ export function parseConfig(argv: string[]): ConfigResult {
     args: argv,
     options: {
       listen:       { type: 'string',  short: 'l', default: `${DEFAULT_HOST}:${DEFAULT_PORT}` },
-      terminal:     { type: 'string',  default: DEFAULT_TERMINAL },
       'allow-ip':   { type: 'string',  multiple: true, default: [] as string[] },
       username:     { type: 'string' },
       password:     { type: 'string' },
@@ -68,7 +61,6 @@ export function parseConfig(argv: string[]): ConfigResult {
   const config: ServerConfig = {
     host,
     port,
-    terminal: (args.terminal as TerminalBackend) || DEFAULT_TERMINAL,
     allowedIps: new Set(args['allow-ip'] as string[]),
     tls: !!args.tls && !args['no-tls'],
     tlsCert: args['tls-cert'] as string | undefined,
@@ -97,7 +89,6 @@ async function startServer() {
 
 Options:
   -l, --listen <host:port>     Address to listen on (default: ${DEFAULT_HOST}:${DEFAULT_PORT})
-      --terminal <backend>     Terminal backend: ghostty, xterm (default: ${DEFAULT_TERMINAL})
       --allow-ip <ip>          Allow IP address (repeatable; localhost always allowed)
       --username <name>        HTTP Basic Auth username (default: $TMUX_WEB_USERNAME or current user)
       --password <pass>        HTTP Basic Auth password (default: $TMUX_WEB_PASSWORD, required)
@@ -135,29 +126,6 @@ Options:
   const distDir = path.join(projectRoot, 'dist');
   const fontsDir = path.join(projectRoot, 'fonts');
   const themesBundledDir = path.join(projectRoot, 'themes');
-
-  let ghosttyWasmPath: string | undefined;
-  let ghosttyDistDir: string | undefined;
-
-  const searchPaths = [
-    projectRoot,
-    path.join(projectRoot, 'node_modules/ghostty-web'),
-  ];
-
-  try {
-    const ghosttyPkgDir = path.dirname(require.resolve('ghostty-web/package.json'));
-    searchPaths.push(ghosttyPkgDir);
-  } catch {}
-
-  for (const searchPath of searchPaths) {
-    const wasm = path.join(searchPath, 'ghostty-vt.wasm');
-    const dist = path.join(searchPath, 'dist');
-    if (fs.existsSync(wasm)) {
-      ghosttyWasmPath = wasm;
-      ghosttyDistDir = fs.existsSync(dist) ? dist : undefined;
-      break;
-    }
-  }
 
   let htmlTemplate: string;
   const embeddedHtmlPath = embeddedAssets['src/client/index.html'];
@@ -212,8 +180,6 @@ Options:
     themesUserDir,
     themesBundledDir,
     projectRoot,
-    ghosttyDistDir,
-    ghosttyWasmPath,
     isCompiled,
   });
 
@@ -239,7 +205,7 @@ Options:
 
   const scheme = config.tls ? 'https' : 'http';
   server.listen(port, host, () => {
-    console.log(`tmux-web listening on ${scheme}://${host}:${port} (terminal: ${config.terminal})`);
+    console.log(`tmux-web listening on ${scheme}://${host}:${port}`);
   });
 }
 

@@ -45,14 +45,10 @@ export interface ResizeMessage {
   rows: number;
 }
 
-/** Terminal backend identifier. */
-export type TerminalBackend = 'ghostty' | 'xterm';
-
 /** Server configuration derived from CLI args. */
 export interface ServerConfig {
   host: string;
   port: number;
-  terminal: TerminalBackend;
   allowedIps: Set<string>;
   tls: boolean;
   tlsCert?: string;
@@ -72,6 +68,5 @@ export interface ServerConfig {
 
 /** Config injected into the HTML page for the client. */
 export interface ClientConfig {
-  terminal: TerminalBackend;
   version: string;
 }

@@ -1,12 +1,11 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { execFile, execFileSync } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { createRequire } from 'module';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { MIME_TYPES } from '../shared/constants.js';
-import type { ServerConfig, TerminalBackend } from '../shared/types.js';
+import type { ServerConfig } from '../shared/types.js';
 import { isAllowed } from './allowlist.js';
 import { embeddedAssets } from './assets-embedded.js';
 import {
@@ -19,7 +18,6 @@ import {
 import pkg from '../../package.json' with { type: 'json' };
 
 const execFileAsync = promisify(execFile);
-const require = createRequire(import.meta.url);
 
 export interface HttpHandlerOptions {
   config: ServerConfig;
@@ -29,20 +27,11 @@ export interface HttpHandlerOptions {
   themesUserDir: string;
   themesBundledDir: string;
   projectRoot: string;
-  ghosttyDistDir?: string;
-  ghosttyWasmPath?: string;
   isCompiled?: boolean;
 }
 
 function debug(config: ServerConfig, ...args: unknown[]): void {
   if (config.debug) process.stderr.write(`[debug] ${args.join(' ')}\n`);
-}
-
-function bundleName(terminal: TerminalBackend): string {
-  switch (terminal) {
-    case 'ghostty': return 'ghostty.js';
-    case 'xterm': return 'xterm.js';
-  }
 }
 
 function getAssetPath(key: string): string | null {
@@ -108,33 +97,15 @@ function serve404(res: ServerResponse): void {
 
 function getTerminalVersions(projectRoot: string): Record<string, string> {
   const versions: Record<string, string> = {};
-
-  // Vendor xterm.js rev is baked into dist/client/xterm.js by bun-build.ts
-  // as a sentinel comment. Read it from the embedded asset (or disk, when
-  // running from source). That is the source of truth in the compiled binary.
   const xtermAssetPath = embeddedAssets['dist/client/xterm.js']
     ?? path.join(projectRoot, 'dist/client/xterm.js');
   try {
     const bundle = fs.readFileSync(xtermAssetPath, 'utf-8');
     const m = bundle.match(/tmux-web: vendor xterm\.js rev ([0-9a-f]{40})/);
-    if (m) {
-      versions['xterm'] = `xterm.js (HEAD, ${m[1].slice(0, 7)})`;
-    } else {
-      versions['xterm'] = 'xterm.js (unknown)';
-    }
+    versions['xterm'] = m ? `xterm.js (HEAD, ${m[1].slice(0, 7)})` : 'xterm.js (unknown)';
   } catch {
     versions['xterm'] = 'xterm.js (unknown)';
   }
-
-  // Get ghostty-web version
-  try {
-    const ghosttyPkgPath = require.resolve('ghostty-web/package.json');
-    const ghosttyPkg = JSON.parse(fs.readFileSync(ghosttyPkgPath, 'utf-8'));
-    versions['ghostty'] = 'ghostty-web v' + ghosttyPkg.version;
-  } catch {
-    versions['ghostty'] = 'ghostty-web v0.4.0';
-  }
-
   return versions;
 }
 
@@ -165,25 +136,10 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
   }
   const packs: PackInfo[] = listPacks(opts.themesUserDir, bundledDir);
 
-  // Support dynamic terminal selection via query parameter
-  function getEffectiveTerminal(req: IncomingMessage): TerminalBackend {
-    const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-    const terminalParam = url.searchParams.get('terminal');
-
-    // If a valid terminal is requested via query param, use it
-    if (terminalParam && ['ghostty', 'xterm'].includes(terminalParam)) {
-      return terminalParam as TerminalBackend;
-    }
-
-    // Otherwise use the server's configured terminal
-    return config.terminal;
-  }
-
-  const makeHtml = (req: IncomingMessage) => {
-    const terminal = getEffectiveTerminal(req);
+  const makeHtml = () => {
     return opts.htmlTemplate
-      .replace('<!-- __CONFIG__ -->', `<script>window.__TMUX_WEB_CONFIG = ${JSON.stringify({ terminal, version: pkg.version })}</script>`)
-      .replace('__BUNDLE__', `/dist/client/${bundleName(terminal)}`);
+      .replace('<!-- __CONFIG__ -->', `<script>window.__TMUX_WEB_CONFIG = ${JSON.stringify({ version: pkg.version })}</script>`)
+      .replace('__BUNDLE__', `/dist/client/xterm.js`);
   };
 
   return async (req: IncomingMessage, res: ServerResponse) => {
@@ -268,16 +224,8 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
     if (pathname.startsWith('/dist/')) {
       const relative = pathname.slice(6);
       const filePath = path.join(distDir, relative);
-      const asset = await readFile(filePath, `dist/${relative}`) || 
-                    (opts.ghosttyDistDir ? await readFile(path.join(opts.ghosttyDistDir, relative), `dist/${relative}`) : null);
-      
-      if (asset) return serveFile(res, asset.data, asset.contentType);
-      return serve404(res);
-    }
+      const asset = await readFile(filePath, `dist/${relative}`);
 
-    if (pathname === '/ghostty-vt.wasm') {
-      const asset = (opts.ghosttyWasmPath ? await readFile(opts.ghosttyWasmPath, 'ghostty-vt.wasm') : null) ||
-                    await readFile('', 'ghostty-vt.wasm');
       if (asset) return serveFile(res, asset.data, asset.contentType);
       return serve404(res);
     }
@@ -322,6 +270,6 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
     }
 
     res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(makeHtml(req));
+    res.end(makeHtml());
   };
 }
