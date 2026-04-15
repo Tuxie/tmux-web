@@ -25,8 +25,11 @@ function readLegacyTopbarAutohideCookie(): boolean | null {
 export function getTopbarAutohide(): boolean {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw !== null) {
-      return raw === '1';
+    if (raw === '1') {
+      return true;
+    }
+    if (raw === '0') {
+      return false;
     }
 
     const legacyValue = readLegacyTopbarAutohideCookie();
