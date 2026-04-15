@@ -3,7 +3,7 @@ import http from 'http';
 import https from 'https';
 import path from 'path';
 import { parseArgs } from 'util';
-import { userInfo } from 'os';
+import { tmpdir, userInfo } from 'os';
 import { createHttpHandler } from './http.js';
 import { createWsServer } from './ws.js';
 import { generateSelfSignedCert } from './tls.js';
@@ -164,7 +164,7 @@ Options:
       baseTmuxConfContent = baseTmuxConfContent.replace(/^source-file -q .*$/gm, '');
       baseTmuxConfContent += `\nsource-file -q ${config.tmuxConf}\n`;
     }
-    const tmpPath = path.join(require('os').tmpdir(), `tmux-web-embedded-${Date.now()}.conf`);
+    const tmpPath = path.join(tmpdir(), `tmux-web-embedded-${Date.now()}.conf`);
     fs.writeFileSync(tmpPath, baseTmuxConfContent);
     effectiveTmuxConfPath = tmpPath;
     process.on('exit', () => { try { fs.unlinkSync(tmpPath); } catch {} });
