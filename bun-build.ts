@@ -12,7 +12,6 @@ const commonOpts: BuildOptions = {
   outdir: "dist/client",
   sourcemap: "external",
   minify: !isWatch,
-  external: ["/dist/ghostty-web.js"],
 };
 
 /**
@@ -70,9 +69,7 @@ function buildVendorXterm(vendorDir: string): void {
 }
 
 async function buildClient() {
-  const configs = [
-    { name: "ghostty", outfile: "ghostty.js" },
-  ];
+  const configs: Array<{ name: string; outfile: string }> = [];
 
   const vendorXtermDir = path.join(import.meta.dir, "vendor/xterm.js");
   const vendorXtermEntry = path.join(vendorXtermDir, "src/browser/public/Terminal.ts");

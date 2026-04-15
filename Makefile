@@ -21,12 +21,12 @@ dev:
 
 # --- Build ---
 
-dist/client/ghostty.js: $(SRCS_CLIENT)
+dist/client/xterm.js: $(SRCS_CLIENT)
 	$(BUN) bun-build.ts
 
-build: dist/client/ghostty.js
+build: dist/client/xterm.js
 
-build-client: dist/client/ghostty.js
+build-client: dist/client/xterm.js
 
 build-server: tmux-web
 
@@ -37,15 +37,15 @@ test: test-unit test-e2e
 test-unit:
 	$(BUN) test
 
-test-e2e: dist/client/ghostty.js
+test-e2e: dist/client/xterm.js
 	node node_modules/.bin/playwright test
 
-test-e2e-headed: dist/client/ghostty.js
+test-e2e-headed: dist/client/xterm.js
 	node node_modules/.bin/playwright test --headed
 
 # --- Production binary ---
 
-src/server/assets-embedded.ts: dist/client/ghostty.js tmux.conf bun-build.ts scripts/generate-assets.ts
+src/server/assets-embedded.ts: dist/client/xterm.js tmux.conf bun-build.ts scripts/generate-assets.ts
 	$(BUN) run scripts/generate-assets.ts
 
 tmux-web: dist/client/vendor-xterm.js dist/client/vendor-xterm-addon-fit.js $(SRCS_SERVER) src/server/assets-embedded.ts
@@ -58,11 +58,6 @@ install: tmux-web
 	cp -rf dist fonts tmux.conf $(DESTDIR)$(SHAREDIR)/
 	mkdir -p $(DESTDIR)$(SHAREDIR)/src/client
 	cp src/client/index.html $(DESTDIR)$(SHAREDIR)/src/client/
-	# Install ghostty-web assets if available
-	@if [ -d node_modules/ghostty-web ]; then \
-		cp node_modules/ghostty-web/ghostty-vt.wasm $(DESTDIR)$(SHAREDIR)/; \
-		cp -rf node_modules/ghostty-web/dist/* $(DESTDIR)$(SHAREDIR)/dist/; \
-	fi
 
 # --- Vendor (optional: xterm.js from git HEAD) ---
 VENDOR_XTERM_HEAD := $(wildcard .git/modules/vendor/xterm.js/HEAD)
