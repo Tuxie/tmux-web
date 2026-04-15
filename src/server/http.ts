@@ -250,6 +250,11 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
       }
       const found = readPackFile(packDir, fileName, packs);
       if (!found) {
+        // The default theme pack still reuses the legacy bundled fonts/ dir.
+        if (packDir === 'default') {
+          const legacyFont = await readFile(path.join(opts.fontsDir, fileName), `fonts/${fileName}`);
+          if (legacyFont) return serveFile(res, legacyFont.data, legacyFont.contentType);
+        }
         res.writeHead(404);
         res.end();
         return;

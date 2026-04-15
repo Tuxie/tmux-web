@@ -1,6 +1,12 @@
 {
   "author": "tmux-web",
   "version": "1",
+  "fonts": [
+    { "file": "Iosevka Nerd Font Mono.woff2", "family": "Iosevka Nerd Font Mono" },
+    { "file": "MicroKnight Nerd Font.woff2", "family": "MicroKnight Nerd Font" },
+    { "file": "Topaz8 Amiga1200 Nerd Font.woff2", "family": "Topaz8 Amiga1200 Nerd Font" },
+    { "file": "mOsOul Nerd Font.woff2", "family": "mOsOul Nerd Font" }
+  ],
   "themes": [
     { "name": "Default", "css": "default.css" }
   ]
