@@ -95,8 +95,8 @@ function handleConnection(
   debug(config, `WS connected from ${remoteIp} session=${session} cols=${cols} rows=${rows}`);
 
   const command = buildPtyCommand({ testMode: config.testMode, session, tmuxConfPath, tmuxBin: config.tmuxBin });
-  const env = buildPtyEnv(config.terminal);
-  const ptyProcess = spawnPty({ command, env, cols, rows, terminal: config.terminal });
+  const env = buildPtyEnv();
+  const ptyProcess = spawnPty({ command, env, cols, rows });
   debug(config, `PTY spawned for session=${session} cmd=${command.file}`);
 
   let lastSession = session;

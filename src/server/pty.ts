@@ -1,5 +1,4 @@
 import { homedir } from 'os';
-import type { TerminalBackend } from '../shared/types.js';
 
 export interface PtyCommand {
   file: string;
@@ -33,14 +32,14 @@ export function buildPtyCommand(opts: PtyCommandOptions): PtyCommand {
   };
 }
 
-export function buildPtyEnv(terminal: TerminalBackend): Record<string, string | undefined> {
+export function buildPtyEnv(): Record<string, string | undefined> {
   const env: Record<string, string | undefined> = { ...process.env };
   delete env.LANG;
   delete env.LANGUAGE;
   delete env.EDITOR;
   delete env.VISUAL;
-  env.TERM = terminal === 'ghostty' ? 'ghostty' : 'xterm-256color';
-  env.TERM_PROGRAM = terminal === 'ghostty' ? 'ghostty' : 'xterm';
+  env.TERM = 'xterm-256color';
+  env.TERM_PROGRAM = 'xterm';
   env.COLORTERM = 'truecolor';
   env.LC_ALL = 'C.UTF-8';
   return env;
@@ -51,7 +50,6 @@ export interface SpawnPtyOptions {
   env: Record<string, string | undefined>;
   cols: number;
   rows: number;
-  terminal: TerminalBackend;
 }
 
 export interface BunPty {
@@ -73,7 +71,7 @@ export function spawnPty(opts: SpawnPtyOptions): BunPty {
     terminal: {
       cols: opts.cols,
       rows: opts.rows,
-      data(terminal, data) {
+      data(_terminal: unknown, data: Uint8Array) {
         onDataCallback(decoder.decode(data, { stream: true }));
       },
     },
