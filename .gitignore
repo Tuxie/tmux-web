@@ -7,6 +7,7 @@ playwright-report/
 tmp/
 .worktrees/
 docs/superpowers/
+.codex
 
 fonts/**
 !fonts/*.woff2
