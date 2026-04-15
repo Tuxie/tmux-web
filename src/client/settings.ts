@@ -16,13 +16,11 @@ export const DEFAULT_SETTINGS: TerminalSettings = {
 const COOKIE_NAME = 'tmux-web-settings';
 
 interface AllSettings extends TerminalSettings {
-  topbarAutohide?: boolean;
-  terminal?: string;
   theme?: string;
   themeFontTouched?: Record<string, boolean>;
 }
 
-function getCookie(): AllSettings {
+function getCookie(): Partial<AllSettings> {
   const name = COOKIE_NAME + '=';
   const decodedCookie = decodeURIComponent(document.cookie);
   const cookies = decodedCookie.split(';');
@@ -39,7 +37,7 @@ function getCookie(): AllSettings {
   return {};
 }
 
-function setCookie(value: AllSettings): void {
+function setCookie(value: Partial<AllSettings>): void {
   // Set cookie with 1 year expiration
   const date = new Date();
   date.setTime(date.getTime() + 365 * 24 * 60 * 60 * 1000);
@@ -57,8 +55,8 @@ export function loadSettings(): TerminalSettings {
     const raw = sessionStorage.getItem(SS_KEY);
     if (raw) {
       const ss = JSON.parse(raw) as AllSettings;
-      // Restore the cookie so other callers (getTopbarAutohide etc.) see the
-      // correct values even after the cookie was overwritten by init scripts.
+      // Restore the cookie so other callers see the correct values even after
+      // the cookie was overwritten by init scripts.
       const all = getCookie();
       setCookie({ ...all, ...ss });
       return { ...DEFAULT_SETTINGS, ...ss };
@@ -73,26 +71,6 @@ export function saveSettings(s: TerminalSettings): void {
   const merged = { ...all, ...s };
   setCookie(merged);
   try { sessionStorage.setItem(SS_KEY, JSON.stringify(merged)); } catch {}
-}
-
-export function getTopbarAutohide(): boolean {
-  const all = getCookie();
-  return all.topbarAutohide !== false;
-}
-
-export function setTopbarAutohide(value: boolean): void {
-  const all = getCookie();
-  setCookie({ ...all, topbarAutohide: value });
-}
-
-export function getTerminalBackend(): string | null {
-  const all = getCookie();
-  return all.terminal || null;
-}
-
-export function setTerminalBackend(value: string): void {
-  const all = getCookie();
-  setCookie({ ...all, terminal: value });
 }
 
 export function getActiveThemeName(): string {

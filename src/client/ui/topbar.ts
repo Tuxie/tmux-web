@@ -2,14 +2,13 @@ import {
   loadSettings,
   saveSettings,
   DEFAULT_SETTINGS,
-  getTopbarAutohide,
-  setTopbarAutohide,
   getActiveThemeName,
   setActiveThemeName,
   isThemeFontTouched,
   markThemeFontTouched,
 } from '../settings.js';
 import type { TerminalSettings } from '../settings.js';
+import { getTopbarAutohide, setTopbarAutohide } from '../prefs.js';
 import { applyTheme, getActiveTheme, listFonts, listThemes } from '../theme.js';
 
 export interface TopbarOptions {

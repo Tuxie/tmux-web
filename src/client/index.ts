@@ -6,10 +6,11 @@ import { Topbar } from './ui/topbar.js';
 import { installMouseHandler, getSgrCoords, buildSgrSequence } from './ui/mouse.js';
 import { installKeyboardHandler } from './ui/keyboard.js';
 import { handleClipboard } from './ui/clipboard.js';
-import { loadSettings, getTopbarAutohide, getActiveThemeName } from './settings.js';
+import { loadSettings, getActiveThemeName } from './settings.js';
+import { getTopbarAutohide } from './prefs.js';
 import type { TerminalSettings } from './settings.js';
 import { applyTheme, loadAllFonts, readBorderInsets } from './theme.js';
-import { XtermAdapter } from './adapters/xterm.ts';
+import { XtermAdapter } from './adapters/xterm.js';
 
 declare global {
   interface Window {
