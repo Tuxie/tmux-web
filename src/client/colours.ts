@@ -12,12 +12,26 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
   };
 }
 
-export function composeTheme(theme: ITheme, opacityPct: number): ITheme {
+/**
+ * Returns the rgba() colour string for the #terminal element's background-color.
+ * The terminal div sits between the body (which shows the wallpaper / theme background)
+ * and the xterm viewport (which is kept fully transparent). Controlling the opacity of
+ * this element fades the theme colour in over the body background.
+ */
+export function composeBgColor(theme: ITheme, opacityPct: number): string {
   const bg = theme.background ?? '#000000';
   const { r, g, b } = hexToRgb(bg);
   const alpha = Math.max(0, Math.min(100, opacityPct)) / 100;
   const alphaStr = alpha === 0 ? '0' : alpha === 1 ? '1' : String(alpha);
-  return { ...theme, background: `rgba(${r},${g},${b},${alphaStr})` };
+  return `rgba(${r},${g},${b},${alphaStr})`;
+}
+
+/**
+ * Returns the xterm ITheme with a transparent background so the #terminal element
+ * background-color (set via composeBgColor) shows through.
+ */
+export function composeTheme(theme: ITheme): ITheme {
+  return { ...theme, background: 'transparent' };
 }
 
 export async function fetchColours(): Promise<Array<{ name: string; variant?: string; theme: ITheme }>> {
