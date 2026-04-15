@@ -27,6 +27,7 @@ export class XtermAdapter implements TerminalAdapter {
       fontSize: options.fontSize,
       lineHeight: Math.max(1, options.lineHeight),
       theme: options.theme,
+      allowTransparency: true,
       allowProposedApi: true,
       scrollback: 0,
     });
