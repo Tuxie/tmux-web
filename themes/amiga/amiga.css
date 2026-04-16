@@ -280,6 +280,11 @@ body {
 }
 /* In tabs mode the button next to the tab strip only shows the gadget. */
 #topbar .tb-btn-window-compact.tabs-shown .tb-window-compact-label { display: none; }
+/* With the label gone, the plus segment's left bevel would sit right next
+ * to the outer button's white bevel — drop it so the gadget fills cleanly. */
+#topbar .tb-btn-window-compact.tabs-shown .tb-window-compact-plus {
+  border-left: none;
+}
 #topbar .tb-btn-window-compact .tb-window-compact-plus {
   display: flex;
   align-items: center;
