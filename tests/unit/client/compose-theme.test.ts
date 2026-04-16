@@ -20,25 +20,20 @@ describe("composeBgColor", () => {
 });
 
 describe("composeTheme", () => {
-  test("rewrites background with opacity alpha", () => {
+  test("default bg is always fully transparent (opacity lives on #page)", () => {
     const t = { foreground: "#ffffff", background: "#112233" } as any;
-    const out = composeTheme(t, 50);
-    expect(out.background).toBe("rgba(17,34,51,0.5)");
-    expect(out.foreground).toBe("#ffffff");
+    expect(composeTheme(t, 0).background).toBe("rgba(17,34,51,0)");
+    expect(composeTheme(t, 50).background).toBe("rgba(17,34,51,0)");
+    expect(composeTheme(t, 100).background).toBe("rgba(17,34,51,0)");
   });
 
-  test("opacity 100 yields fully-opaque rgba", () => {
-    const t = { background: "#abcdef" } as any;
-    expect(composeTheme(t, 100).background).toBe("rgba(171,205,239,1)");
-  });
-
-  test("opacity 0 yields fully-transparent rgba", () => {
-    const t = { background: "#000000" } as any;
-    expect(composeTheme(t, 0).background).toBe("rgba(0,0,0,0)");
+  test("foreground is preserved", () => {
+    const t = { foreground: "#abcdef", background: "#112233" } as any;
+    expect(composeTheme(t, 50).foreground).toBe("#abcdef");
   });
 
   test("missing background falls back to black", () => {
     const t = { foreground: "#fff" } as any;
-    expect(composeTheme(t, 100).background).toBe("rgba(0,0,0,1)");
+    expect(composeTheme(t, 100).background).toBe("rgba(0,0,0,0)");
   });
 });

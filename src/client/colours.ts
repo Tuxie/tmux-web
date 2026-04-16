@@ -21,17 +21,21 @@ export function composeBgColor(theme: ITheme, opacityPct: number): string {
   return `rgba(${r},${g},${b},${alphaStr})`;
 }
 
-/** Apply the opacity slider to the theme background so the WebGL renderer
- *  (and DOM/canvas, via allowTransparency) draws cell backgrounds at the
- *  requested alpha. Without this, the terminal area stays fully opaque
- *  while only the surrounding #page region gets the alpha from
- *  composeBgColor — giving opacity only "between the terminal and the border". */
-export function composeTheme(theme: ITheme, opacityPct: number): ITheme {
+/** Make xterm's default cell background fully transparent. The opacity
+ *  slider is applied by composeBgColor on #page instead — this keeps the
+ *  terminal area and its surround at identical alpha at every slider
+ *  position. Applying alpha on BOTH layers double-composites and produces
+ *  a visibly darker terminal region at intermediate opacities.
+ *
+ *  The RGB is kept (from theme.background) so xterm's contrast math,
+ *  inverse-video, and dim-text calculations still reference the theme's
+ *  "default" colour even though the alpha is zero. Cells with explicit
+ *  non-default bg (from SGR 40-47 / 100-107) still render opaque, which
+ *  matches the see-through-terminal UX of Alacritty and Kitty. */
+export function composeTheme(theme: ITheme, _opacityPct: number): ITheme {
   const bg = theme.background ?? '#000000';
   const { r, g, b } = hexToRgb(bg);
-  const alpha = Math.max(0, Math.min(100, opacityPct)) / 100;
-  const alphaStr = alpha === 0 ? '0' : alpha === 1 ? '1' : String(alpha);
-  return { ...theme, background: `rgba(${r},${g},${b},${alphaStr})` };
+  return { ...theme, background: `rgba(${r},${g},${b},0)` };
 }
 
 export async function fetchColours(): Promise<Array<{ name: string; variant?: string; theme: ITheme }>> {
