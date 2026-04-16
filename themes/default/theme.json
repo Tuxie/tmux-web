@@ -21,7 +21,7 @@
       "name": "Default",
       "css": "default.css",
       "defaultFont": "Iosevka Nerd Font Mono",
-      "defaultFontSize": 16.5,
+      "defaultFontSize": 15,
       "defaultSpacing": 0.9,
       "defaultColours": "Nord",
       "defaultOpacity": 50
