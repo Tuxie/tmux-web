@@ -688,7 +688,7 @@ export class Topbar {
                 }
               },
             },
-            items: [{ value: 'close', label: `Close window ${w.index}: ${w.name}` }],
+            items: [{ value: 'close', label: `Close window ${w.index}: ${w.name}`, separator: true }],
             onSelect: (action) => {
               if (action === 'close') {
                 this.sendWindowMsg({ action: 'close', index: w.index });
