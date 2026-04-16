@@ -405,6 +405,9 @@ body {
 .menu-row-static { cursor: default; gap: 3px; }
 
 .menu-label { color: #000; min-width: 120px; }
+/* Window-tab context menu is a single-row editor; keep it compact. */
+.tw-dd-context-win .menu-label { min-width: auto; padding-right: 6px; }
+.tw-dd-context-win .tw-dd-input { min-width: 130px; }
 
 #btn-reset-colours, #btn-reset-font {
   font-family: sans-serif !important;

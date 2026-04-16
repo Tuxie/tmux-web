@@ -113,9 +113,8 @@ test('right-click on a window tab opens a Name input + Close window item', async
   await expect(menu.locator('.tw-dd-input')).toHaveValue('vim');
   const items = menu.locator('.tw-dropdown-item');
   await expect(items).toHaveCount(1);
-  expect(await items.allTextContents()).toEqual(['Close window']);
-  // Close window sits below a separator.
-  await expect(menu.locator('.tw-dropdown-sep')).toHaveCount(1);
+  // Close row shows the index and name for clarity.
+  expect(await items.allTextContents()).toEqual(['Close window 1: vim']);
 });
 
 test('editing the Name input and pressing Enter sends rename-window', async ({ page }) => {

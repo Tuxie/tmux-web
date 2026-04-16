@@ -669,10 +669,16 @@ export class Topbar {
         });
         btn.addEventListener('contextmenu', (ev) => {
           ev.preventDefault();
+          btn.classList.add('open');
+          const rect = btn.getBoundingClientRect();
           showContextMenu({
-            x: ev.clientX,
-            y: ev.clientY,
+            // Right-align with the clicked tab and sit at its bottom, so the
+            // menu feels like the other topbar menus.
+            x: rect.right,
+            y: rect.bottom,
+            alignRight: true,
             className: 'tw-dd-context-win',
+            onClose: () => btn.classList.remove('open'),
             input: {
               label: 'Name:',
               defaultValue: w.name,
@@ -682,7 +688,7 @@ export class Topbar {
                 }
               },
             },
-            items: [{ value: 'close', label: 'Close window', separator: true }],
+            items: [{ value: 'close', label: `Close window ${w.index}: ${w.name}` }],
             onSelect: (action) => {
               if (action === 'close') {
                 this.sendWindowMsg({ action: 'close', index: w.index });
