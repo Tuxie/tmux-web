@@ -26,6 +26,24 @@ const commonOpts: BuildOptions = {
  * Patch each per-dir tsconfig bun actually reads to inline the flag.
  */
 function buildVendorXterm(vendorDir: string): void {
+  // addon-image imports `sixel` and `xterm-wasm-parts` which live in
+  // vendor/xterm.js's own node_modules (declared as devDependencies in the
+  // submodule's addons/addon-image/package.json). A top-level `bun install`
+  // only populates /node_modules at the repo root, so CI checkouts don't
+  // have them and `bun build addon-image/src/ImageAddon.ts` fails to
+  // resolve them. Install once, lazily, when the sentinel is missing.
+  const sentinelDep = path.join(vendorDir, "node_modules/sixel");
+  if (!fs.existsSync(sentinelDep)) {
+    console.log("Installing vendor/xterm.js dependencies with bun...");
+    const install = Bun.spawnSync(
+      ["bun", "install"],
+      { cwd: vendorDir, stdio: ["ignore", "inherit", "inherit"] }
+    );
+    if (install.exitCode !== 0) {
+      throw new Error("vendor xterm `bun install` failed");
+    }
+  }
+
   const patchTargets = [
     "src/browser/tsconfig.json",
     "src/common/tsconfig.json",

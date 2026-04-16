@@ -2,10 +2,22 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 
 function setupDom() {
   (globalThis as any).document = {
-    head: { appendChild: (n: any) => { (globalThis as any).__appended?.push(n); } },
+    head: {
+      appendChild(n: any) {
+        (globalThis as any).__appended?.push(n);
+        // Simulate the browser firing `load` once the stylesheet is parsed
+        // so applyTheme's `await loaded` resolves.
+        n.__listeners?.load?.forEach((fn: () => void) => fn());
+      },
+    },
     createElement: (tag: string) => ({
       tagName: tag.toUpperCase(),
+      __listeners: {} as Record<string, (() => void)[]>,
       setAttribute(k: string, v: string) { (this as any)[k] = v; },
+      addEventListener(ev: string, fn: () => void) {
+        (this as any).__listeners[ev] ??= [];
+        (this as any).__listeners[ev].push(fn);
+      },
     }),
     getElementById: (id: string) => (globalThis as any).__byId?.[id] ?? null,
     documentElement: { style: {} as Record<string, string> },

@@ -76,8 +76,11 @@ describe('XtermAdapter', () => {
         background: '#000000',
         foreground: '#ffffff',
       },
+      opacity: 100,
     });
 
-    expect(terminalCtor.mock.calls[0]?.[0]).toMatchObject({ allowTransparency: true });
+    // allowTransparency is intentionally false so xterm's WebGL atlas uses
+    // canvas-2d subpixel AA. See composeTheme + adapter for the rationale.
+    expect(terminalCtor.mock.calls[0]?.[0]).toMatchObject({ allowTransparency: false });
   });
 });
