@@ -347,6 +347,74 @@ input {
   accent-color: #68b !important;
 }
 
+/* --- Range sliders in the settings menu: flat bevelled track, tall rectangular thumb --- */
+#menu-dropdown input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 22px;
+  padding: 0;
+  margin: 0 2px;
+  cursor: pointer;
+}
+#menu-dropdown input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  background: #aaa;
+  border-top: 1px solid #000;
+  border-left: 1px solid #000;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #fff;
+  border-radius: 0;
+}
+#menu-dropdown input[type="range"]::-moz-range-track {
+  height: 6px;
+  background: #aaa;
+  border-top: 1px solid #000;
+  border-left: 1px solid #000;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #fff;
+  border-radius: 0;
+}
+#menu-dropdown input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 18px;
+  background: #aaa;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
+  border-radius: 0;
+  box-sizing: border-box;
+  margin-top: -6px;
+}
+#menu-dropdown input[type="range"]::-moz-range-thumb {
+  width: 10px;
+  height: 18px;
+  background: #aaa;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
+  border-radius: 0;
+  box-sizing: border-box;
+}
+#menu-dropdown input[type="range"]:active::-webkit-slider-thumb {
+  border-top: 1px solid #000;
+  border-left: 1px solid #000;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #fff;
+  background: #999;
+}
+#menu-dropdown input[type="range"]:active::-moz-range-thumb {
+  border-top: 1px solid #000;
+  border-left: 1px solid #000;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #fff;
+  background: #999;
+}
+
 /* Terminal positioning and padding */
 #terminal {
   position: absolute;
