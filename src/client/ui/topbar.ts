@@ -104,12 +104,13 @@ export class Topbar {
       renderContent: (menu, close) => {
         const current = this.currentSession;
 
-        // Existing sessions — current one marked with a check.
+        // Existing sessions — current one marked with a check. The check
+        // lives in a fixed-width CSS gutter so session names always align.
         for (const s of this.cachedSessions) {
           const isCurrent = s === current;
           const el = document.createElement('div');
-          el.className = 'tw-dropdown-item' + (isCurrent ? ' selected' : '');
-          el.textContent = (isCurrent ? '\u2713 ' : '  ') + s;
+          el.className = 'tw-dropdown-item tw-dd-session-item' + (isCurrent ? ' current' : '');
+          el.textContent = s;
           el.addEventListener('click', (ev) => {
             ev.stopPropagation();
             close();

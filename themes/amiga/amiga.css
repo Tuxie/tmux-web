@@ -114,6 +114,14 @@ body {
 }
 .tw-dropdown-item:hover { background: #68b; color: #fff; }
 .tw-dropdown-item.selected { background: #99a; }
+/* Session menu items keep a consistent gutter for the check mark. */
+.tw-dd-session-item { padding-left: 28px; position: relative; }
+.tw-dd-session-item.current::before {
+  content: '\2713';
+  position: absolute;
+  left: 10px;
+  width: 12px;
+}
 .tw-dropdown-sep { border: none; border-top: 1px solid #888; margin: 3px 4px; }
 /* Sessions dropdown — anchor under the session button (now a normal inline child of #tb-session) */
 .tw-dropdown-menu.tw-dd-sessions-menu { min-width: 160px; }

@@ -84,6 +84,15 @@ body { background: #1e1e1e; }
 }
 .tw-dropdown-item:hover { background: #333; }
 .tw-dropdown-item.selected { background: #3a3a3a; }
+/* Session menu items have a fixed-width gutter so the name column stays
+ * aligned whether the row has a check mark or not. */
+.tw-dd-session-item { padding-left: 26px; position: relative; }
+.tw-dd-session-item.current::before {
+  content: '\2713';
+  position: absolute;
+  left: 10px;
+  width: 12px;
+}
 .tw-dropdown-sep { border: none; border-top: 1px solid #444; margin: 4px 0; }
 /* Sessions dropdown menu — anchors under the session button by default (left-aligned) */
 

@@ -20,10 +20,14 @@ test('opening session button lists sessions with the current one checked + Kill 
   // 3 session rows + 1 Kill row
   await expect(items).toHaveCount(4);
   const texts = await items.allTextContents();
-  expect(texts[0]).toBe('\u2713 main');
-  expect(texts[1]).toBe('  dev');
-  expect(texts[2]).toBe('  work');
+  expect(texts[0]).toBe('main');
+  expect(texts[1]).toBe('dev');
+  expect(texts[2]).toBe('work');
   expect(texts[3]).toBe('Kill session main\u2026');
+  // Only the current session gets the 'current' class (for the ✓ gutter).
+  await expect(items.nth(0)).toHaveClass(/\bcurrent\b/);
+  await expect(items.nth(1)).not.toHaveClass(/\bcurrent\b/);
+  await expect(items.nth(2)).not.toHaveClass(/\bcurrent\b/);
   // Input rows for Name and New session
   const labels = await menu.locator('.menu-label').allTextContents();
   expect(labels).toEqual(['Name:', 'New session:']);
