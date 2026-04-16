@@ -35,14 +35,14 @@ test('clicking a window tab sends a select-window message for that tab', async (
   expect(sent).toContain(JSON.stringify({ type: 'window', action: 'select', index: '1' }));
 });
 
-test('clicking the new window button sends a new-window message', async ({ page }) => {
-  await page.locator('#win-tabs button').nth(2).click();
+test('right-click on the windows button sends a new-window message', async ({ page }) => {
+  await page.locator('#win-tabs button').nth(2).click({ button: 'right' });
   const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
   expect(sent).toContain(JSON.stringify({ type: 'window', action: 'new' }));
 });
 
-test('right-click on new-window button opens the rich windows menu', async ({ page }) => {
-  await page.locator('#win-tabs button').nth(2).click({ button: 'right' });
+test('left-click on the windows button opens the rich windows menu', async ({ page }) => {
+  await page.locator('#win-tabs button').nth(2).click();
   const menu = page.locator('.tw-dropdown-menu.tw-dd-windows');
   await expect(menu).toBeVisible();
   // Window list: two rows, current one marked .current
@@ -61,7 +61,7 @@ test('right-click on new-window button opens the rich windows menu', async ({ pa
 });
 
 test('New window input in the menu creates a named window', async ({ page }) => {
-  await page.locator('#win-tabs button').nth(2).click({ button: 'right' });
+  await page.locator('#win-tabs button').nth(2).click();
   const menu = page.locator('.tw-dd-windows');
   const input = menu.locator('.menu-row', { hasText: 'New window:' }).locator('input');
   await input.fill('logs');
@@ -71,7 +71,7 @@ test('New window input in the menu creates a named window', async ({ page }) => 
 });
 
 test('Name input in the menu renames the current window', async ({ page }) => {
-  await page.locator('#win-tabs button').nth(2).click({ button: 'right' });
+  await page.locator('#win-tabs button').nth(2).click();
   const menu = page.locator('.tw-dd-windows');
   const nameInput = menu.locator('.menu-row', { hasText: 'Name:' }).locator('input');
   await expect(nameInput).toHaveValue('zsh');
@@ -86,7 +86,8 @@ test('unchecking Show windows as tabs switches to compact mode', async ({ page }
   await expect(page.locator('#win-tabs .win-tab')).toHaveCount(2);
   await expect(page.locator('#win-tabs .tb-btn-window-compact')).toHaveCount(0);
 
-  await page.locator('#win-tabs button').nth(2).click({ button: 'right' });
+  // Open the windows menu via left-click.
+  await page.locator('#win-tabs button').nth(2).click();
   await page.locator('.tw-dd-windows input[type="checkbox"]').click();
 
   // Tabs gone; compact button shows current window (0:zsh)
@@ -94,8 +95,8 @@ test('unchecking Show windows as tabs switches to compact mode', async ({ page }
   await expect(page.locator('#win-tabs .tb-btn-window-compact')).toHaveCount(1);
   await expect(page.locator('.tb-window-compact-label')).toHaveText('0: zsh');
 
-  // Re-check to return to tabs — right-click the compact button to open menu.
-  await page.locator('.tb-btn-window-compact').click({ button: 'right' });
+  // Re-check to return to tabs — left-click the compact button to open menu.
+  await page.locator('.tb-btn-window-compact').click();
   await page.locator('.tw-dd-windows input[type="checkbox"]').click();
   await expect(page.locator('#win-tabs .win-tab')).toHaveCount(2);
   await expect(page.locator('#win-tabs .tb-btn-window-compact')).toHaveCount(0);

@@ -621,19 +621,17 @@ export class Topbar {
       plus.className = 'tb-window-compact-plus';
       wrap.appendChild(plus);
 
+      // Left-click anywhere on the button opens the windows menu; right-click
+      // creates a new window. Same as the + button in tabs mode, so behaviour
+      // doesn't depend on the Show-windows-as-tabs toggle.
       wrap.addEventListener('click', (ev) => {
         ev.stopPropagation();
-        const target = ev.target as HTMLElement;
-        if (target.closest('.tb-window-compact-plus')) {
-          this.sendWindowMsg({ action: 'new' });
-        } else {
-          const rect = wrap.getBoundingClientRect();
-          this.openWindowsMenu(rect.left, rect.bottom + 2);
-        }
+        const rect = wrap.getBoundingClientRect();
+        this.openWindowsMenu(rect.left, rect.bottom + 2);
       });
       wrap.addEventListener('contextmenu', (ev) => {
         ev.preventDefault();
-        this.openWindowsMenu(ev.clientX, ev.clientY);
+        this.sendWindowMsg({ action: 'new' });
       });
       this.winTabs.appendChild(wrap);
       return;
@@ -678,14 +676,15 @@ export class Topbar {
     const addBtn = document.createElement('button');
     addBtn.className = 'tb-btn tb-btn-new-window';
     addBtn.textContent = '+';
-    addBtn.title = 'New Window';
-    addBtn.addEventListener('click', () => this.sendWindowMsg({ action: 'new' }));
-    addBtn.addEventListener('contextmenu', (ev) => {
-      ev.preventDefault();
-      // Anchor the menu below the + button (same feel as the session /
-      // settings menus) rather than at the cursor position.
+    addBtn.title = 'Windows';
+    // Left-click opens the windows menu; right-click creates a new window.
+    addBtn.addEventListener('click', () => {
       const rect = addBtn.getBoundingClientRect();
       this.openWindowsMenu(rect.left, rect.bottom + 2);
+    });
+    addBtn.addEventListener('contextmenu', (ev) => {
+      ev.preventDefault();
+      this.sendWindowMsg({ action: 'new' });
     });
     this.winTabs.appendChild(addBtn);
   }
