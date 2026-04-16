@@ -5,6 +5,8 @@ import { Dropdown, type DropdownItem } from './dropdown.js';
 import {
   loadSessionSettings,
   saveSessionSettings,
+  getLiveSessionSettings,
+  setLastActiveSession,
   applyThemeDefaults,
   DEFAULT_SESSION_SETTINGS,
   type SessionSettings,
@@ -28,6 +30,7 @@ export class Topbar {
   private autohide = true;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
   private lastActiveWindowIndex: string | null = null;
+  private syncSettingsUi?: (s: SessionSettings) => void;
   private opts: TopbarOptions;
 
   constructor(opts: TopbarOptions) {
@@ -239,6 +242,9 @@ export class Topbar {
       sldOpacity.value = inpOpacity.value = String(s.opacity);
       refreshAllSliderFills();
     };
+    // Expose so updateSession() can refresh the visible controls when tmux
+    // switches sessions underneath us.
+    this.syncSettingsUi = syncUi;
 
     syncUi(getSettings());
 
@@ -428,11 +434,28 @@ export class Topbar {
   }
 
   updateSession(session: string): void {
+    const prevPath = location.pathname;
     const newPath = '/' + session;
-    if (location.pathname !== newPath) {
+    const switched = prevPath !== newPath;
+    if (switched) {
       history.replaceState(null, '', newPath);
     }
     document.title = 'tmux-web \u2014 ' + session;
     this.sessionName.textContent = session;
+
+    // When tmux changes the active session underneath us (via a tmux
+    // keyboard shortcut, not the web UI), load the target session's
+    // persisted settings and re-apply them: otherwise the new session
+    // would inherit the previous session's theme, colours, font, etc.
+    if (switched) {
+      const liveFromPrev = getLiveSessionSettings(session);
+      const newSettings = loadSessionSettings(session, liveFromPrev, {
+        defaults: DEFAULT_SESSION_SETTINGS,
+      });
+      setLastActiveSession(session);
+      saveSessionSettings(session, newSettings);
+      this.syncSettingsUi?.(newSettings);
+      void this.opts.onSettingsChange?.(newSettings);
+    }
   }
 }

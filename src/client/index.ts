@@ -35,7 +35,10 @@ async function main() {
   const [themes, colours] = await Promise.all([listThemes(), fetchColours()]);
   await loadAllFonts();
 
-  const sessionName = location.pathname.replace(/^\/+|\/+$/g, '') || 'main';
+  // Read from the URL every time we need it — the URL is rewritten in place
+  // via history.replaceState when tmux switches sessions, so saves must follow.
+  const getSession = (): string => location.pathname.replace(/^\/+|\/+$/g, '') || 'main';
+  const sessionName = getSession();
   const currentTheme = themes.find(t => t.name === DEFAULT_SESSION_SETTINGS.theme) ?? themes[0];
   const themeDefaults = currentTheme ? {
     colours: currentTheme.defaultColours,
@@ -91,7 +94,7 @@ async function main() {
       const fontChanged = s.fontFamily !== appliedFontKey;
       const colourChanged = s.colours !== settings.colours;
       settings = s;
-      saveSessionSettings(sessionName, s);
+      saveSessionSettings(getSession(), s);
       if (colourChanged) sendColourVariant(s.colours);
 
       if (themeChanged) {
@@ -133,7 +136,7 @@ async function main() {
   adapter.fit();
 
   adapter.onTitleChange?.((raw) => {
-    const prefix = sessionName + ':';
+    const prefix = getSession() + ':';
     topbar.updateTitle(raw.startsWith(prefix) ? raw.slice(prefix.length) : raw);
   });
 
