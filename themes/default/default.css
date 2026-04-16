@@ -232,6 +232,13 @@ body {
 }
 /* In tabs mode the button next to the tab strip only shows the gadget. */
 #topbar .tb-btn-window-compact.tabs-shown .tb-window-compact-label { display: none; }
+/* Match the ☰ button's visual footprint so the topbar's right-side
+ * controls read as a pair of equally-sized click targets. */
+#topbar .tb-btn-window-compact.tabs-shown {
+  width: 28px;
+  height: 28px;
+  justify-content: center;
+}
 #topbar .tb-btn-window-compact .tb-window-compact-plus {
   display: flex;
   align-items: center;
@@ -265,7 +272,15 @@ body {
   box-sizing: content-box;
 }
 
-#topbar #btn-menu { padding: 2px 12px; font-size: 22px; line-height: 1; }
+#topbar #btn-menu {
+  width: 28px; height: 28px;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 
 #menu-wrap { position: relative; }
 
