@@ -55,6 +55,17 @@ test('right-click on new-window button prompts for a name and sends it', async (
   await expect(popup).toHaveCount(0);
 });
 
+test('new-window popup input keeps keyboard focus while typing', async ({ page }) => {
+  await page.locator('#win-tabs button').nth(2).click({ button: 'right' });
+  const popup = page.locator('.tw-dropdown-menu.tw-dd-context-new-window');
+  await expect(popup).toBeVisible();
+  // Simulate typing one character at a time; if the global keydown handler
+  // stole focus back to the terminal, only the first key would land in the
+  // input.
+  await page.keyboard.type('hello');
+  await expect(popup.locator('.tw-dd-input')).toHaveValue('hello');
+});
+
 test('right-click on a window tab opens a Close/Rename context menu', async ({ page }) => {
   await page.locator('#win-tabs button').nth(1).click({ button: 'right' });
   const menu = page.locator('.tw-dropdown-menu.tw-dd-context');

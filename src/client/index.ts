@@ -171,7 +171,16 @@ async function main() {
   adapter.onResize(({ cols, rows }) => connection.sendResize(cols, rows));
   window.addEventListener('resize', () => adapter.fit());
 
-  document.addEventListener('keydown', () => adapter.focus());
+  document.addEventListener('keydown', (ev) => {
+    const target = ev.target as HTMLElement | null;
+    const tag = target?.tagName;
+    // Don't snap focus back to the terminal while the user is typing in a
+    // regular form control (settings menu number inputs, the session/new
+    // window popups, etc.).
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (target?.isContentEditable) return;
+    adapter.focus();
+  });
 
   document.addEventListener('paste', (ev) => {
     const text = ev.clipboardData?.getData('text/plain');
