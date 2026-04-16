@@ -609,8 +609,12 @@ export class Topbar {
     trigger.classList.add('open');
     const rect = trigger.getBoundingClientRect();
     showContextMenu({
-      x: rect.left,
-      y: rect.bottom + 2,
+      // Right-aligned to the trigger (x = anchor's right edge, menu shifts
+      // left by its own width). Vertical: flush to the trigger's bottom so
+      // it sits at the same level as the session / settings menus.
+      x: rect.right,
+      y: rect.bottom,
+      alignRight: true,
       className: 'tw-dd-windows',
       renderContent: (menu, close) => this.renderWindowsMenu(menu, close),
       onClose: () => trigger.classList.remove('open'),

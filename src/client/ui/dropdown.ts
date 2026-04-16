@@ -138,6 +138,12 @@ export interface ContextMenuOptions {
   renderContent?: (menu: HTMLElement, close: () => void) => void;
   /** Invoked after the menu is torn down (selection, outside click, Escape). */
   onClose?: () => void;
+  /**
+   * When true, treat `x` as the menu's right edge (not its left edge).
+   * The menu is shifted left by its own measured width after mount so
+   * its right border lines up with the anchor's right edge.
+   */
+  alignRight?: boolean;
 }
 
 export function showContextMenu(opts: ContextMenuOptions): void {
@@ -217,6 +223,12 @@ export function showContextMenu(opts: ContextMenuOptions): void {
   }
 
   document.body.appendChild(menu);
+
+  // Right-align: x was the anchor's right edge, shift the menu left by its
+  // own width so its right border lands exactly there.
+  if (opts.alignRight) {
+    menu.style.left = Math.max(0, opts.x - menu.offsetWidth) + 'px';
+  }
 
   // Clamp to viewport — avoid overflowing the right/bottom edge.
   const rect = menu.getBoundingClientRect();
