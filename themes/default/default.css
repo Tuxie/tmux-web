@@ -185,6 +185,31 @@ body { background: #1e1e1e; }
 /* New-window button appended to #win-tabs */
 #topbar .tb-btn-new-window { margin-left: 2px; font-weight: bold; }
 
+/* Compact window button: [3: name | +] — mirror of the session button */
+#topbar .tb-btn-window-compact {
+  display: inline-flex;
+  align-items: stretch;
+  padding: 0;
+  gap: 0;
+}
+#topbar .tb-btn-window-compact .tb-window-compact-label {
+  padding: 2px 8px;
+  border-right: 1px solid #555;
+}
+#topbar .tb-btn-window-compact .tb-window-compact-plus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+}
+#topbar .tb-btn-window-compact .tb-window-compact-plus::before {
+  content: '';
+  display: block;
+  width: 8px;
+  height: 8px;
+  background: #d4d4d4;
+}
+
 #btn-menu { padding: 2px 8px; font-size: 18px; }
 
 #menu-wrap { position: relative; }

@@ -1,4 +1,7 @@
-import { getTopbarAutohide, setTopbarAutohide } from '../prefs.js';
+import {
+  getTopbarAutohide, setTopbarAutohide,
+  getShowWindowTabs, setShowWindowTabs,
+} from '../prefs.js';
 import { applyTheme, listFonts, listThemes } from '../theme.js';
 import { fetchColours } from '../colours.js';
 import { Dropdown, showContextMenu, type DropdownItem } from './dropdown.js';
@@ -31,6 +34,7 @@ export class Topbar {
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
   private lastActiveWindowIndex: string | null = null;
   private syncSettingsUi?: (s: SessionSettings) => void;
+  private cachedWindows: Array<{ index: string; name: string; active: boolean }> = [];
   private opts: TopbarOptions;
 
   constructor(opts: TopbarOptions) {
@@ -487,32 +491,164 @@ export class Topbar {
     return location.pathname.replace(/^\/+|\/+$/g, '') || 'main';
   }
 
-  updateWindows(windows: Array<{ index: string; name: string; active: boolean }>): void {
-    const activeWin = windows.find(w => w.active);
-    const activeIdx = activeWin ? activeWin.index : null;
-    const windowChanged = activeIdx !== this.lastActiveWindowIndex;
-    if (windowChanged) {
-      if (this.lastActiveWindowIndex !== null) this.show();
-      this.lastActiveWindowIndex = activeIdx;
-      this.tbTitle.textContent = '';
-    }
+  private sendWindowMsg(msg: { action: string; index?: string; name?: string }): void {
     // All window actions go through typed WS messages that the server
     // runs via the tmux binary directly. This avoids depending on the
     // user's tmux prefix binding (which may not be C-s) or the PTY's
     // current input mode.
-    const sendWindowMsg = (
-      msg: { action: string; index?: string; name?: string },
-    ): void => {
-      this.opts.send(JSON.stringify({ type: 'window', ...msg }));
-    };
+    this.opts.send(JSON.stringify({ type: 'window', ...msg }));
+  }
 
+  /** Build a `.menu-row` containing a labelled checkbox. */
+  private buildMenuCheckboxRow(opts: {
+    label: string;
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+  }): HTMLElement {
+    const row = document.createElement('label');
+    row.className = 'menu-row';
+    const chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.checked = opts.checked;
+    chk.addEventListener('change', () => opts.onChange(chk.checked));
+    row.appendChild(chk);
+    const text = document.createElement('span');
+    text.textContent = opts.label;
+    row.appendChild(text);
+    return row;
+  }
+
+  /** Shared windows-menu body (rendered in a contextmenu popup). */
+  private renderWindowsMenu(menu: HTMLElement, close: () => void): void {
+    const activeWin = this.cachedWindows.find(w => w.active);
+    const activeIdx = activeWin?.index ?? '';
+    const activeName = activeWin?.name ?? '';
+
+    for (const w of this.cachedWindows) {
+      const isCurrent = w.active;
+      const el = document.createElement('div');
+      el.className = 'tw-dropdown-item tw-dd-session-item' + (isCurrent ? ' current' : '');
+      el.textContent = w.index + ': ' + w.name;
+      el.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        close();
+        if (!isCurrent) this.sendWindowMsg({ action: 'select', index: w.index });
+      });
+      menu.appendChild(el);
+    }
+
+    const sep1 = document.createElement('hr');
+    sep1.className = 'tw-dropdown-sep';
+    menu.appendChild(sep1);
+
+    menu.appendChild(this.buildMenuInputRow({
+      label: 'Name:',
+      defaultValue: activeName,
+      onSubmit: (name) => {
+        close();
+        if (activeIdx && name !== activeName) {
+          this.sendWindowMsg({ action: 'rename', index: activeIdx, name });
+        }
+      },
+    }));
+    menu.appendChild(this.buildMenuInputRow({
+      label: 'New window:',
+      placeholder: 'name',
+      onSubmit: (name) => {
+        close();
+        this.sendWindowMsg({ action: 'new', name });
+      },
+    }));
+
+    const sep2 = document.createElement('hr');
+    sep2.className = 'tw-dropdown-sep';
+    menu.appendChild(sep2);
+
+    menu.appendChild(this.buildMenuCheckboxRow({
+      label: 'Show windows as tabs',
+      checked: getShowWindowTabs(),
+      onChange: (checked) => {
+        setShowWindowTabs(checked);
+        close();
+        this.renderWinTabs();
+      },
+    }));
+
+    const sep3 = document.createElement('hr');
+    sep3.className = 'tw-dropdown-sep';
+    menu.appendChild(sep3);
+
+    if (activeIdx) {
+      const closeItem = document.createElement('div');
+      closeItem.className = 'tw-dropdown-item';
+      closeItem.textContent = `Close window ${activeName}\u2026`;
+      closeItem.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        close();
+        if (!confirm(`Close window "${activeName}"?`)) return;
+        this.sendWindowMsg({ action: 'close', index: activeIdx });
+      });
+      menu.appendChild(closeItem);
+    }
+  }
+
+  /** Open the shared windows menu at viewport coordinates. */
+  private openWindowsMenu(x: number, y: number): void {
+    showContextMenu({
+      x, y,
+      className: 'tw-dd-windows',
+      renderContent: (menu, close) => this.renderWindowsMenu(menu, close),
+    });
+  }
+
+  /** Re-render the #win-tabs contents based on the current showWindowTabs pref. */
+  private renderWinTabs(): void {
+    const windows = this.cachedWindows;
     this.winTabs.innerHTML = '';
+
+    if (!getShowWindowTabs()) {
+      // Compact mode: single [name | +] button showing current window,
+      // styled like the session button but with the + gadget on the right.
+      const active = windows.find(w => w.active);
+      const label = active ? `${active.index}: ${active.name}` : '…';
+      const wrap = document.createElement('button');
+      wrap.className = 'tb-btn tb-btn-window-compact';
+      wrap.title = 'Windows';
+
+      const labelEl = document.createElement('span');
+      labelEl.className = 'tb-window-compact-label';
+      labelEl.textContent = label;
+      wrap.appendChild(labelEl);
+
+      const plus = document.createElement('span');
+      plus.className = 'tb-window-compact-plus';
+      wrap.appendChild(plus);
+
+      wrap.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const target = ev.target as HTMLElement;
+        if (target.closest('.tb-window-compact-plus')) {
+          this.sendWindowMsg({ action: 'new' });
+        } else {
+          const rect = wrap.getBoundingClientRect();
+          this.openWindowsMenu(rect.left, rect.bottom + 2);
+        }
+      });
+      wrap.addEventListener('contextmenu', (ev) => {
+        ev.preventDefault();
+        this.openWindowsMenu(ev.clientX, ev.clientY);
+      });
+      this.winTabs.appendChild(wrap);
+      return;
+    }
+
+    // Classic tab-strip mode
     for (const w of windows) {
       const btn = document.createElement('button');
       btn.className = 'win-tab' + (w.active ? ' active' : '');
       btn.textContent = w.index + ':' + w.name;
       btn.addEventListener('click', () => {
-        sendWindowMsg({ action: 'select', index: w.index });
+        this.sendWindowMsg({ action: 'select', index: w.index });
       });
       btn.addEventListener('contextmenu', (ev) => {
         ev.preventDefault();
@@ -525,14 +661,14 @@ export class Topbar {
             defaultValue: w.name,
             onSubmit: (name) => {
               if (name !== w.name) {
-                sendWindowMsg({ action: 'rename', index: w.index, name });
+                this.sendWindowMsg({ action: 'rename', index: w.index, name });
               }
             },
           },
           items: [{ value: 'close', label: 'Close window', separator: true }],
           onSelect: (action) => {
             if (action === 'close') {
-              sendWindowMsg({ action: 'close', index: w.index });
+              this.sendWindowMsg({ action: 'close', index: w.index });
             }
           },
         });
@@ -540,29 +676,31 @@ export class Topbar {
       this.winTabs.appendChild(btn);
     }
 
-    // Add [+] button to create a new window. Left-click creates an unnamed
-    // window; right-click opens a small input popup to name it first.
+    // [+] button to create a new window. Left-click: unnamed; right-click:
+    // open the full windows menu.
     const addBtn = document.createElement('button');
     addBtn.className = 'tb-btn tb-btn-new-window';
     addBtn.textContent = '+';
     addBtn.title = 'New Window';
-    addBtn.addEventListener('click', () => {
-      sendWindowMsg({ action: 'new' });
-    });
+    addBtn.addEventListener('click', () => this.sendWindowMsg({ action: 'new' }));
     addBtn.addEventListener('contextmenu', (ev) => {
       ev.preventDefault();
-      showContextMenu({
-        x: ev.clientX,
-        y: ev.clientY,
-        className: 'tw-dd-context-new-window',
-        input: {
-          label: 'New window:',
-          placeholder: 'name',
-          onSubmit: (name) => sendWindowMsg({ action: 'new', name }),
-        },
-      });
+      this.openWindowsMenu(ev.clientX, ev.clientY);
     });
     this.winTabs.appendChild(addBtn);
+  }
+
+  updateWindows(windows: Array<{ index: string; name: string; active: boolean }>): void {
+    const activeWin = windows.find(w => w.active);
+    const activeIdx = activeWin ? activeWin.index : null;
+    const windowChanged = activeIdx !== this.lastActiveWindowIndex;
+    if (windowChanged) {
+      if (this.lastActiveWindowIndex !== null) this.show();
+      this.lastActiveWindowIndex = activeIdx;
+      this.tbTitle.textContent = '';
+    }
+    this.cachedWindows = windows.slice();
+    this.renderWinTabs();
   }
 
   updateTitle(title: string): void {

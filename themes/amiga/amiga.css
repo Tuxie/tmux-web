@@ -241,6 +241,46 @@ body {
   border-right: 1px solid #000;
   border-bottom: 1px solid #000;
 }
+
+/* Compact window button: mirror of the session button with + on the right. */
+#topbar .tb-btn-window-compact {
+  display: inline-flex;
+  align-items: stretch;
+  padding: 0;
+  height: 24px;
+  margin: 0;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
+  color: #000;
+  font-family: inherit;
+  font-size: 16px;
+  cursor: pointer;
+  background: transparent;
+}
+#topbar .tb-btn-window-compact .tb-window-compact-label {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border-right: 1px solid #000;
+}
+#topbar .tb-btn-window-compact .tb-window-compact-plus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  background: #68b;
+  border-left: 1px solid #fff;
+}
+#topbar .tb-btn-window-compact .tb-window-compact-plus::before {
+  content: '';
+  display: block;
+  width: 4px;
+  height: 6px;
+  background: #fff;
+  border: 2px solid #000;
+}
 /*
 #topbar .tb-btn-session.open .tb-session-plus {
   border-right: 1px solid #fff;

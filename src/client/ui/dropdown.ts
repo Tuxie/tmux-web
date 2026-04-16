@@ -129,6 +129,13 @@ export interface ContextMenuOptions {
   };
   items?: DropdownItem[];
   onSelect?: (value: string) => void;
+  /**
+   * Fully custom menu body. When provided, `input` and `items` are ignored
+   * and the callback owns everything inside the menu. Receives the empty
+   * menu element plus a `close()` function for row click handlers to
+   * dismiss the menu on selection.
+   */
+  renderContent?: (menu: HTMLElement, close: () => void) => void;
 }
 
 export function showContextMenu(opts: ContextMenuOptions): void {
@@ -156,7 +163,9 @@ export function showContextMenu(opts: ContextMenuOptions): void {
   };
 
   let inputEl: HTMLInputElement | null = null;
-  if (opts.input) {
+  if (opts.renderContent) {
+    opts.renderContent(menu, close);
+  } else if (opts.input) {
     const inputConfig = opts.input;
     const row = document.createElement('div');
     row.className = 'menu-row menu-row-static';
@@ -182,7 +191,7 @@ export function showContextMenu(opts: ContextMenuOptions): void {
     menu.appendChild(row);
   }
 
-  if (opts.items?.length) {
+  if (!opts.renderContent && opts.items?.length) {
     // Append items directly — don't use renderItems(), which would wipe the
     // input row above.
     for (const item of opts.items) {

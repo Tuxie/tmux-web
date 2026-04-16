@@ -41,29 +41,64 @@ test('clicking the new window button sends a new-window message', async ({ page 
   expect(sent).toContain(JSON.stringify({ type: 'window', action: 'new' }));
 });
 
-test('right-click on new-window button prompts for a name and sends it', async ({ page }) => {
+test('right-click on new-window button opens the rich windows menu', async ({ page }) => {
   await page.locator('#win-tabs button').nth(2).click({ button: 'right' });
-  const popup = page.locator('.tw-dropdown-menu.tw-dd-context-new-window');
-  await expect(popup).toBeVisible();
-  await expect(popup.locator('.menu-label')).toHaveText('New window:');
-  const input = popup.locator('.tw-dd-input');
-  await input.fill('notes');
-  await input.press('Enter');
-  const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
-  expect(sent).toContain(JSON.stringify({ type: 'window', action: 'new', name: 'notes' }));
-  // Popup dismissed after submit
-  await expect(popup).toHaveCount(0);
+  const menu = page.locator('.tw-dropdown-menu.tw-dd-windows');
+  await expect(menu).toBeVisible();
+  // Window list: two rows, current one marked .current
+  const sessionItems = menu.locator('.tw-dd-session-item');
+  await expect(sessionItems).toHaveCount(2);
+  await expect(sessionItems.nth(0)).toHaveClass(/\bcurrent\b/);
+  await expect(sessionItems.nth(0)).toHaveText('0: zsh');
+  await expect(sessionItems.nth(1)).toHaveText('1: vim');
+  // Name + New window input rows
+  const labels = await menu.locator('.menu-label').allTextContents();
+  expect(labels).toEqual(['Name:', 'New window:']);
+  // Show-windows-as-tabs checkbox
+  await expect(menu.locator('input[type="checkbox"]')).toBeChecked();
+  // Close current window row
+  await expect(menu.locator('.tw-dropdown-item', { hasText: /^Close window zsh\u2026$/ })).toBeVisible();
 });
 
-test('new-window popup input keeps keyboard focus while typing', async ({ page }) => {
+test('New window input in the menu creates a named window', async ({ page }) => {
   await page.locator('#win-tabs button').nth(2).click({ button: 'right' });
-  const popup = page.locator('.tw-dropdown-menu.tw-dd-context-new-window');
-  await expect(popup).toBeVisible();
-  // Simulate typing one character at a time; if the global keydown handler
-  // stole focus back to the terminal, only the first key would land in the
-  // input.
-  await page.keyboard.type('hello');
-  await expect(popup.locator('.tw-dd-input')).toHaveValue('hello');
+  const menu = page.locator('.tw-dd-windows');
+  const input = menu.locator('.menu-row', { hasText: 'New window:' }).locator('input');
+  await input.fill('logs');
+  await input.press('Enter');
+  const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
+  expect(sent).toContain(JSON.stringify({ type: 'window', action: 'new', name: 'logs' }));
+});
+
+test('Name input in the menu renames the current window', async ({ page }) => {
+  await page.locator('#win-tabs button').nth(2).click({ button: 'right' });
+  const menu = page.locator('.tw-dd-windows');
+  const nameInput = menu.locator('.menu-row', { hasText: 'Name:' }).locator('input');
+  await expect(nameInput).toHaveValue('zsh');
+  await nameInput.fill('shell');
+  await nameInput.press('Enter');
+  const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
+  expect(sent).toContain(JSON.stringify({ type: 'window', action: 'rename', index: '0', name: 'shell' }));
+});
+
+test('unchecking Show windows as tabs switches to compact mode', async ({ page }) => {
+  // Start in tabs mode
+  await expect(page.locator('#win-tabs .win-tab')).toHaveCount(2);
+  await expect(page.locator('#win-tabs .tb-btn-window-compact')).toHaveCount(0);
+
+  await page.locator('#win-tabs button').nth(2).click({ button: 'right' });
+  await page.locator('.tw-dd-windows input[type="checkbox"]').click();
+
+  // Tabs gone; compact button shows current window (0:zsh)
+  await expect(page.locator('#win-tabs .win-tab')).toHaveCount(0);
+  await expect(page.locator('#win-tabs .tb-btn-window-compact')).toHaveCount(1);
+  await expect(page.locator('.tb-window-compact-label')).toHaveText('0: zsh');
+
+  // Re-check to return to tabs — right-click the compact button to open menu.
+  await page.locator('.tb-btn-window-compact').click({ button: 'right' });
+  await page.locator('.tw-dd-windows input[type="checkbox"]').click();
+  await expect(page.locator('#win-tabs .win-tab')).toHaveCount(2);
+  await expect(page.locator('#win-tabs .tb-btn-window-compact')).toHaveCount(0);
 });
 
 test('right-click on a window tab opens a Name input + Close window item', async ({ page }) => {
