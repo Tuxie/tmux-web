@@ -126,7 +126,7 @@ body {
   border-bottom: 1px solid #000000;
   color: #000000;
   height: 24px;
-  margin: 0px 2px 0px 2px;
+  margin: 0;
   padding: 0 8px;
   font-family: inherit;
   font-size: 14px;
@@ -229,19 +229,25 @@ body {
 }
 
 #tb-windows {
-  border-left: 1px solid #fff;
   height: 23px !important;
+}
+#tb-windows #win-tabs {
+  gap: 0px;
 }
 
 #topbar .win-tab {
   background: transparent;
-  border: 1px solid transparent;
   color: #000000;
-  padding: 0 6px;
+  padding: 0px 6px;
+  margin: 0;
   cursor: pointer;
   font-family: inherit;
   font-size: 16px;
-  line-height: 1em;
+  height: 24px !important;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
 }
 
 #topbar .win-tab:hover {
@@ -249,15 +255,18 @@ body {
 }
 
 #topbar .win-tab.active {
-  background: #aaaaaa;
-  border-top: 1px solid #ffffff;
-  border-left: 1px solid #ffffff;
-  border-right: 1px solid #000000;
-  border-bottom: 1px solid #000000;
-  height: 19px;
-  line-height: 1em;
+  background: #68b;
+  color: #fff;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
 }
 
+#tb-windows .tb-btn {
+  color: #fff;
+  text-shadow: -1px 0 black, 0 1px black, 1px 0 black, 0 -1px black;
+}
 
 #menu-wrap { position: relative; display: flex; align-items: center; }
 
@@ -288,6 +297,7 @@ body {
   font-size: 24px !important;
   padding: 0px 6px !important;
   height: 22px !important;
+  background: #aaa !important;
 }
 
 .menu-input-number {
@@ -354,10 +364,10 @@ body.topbar-pinned #terminal {
   background: #68b !important;
   border-right: 10px solid #f00 !important;
   height: 24px !important;
-} */
+}
+ */
 #menu-wrap {
   width: 21px;
-  border-left: 1px solid #000 !important;
 }
 #btn-menu {
   background: #68b !important;
