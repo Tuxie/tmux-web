@@ -135,11 +135,13 @@ async function main() {
   await topbar.init();
   adapter.fit();
 
-  adapter.onTitleChange?.((raw) => {
-    const prefix = getSession() + ':';
-    topbar.updateTitle(raw.startsWith(prefix) ? raw.slice(prefix.length) : raw);
-  });
-
+  // Title comes exclusively from the server's TT `title` message, which
+  // carries tmux's raw #{pane_title} (what the shell set). We intentionally
+  // ignore xterm.js's onTitleChange here — it'd fire in parallel with the
+  // server message but deliver tmux's set-titles-string output (typically
+  // `session:window_name`), which tmux sanitises (non-printables → `_`) and
+  // differs from pane_title. Having both sources race made the topbar
+  // flicker between the two forms on rapid title updates.
   function handleMessage(data: string) {
     const { terminalData, messages } = extractTTMessages(data);
     if (terminalData) adapter.write(terminalData);
