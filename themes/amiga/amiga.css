@@ -357,9 +357,14 @@ input {
   margin: 0 2px;
   cursor: pointer;
 }
+/* Track: left of the thumb filled with #68b, right side plain #aaa.
+ * --tw-slider-val is a percentage kept in sync from JS (topbar.ts). */
 #menu-dropdown input[type="range"]::-webkit-slider-runnable-track {
   height: 6px;
-  background: #aaa;
+  background:
+    linear-gradient(to right,
+      #68b 0, #68b var(--tw-slider-val, 0%),
+      #aaa var(--tw-slider-val, 0%), #aaa 100%);
   border-top: 1px solid #000;
   border-left: 1px solid #000;
   border-right: 1px solid #fff;
@@ -374,6 +379,10 @@ input {
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
   border-radius: 0;
+}
+#menu-dropdown input[type="range"]::-moz-range-progress {
+  height: 6px;
+  background: #68b;
 }
 #menu-dropdown input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;

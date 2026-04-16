@@ -211,6 +211,25 @@ export class Topbar {
       return loadSessionSettings(this.sessionName, live, { defaults: DEFAULT_SESSION_SETTINGS });
     };
 
+    // Keep a CSS custom property on each range input reflecting its value
+    // as a percentage of (max - min), so themes can paint the "filled" part
+    // of the track (WebKit has no native ::-moz-range-progress equivalent).
+    const updateSliderFill = (slider: HTMLInputElement): void => {
+      const min = parseFloat(slider.min || '0');
+      const max = parseFloat(slider.max || '100');
+      const val = parseFloat(slider.value);
+      const pct = max === min ? 0 : ((val - min) / (max - min)) * 100;
+      slider.style.setProperty('--tw-slider-val', pct + '%');
+    };
+    const refreshAllSliderFills = (): void => {
+      updateSliderFill(sldSize);
+      updateSliderFill(sldHeight);
+      updateSliderFill(sldOpacity);
+    };
+    sldSize.addEventListener('input', () => updateSliderFill(sldSize));
+    sldHeight.addEventListener('input', () => updateSliderFill(sldHeight));
+    sldOpacity.addEventListener('input', () => updateSliderFill(sldOpacity));
+
     const syncUi = (s: SessionSettings) => {
       ddTheme.setValue(s.theme);
       ddColours.setValue(s.colours);
@@ -218,6 +237,7 @@ export class Topbar {
       sldSize.value = inpSize.value = String(s.fontSize);
       sldHeight.value = inpHeight.value = String(s.spacing);
       sldOpacity.value = inpOpacity.value = String(s.opacity);
+      refreshAllSliderFills();
     };
 
     syncUi(getSettings());
@@ -260,6 +280,7 @@ export class Topbar {
       }
       if (theme?.defaultOpacity !== undefined) {
         sldOpacity.value = inpOpacity.value = String(theme.defaultOpacity);
+        updateSliderFill(sldOpacity);
         patch.opacity = theme.defaultOpacity;
       }
       if (Object.keys(patch).length) commit(patch);
@@ -279,23 +300,25 @@ export class Topbar {
       }
       if (theme?.defaultFontSize !== undefined) {
         sldSize.value = inpSize.value = String(theme.defaultFontSize);
+        updateSliderFill(sldSize);
         patch.fontSize = theme.defaultFontSize;
       }
       if (theme?.defaultSpacing !== undefined) {
         sldHeight.value = inpHeight.value = String(theme.defaultSpacing);
+        updateSliderFill(sldHeight);
         patch.spacing = theme.defaultSpacing;
       }
       if (Object.keys(patch).length) commit(patch);
     });
 
     sldSize.addEventListener('input', () => { inpSize.value = sldSize.value; commit({ fontSize: parseFloat(sldSize.value) }); });
-    inpSize.addEventListener('change', () => { sldSize.value = inpSize.value; commit({ fontSize: parseFloat(inpSize.value) }); });
+    inpSize.addEventListener('change', () => { sldSize.value = inpSize.value; updateSliderFill(sldSize); commit({ fontSize: parseFloat(inpSize.value) }); });
 
     sldHeight.addEventListener('input', () => { inpHeight.value = sldHeight.value; commit({ spacing: parseFloat(sldHeight.value) }); });
-    inpHeight.addEventListener('change', () => { sldHeight.value = inpHeight.value; commit({ spacing: parseFloat(inpHeight.value) }); });
+    inpHeight.addEventListener('change', () => { sldHeight.value = inpHeight.value; updateSliderFill(sldHeight); commit({ spacing: parseFloat(inpHeight.value) }); });
 
     sldOpacity.addEventListener('input', () => { inpOpacity.value = sldOpacity.value; commit({ opacity: parseInt(sldOpacity.value, 10) }); });
-    inpOpacity.addEventListener('change', () => { sldOpacity.value = inpOpacity.value; commit({ opacity: parseInt(inpOpacity.value, 10) }); });
+    inpOpacity.addEventListener('change', () => { sldOpacity.value = inpOpacity.value; updateSliderFill(sldOpacity); commit({ opacity: parseInt(inpOpacity.value, 10) }); });
   }
 
   toggleFullscreen(): void {

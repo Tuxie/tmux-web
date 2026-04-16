@@ -36,7 +36,7 @@ test("theme switch overwrites colours and font in active session", async ({ page
 
   await page.click("#btn-menu");
   await waitForMenuInputs(page);
-  // Select AmigaOS 3.1 which has defaultColours: "Tomorrow"
+  // Select AmigaOS 3.1 which has defaultColours: "Gruvbox Light"
   const opts = await page.locator("#inp-theme option").allTextContents();
   if (!opts.includes("AmigaOS 3.1")) {
     test.skip(); // theme not present
@@ -47,6 +47,6 @@ test("theme switch overwrites colours and font in active session", async ({ page
   const stored = await page.evaluate(() =>
     JSON.parse(localStorage.getItem("tmux-web-session:main") || "null")
   );
-  expect(stored?.colours).toBe("Tomorrow");
+  expect(stored?.colours).toBe("Gruvbox Light");
   expect(stored?.fontFamily).toBe("Topaz8 Amiga1200 Nerd Font");
 });
