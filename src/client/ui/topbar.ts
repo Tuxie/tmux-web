@@ -98,7 +98,7 @@ export class Topbar {
 
   private setupSessionMenu(): void {
     const btn = document.getElementById('btn-session-menu') as HTMLButtonElement;
-    Dropdown.custom(btn, {
+    const sessionDropdown = Dropdown.custom(btn, {
       className: 'tw-dd-sessions',
       beforeOpen: () => this.refreshCachedSessions(),
       renderContent: (menu, close) => {
@@ -166,30 +166,16 @@ export class Topbar {
       },
     });
 
+    // Right-click behaves like left-click — opens the same rich session
+    // menu (which already has Name, New session, and Kill session).
     btn.addEventListener('contextmenu', (ev) => {
       ev.preventDefault();
-      showContextMenu({
-        x: ev.clientX,
-        y: ev.clientY,
-        className: 'tw-dd-context-session',
-        items: [
-          { value: 'rename', label: 'Rename' },
-          { value: 'kill', label: 'Kill session' },
-        ],
-        onSelect: (action) => {
-          const current = this.currentSession;
-          if (action === 'rename') {
-            const newName = prompt(`Rename session "${current}":`, current);
-            if (!newName?.trim() || newName.trim() === current) return;
-            this.opts.send(JSON.stringify({ type: 'session', action: 'rename', name: newName.trim() }));
-            return;
-          }
-          if (action === 'kill') {
-            if (!confirm(`Kill session "${current}"?`)) return;
-            this.opts.send(JSON.stringify({ type: 'session', action: 'kill' }));
-          }
-        },
-      });
+      ev.stopPropagation();
+      if (sessionDropdown.menuElement.hidden) {
+        void sessionDropdown.open();
+      } else {
+        sessionDropdown.close();
+      }
     });
   }
 

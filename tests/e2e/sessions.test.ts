@@ -89,54 +89,26 @@ test('Kill session row confirms and sends kill on accept', async ({ page }) => {
   expect(sent).toContain(JSON.stringify({ type: 'session', action: 'kill' }));
 });
 
-test('right-click on session button opens a Rename/Kill context menu', async ({ page }) => {
+test('right-click on session button opens the same session menu as left-click', async ({ page }) => {
   await injectWsSpy(page);
-  await mockApis(page, ['main'], []);
+  await mockApis(page, ['main', 'dev'], []);
   await page.goto('/main');
   await waitForWsOpen(page);
+  const menu = page.locator('.tw-dropdown-menu.tw-dd-sessions-menu');
+  await expect(menu).toBeHidden();
+
   await page.locator('#btn-session-menu').click({ button: 'right' });
-  const menu = page.locator('.tw-dropdown-menu.tw-dd-context');
   await expect(menu).toBeVisible();
-  const items = menu.locator('.tw-dropdown-item');
-  await expect(items).toHaveCount(2);
-  expect(await items.allTextContents()).toEqual(['Rename', 'Kill session']);
-});
+  // Rich menu body: session list + Name/New session inputs + Kill row.
+  await expect(menu.locator('.tw-dropdown-item')).toHaveCount(3); // 2 sessions + kill
+  expect(await menu.locator('.menu-label').allTextContents()).toEqual(['Name:', 'New session:']);
 
-test('Rename from session context menu sends rename-session with entered name', async ({ page }) => {
-  await injectWsSpy(page);
-  await mockApis(page, ['main'], []);
-  await page.goto('/main');
-  await waitForWsOpen(page);
-  await page.evaluate(() => { (window as any).__wsSent = []; });
+  // No legacy .tw-dd-context-session popup exists.
+  await expect(page.locator('.tw-dd-context-session')).toHaveCount(0);
 
-  page.once('dialog', d => d.accept('project-x'));
+  // Right-clicking again toggles it closed.
   await page.locator('#btn-session-menu').click({ button: 'right' });
-  await page.locator('.tw-dd-context .tw-dropdown-item', { hasText: 'Rename' }).click();
-
-  const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
-  expect(sent).toContain(JSON.stringify({ type: 'session', action: 'rename', name: 'project-x' }));
-});
-
-test('Kill session confirms first, sends kill only on accept', async ({ page }) => {
-  await injectWsSpy(page);
-  await mockApis(page, ['main'], []);
-  await page.goto('/main');
-  await waitForWsOpen(page);
-  await page.evaluate(() => { (window as any).__wsSent = []; });
-
-  // Dismiss — nothing should be sent.
-  page.once('dialog', d => d.dismiss());
-  await page.locator('#btn-session-menu').click({ button: 'right' });
-  await page.locator('.tw-dd-context .tw-dropdown-item', { hasText: 'Kill session' }).click();
-  let sent: string[] = await page.evaluate(() => (window as any).__wsSent);
-  expect(sent.some(s => s.includes('"action":"kill"'))).toBe(false);
-
-  // Accept — kill message goes out.
-  page.once('dialog', d => d.accept());
-  await page.locator('#btn-session-menu').click({ button: 'right' });
-  await page.locator('.tw-dd-context .tw-dropdown-item', { hasText: 'Kill session' }).click();
-  sent = await page.evaluate(() => (window as any).__wsSent);
-  expect(sent).toContain(JSON.stringify({ type: 'session', action: 'kill' }));
+  await expect(menu).toBeHidden();
 });
 
 test('session button has .open class while dropdown is showing', async ({ page }) => {
