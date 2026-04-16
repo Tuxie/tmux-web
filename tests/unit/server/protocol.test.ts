@@ -84,6 +84,26 @@ describe('processData', () => {
     expect(result.messages).toEqual([]);
   });
 
+  it('captures the full unicode pane title in detectedTitle (no `_` substitution)', () => {
+    // tmux's set-titles emits `#S:#W` by default, so the OSC payload has
+    // shape `<session>:<window_name>` — and window_name carries whatever
+    // characters the shell / running program set, including unicode like
+    // U+2733 ✳ ("EIGHT SPOKED ASTERISK").
+    const title = 'main:\u2733 Compact lessons learned documentation';
+    const data = `\x1b]2;${title}\x07`;
+    const result = processData(data, 'main');
+    expect(result.titleChanged).toBe(true);
+    expect(result.detectedTitle).toBe(title);
+  });
+
+  it('captures multibyte UTF-8 pane title via OSC 0', () => {
+    const title = '\u25C7  Ready (Fotona) \u2728';
+    const data = `\x1b]0;${title}\x07`;
+    const result = processData(data, 'main');
+    expect(result.titleChanged).toBe(true);
+    expect(result.detectedTitle).toBe(title);
+  });
+
   it('preserves base64 of UTF-8 clipboard content (Unicode)', () => {
     const text = '⎿ → ←';
     const b64 = btoa(String.fromCodePoint(...new TextEncoder().encode(text)));
