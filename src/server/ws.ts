@@ -62,6 +62,41 @@ export function createWsServer(
 }
 
 /**
+ * Run a tmux window action against the target session, bypassing the PTY
+ * so it works regardless of what the user has bound their tmux prefix
+ * key to. `index` is the tmux window index; omit for session-level
+ * actions (e.g. opening a new window).
+ */
+async function applyWindowAction(
+  sessionName: string,
+  msg: { action: string; index?: string; name?: string },
+  config: ServerConfig,
+): Promise<void> {
+  if (config.testMode) return;
+  const bin = config.tmuxBin;
+  const target = typeof msg.index === 'string' ? `${sessionName}:${msg.index}` : sessionName;
+  try {
+    switch (msg.action) {
+      case 'select':
+        if (typeof msg.index !== 'string') return;
+        await execFileAsync(bin, ['select-window', '-t', target]);
+        break;
+      case 'new':
+        await execFileAsync(bin, ['new-window', '-t', sessionName]);
+        break;
+      case 'close':
+        if (typeof msg.index !== 'string') return;
+        await execFileAsync(bin, ['kill-window', '-t', target]);
+        break;
+      case 'rename':
+        if (typeof msg.index !== 'string' || typeof msg.name !== 'string') return;
+        await execFileAsync(bin, ['rename-window', '-t', target, msg.name]);
+        break;
+    }
+  } catch { /* ignore — window may have already been closed, etc. */ }
+}
+
+/**
  * Set COLORFGBG and CLITHEME on the tmux session so new windows/panes
  * inherit them. No-op in --test mode (no tmux). Retries once after 500 ms
  * to cover the race when the very first client connects and tmux is still
@@ -165,6 +200,10 @@ function handleConnection(
         }
         if (parsed.type === 'colour-variant' && (parsed.variant === 'dark' || parsed.variant === 'light')) {
           void applyColourVariant(lastSession, parsed.variant, config);
+          return;
+        }
+        if (parsed.type === 'window' && typeof parsed.action === 'string') {
+          void applyWindowAction(lastSession, parsed, config);
           return;
         }
       } catch { /* not JSON, pass through */ }

@@ -29,18 +29,16 @@ test('active window tab has class "active", inactive does not', async ({ page })
   await expect(page.locator('#win-tabs button').nth(2)).not.toHaveClass(/active/);
 });
 
-test('clicking a window tab sends Ctrl-S + window index', async ({ page }) => {
+test('clicking a window tab sends a select-window message for that tab', async ({ page }) => {
   await page.locator('#win-tabs button').nth(1).click();
   const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
-  // \x13 is Ctrl-S (char code 19); '1' is the window index as a string
-  expect(sent).toContain('\x131');
+  expect(sent).toContain(JSON.stringify({ type: 'window', action: 'select', index: '1' }));
 });
 
-test('clicking the new window button sends Ctrl-S Ctrl-C', async ({ page }) => {
+test('clicking the new window button sends a new-window message', async ({ page }) => {
   await page.locator('#win-tabs button').nth(2).click();
   const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
-  // \x13\x03 is Ctrl-S Ctrl-C
-  expect(sent).toContain('\x13\x03');
+  expect(sent).toContain(JSON.stringify({ type: 'window', action: 'new' }));
 });
 
 test('right-click on a window tab opens a Close/Rename context menu', async ({ page }) => {
@@ -52,19 +50,19 @@ test('right-click on a window tab opens a Close/Rename context menu', async ({ p
   expect(await items.allTextContents()).toEqual(['Rename', 'Close']);
 });
 
-test('Close from context menu sends tmux kill-window for that tab', async ({ page }) => {
+test('Close from context menu sends a close-window message for that tab', async ({ page }) => {
   await page.locator('#win-tabs button').nth(1).click({ button: 'right' });
   await page.locator('.tw-dd-context .tw-dropdown-item', { hasText: 'Close' }).click();
   const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
-  expect(sent.some(s => s === '\x13:kill-window -t 1\r')).toBe(true);
+  expect(sent).toContain(JSON.stringify({ type: 'window', action: 'close', index: '1' }));
 });
 
-test('Rename from context menu sends tmux rename-window with entered name', async ({ page }) => {
+test('Rename from context menu sends a rename-window message with the entered name', async ({ page }) => {
   page.once('dialog', d => d.accept('editor'));
   await page.locator('#win-tabs button').nth(1).click({ button: 'right' });
   await page.locator('.tw-dd-context .tw-dropdown-item', { hasText: 'Rename' }).click();
   const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
-  expect(sent.some(s => s === '\x13:rename-window -t 1 "editor"\r')).toBe(true);
+  expect(sent).toContain(JSON.stringify({ type: 'window', action: 'rename', index: '1', name: 'editor' }));
 });
 
 test('context menu closes on Escape and on outside click', async ({ page }) => {

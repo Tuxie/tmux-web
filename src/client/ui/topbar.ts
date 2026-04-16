@@ -407,13 +407,23 @@ export class Topbar {
       this.lastActiveWindowIndex = activeIdx;
       this.tbTitle.textContent = '';
     }
+    // All window actions go through typed WS messages that the server
+    // runs via the tmux binary directly. This avoids depending on the
+    // user's tmux prefix binding (which may not be C-s) or the PTY's
+    // current input mode.
+    const sendWindowMsg = (
+      msg: { action: string; index?: string; name?: string },
+    ): void => {
+      this.opts.send(JSON.stringify({ type: 'window', ...msg }));
+    };
+
     this.winTabs.innerHTML = '';
     for (const w of windows) {
       const btn = document.createElement('button');
       btn.className = 'win-tab' + (w.active ? ' active' : '');
       btn.textContent = w.index + ':' + w.name;
       btn.addEventListener('click', () => {
-        this.opts.send('\x13' + w.index);
+        sendWindowMsg({ action: 'select', index: w.index });
       });
       btn.addEventListener('contextmenu', (ev) => {
         ev.preventDefault();
@@ -427,14 +437,13 @@ export class Topbar {
           ],
           onSelect: (action) => {
             if (action === 'close') {
-              this.opts.send(`\x13:kill-window -t ${w.index}\r`);
+              sendWindowMsg({ action: 'close', index: w.index });
               return;
             }
             if (action === 'rename') {
               const newName = prompt(`Rename window ${w.index}:`, w.name);
               if (!newName?.trim()) return;
-              const safe = newName.trim().replace(/["\\]/g, '');
-              this.opts.send(`\x13:rename-window -t ${w.index} "${safe}"\r`);
+              sendWindowMsg({ action: 'rename', index: w.index, name: newName.trim() });
             }
           },
         });
@@ -448,7 +457,7 @@ export class Topbar {
     addBtn.textContent = '+';
     addBtn.title = 'New Window';
     addBtn.addEventListener('click', () => {
-      this.opts.send('\x13\x03'); // Ctrl-S Ctrl-C (Prefix + C-c)
+      sendWindowMsg({ action: 'new' });
     });
     this.winTabs.appendChild(addBtn);
   }
