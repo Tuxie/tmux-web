@@ -9,16 +9,24 @@ test('session button shows current session name', async ({ page }) => {
   await expect(page.locator('#tb-session-name')).toHaveText('main');
 });
 
-test('opening session button lists all sessions from /api/sessions', async ({ page }) => {
+test('opening session button lists sessions with the current one checked + Kill row', async ({ page }) => {
   await injectWsSpy(page);
   await mockApis(page, ['main', 'dev', 'work'], []);
   await page.goto('/main');
   await waitForWsOpen(page);
   await page.click('#btn-session-menu');
-  const items = page.locator('.tw-dropdown-menu.tw-dd-sessions-menu:not([hidden]) .tw-dropdown-item');
-  // 3 existing sessions + "Create new session"
+  const menu = page.locator('.tw-dropdown-menu.tw-dd-sessions-menu:not([hidden])');
+  const items = menu.locator('.tw-dropdown-item');
+  // 3 session rows + 1 Kill row
   await expect(items).toHaveCount(4);
-  expect(await items.allTextContents()).toEqual(['main', 'dev', 'work', 'Create new session']);
+  const texts = await items.allTextContents();
+  expect(texts[0]).toBe('\u2713 main');
+  expect(texts[1]).toBe('  dev');
+  expect(texts[2]).toBe('  work');
+  expect(texts[3]).toBe('Kill session main\u2026');
+  // Input rows for Name and New session
+  const labels = await menu.locator('.menu-label').allTextContents();
+  expect(labels).toEqual(['Name:', 'New session:']);
 });
 
 test('selecting a session from the menu navigates to its URL', async ({ page }) => {
@@ -32,6 +40,49 @@ test('selecting a session from the menu navigates to its URL', async ({ page }) 
     page.locator('.tw-dropdown-menu.tw-dd-sessions-menu:not([hidden]) .tw-dropdown-item', { hasText: 'dev' }).click(),
   ]);
   expect(new URL(page.url()).pathname).toBe('/dev');
+});
+
+test('Name input in session menu renames the current session on Enter', async ({ page }) => {
+  await injectWsSpy(page);
+  await mockApis(page, ['main'], []);
+  await page.goto('/main');
+  await waitForWsOpen(page);
+  await page.evaluate(() => { (window as any).__wsSent = []; });
+  await page.click('#btn-session-menu');
+  const nameInput = page.locator('.tw-dd-sessions-menu .menu-row', { hasText: 'Name:' }).locator('input');
+  await expect(nameInput).toHaveValue('main');
+  await nameInput.fill('project');
+  await nameInput.press('Enter');
+  const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
+  expect(sent).toContain(JSON.stringify({ type: 'session', action: 'rename', name: 'project' }));
+});
+
+test('New session input navigates to the entered name', async ({ page }) => {
+  await injectWsSpy(page);
+  await mockApis(page, ['main'], []);
+  await page.goto('/main');
+  await waitForWsOpen(page);
+  await page.click('#btn-session-menu');
+  const newInput = page.locator('.tw-dd-sessions-menu .menu-row', { hasText: 'New session:' }).locator('input');
+  await newInput.fill('scratch');
+  await Promise.all([
+    page.waitForURL('**/scratch'),
+    newInput.press('Enter'),
+  ]);
+  expect(new URL(page.url()).pathname).toBe('/scratch');
+});
+
+test('Kill session row confirms and sends kill on accept', async ({ page }) => {
+  await injectWsSpy(page);
+  await mockApis(page, ['main'], []);
+  await page.goto('/main');
+  await waitForWsOpen(page);
+  await page.evaluate(() => { (window as any).__wsSent = []; });
+  page.once('dialog', d => d.accept());
+  await page.click('#btn-session-menu');
+  await page.locator('.tw-dd-sessions-menu .tw-dropdown-item', { hasText: 'Kill session' }).click();
+  const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
+  expect(sent).toContain(JSON.stringify({ type: 'session', action: 'kill' }));
 });
 
 test('right-click on session button opens a Rename/Kill context menu', async ({ page }) => {

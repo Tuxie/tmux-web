@@ -238,6 +238,9 @@ export class Dropdown {
   private selectChangeHandler: (() => void) | null = null;
 
   private beforeOpen: (() => void | Promise<void>) | undefined;
+  /** Custom content renderer for `Dropdown.custom`. When set, it takes
+   *  priority over the items-based rendering. */
+  private renderContent: ((menu: HTMLElement, close: () => void) => void) | undefined;
 
   private constructor(args: {
     trigger: HTMLElement;
@@ -248,6 +251,7 @@ export class Dropdown {
     getItems: () => DropdownItem[];
     onSelect: (value: string) => void;
     beforeOpen?: () => void | Promise<void>;
+    renderContent?: (menu: HTMLElement, close: () => void) => void;
   }) {
     this.trigger = args.trigger;
     this.menu = args.menu;
@@ -257,6 +261,7 @@ export class Dropdown {
     this.getItems = args.getItems;
     this.onSelect = args.onSelect;
     this.beforeOpen = args.beforeOpen;
+    this.renderContent = args.renderContent;
 
     this.trigger.addEventListener('click', (ev) => {
       ev.stopPropagation();
@@ -364,6 +369,38 @@ export class Dropdown {
   }
 
   /**
+   * Like attachTo but with fully custom menu content rendered by the caller.
+   * The Dropdown class still handles click-toggle, outside-click / Escape
+   * dismissal, and the `.open` class on the trigger; the caller just owns
+   * the menu body. `renderContent` is invoked on every open with an empty
+   * menu element and a `close()` callback so items/rows can dismiss on
+   * selection.
+   */
+  static custom(
+    trigger: HTMLElement,
+    opts: {
+      renderContent: (menu: HTMLElement, close: () => void) => void;
+      className?: string;
+      beforeOpen?: () => void | Promise<void>;
+    },
+  ): Dropdown {
+    const menu = createMenu(opts.className);
+    trigger.parentElement!.insertBefore(menu, trigger.nextSibling);
+
+    return new Dropdown({
+      trigger,
+      menu,
+      wrap: null,
+      valueEl: null,
+      select: null,
+      getItems: () => [],
+      onSelect: () => { /* unused */ },
+      beforeOpen: opts.beforeOpen,
+      renderContent: opts.renderContent,
+    });
+  }
+
+  /**
    * The outer wrapper for `fromSelect` / `menu` modes. In `attachTo` mode
    * there is no wrapper (the caller owns the trigger), and this returns the
    * trigger itself so callers can still query/size the visible element.
@@ -403,7 +440,12 @@ export class Dropdown {
     if (this.beforeOpen) {
       try { await this.beforeOpen(); } catch { /* ignore */ }
     }
-    renderItems(this.menu, this.getItems(), this.currentValue(), (v) => this.handlePick(v));
+    if (this.renderContent) {
+      this.menu.innerHTML = '';
+      this.renderContent(this.menu, () => this.close());
+    } else {
+      renderItems(this.menu, this.getItems(), this.currentValue(), (v) => this.handlePick(v));
+    }
     this.menu.hidden = false;
     this.trigger.classList.add('open');
     if (this.wrap) this.wrap.classList.add('open');

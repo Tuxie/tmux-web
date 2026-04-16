@@ -67,28 +67,101 @@ export class Topbar {
     } catch { /* keep previous cache */ }
   }
 
+  private buildMenuInputRow(opts: {
+    label: string;
+    defaultValue?: string;
+    placeholder?: string;
+    onSubmit: (value: string) => void;
+  }): HTMLElement {
+    const row = document.createElement('div');
+    row.className = 'menu-row menu-row-static';
+    const label = document.createElement('span');
+    label.className = 'menu-label';
+    label.textContent = opts.label;
+    row.appendChild(label);
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'tw-dd-input';
+    if (opts.placeholder) input.placeholder = opts.placeholder;
+    if (opts.defaultValue) input.value = opts.defaultValue;
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        const value = input.value.trim();
+        if (value) opts.onSubmit(value);
+      }
+    });
+    row.appendChild(input);
+    return row;
+  }
+
   private setupSessionMenu(): void {
     const btn = document.getElementById('btn-session-menu') as HTMLButtonElement;
-    Dropdown.attachTo(btn, {
+    Dropdown.custom(btn, {
       className: 'tw-dd-sessions',
       beforeOpen: () => this.refreshCachedSessions(),
-      getItems: (): DropdownItem[] => {
-        const items: DropdownItem[] = this.cachedSessions.map(s => ({ value: s, label: s }));
-        items.push({ value: '__create__', label: 'Create new session', separator: true });
-        return items;
-      },
-      onSelect: (value) => {
-        if (value === '__create__') {
-          const name = prompt('New session name:');
-          if (!name?.trim()) return;
-          const clean = name.trim().replace(/[^a-zA-Z0-9_\-./]/g, '');
-          if (!clean) return;
-          location.href = '/' + encodeURIComponent(clean);
-          return;
+      renderContent: (menu, close) => {
+        const current = this.currentSession;
+
+        // Existing sessions — current one marked with a check.
+        for (const s of this.cachedSessions) {
+          const isCurrent = s === current;
+          const el = document.createElement('div');
+          el.className = 'tw-dropdown-item' + (isCurrent ? ' selected' : '');
+          el.textContent = (isCurrent ? '\u2713 ' : '  ') + s;
+          el.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            close();
+            if (!isCurrent) location.href = '/' + encodeURIComponent(s);
+          });
+          menu.appendChild(el);
         }
-        if (value !== this.currentSession) {
-          location.href = '/' + encodeURIComponent(value);
-        }
+
+        // Rename current session
+        const sep1 = document.createElement('hr');
+        sep1.className = 'tw-dropdown-sep';
+        menu.appendChild(sep1);
+        menu.appendChild(this.buildMenuInputRow({
+          label: 'Name:',
+          defaultValue: current,
+          onSubmit: (name) => {
+            close();
+            if (name !== current) {
+              this.opts.send(JSON.stringify({ type: 'session', action: 'rename', name }));
+            }
+          },
+        }));
+
+        // Create new session
+        const sep2 = document.createElement('hr');
+        sep2.className = 'tw-dropdown-sep';
+        menu.appendChild(sep2);
+        menu.appendChild(this.buildMenuInputRow({
+          label: 'New session:',
+          placeholder: 'name',
+          onSubmit: (name) => {
+            close();
+            const clean = name.replace(/[^a-zA-Z0-9_\-./]/g, '');
+            if (!clean) return;
+            location.href = '/' + encodeURIComponent(clean);
+          },
+        }));
+
+        // Kill current session (confirmed)
+        const sep3 = document.createElement('hr');
+        sep3.className = 'tw-dropdown-sep';
+        menu.appendChild(sep3);
+        const killItem = document.createElement('div');
+        killItem.className = 'tw-dropdown-item';
+        killItem.textContent = `Kill session ${current}…`;
+        killItem.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          close();
+          if (!confirm(`Kill session "${current}"?`)) return;
+          this.opts.send(JSON.stringify({ type: 'session', action: 'kill' }));
+        });
+        menu.appendChild(killItem);
       },
     });
 
