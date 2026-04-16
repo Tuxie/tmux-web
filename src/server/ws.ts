@@ -63,15 +63,25 @@ export function createWsServer(
 
 async function sendWindowState(ws: WebSocket, sessionName: string, config: ServerConfig): Promise<void> {
   try {
-    const { stdout } = await execFileAsync(config.tmuxBin, [
-      'list-windows', '-t', sessionName, '-F', '#{window_index}:#{window_name}:#{window_active}',
+    const [winResult, titleResult] = await Promise.allSettled([
+      execFileAsync(config.tmuxBin, [
+        'list-windows', '-t', sessionName, '-F', '#{window_index}:#{window_name}:#{window_active}',
+      ]),
+      execFileAsync(config.tmuxBin, [
+        'display-message', '-t', sessionName, '-p', '#{pane_title}',
+      ]),
     ]);
-    const windows: WindowInfo[] = stdout.trim().split('\n').filter(Boolean).map(line => {
-      const [index, name, active] = line.split(':');
-      return { index: index!, name: name!, active: active === '1' };
-    });
+    const windows: WindowInfo[] = winResult.status === 'fulfilled'
+      ? winResult.value.stdout.trim().split('\n').filter(Boolean).map(line => {
+          const [index, name, active] = line.split(':');
+          return { index: index!, name: name!, active: active === '1' };
+        })
+      : [];
+    const title = titleResult.status === 'fulfilled'
+      ? titleResult.value.stdout.trim()
+      : undefined;
     if (ws.readyState === WebSocket.OPEN) {
-      ws.send(frameTTMessage({ session: sessionName, windows }));
+      ws.send(frameTTMessage({ session: sessionName, windows, title }));
     }
   } catch {
     if (ws.readyState === WebSocket.OPEN) {

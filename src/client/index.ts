@@ -135,6 +135,7 @@ async function main() {
       if (msg.clipboard) handleClipboard(msg.clipboard);
       if (msg.session) topbar.updateSession(msg.session);
       if (msg.windows) topbar.updateWindows(msg.windows);
+      if (msg.title !== undefined) topbar.updateTitle(msg.title);
     }
   }
 

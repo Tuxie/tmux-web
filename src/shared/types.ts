@@ -50,6 +50,7 @@ export interface ServerMessage {
   session?: string;
   windows?: WindowInfo[];
   clipboard?: string; // base64-encoded
+  title?: string;    // active pane title (shell window title)
 }
 
 /** Client-to-server resize message. */
