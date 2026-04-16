@@ -106,9 +106,14 @@ async function applyWindowAction(
         if (typeof msg.index !== 'string') return;
         await execFileAsync(bin, ['select-window', '-t', target]);
         break;
-      case 'new':
-        await execFileAsync(bin, ['new-window', '-t', sessionName]);
+      case 'new': {
+        const args = ['new-window', '-t', sessionName];
+        if (typeof msg.name === 'string' && msg.name.trim()) {
+          args.push('-n', msg.name.trim());
+        }
+        await execFileAsync(bin, args);
         break;
+      }
       case 'close':
         if (typeof msg.index !== 'string') return;
         await execFileAsync(bin, ['kill-window', '-t', target]);

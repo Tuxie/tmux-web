@@ -121,6 +121,21 @@ body {
 /* Context menu is position:fixed at the cursor — don't let min-width: 100%
  * resolve to the viewport. Size to content instead. */
 .tw-dropdown-menu.tw-dd-context { min-width: auto; }
+.tw-dd-input {
+  background: #aaa;
+  color: #000;
+  border-top: 1px solid #000;
+  border-left: 1px solid #000;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #fff;
+  border-radius: 0;
+  padding: 1px 4px;
+  font-family: inherit;
+  font-size: 15px;
+  outline: none;
+  flex: 1;
+  min-width: 160px;
+}
 
 #topbar .tb-btn {
   background: #68b;

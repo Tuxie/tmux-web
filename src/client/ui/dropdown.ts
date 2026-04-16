@@ -167,6 +167,87 @@ export function showContextMenu(opts: ContextMenuOptions): void {
   document.addEventListener('keydown', onEsc, true);
 }
 
+/**
+ * Single-row context popup that contains a labelled text input. Submits
+ * the trimmed value on Enter, dismisses on Escape or outside click.
+ * Uses the same `.menu-row` / `.menu-label` classes the settings menu
+ * uses so themes render it consistently.
+ */
+export interface ContextInputOptions {
+  x: number;
+  y: number;
+  label: string;
+  placeholder?: string;
+  defaultValue?: string;
+  onSubmit: (value: string) => void;
+  className?: string;
+}
+
+export function showContextInput(opts: ContextInputOptions): void {
+  document.querySelectorAll('.tw-dropdown-menu.tw-dd-context')
+    .forEach(m => m.remove());
+
+  const menu = document.createElement('div');
+  menu.className = 'tw-dropdown-menu tw-dd-context'
+    + (opts.className ? ' ' + opts.className : '');
+  menu.style.position = 'fixed';
+  menu.style.top = opts.y + 'px';
+  menu.style.left = opts.x + 'px';
+
+  const row = document.createElement('div');
+  row.className = 'menu-row menu-row-static';
+  const label = document.createElement('span');
+  label.className = 'menu-label';
+  label.textContent = opts.label;
+  row.appendChild(label);
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'tw-dd-input';
+  if (opts.placeholder) input.placeholder = opts.placeholder;
+  if (opts.defaultValue) input.value = opts.defaultValue;
+  row.appendChild(input);
+
+  menu.appendChild(row);
+
+  const close = () => {
+    menu.remove();
+    document.removeEventListener('pointerdown', outside, true);
+    document.removeEventListener('keydown', onEsc, true);
+  };
+  const outside = (ev: PointerEvent) => {
+    if (!menu.contains(ev.target as Node)) close();
+  };
+  const onEsc = (ev: KeyboardEvent) => {
+    if (ev.key === 'Escape') close();
+  };
+
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      const value = input.value.trim();
+      close();
+      if (value) opts.onSubmit(value);
+    }
+  });
+
+  document.body.appendChild(menu);
+
+  const rect = menu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) {
+    menu.style.left = Math.max(0, window.innerWidth - rect.width - 4) + 'px';
+  }
+  if (rect.bottom > window.innerHeight) {
+    menu.style.top = Math.max(0, window.innerHeight - rect.height - 4) + 'px';
+  }
+
+  document.addEventListener('pointerdown', outside, true);
+  document.addEventListener('keydown', onEsc, true);
+
+  input.focus();
+  input.select();
+}
+
 export class Dropdown {
   private trigger: HTMLElement;
   private menu: HTMLDivElement;

@@ -41,6 +41,20 @@ test('clicking the new window button sends a new-window message', async ({ page 
   expect(sent).toContain(JSON.stringify({ type: 'window', action: 'new' }));
 });
 
+test('right-click on new-window button prompts for a name and sends it', async ({ page }) => {
+  await page.locator('#win-tabs button').nth(2).click({ button: 'right' });
+  const popup = page.locator('.tw-dropdown-menu.tw-dd-context-new-window');
+  await expect(popup).toBeVisible();
+  await expect(popup.locator('.menu-label')).toHaveText('New window:');
+  const input = popup.locator('.tw-dd-input');
+  await input.fill('notes');
+  await input.press('Enter');
+  const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
+  expect(sent).toContain(JSON.stringify({ type: 'window', action: 'new', name: 'notes' }));
+  // Popup dismissed after submit
+  await expect(popup).toHaveCount(0);
+});
+
 test('right-click on a window tab opens a Close/Rename context menu', async ({ page }) => {
   await page.locator('#win-tabs button').nth(1).click({ button: 'right' });
   const menu = page.locator('.tw-dropdown-menu.tw-dd-context');

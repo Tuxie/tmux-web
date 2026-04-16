@@ -25,6 +25,14 @@ test.beforeEach(async ({ page }) => {
   await page.mouse.move(640, 10);
 });
 
+test('right-click on hamburger also toggles the config menu', async ({ page }) => {
+  await expect(page.locator('#menu-dropdown')).toBeHidden();
+  await page.locator('#btn-menu').click({ button: 'right' });
+  await expect(page.locator('#menu-dropdown')).toBeVisible();
+  await page.locator('#btn-menu').click({ button: 'right' });
+  await expect(page.locator('#menu-dropdown')).toBeHidden();
+});
+
 test('terminal focused after closing menu via button toggle', async ({ page }) => {
   await page.click('#btn-menu');
   await expect(page.locator('#menu-dropdown')).toBeVisible();

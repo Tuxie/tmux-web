@@ -1,7 +1,7 @@
 import { getTopbarAutohide, setTopbarAutohide } from '../prefs.js';
 import { applyTheme, listFonts, listThemes } from '../theme.js';
 import { fetchColours } from '../colours.js';
-import { Dropdown, showContextMenu, type DropdownItem } from './dropdown.js';
+import { Dropdown, showContextMenu, showContextInput, type DropdownItem } from './dropdown.js';
 import {
   loadSessionSettings,
   saveSessionSettings,
@@ -142,7 +142,8 @@ export class Topbar {
       if (chkFs) chkFs.checked = !!document.fullscreenElement;
     }
 
-    menuBtn.addEventListener('click', (ev) => {
+    const toggleConfigMenu = (ev: Event): void => {
+      ev.preventDefault();
       ev.stopPropagation();
       const isHidden = dropdown.hidden;
       dropdown.hidden = !isHidden;
@@ -154,7 +155,9 @@ export class Topbar {
         this.opts.focus();
         this.show();
       }
-    });
+    };
+    menuBtn.addEventListener('click', toggleConfigMenu);
+    menuBtn.addEventListener('contextmenu', toggleConfigMenu);
 
     // Close dropdown only when the user physically clicks outside the menu wrapper.
     // Use pointerdown (not click) so synthetic events fired during terminal redraws
@@ -477,13 +480,25 @@ export class Topbar {
       this.winTabs.appendChild(btn);
     }
 
-    // Add [+] button to create a new window
+    // Add [+] button to create a new window. Left-click creates an unnamed
+    // window; right-click opens a small input popup to name it first.
     const addBtn = document.createElement('button');
     addBtn.className = 'tb-btn tb-btn-new-window';
     addBtn.textContent = '+';
     addBtn.title = 'New Window';
     addBtn.addEventListener('click', () => {
       sendWindowMsg({ action: 'new' });
+    });
+    addBtn.addEventListener('contextmenu', (ev) => {
+      ev.preventDefault();
+      showContextInput({
+        x: ev.clientX,
+        y: ev.clientY,
+        className: 'tw-dd-context-new-window',
+        label: 'New window:',
+        placeholder: 'name',
+        onSubmit: (name) => sendWindowMsg({ action: 'new', name }),
+      });
     });
     this.winTabs.appendChild(addBtn);
   }
