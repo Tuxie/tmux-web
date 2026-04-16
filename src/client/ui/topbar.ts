@@ -1,7 +1,7 @@
 import { getTopbarAutohide, setTopbarAutohide } from '../prefs.js';
 import { applyTheme, listFonts, listThemes } from '../theme.js';
 import { fetchColours } from '../colours.js';
-import { Dropdown, type DropdownItem } from './dropdown.js';
+import { Dropdown, showContextMenu, type DropdownItem } from './dropdown.js';
 import {
   loadSessionSettings,
   saveSessionSettings,
@@ -414,6 +414,30 @@ export class Topbar {
       btn.textContent = w.index + ':' + w.name;
       btn.addEventListener('click', () => {
         this.opts.send('\x13' + w.index);
+      });
+      btn.addEventListener('contextmenu', (ev) => {
+        ev.preventDefault();
+        showContextMenu({
+          x: ev.clientX,
+          y: ev.clientY,
+          className: 'tw-dd-context-win',
+          items: [
+            { value: 'rename', label: 'Rename' },
+            { value: 'close', label: 'Close' },
+          ],
+          onSelect: (action) => {
+            if (action === 'close') {
+              this.opts.send(`\x13:kill-window -t ${w.index}\r`);
+              return;
+            }
+            if (action === 'rename') {
+              const newName = prompt(`Rename window ${w.index}:`, w.name);
+              if (!newName?.trim()) return;
+              const safe = newName.trim().replace(/["\\]/g, '');
+              this.opts.send(`\x13:rename-window -t ${w.index} "${safe}"\r`);
+            }
+          },
+        });
       });
       this.winTabs.appendChild(btn);
     }

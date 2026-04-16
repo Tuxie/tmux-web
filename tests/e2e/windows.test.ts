@@ -42,3 +42,41 @@ test('clicking the new window button sends Ctrl-S Ctrl-C', async ({ page }) => {
   // \x13\x03 is Ctrl-S Ctrl-C
   expect(sent).toContain('\x13\x03');
 });
+
+test('right-click on a window tab opens a Close/Rename context menu', async ({ page }) => {
+  await page.locator('#win-tabs button').nth(1).click({ button: 'right' });
+  const menu = page.locator('.tw-dropdown-menu.tw-dd-context');
+  await expect(menu).toBeVisible();
+  const items = menu.locator('.tw-dropdown-item');
+  await expect(items).toHaveCount(2);
+  expect(await items.allTextContents()).toEqual(['Rename', 'Close']);
+});
+
+test('Close from context menu sends tmux kill-window for that tab', async ({ page }) => {
+  await page.locator('#win-tabs button').nth(1).click({ button: 'right' });
+  await page.locator('.tw-dd-context .tw-dropdown-item', { hasText: 'Close' }).click();
+  const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
+  expect(sent.some(s => s === '\x13:kill-window -t 1\r')).toBe(true);
+});
+
+test('Rename from context menu sends tmux rename-window with entered name', async ({ page }) => {
+  page.once('dialog', d => d.accept('editor'));
+  await page.locator('#win-tabs button').nth(1).click({ button: 'right' });
+  await page.locator('.tw-dd-context .tw-dropdown-item', { hasText: 'Rename' }).click();
+  const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
+  expect(sent.some(s => s === '\x13:rename-window -t 1 "editor"\r')).toBe(true);
+});
+
+test('context menu closes on Escape and on outside click', async ({ page }) => {
+  // Escape
+  await page.locator('#win-tabs button').nth(0).click({ button: 'right' });
+  await expect(page.locator('.tw-dropdown-menu.tw-dd-context')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.tw-dropdown-menu.tw-dd-context')).toHaveCount(0);
+
+  // Outside click
+  await page.locator('#win-tabs button').nth(0).click({ button: 'right' });
+  await expect(page.locator('.tw-dropdown-menu.tw-dd-context')).toBeVisible();
+  await page.mouse.click(5, 600);
+  await expect(page.locator('.tw-dropdown-menu.tw-dd-context')).toHaveCount(0);
+});

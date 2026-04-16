@@ -106,6 +106,67 @@ function renderItems(
   }
 }
 
+/**
+ * One-shot context menu positioned at viewport coordinates (typically
+ * mouse cursor from a contextmenu event). Shares the `.tw-dropdown-menu`
+ * styling so themes apply automatically. Dismisses on outside click,
+ * Escape, or selection.
+ */
+export interface ContextMenuOptions {
+  x: number;
+  y: number;
+  items: DropdownItem[];
+  onSelect: (value: string) => void;
+  /** Extra class appended to the menu element, e.g. 'tw-dd-context-win'. */
+  className?: string;
+}
+
+export function showContextMenu(opts: ContextMenuOptions): void {
+  // Only one context menu at a time — close any lingering ones.
+  document.querySelectorAll('.tw-dropdown-menu.tw-dd-context')
+    .forEach(m => m.remove());
+
+  const menu = document.createElement('div');
+  menu.className = 'tw-dropdown-menu tw-dd-context'
+    + (opts.className ? ' ' + opts.className : '');
+  menu.style.position = 'fixed';
+  menu.style.top = opts.y + 'px';
+  menu.style.left = opts.x + 'px';
+
+  const close = () => {
+    menu.remove();
+    document.removeEventListener('pointerdown', outside, true);
+    document.removeEventListener('keydown', onEsc, true);
+  };
+  const outside = (ev: PointerEvent) => {
+    if (!menu.contains(ev.target as Node)) close();
+  };
+  const onEsc = (ev: KeyboardEvent) => {
+    if (ev.key === 'Escape') close();
+  };
+
+  renderItems(menu, opts.items, null, (v) => {
+    close();
+    opts.onSelect(v);
+  });
+
+  document.body.appendChild(menu);
+
+  // Clamp to viewport — avoid overflowing the right/bottom edge.
+  const rect = menu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) {
+    menu.style.left = Math.max(0, window.innerWidth - rect.width - 4) + 'px';
+  }
+  if (rect.bottom > window.innerHeight) {
+    menu.style.top = Math.max(0, window.innerHeight - rect.height - 4) + 'px';
+  }
+
+  // contextmenu fires after pointerdown, so attaching synchronously is safe:
+  // the right-click's own pointerdown has already been dispatched.
+  document.addEventListener('pointerdown', outside, true);
+  document.addEventListener('keydown', onEsc, true);
+}
+
 export class Dropdown {
   private trigger: HTMLElement;
   private menu: HTMLDivElement;
