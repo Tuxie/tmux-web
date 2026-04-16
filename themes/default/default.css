@@ -1,4 +1,13 @@
-body { background: #1e1e1e; }
+body {
+  background: #1e1e1e;
+  /* Default font for anything attached directly to body — e.g. the
+   * windows menu (showContextMenu uses position:fixed and appends to
+   * body), which would otherwise fall back to the browser's serif
+   * default instead of inheriting from #topbar. */
+  font-family: 'Iosevka Nerd Font Mono', 'MOsOul Nerd Font', 'ZedMono Nerd Font', 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: #d4d4d4;
+}
 
 #topbar {
   display: flex;
@@ -256,7 +265,7 @@ body { background: #1e1e1e; }
   box-sizing: content-box;
 }
 
-#btn-menu { padding: 2px 8px; font-size: 18px; }
+#topbar #btn-menu { padding: 2px 12px; font-size: 22px; line-height: 1; }
 
 #menu-wrap { position: relative; }
 
