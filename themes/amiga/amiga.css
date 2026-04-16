@@ -100,36 +100,46 @@ body {
 }
 
 #tb-session {
-  padding-left: 25px;
-  padding-right: 20px;
+  margin-left: 7px;
+  padding-left: 10px;
 }
 
 #btn-new-session {
   position: absolute;
-  left: -7px;
+  left: -5px;
   height: 24px !important;
   border-top: 1px solid #fff !important;
-  border-left: 1px solid #fff !important;
+  border-left: none !important;
   border-right: 1px solid #fff;
-  border-bottom: 1px solid #000;
+  border-bottom: 1px solid #000 !important;
   background: #68b !important;
   color: #fff !important;
   font-size: 14px !important;
 }
 
 #tb-session select {
-  border: 1px solid #68b;
-  padding: 1px;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #000;
+  border-top: 1px solid #fff;
+  border-bottom: 1px solid #000;
+  padding-left: 8px;
   background: none;
   font-family: inherit;
   font-size: 16px !important;
+  height: 24px !important;
 }
 
 #tb-session select:active {
+  border-left: 1px solid #000;
+  border-right: 1px solid #fff;
+  border-top: 1px solid #000;
+  border-bottom: 1px solid #fff;
+  /*
   border-top: 1px solid #000;
   border-left: 1px solid #000;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
+  */
   background: #68b !important;
 }
 
@@ -138,6 +148,11 @@ select:active {
   border-left: 1px solid #000;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
+}
+
+#tb-windows {
+  border-left: 1px solid #fff;
+  height: 23px !important;
 }
 
 #topbar .win-tab {
