@@ -68,10 +68,9 @@ test('terminal focused after interacting with font picker then closing menu', as
   await page.click('#btn-menu');
   await expect(page.locator('#menu-dropdown')).toBeVisible();
 
-  await page.click('#inp-font-bundled');
-  await page.keyboard.press('ArrowDown');
-
-  // Close by clicking outside
+  // Font picker is a custom dropdown; clicking the trigger opens it.
+  await page.click('#inp-font-bundled-btn');
+  // Close by clicking outside (closes both the custom dropdown and the menu)
   await page.mouse.click(400, 400);
   await expect(page.locator('#menu-dropdown')).toBeHidden();
 

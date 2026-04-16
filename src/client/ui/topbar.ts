@@ -1,6 +1,7 @@
 import { getTopbarAutohide, setTopbarAutohide } from '../prefs.js';
 import { applyTheme, listFonts, listThemes } from '../theme.js';
 import { fetchColours } from '../colours.js';
+import { Dropdown, type DropdownItem } from './dropdown.js';
 import {
   loadSessionSettings,
   saveSessionSettings,
@@ -66,13 +67,38 @@ export class Topbar {
     this.sessionSelect.addEventListener('change', () => this.opts.focus());
   }
 
+  private cachedSessions: string[] = [];
+
+  private async refreshCachedSessions(): Promise<void> {
+    try {
+      const res = await fetch('/api/sessions');
+      if (res.ok) this.cachedSessions = await res.json() as string[];
+    } catch { /* keep previous cache */ }
+  }
+
   private setupNewSessionButton(): void {
-    document.getElementById('btn-new-session')!.addEventListener('click', () => {
-      const name = prompt('New session name:');
-      if (!name?.trim()) return;
-      const clean = name.trim().replace(/[^a-zA-Z0-9_\-./]/g, '');
-      if (!clean) return;
-      location.href = '/' + encodeURIComponent(clean);
+    const btn = document.getElementById('btn-new-session') as HTMLButtonElement;
+    Dropdown.attachTo(btn, {
+      className: 'tw-dd-sessions',
+      beforeOpen: () => this.refreshCachedSessions(),
+      getItems: (): DropdownItem[] => {
+        const items: DropdownItem[] = this.cachedSessions.map(s => ({ value: s, label: s }));
+        items.push({ value: '__create__', label: 'Create new session', separator: true });
+        return items;
+      },
+      onSelect: (value) => {
+        if (value === '__create__') {
+          const name = prompt('New session name:');
+          if (!name?.trim()) return;
+          const clean = name.trim().replace(/[^a-zA-Z0-9_\-./]/g, '');
+          if (!clean) return;
+          location.href = '/' + encodeURIComponent(clean);
+          return;
+        }
+        if (value !== this.currentSession) {
+          location.href = '/' + encodeURIComponent(value);
+        }
+      },
     });
   }
 
@@ -180,6 +206,17 @@ export class Topbar {
       opt.textContent = font.family;
       fontSelect.appendChild(opt);
     }
+
+    // Replace the three native <select>s with custom themable dropdowns.
+    // The <select> stays in the DOM (hidden) as source of truth for value,
+    // options, and change events — so existing listeners and Playwright's
+    // selectOption keep working unchanged.
+    const ddTheme = Dropdown.fromSelect(themeSelect);
+    const ddColours = Dropdown.fromSelect(coloursSelect);
+    const ddFont = Dropdown.fromSelect(fontSelect);
+    ddTheme.element.style.flex = '1';
+    ddColours.element.style.flex = '1';
+    ddFont.element.style.flex = '1';
 
     const getSettings = (): SessionSettings => {
       const live = this.opts.getLiveSettings();
@@ -326,10 +363,11 @@ export class Topbar {
   show(): void {
     const dropdown = document.getElementById('menu-dropdown') as HTMLElement | null;
     const dropdownOpen = dropdown && !dropdown.hidden;
+    const anyCustomOpen = !!document.querySelector('.tw-dropdown-menu:not([hidden])');
 
     this.topbar.classList.remove('hidden');
     if (this.hideTimer) clearTimeout(this.hideTimer);
-    if (this.autohide && !dropdownOpen) {
+    if (this.autohide && !dropdownOpen && !anyCustomOpen) {
       this.hideTimer = setTimeout(() => {
         this.topbar.classList.add('hidden');
         if (dropdown) dropdown.hidden = true;

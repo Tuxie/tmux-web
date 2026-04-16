@@ -47,9 +47,76 @@ body {
 #topbar.hidden { transform: translateY(-150%); }
 #topbar.hidden > * { pointer-events: none; }
 
-#tb-session, #tb-windows, #tb-right { display: flex; align-items: center; gap: 2px; }
+#tb-session, #tb-windows, #tb-right { display: flex; align-items: center; gap: 2px; position: relative; }
 #tb-title { flex: 1; }
 #tb-windows #win-tabs { display: flex; gap: 2px; }
+
+/* --- Amiga-themed custom dropdown --- */
+.tw-dropdown { position: relative; display: inline-flex; align-items: center; }
+.tw-dd-hidden-select {
+  position: absolute !important;
+  left: -9999px !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.tw-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  background: #aaaaaa;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
+  color: #000;
+  padding: 1px 4px;
+  height: 22px;
+  font-family: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  width: 100%;
+  min-width: 0;
+}
+.tw-dropdown-trigger:active,
+.tw-dropdown.open > .tw-dropdown-trigger {
+  border-top: 1px solid #000;
+  border-left: 1px solid #000;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #fff;
+}
+.tw-dropdown-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tw-dropdown-arrow { font-size: 12px; }
+.tw-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 1px);
+  left: 0;
+  min-width: 100%;
+  background: #bbb;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
+  z-index: 200;
+  padding: 2px 0;
+  color: #000;
+  font-family: inherit;
+  font-size: 15px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.tw-dropdown-item {
+  padding: 2px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tw-dropdown-item:hover { background: #68b; color: #fff; }
+.tw-dropdown-item.selected { background: #99a; }
+.tw-dropdown-sep { border: none; border-top: 1px solid #888; margin: 3px 4px; }
+/* + button sessions dropdown — anchor under the + button, which sits at left:-5px */
+.tw-dropdown-menu.tw-dd-sessions-menu { left: -5px; min-width: 160px; }
 
 #topbar .tb-btn {
   background: #aaaaaa;
@@ -152,6 +219,13 @@ select:active {
 
 #tb-title {
   font-size: 16px;
+  padding-top: 3px;
+  padding-left: 8px;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
+  height: 24px;
 }
 
 #tb-windows {

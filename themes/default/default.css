@@ -25,9 +25,68 @@ body { background: #1e1e1e; }
 #topbar.hidden { transform: translateY(-100%); }
 #topbar.hidden > * { pointer-events: none; }
 
-#tb-session, #tb-windows, #tb-right { display: flex; align-items: center; gap: 4px; }
+#tb-session, #tb-windows, #tb-right { display: flex; align-items: center; gap: 4px; position: relative; }
 #tb-title { flex: 1; }
 #tb-windows #win-tabs { display: flex; gap: 2px; }
+
+/* --- Custom dropdown (themable, replaces native <select>) --- */
+.tw-dropdown { position: relative; display: inline-flex; align-items: center; }
+/* Keep the wrapped <select> technically in the page (so Playwright's
+ * selectOption() and .value access keep working) but invisible to users. */
+.tw-dd-hidden-select {
+  position: absolute !important;
+  left: -9999px !important;
+  width: 1px !important;
+  height: 1px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.tw-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  background: #1e1e1e;
+  border: 1px solid #555;
+  color: #d4d4d4;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  min-width: 0;
+  width: 100%;
+}
+.tw-dropdown-trigger:hover { background: #333; }
+.tw-dropdown-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tw-dropdown-arrow { opacity: 0.7; font-size: 10px; }
+.tw-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  min-width: 100%;
+  background: #262626;
+  border: 1px solid #555;
+  border-radius: 4px;
+  z-index: 200;
+  padding: 4px 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.tw-dropdown-item {
+  padding: 4px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  color: #d4d4d4;
+  font-family: inherit;
+  font-size: 13px;
+}
+.tw-dropdown-item:hover { background: #333; }
+.tw-dropdown-item.selected { background: #3a3a3a; }
+.tw-dropdown-sep { border: none; border-top: 1px solid #444; margin: 4px 0; }
+/* + button sessions menu: anchor to the right edge so it sits under the button */
+.tw-dropdown-menu.tw-dd-sessions-menu { left: auto; right: 0; }
 
 #topbar .tb-btn {
   background: none;
