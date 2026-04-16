@@ -20,8 +20,25 @@ describe("composeBgColor", () => {
 });
 
 describe("composeTheme", () => {
-  test("returns theme unchanged", () => {
+  test("rewrites background with opacity alpha", () => {
     const t = { foreground: "#ffffff", background: "#112233" } as any;
-    expect(composeTheme(t)).toBe(t);
+    const out = composeTheme(t, 50);
+    expect(out.background).toBe("rgba(17,34,51,0.5)");
+    expect(out.foreground).toBe("#ffffff");
+  });
+
+  test("opacity 100 yields fully-opaque rgba", () => {
+    const t = { background: "#abcdef" } as any;
+    expect(composeTheme(t, 100).background).toBe("rgba(171,205,239,1)");
+  });
+
+  test("opacity 0 yields fully-transparent rgba", () => {
+    const t = { background: "#000000" } as any;
+    expect(composeTheme(t, 0).background).toBe("rgba(0,0,0,0)");
+  });
+
+  test("missing background falls back to black", () => {
+    const t = { foreground: "#fff" } as any;
+    expect(composeTheme(t, 100).background).toBe("rgba(0,0,0,1)");
   });
 });

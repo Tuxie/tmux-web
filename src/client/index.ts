@@ -76,7 +76,7 @@ async function main() {
     fontFamily: `"${settings.fontFamily}", monospace`,
     fontSize: settings.fontSize,
     lineHeight: settings.spacing,
-    theme: composeTheme(coloursOrDefault(settings.colours)),
+    theme: composeTheme(coloursOrDefault(settings.colours), settings.opacity),
   });
   adapter.focus();
   (window as any).__adapter = adapter;
@@ -114,7 +114,7 @@ async function main() {
       }
 
       page.style.backgroundColor = composeBgColor(coloursOrDefault(s.colours), s.opacity);
-      adapter.setTheme(composeTheme(coloursOrDefault(s.colours)));
+      adapter.setTheme(composeTheme(coloursOrDefault(s.colours), s.opacity));
 
       if (fontChanged && adapter.requiresReloadForFontChange) {
         const _dd = document.getElementById('menu-dropdown') as HTMLElement | null;

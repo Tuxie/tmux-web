@@ -21,9 +21,17 @@ export function composeBgColor(theme: ITheme, opacityPct: number): string {
   return `rgba(${r},${g},${b},${alphaStr})`;
 }
 
-/** Pass the theme through unchanged so xterm uses the hex background for internal colour math. */
-export function composeTheme(theme: ITheme): ITheme {
-  return theme;
+/** Apply the opacity slider to the theme background so the WebGL renderer
+ *  (and DOM/canvas, via allowTransparency) draws cell backgrounds at the
+ *  requested alpha. Without this, the terminal area stays fully opaque
+ *  while only the surrounding #page region gets the alpha from
+ *  composeBgColor — giving opacity only "between the terminal and the border". */
+export function composeTheme(theme: ITheme, opacityPct: number): ITheme {
+  const bg = theme.background ?? '#000000';
+  const { r, g, b } = hexToRgb(bg);
+  const alpha = Math.max(0, Math.min(100, opacityPct)) / 100;
+  const alphaStr = alpha === 0 ? '0' : alpha === 1 ? '1' : String(alpha);
+  return { ...theme, background: `rgba(${r},${g},${b},${alphaStr})` };
 }
 
 export async function fetchColours(): Promise<Array<{ name: string; variant?: string; theme: ITheme }>> {
