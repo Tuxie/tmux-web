@@ -591,7 +591,7 @@ export class Topbar {
     if (activeIdx) {
       const closeItem = document.createElement('div');
       closeItem.className = 'tw-dropdown-item';
-      closeItem.textContent = `Close window ${activeName}\u2026`;
+      closeItem.textContent = `Close window ${activeIdx}: ${activeName}\u2026`;
       closeItem.addEventListener('click', (ev) => {
         ev.stopPropagation();
         close();

@@ -62,7 +62,7 @@ test('left-click on the windows button opens the rich windows menu', async ({ pa
   // Show-windows-as-tabs checkbox
   await expect(menu.locator('input[type="checkbox"]')).toBeChecked();
   // Close current window row
-  await expect(menu.locator('.tw-dropdown-item', { hasText: /^Close window zsh\u2026$/ })).toBeVisible();
+  await expect(menu.locator('.tw-dropdown-item', { hasText: /^Close window 0: zsh\u2026$/ })).toBeVisible();
 });
 
 test('New window input in the menu creates a named window', async ({ page }) => {
