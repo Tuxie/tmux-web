@@ -629,7 +629,10 @@ export class Topbar {
     const active = this.cachedWindows.find(w => w.active);
     const label = active ? `${active.index}: ${active.name}` : '\u2026';
     const wrap = document.createElement('button');
-    wrap.className = 'tb-btn tb-btn-window-compact';
+    // When the tab strip is showing, the label is redundant with the tabs —
+    // the .tabs-shown class lets theme CSS collapse it away (gadget only).
+    wrap.className = 'tb-btn tb-btn-window-compact'
+      + (getShowWindowTabs() ? ' tabs-shown' : '');
     wrap.title = 'Windows';
 
     const labelEl = document.createElement('span');

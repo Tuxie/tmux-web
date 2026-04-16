@@ -201,6 +201,8 @@ body { background: #1e1e1e; }
   padding: 2px 8px;
   border-right: 1px solid #555;
 }
+/* In tabs mode the button next to the tab strip only shows the gadget. */
+#topbar .tb-btn-window-compact.tabs-shown .tb-window-compact-label { display: none; }
 #topbar .tb-btn-window-compact .tb-window-compact-plus {
   display: flex;
   align-items: center;

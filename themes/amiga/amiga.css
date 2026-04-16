@@ -278,6 +278,8 @@ body {
   text-shadow: none;
   font-weight: normal;
 }
+/* In tabs mode the button next to the tab strip only shows the gadget. */
+#topbar .tb-btn-window-compact.tabs-shown .tb-window-compact-label { display: none; }
 #topbar .tb-btn-window-compact .tb-window-compact-plus {
   display: flex;
   align-items: center;

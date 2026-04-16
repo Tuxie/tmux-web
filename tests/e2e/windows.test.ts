@@ -20,9 +20,12 @@ test.beforeEach(async ({ page }) => {
 test('window tabs render with correct labels', async ({ page }) => {
   await expect(page.locator('#win-tabs button').nth(0)).toHaveText('0:zsh');
   await expect(page.locator('#win-tabs button').nth(1)).toHaveText('1:vim');
-  // The trailing button is the windows-menu button showing the current window.
-  await expect(page.locator('#win-tabs .tb-btn-window-compact')).toHaveCount(1);
-  await expect(page.locator('#win-tabs .tb-window-compact-label')).toHaveText('0: zsh');
+  // Trailing windows-menu button is present in tabs mode but shows only the
+  // gadget — the name label is suppressed (redundant with the tabs).
+  const windowsBtn = page.locator('#win-tabs .tb-btn-window-compact');
+  await expect(windowsBtn).toHaveCount(1);
+  await expect(windowsBtn).toHaveClass(/\btabs-shown\b/);
+  await expect(windowsBtn.locator('.tb-window-compact-label')).toBeHidden();
 });
 
 test('active window tab has class "active", inactive does not', async ({ page }) => {
