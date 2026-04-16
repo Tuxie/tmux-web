@@ -369,11 +369,12 @@ export class Topbar {
   updateWindows(windows: Array<{ index: string; name: string; active: boolean }>): void {
     const activeWin = windows.find(w => w.active);
     const activeIdx = activeWin ? activeWin.index : null;
-    if (activeIdx !== this.lastActiveWindowIndex) {
+    const windowChanged = activeIdx !== this.lastActiveWindowIndex;
+    if (windowChanged) {
       if (this.lastActiveWindowIndex !== null) this.show();
       this.lastActiveWindowIndex = activeIdx;
+      this.tbTitle.textContent = '';
     }
-    this.tbTitle.textContent = activeWin?.name ?? '';
     this.winTabs.innerHTML = '';
     for (const w of windows) {
       const btn = document.createElement('button');
@@ -396,6 +397,10 @@ export class Topbar {
       this.opts.send('\x13\x03'); // Ctrl-S Ctrl-C (Prefix + C-c)
     });
     this.winTabs.appendChild(addBtn);
+  }
+
+  updateTitle(title: string): void {
+    this.tbTitle.textContent = title;
   }
 
   updateSession(session: string): void {

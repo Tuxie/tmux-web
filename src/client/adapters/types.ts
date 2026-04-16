@@ -15,6 +15,7 @@ export interface TerminalAdapter {
   attachCustomWheelEventHandler(handler: (ev: WheelEvent) => boolean): void;
   setTheme(theme: TerminalTheme): void;
   updateOptions?(opts: Partial<TerminalOptions>): void;
+  onTitleChange?(cb: (title: string) => void): void;
   /** If true, font changes require page reload to properly recalculate metrics */
   readonly requiresReloadForFontChange?: boolean;
 }

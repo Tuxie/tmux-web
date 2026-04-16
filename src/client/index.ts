@@ -123,6 +123,11 @@ async function main() {
   await topbar.init();
   adapter.fit();
 
+  adapter.onTitleChange?.((raw) => {
+    const prefix = sessionName + ':';
+    topbar.updateTitle(raw.startsWith(prefix) ? raw.slice(prefix.length) : raw);
+  });
+
   function handleMessage(data: string) {
     const { terminalData, messages } = extractTTMessages(data);
     if (terminalData) adapter.write(terminalData);

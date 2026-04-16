@@ -95,4 +95,8 @@ export class XtermAdapter implements TerminalAdapter {
     if (opts.lineHeight !== undefined) this._applyLineHeight(opts.lineHeight);
     this.fitAddon.fit();
   }
+
+  onTitleChange(cb: (title: string) => void): void {
+    this.term.onTitleChange(cb);
+  }
 }
