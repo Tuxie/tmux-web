@@ -148,6 +148,9 @@ body { background: #1e1e1e; }
 #topbar .win-tab:hover { background: #333; color: #d4d4d4; }
 #topbar .win-tab.active { color: #d4d4d4; border-color: #555; }
 
+/* New-window button appended to #win-tabs */
+#topbar .tb-btn-new-window { margin-left: 2px; font-weight: bold; }
+
 #btn-menu { padding: 2px 8px; font-size: 18px; }
 
 #menu-wrap { position: relative; }

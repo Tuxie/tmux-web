@@ -391,11 +391,9 @@ export class Topbar {
 
     // Add [+] button to create a new window
     const addBtn = document.createElement('button');
-    addBtn.className = 'tb-btn';
+    addBtn.className = 'tb-btn tb-btn-new-window';
     addBtn.textContent = '+';
     addBtn.title = 'New Window';
-    addBtn.style.marginLeft = '2px';
-    addBtn.style.fontWeight = 'bold';
     addBtn.addEventListener('click', () => {
       this.opts.send('\x13\x03'); // Ctrl-S Ctrl-C (Prefix + C-c)
     });
