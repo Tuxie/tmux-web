@@ -26,7 +26,7 @@ body { background: #1e1e1e; }
 #topbar.hidden > * { pointer-events: none; }
 
 #tb-session, #tb-windows, #tb-right { display: flex; align-items: center; gap: 4px; }
-#tb-spacer { flex: 1; }
+#tb-title { flex: 1; }
 #tb-windows #win-tabs { display: flex; gap: 2px; }
 
 #topbar .tb-btn {

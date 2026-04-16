@@ -7,7 +7,6 @@ body {
   border-right: 1px solid #000;
   border-bottom: 1px solid #000;
   font-family: 'Topaz8 Amiga1200 Nerd Font', monospace;
-  text-shadow: 0 0 2px #ddd;
 }
 
 #page {
@@ -49,7 +48,7 @@ body {
 #topbar.hidden > * { pointer-events: none; }
 
 #tb-session, #tb-windows, #tb-right { display: flex; align-items: center; gap: 2px; }
-#tb-spacer { flex: 1; }
+#tb-title { flex: 1; }
 #tb-windows #win-tabs { display: flex; gap: 2px; }
 
 #topbar .tb-btn {
@@ -115,6 +114,7 @@ body {
   background: #68b !important;
   color: #fff !important;
   font-size: 14px !important;
+  text-shadow: -1px 0 black, 0 1px black, 1px 0 black, 0 -1px black;
 }
 
 #tb-session select {
@@ -148,6 +148,10 @@ select:active {
   border-left: 1px solid #000;
   border-right: 1px solid #fff;
   border-bottom: 1px solid #fff;
+}
+
+#tb-title {
+  font-size: 16px;
 }
 
 #tb-windows {
@@ -259,6 +263,7 @@ input {
   right: 3px;
   bottom: 3px;
   padding: 0px;
+  text-shadow: 0 0 2px #ddd;
  /*  padding: 0px; */ /* A few pixels padding */
   /*
   border-top: 1px solid #000;
@@ -271,7 +276,7 @@ body.topbar-pinned #terminal {
   top: 27px; /* 3px gap + 22px topbar + 2px gap */
 }
 /*
-#tb-spacer {
+#tb-title {
   background: #68b !important;
   border-right: 10px solid #f00 !important;
   height: 24px !important;
@@ -287,6 +292,7 @@ body.topbar-pinned #terminal {
   top: 0px !important;
   width: 39px !important;
   color: #fff !important;
+  text-shadow: -1px 0 black, 0 1px black, 1px 0 black, 0 -1px black;
   font-size: 19px !important;
   margin-left: 0px !important;
   padding: 0px 8px !important;
