@@ -196,8 +196,8 @@ body {
 #topbar .tb-btn-session .tb-session-plus::before {
   content: '';
   display: block;
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   background: #fff;
   border: 1px solid #000;
 }
