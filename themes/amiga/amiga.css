@@ -193,7 +193,11 @@ body {
 }
 
 #tb-session {
-  margin-left: -8px;
+  /* Pull 1px further left than the topbar padding so the session button's
+   * #fff left bevel covers the final pixel of the topbar; otherwise the
+   * page's blue border showed through for 1px and the button looked like
+   * it had a double-wide white left border. */
+  margin-left: -9px;
 }
 
 /* [ + | name ] session menu button — bevelled, two visual segments joined */
