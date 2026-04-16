@@ -61,11 +61,20 @@ function buildVendorXterm(vendorDir: string): void {
     "lib",
     "xterm.mjs"
   );
-  buildEntry(
-    "addons/addon-fit/src/FitAddon.ts",
-    "addons/addon-fit/lib",
-    "addon-fit.mjs"
-  );
+  for (const [dir, entry] of [
+    ["addon-fit", "FitAddon"],
+    ["addon-webgl", "WebglAddon"],
+    ["addon-unicode-graphemes", "UnicodeGraphemesAddon"],
+    ["addon-web-links", "WebLinksAddon"],
+    ["addon-web-fonts", "WebFontsAddon"],
+    ["addon-image", "ImageAddon"],
+  ]) {
+    buildEntry(
+      `addons/${dir}/src/${entry}.ts`,
+      `addons/${dir}/lib`,
+      `${dir}.mjs`,
+    );
+  }
 }
 
 async function buildClient() {
@@ -74,7 +83,17 @@ async function buildClient() {
   const vendorXtermDir = path.join(import.meta.dir, "vendor/xterm.js");
   const vendorXtermEntry = path.join(vendorXtermDir, "src/browser/public/Terminal.ts");
   const vendorXtermMjs = path.join(vendorXtermDir, "lib/xterm.mjs");
-  const vendorFitMjs = path.join(vendorXtermDir, "addons/addon-fit/lib/addon-fit.mjs");
+  const addonDirs = [
+    "addon-fit",
+    "addon-webgl",
+    "addon-unicode-graphemes",
+    "addon-web-links",
+    "addon-web-fonts",
+    "addon-image",
+  ];
+  const addonMjs = Object.fromEntries(addonDirs.map(d =>
+    [d, path.join(vendorXtermDir, `addons/${d}/lib/${d}.mjs`)]
+  ));
   const hasVendorSrc = fs.existsSync(vendorXtermEntry);
 
   if (!hasVendorSrc) {
@@ -84,7 +103,7 @@ async function buildClient() {
     );
   }
 
-  if (!fs.existsSync(vendorXtermMjs) || !fs.existsSync(vendorFitMjs)) {
+  if (!fs.existsSync(vendorXtermMjs) || addonDirs.some(d => !fs.existsSync(addonMjs[d]!))) {
     console.log("Building vendor/xterm.js with bun...");
     buildVendorXterm(vendorXtermDir);
   }
@@ -102,7 +121,10 @@ async function buildClient() {
     name: "vendor-xterm",
     setup(builder) {
       builder.onResolve({ filter: /^@xterm\/xterm$/ }, () => ({ path: vendorXtermMjs }));
-      builder.onResolve({ filter: /^@xterm\/addon-fit$/ }, () => ({ path: vendorFitMjs }));
+      for (const d of addonDirs) {
+        const re = new RegExp(`^@xterm/${d}$`);
+        builder.onResolve({ filter: re }, () => ({ path: addonMjs[d]! }));
+      }
     },
   }];
 

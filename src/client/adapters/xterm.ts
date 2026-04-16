@@ -1,9 +1,11 @@
 import type { TerminalAdapter } from './types.js';
 import type { CellMetrics, TerminalOptions, TerminalTheme } from '../../shared/types.js';
+import { getWebglEnabled } from '../prefs.js';
 
 export class XtermAdapter implements TerminalAdapter {
   private term!: any;
   private fitAddon!: any;
+  private webglAddon: any | null = null;
 
   constructor() {}
 
@@ -11,14 +13,27 @@ export class XtermAdapter implements TerminalAdapter {
   // Metric values remain at their initial calculations even after changing fonts.
   // Reload is required to properly initialize metrics with the new font.
   get requiresReloadForFontChange(): boolean {
-    // Return true if we are using the DOM renderer
+    // WebGL and canvas renderers recompute metrics on option change; only the
+    // DOM fallback is stuck. webglAddon presence proves we aren't on DOM.
+    if (this.webglAddon) return false;
     return this.term?._core?.renderer?._renderer?._type === 'dom';
   }
 
   async init(container: HTMLElement, options: TerminalOptions): Promise<void> {
-    const [{ Terminal }, { FitAddon }] = await Promise.all([
+    const [
+      { Terminal },
+      { FitAddon },
+      { UnicodeGraphemesAddon },
+      { WebLinksAddon },
+      { WebFontsAddon },
+      { ImageAddon },
+    ] = await Promise.all([
       import('@xterm/xterm'),
-      import('@xterm/addon-fit')
+      import('@xterm/addon-fit'),
+      import('@xterm/addon-unicode-graphemes'),
+      import('@xterm/addon-web-links'),
+      import('@xterm/addon-web-fonts'),
+      import('@xterm/addon-image'),
     ]);
 
     this.term = new Terminal({
@@ -36,6 +51,33 @@ export class XtermAdapter implements TerminalAdapter {
     this.fitAddon = new FitAddon();
     this.term.loadAddon(this.fitAddon);
     this.term.open(container);
+
+    // Load remaining addons AFTER open — ImageAddon and friends poke at
+    // core._inputHandler, which isn't wired up until open().
+    const safeLoad = (make: () => any, name: string) => {
+      try { this.term.loadAddon(make()); }
+      catch (err) { console.warn(`${name} addon failed, skipping:`, err); }
+    };
+    safeLoad(() => new UnicodeGraphemesAddon(), 'unicode-graphemes');
+    safeLoad(() => new WebLinksAddon(), 'web-links');
+    safeLoad(() => new WebFontsAddon(), 'web-fonts');
+    safeLoad(() => new ImageAddon(), 'image');
+
+    if (getWebglEnabled()) {
+      try {
+        const { WebglAddon } = await import('@xterm/addon-webgl');
+        const addon = new WebglAddon();
+        addon.onContextLoss(() => {
+          addon.dispose();
+          this.webglAddon = null;
+        });
+        this.term.loadAddon(addon);
+        this.webglAddon = addon;
+      } catch (err) {
+        console.warn('WebGL renderer unavailable, falling back to DOM:', err);
+      }
+    }
+
     this._applyLineHeight(options.lineHeight);
     this.fitAddon.fit();
 
