@@ -685,7 +685,10 @@ export class Topbar {
     addBtn.addEventListener('click', () => this.sendWindowMsg({ action: 'new' }));
     addBtn.addEventListener('contextmenu', (ev) => {
       ev.preventDefault();
-      this.openWindowsMenu(ev.clientX, ev.clientY);
+      // Anchor the menu below the + button (same feel as the session /
+      // settings menus) rather than at the cursor position.
+      const rect = addBtn.getBoundingClientRect();
+      this.openWindowsMenu(rect.left, rect.bottom + 2);
     });
     this.winTabs.appendChild(addBtn);
   }
