@@ -147,7 +147,6 @@ async function main() {
     onMessage: handleMessage,
     onOpen: () => {
       connection.sendResize(adapter.cols, adapter.rows);
-      topbar.refreshSessionList();
     },
     onClose: () => {
       adapter.write('\r\n\x1b[33mDisconnected. Reconnecting...\x1b[0m\r\n');

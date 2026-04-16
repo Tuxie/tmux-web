@@ -21,7 +21,7 @@ export interface TopbarOptions {
 
 export class Topbar {
   private topbar!: HTMLElement;
-  private sessionSelect!: HTMLSelectElement;
+  private sessionName!: HTMLElement;
   private winTabs!: HTMLElement;
   private tbTitle!: HTMLElement;
   private autohideChk!: HTMLInputElement;
@@ -36,13 +36,13 @@ export class Topbar {
 
   async init(): Promise<void> {
     this.topbar = document.getElementById('topbar')!;
-    this.sessionSelect = document.getElementById('session-select') as HTMLSelectElement;
+    this.sessionName = document.getElementById('tb-session-name')!;
+    this.sessionName.textContent = this.currentSession;
     this.winTabs = document.getElementById('win-tabs')!;
     this.tbTitle = document.getElementById('tb-title')!;
     this.autohideChk = document.getElementById('chk-autohide') as HTMLInputElement;
 
-    this.setupSessionDropdown();
-    this.setupNewSessionButton();
+    this.setupSessionMenu();
     this.setupAutoHide();
     this.setupMenu();
     this.setupFullscreenCheckbox();
@@ -55,18 +55,6 @@ export class Topbar {
     await fontListReady;
   }
 
-  private setupSessionDropdown(): void {
-    this.sessionSelect.addEventListener('change', () => {
-      const newSession = this.sessionSelect.value;
-      if (newSession && newSession !== this.currentSession) {
-        location.href = '/' + encodeURIComponent(newSession);
-      }
-    });
-    this.sessionSelect.addEventListener('mousedown', () => this.refreshSessionList());
-    this.sessionSelect.addEventListener('focus', () => this.refreshSessionList());
-    this.sessionSelect.addEventListener('change', () => this.opts.focus());
-  }
-
   private cachedSessions: string[] = [];
 
   private async refreshCachedSessions(): Promise<void> {
@@ -76,8 +64,8 @@ export class Topbar {
     } catch { /* keep previous cache */ }
   }
 
-  private setupNewSessionButton(): void {
-    const btn = document.getElementById('btn-new-session') as HTMLButtonElement;
+  private setupSessionMenu(): void {
+    const btn = document.getElementById('btn-session-menu') as HTMLButtonElement;
     Dropdown.attachTo(btn, {
       className: 'tw-dd-sessions',
       beforeOpen: () => this.refreshCachedSessions(),
@@ -381,29 +369,6 @@ export class Topbar {
     return location.pathname.replace(/^\/+|\/+$/g, '') || 'main';
   }
 
-  async refreshSessionList(): Promise<void> {
-    try {
-      const res = await fetch('/api/sessions');
-      if (!res.ok) return;
-      const sessions: string[] = await res.json();
-      this.sessionSelect.innerHTML = '';
-      for (const s of sessions) {
-        const opt = document.createElement('option');
-        opt.value = s;
-        opt.textContent = s;
-        if (s === this.currentSession) opt.selected = true;
-        this.sessionSelect.appendChild(opt);
-      }
-      if (!sessions.includes(this.currentSession)) {
-        const opt = document.createElement('option');
-        opt.value = this.currentSession;
-        opt.textContent = this.currentSession;
-        opt.selected = true;
-        this.sessionSelect.appendChild(opt);
-      }
-    } catch { /* ignore */ }
-  }
-
   updateWindows(windows: Array<{ index: string; name: string; active: boolean }>): void {
     const activeWin = windows.find(w => w.active);
     const activeIdx = activeWin ? activeWin.index : null;
@@ -447,8 +412,6 @@ export class Topbar {
       history.replaceState(null, '', newPath);
     }
     document.title = 'tmux-web \u2014 ' + session;
-    if (this.sessionSelect.value !== session) {
-      this.refreshSessionList();
-    }
+    this.sessionName.textContent = session;
   }
 }

@@ -274,10 +274,14 @@ export class Dropdown {
     }
     renderItems(this.menu, this.getItems(), this.currentValue(), (v) => this.handlePick(v));
     this.menu.hidden = false;
+    this.trigger.classList.add('open');
+    if (this.wrap) this.wrap.classList.add('open');
   }
 
   close(): void {
     this.menu.hidden = true;
+    this.trigger.classList.remove('open');
+    if (this.wrap) this.wrap.classList.remove('open');
   }
 
   dispose(): void {

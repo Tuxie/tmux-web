@@ -36,8 +36,10 @@
   <div id="topbar">
     <div id="tb-left"></div>
     <div id="tb-session">
-      <select id="session-select" title="Switch tmux session"></select>
-      <button class="tb-btn" id="btn-new-session" title="New session">+</button>
+      <button class="tb-btn tb-btn-session" id="btn-session-menu" title="Switch or create session">
+        <span class="tb-session-plus">+</span>
+        <span class="tb-session-name" id="tb-session-name"></span>
+      </button>
     </div>
     <div id="tb-title"></div>
     <div id="tb-windows"><div id="win-tabs"></div></div>

@@ -85,8 +85,7 @@ body { background: #1e1e1e; }
 .tw-dropdown-item:hover { background: #333; }
 .tw-dropdown-item.selected { background: #3a3a3a; }
 .tw-dropdown-sep { border: none; border-top: 1px solid #444; margin: 4px 0; }
-/* + button sessions menu: anchor to the right edge so it sits under the button */
-.tw-dropdown-menu.tw-dd-sessions-menu { left: auto; right: 0; }
+/* Sessions dropdown menu — anchors under the session button by default (left-aligned) */
 
 #topbar .tb-btn {
   background: none;
@@ -102,6 +101,23 @@ body { background: #1e1e1e; }
 
 #topbar .tb-btn:hover { background: #333; }
 #topbar .tb-btn:active { background: #444; }
+
+/* Session menu button: [ + | name ] — single button, opens the sessions dropdown */
+#topbar .tb-btn-session {
+  display: inline-flex;
+  align-items: stretch;
+  padding: 0;
+  gap: 0;
+}
+#topbar .tb-btn-session .tb-session-plus {
+  padding: 2px 8px;
+  border-right: 1px solid #555;
+  font-weight: bold;
+}
+#topbar .tb-btn-session .tb-session-name {
+  padding: 2px 8px;
+}
+#topbar .tb-btn-session.open { background: #444; }
 
 #topbar select {
   background: #1e1e1e;

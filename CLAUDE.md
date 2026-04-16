@@ -213,8 +213,7 @@ WS reconnect: call `adapter.fit()`, send `{"type":"resize"}` on `ws.onopen`. `sr
 
 32px toolbar overlay terminal. `src/client/ui/topbar.ts`:
 
-- **Session dropdown** (`#session-select`) — via `/api/sessions`
-- **[+] button** — prompt for name, nav to `/<name>`
+- **Session menu button** (`#btn-session-menu`) — `[ + | <session name> ]` button that opens a custom dropdown listing sessions from `/api/sessions` plus a "Create new session" entry at the bottom. Label is `#tb-session-name`. Button gets `.open` while dropdown is showing.
 - **Window tabs** (`#win-tabs`) — one per tmux window, click send `Ctrl-S <index>`
 - **Fullscreen button** (`#btn-fullscreen`)
 
@@ -235,13 +234,13 @@ URL path = tmux session name (e.g. `/dev`). URL update via `history.replaceState
 
 IDs (do not rename):
 - `#terminal` — container
-- `#session-select` — `<select>`
+- `#btn-session-menu` — session menu button (`[ + | name ]`), opens sessions dropdown
+- `#tb-session-name` — text label inside the session menu button (the `<name>` part)
 - `#win-tabs` — window buttons
 - `#btn-fullscreen` — toggle button
-- `#btn-new-session` — "+" button
-- `#inp-theme` — theme `<select>`
-- `#inp-colours` — colour scheme `<select>`
-- `#inp-font-bundled` — bundled font `<select>`
+- `#inp-theme` — theme `<select>` (visually replaced by `#inp-theme-dd` + `#inp-theme-btn` custom dropdown; original `<select>` stays hidden as source of truth)
+- `#inp-colours` — colour scheme `<select>` (custom dropdown: `#inp-colours-dd` / `#inp-colours-btn`)
+- `#inp-font-bundled` — bundled font `<select>` (custom dropdown: `#inp-font-bundled-dd` / `#inp-font-bundled-btn`)
 - `#inp-fontsize` / `#sld-fontsize` — font size number/slider
 - `#inp-spacing` / `#sld-spacing` — spacing (line height) number/slider
 - `#inp-opacity` / `#sld-opacity` — opacity number/slider
