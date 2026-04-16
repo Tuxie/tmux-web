@@ -17,6 +17,14 @@
     { "file": "colours/tomorrow.toml", "name": "Tomorrow", "variant": "light" }
   ],
   "themes": [
-    { "name": "Default", "css": "default.css", "defaultColours": "Gruvbox Dark" }
+    {
+      "name": "Default",
+      "css": "default.css",
+      "defaultFont": "Iosevka Nerd Font Mono",
+      "defaultFontSize": 16.5,
+      "defaultSpacing": 1.0,
+      "defaultColours": "Gruvbox Dark",
+      "defaultOpacity": 0
+    }
   ]
 }
