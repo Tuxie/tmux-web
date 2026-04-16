@@ -23,8 +23,8 @@
       "defaultFont": "Iosevka Nerd Font Mono",
       "defaultFontSize": 16.5,
       "defaultSpacing": 0.9,
-      "defaultColours": "Dracula",
-      "defaultOpacity": 90
+      "defaultColours": "Nord",
+      "defaultOpacity": 50
     }
   ]
 }
