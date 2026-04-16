@@ -1,7 +1,7 @@
 import { getTopbarAutohide, setTopbarAutohide } from '../prefs.js';
 import { applyTheme, listFonts, listThemes } from '../theme.js';
 import { fetchColours } from '../colours.js';
-import { Dropdown, showContextMenu, showContextInput, type DropdownItem } from './dropdown.js';
+import { Dropdown, showContextMenu, type DropdownItem } from './dropdown.js';
 import {
   loadSessionSettings,
   saveSessionSettings,
@@ -460,19 +460,19 @@ export class Topbar {
           x: ev.clientX,
           y: ev.clientY,
           className: 'tw-dd-context-win',
-          items: [
-            { value: 'rename', label: 'Rename' },
-            { value: 'close', label: 'Close' },
-          ],
+          input: {
+            label: 'Name:',
+            defaultValue: w.name,
+            onSubmit: (name) => {
+              if (name !== w.name) {
+                sendWindowMsg({ action: 'rename', index: w.index, name });
+              }
+            },
+          },
+          items: [{ value: 'close', label: 'Close' }],
           onSelect: (action) => {
             if (action === 'close') {
               sendWindowMsg({ action: 'close', index: w.index });
-              return;
-            }
-            if (action === 'rename') {
-              const newName = prompt(`Rename window ${w.index}:`, w.name);
-              if (!newName?.trim()) return;
-              sendWindowMsg({ action: 'rename', index: w.index, name: newName.trim() });
             }
           },
         });
@@ -491,13 +491,15 @@ export class Topbar {
     });
     addBtn.addEventListener('contextmenu', (ev) => {
       ev.preventDefault();
-      showContextInput({
+      showContextMenu({
         x: ev.clientX,
         y: ev.clientY,
         className: 'tw-dd-context-new-window',
-        label: 'New window:',
-        placeholder: 'name',
-        onSubmit: (name) => sendWindowMsg({ action: 'new', name }),
+        input: {
+          label: 'New window:',
+          placeholder: 'name',
+          onSubmit: (name) => sendWindowMsg({ action: 'new', name }),
+        },
       });
     });
     this.winTabs.appendChild(addBtn);

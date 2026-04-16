@@ -66,28 +66,41 @@ test('new-window popup input keeps keyboard focus while typing', async ({ page }
   await expect(popup.locator('.tw-dd-input')).toHaveValue('hello');
 });
 
-test('right-click on a window tab opens a Close/Rename context menu', async ({ page }) => {
+test('right-click on a window tab opens a Name input + Close item', async ({ page }) => {
   await page.locator('#win-tabs button').nth(1).click({ button: 'right' });
-  const menu = page.locator('.tw-dropdown-menu.tw-dd-context');
+  const menu = page.locator('.tw-dropdown-menu.tw-dd-context-win');
   await expect(menu).toBeVisible();
+  await expect(menu.locator('.menu-label')).toHaveText('Name:');
+  // Name input is pre-filled with the current window name.
+  await expect(menu.locator('.tw-dd-input')).toHaveValue('vim');
   const items = menu.locator('.tw-dropdown-item');
-  await expect(items).toHaveCount(2);
-  expect(await items.allTextContents()).toEqual(['Rename', 'Close']);
+  await expect(items).toHaveCount(1);
+  expect(await items.allTextContents()).toEqual(['Close']);
+});
+
+test('editing the Name input and pressing Enter sends rename-window', async ({ page }) => {
+  await page.locator('#win-tabs button').nth(1).click({ button: 'right' });
+  const input = page.locator('.tw-dd-context-win .tw-dd-input');
+  await input.fill('editor');
+  await input.press('Enter');
+  const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
+  expect(sent).toContain(JSON.stringify({ type: 'window', action: 'rename', index: '1', name: 'editor' }));
+  await expect(page.locator('.tw-dropdown-menu.tw-dd-context-win')).toHaveCount(0);
+});
+
+test('pressing Enter with the name unchanged does not send rename', async ({ page }) => {
+  await page.locator('#win-tabs button').nth(1).click({ button: 'right' });
+  const input = page.locator('.tw-dd-context-win .tw-dd-input');
+  await input.press('Enter');
+  const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
+  expect(sent.some(s => s.includes('"action":"rename"'))).toBe(false);
 });
 
 test('Close from context menu sends a close-window message for that tab', async ({ page }) => {
   await page.locator('#win-tabs button').nth(1).click({ button: 'right' });
-  await page.locator('.tw-dd-context .tw-dropdown-item', { hasText: 'Close' }).click();
+  await page.locator('.tw-dd-context-win .tw-dropdown-item', { hasText: 'Close' }).click();
   const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
   expect(sent).toContain(JSON.stringify({ type: 'window', action: 'close', index: '1' }));
-});
-
-test('Rename from context menu sends a rename-window message with the entered name', async ({ page }) => {
-  page.once('dialog', d => d.accept('editor'));
-  await page.locator('#win-tabs button').nth(1).click({ button: 'right' });
-  await page.locator('.tw-dd-context .tw-dropdown-item', { hasText: 'Rename' }).click();
-  const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
-  expect(sent).toContain(JSON.stringify({ type: 'window', action: 'rename', index: '1', name: 'editor' }));
 });
 
 test('context menu closes on Escape and on outside click', async ({ page }) => {

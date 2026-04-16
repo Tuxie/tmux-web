@@ -107,18 +107,28 @@ function renderItems(
 }
 
 /**
- * One-shot context menu positioned at viewport coordinates (typically
+ * One-shot context popup positioned at viewport coordinates (typically
  * mouse cursor from a contextmenu event). Shares the `.tw-dropdown-menu`
  * styling so themes apply automatically. Dismisses on outside click,
- * Escape, or selection.
+ * Escape, input submit, or item selection.
+ *
+ * The popup can contain either / both:
+ *   - A single labelled input row at the top (submits trimmed value on
+ *     Enter via `input.onSubmit`). Receives focus when shown.
+ *   - Clickable items below (pick fires `onSelect(value)`).
  */
 export interface ContextMenuOptions {
   x: number;
   y: number;
-  items: DropdownItem[];
-  onSelect: (value: string) => void;
-  /** Extra class appended to the menu element, e.g. 'tw-dd-context-win'. */
   className?: string;
+  input?: {
+    label: string;
+    placeholder?: string;
+    defaultValue?: string;
+    onSubmit: (value: string) => void;
+  };
+  items?: DropdownItem[];
+  onSelect?: (value: string) => void;
 }
 
 export function showContextMenu(opts: ContextMenuOptions): void {
@@ -145,10 +155,54 @@ export function showContextMenu(opts: ContextMenuOptions): void {
     if (ev.key === 'Escape') close();
   };
 
-  renderItems(menu, opts.items, null, (v) => {
-    close();
-    opts.onSelect(v);
-  });
+  let inputEl: HTMLInputElement | null = null;
+  if (opts.input) {
+    const inputConfig = opts.input;
+    const row = document.createElement('div');
+    row.className = 'menu-row menu-row-static';
+    const label = document.createElement('span');
+    label.className = 'menu-label';
+    label.textContent = inputConfig.label;
+    row.appendChild(label);
+
+    inputEl = document.createElement('input');
+    inputEl.type = 'text';
+    inputEl.className = 'tw-dd-input';
+    if (inputConfig.placeholder) inputEl.placeholder = inputConfig.placeholder;
+    if (inputConfig.defaultValue) inputEl.value = inputConfig.defaultValue;
+    inputEl.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        const value = inputEl!.value.trim();
+        close();
+        if (value) inputConfig.onSubmit(value);
+      }
+    });
+    row.appendChild(inputEl);
+    menu.appendChild(row);
+  }
+
+  if (opts.items?.length) {
+    // Append items directly — don't use renderItems(), which would wipe the
+    // input row above.
+    for (const item of opts.items) {
+      if (item.separator) {
+        const hr = document.createElement('hr');
+        hr.className = 'tw-dropdown-sep';
+        menu.appendChild(hr);
+      }
+      const el = document.createElement('div');
+      el.className = 'tw-dropdown-item';
+      el.textContent = item.label;
+      el.dataset.value = item.value;
+      el.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        close();
+        opts.onSelect?.(item.value);
+      });
+      menu.appendChild(el);
+    }
+  }
 
   document.body.appendChild(menu);
 
@@ -161,91 +215,14 @@ export function showContextMenu(opts: ContextMenuOptions): void {
     menu.style.top = Math.max(0, window.innerHeight - rect.height - 4) + 'px';
   }
 
-  // contextmenu fires after pointerdown, so attaching synchronously is safe:
-  // the right-click's own pointerdown has already been dispatched.
-  document.addEventListener('pointerdown', outside, true);
-  document.addEventListener('keydown', onEsc, true);
-}
-
-/**
- * Single-row context popup that contains a labelled text input. Submits
- * the trimmed value on Enter, dismisses on Escape or outside click.
- * Uses the same `.menu-row` / `.menu-label` classes the settings menu
- * uses so themes render it consistently.
- */
-export interface ContextInputOptions {
-  x: number;
-  y: number;
-  label: string;
-  placeholder?: string;
-  defaultValue?: string;
-  onSubmit: (value: string) => void;
-  className?: string;
-}
-
-export function showContextInput(opts: ContextInputOptions): void {
-  document.querySelectorAll('.tw-dropdown-menu.tw-dd-context')
-    .forEach(m => m.remove());
-
-  const menu = document.createElement('div');
-  menu.className = 'tw-dropdown-menu tw-dd-context'
-    + (opts.className ? ' ' + opts.className : '');
-  menu.style.position = 'fixed';
-  menu.style.top = opts.y + 'px';
-  menu.style.left = opts.x + 'px';
-
-  const row = document.createElement('div');
-  row.className = 'menu-row menu-row-static';
-  const label = document.createElement('span');
-  label.className = 'menu-label';
-  label.textContent = opts.label;
-  row.appendChild(label);
-
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'tw-dd-input';
-  if (opts.placeholder) input.placeholder = opts.placeholder;
-  if (opts.defaultValue) input.value = opts.defaultValue;
-  row.appendChild(input);
-
-  menu.appendChild(row);
-
-  const close = () => {
-    menu.remove();
-    document.removeEventListener('pointerdown', outside, true);
-    document.removeEventListener('keydown', onEsc, true);
-  };
-  const outside = (ev: PointerEvent) => {
-    if (!menu.contains(ev.target as Node)) close();
-  };
-  const onEsc = (ev: KeyboardEvent) => {
-    if (ev.key === 'Escape') close();
-  };
-
-  input.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter') {
-      ev.preventDefault();
-      const value = input.value.trim();
-      close();
-      if (value) opts.onSubmit(value);
-    }
-  });
-
-  document.body.appendChild(menu);
-
-  const rect = menu.getBoundingClientRect();
-  if (rect.right > window.innerWidth) {
-    menu.style.left = Math.max(0, window.innerWidth - rect.width - 4) + 'px';
-  }
-  if (rect.bottom > window.innerHeight) {
-    menu.style.top = Math.max(0, window.innerHeight - rect.height - 4) + 'px';
-  }
-
+  // contextmenu fires after pointerdown, so attaching synchronously is safe.
   document.addEventListener('pointerdown', outside, true);
   document.addEventListener('keydown', onEsc, true);
 
-  input.focus();
-  input.select();
+  if (inputEl) {
+    inputEl.focus();
+    inputEl.select();
+  }
 }
 
 export class Dropdown {
