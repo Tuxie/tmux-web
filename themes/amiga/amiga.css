@@ -189,17 +189,17 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
+  width: 22px;
   background: #68b;
   border-right: 1px solid #000;
 }
 #topbar .tb-btn-session .tb-session-plus::before {
   content: '';
   display: block;
-  width: 8px;
-  height: 8px;
+  width: 4px;
+  height: 6px;
   background: #fff;
-  border: 1px solid #000;
+  border: 2px solid #000;
 }
 #topbar .tb-btn-session .tb-session-name {
   display: flex;
@@ -272,6 +272,8 @@ body {
 #tb-windows .tb-btn {
   color: #fff;
   text-shadow: -1px 0 black, 0 1px black, 1px 0 black, 0 -1px black;
+  font-weight: bold;
+  width: 25px;
 }
 
 #menu-wrap { position: relative; display: flex; align-items: center; }
