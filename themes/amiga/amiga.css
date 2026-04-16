@@ -365,7 +365,7 @@ body {
 .menu-row:hover { background: #68b; }
 .menu-row-static { cursor: default; gap: 3px; }
 
-.menu-label { color: #000; min-width: 72px; }
+.menu-label { color: #000; min-width: 120px; }
 
 #btn-reset-colours, #btn-reset-font {
   font-family: sans-serif !important;

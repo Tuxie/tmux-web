@@ -138,10 +138,7 @@ export class Topbar {
           },
         }));
 
-        // Create new session
-        const sep2 = document.createElement('hr');
-        sep2.className = 'tw-dropdown-sep';
-        menu.appendChild(sep2);
+        // Create new session (no separator — Name and New session share a block)
         menu.appendChild(this.buildMenuInputRow({
           label: 'New session:',
           placeholder: 'name',

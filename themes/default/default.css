@@ -111,6 +111,8 @@ body { background: #1e1e1e; }
   flex: 1;
   min-width: 140px;
 }
+/* Shared label width so input fields align across rows in a menu. */
+.menu-label { min-width: 110px; display: inline-block; }
 
 #topbar .tb-btn {
   background: none;
