@@ -233,7 +233,12 @@ function handleConnection(
           return;
         }
         if (parsed.type === 'window' && typeof parsed.action === 'string') {
-          void applyWindowAction(lastSession, parsed, config);
+          // After the action completes, refresh the window list. tmux only
+          // emits an OSC title change when the *active* window changes, so
+          // closing/renaming a non-current window would otherwise leave the
+          // client showing a stale tab until the user switched windows.
+          void applyWindowAction(lastSession, parsed, config)
+            .then(() => sendWindowState(ws, lastSession, config));
           return;
         }
         if (parsed.type === 'session' && typeof parsed.action === 'string') {
