@@ -193,14 +193,12 @@ body {
 }
 
 #tb-session {
-  /* Pull 1px further left than the topbar padding so the session button's
-   * #fff left bevel covers the final pixel of the topbar; otherwise the
-   * page's blue border showed through for 1px and the button looked like
-   * it had a double-wide white left border. */
-  margin-left: -9px;
+  margin-left: -8px;
 }
 
-/* [ + | name ] session menu button — bevelled, two visual segments joined */
+/* [ + | name ] session menu button — bevelled, two visual segments joined.
+ * Left border is transparent so the button meets the page's blue border on
+ * the left without a double-white seam. */
 #topbar .tb-btn-session {
   display: inline-flex;
   align-items: stretch;
@@ -209,7 +207,7 @@ body {
   height: 24px;
   margin: 0;
   border-top: 1px solid #fff;
-  border-left: 1px solid #fff;
+  border-left: 1px solid transparent;
   border-right: 1px solid #000;
   border-bottom: 1px solid #000;
   color: #000;
