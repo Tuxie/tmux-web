@@ -672,11 +672,11 @@ export class Topbar {
           btn.classList.add('open');
           const rect = btn.getBoundingClientRect();
           showContextMenu({
-            // Right-align with the clicked tab and sit at its bottom, so the
-            // menu feels like the other topbar menus.
-            x: rect.right,
+            // Left-align with the clicked tab at its bottom. The viewport
+            // clamp in showContextMenu will slide the menu leftward if it
+            // would spill off the right edge.
+            x: rect.left,
             y: rect.bottom,
-            alignRight: true,
             className: 'tw-dd-context-win',
             onClose: () => btn.classList.remove('open'),
             input: {
