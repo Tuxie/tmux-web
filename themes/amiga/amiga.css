@@ -582,11 +582,11 @@ body.topbar-pinned #terminal {
 #btn-menu {
   background: #68b !important;
   position: relative;
-  /* Shift 1px rightward so the button's black right border covers the
-   * final pixel of the topbar instead of leaving the blue gap showing. */
-  right: -1px !important;
   top: 0px !important;
-  width: 39px !important;
+  /* Width is 1px wider than it needs to be so the right edge covers the
+   * final pixel of the topbar without leaving a gap on the left against
+   * the windows-menu button. */
+  width: 40px !important;
   color: #fff !important;
   text-shadow: -1px 0 black, 0 1px black, 1px 0 black, 0 -1px black;
   font-size: 19px !important;
