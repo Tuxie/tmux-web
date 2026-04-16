@@ -21,20 +21,46 @@ export function composeBgColor(theme: ITheme, opacityPct: number): string {
   return `rgba(${r},${g},${b},${alphaStr})`;
 }
 
-/** Make xterm's default cell background fully transparent. The opacity
- *  slider is applied by composeBgColor on #page instead — this keeps the
- *  terminal area and its surround at identical alpha at every slider
- *  position. Applying alpha on BOTH layers double-composites and produces
- *  a visibly darker terminal region at intermediate opacities.
+/** Parse an `rgb(r, g, b)` or `rgba(r, g, b, a)` CSS colour string. Returns
+ *  null for anything else (e.g. "transparent", images, gradients). */
+function parseRgbString(s: string): { r: number; g: number; b: number; a: number } | null {
+  const m = s.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)$/);
+  if (!m) return null;
+  const a = m[4] !== undefined ? parseFloat(m[4]!) : 1;
+  return { r: parseInt(m[1]!, 10), g: parseInt(m[2]!, 10), b: parseInt(m[3]!, 10), a };
+}
+
+/** Compose xterm's default cell background so the WebGL atlas rasterises
+ *  glyph halos against the same colour the user actually sees behind the
+ *  terminal:
  *
- *  The RGB is kept (from theme.background) so xterm's contrast math,
- *  inverse-video, and dim-text calculations still reference the theme's
- *  "default" colour even though the alpha is zero. Cells with explicit
- *  non-default bg (from SGR 40-47 / 100-107) still render opaque, which
- *  matches the see-through-terminal UX of Alacritty and Kitty. */
-export function composeTheme(theme: ITheme, _opacityPct: number): ITheme {
+ *    composite = bodyBg × (1 - α) + themeBg × α
+ *
+ *  With allowTransparency: false the atlas fills the tmpCanvas with this
+ *  opaque colour, canvas-2d subpixel AA kicks in, and clearColor strips
+ *  the bg pixels back to alpha 0 — the halo pixels that remain are
+ *  pre-blended against the correct backdrop, so no coloured fringing
+ *  appears over body-colour regions (opacity < 100).
+ *
+ *  The RectangleRenderer skips cells with default bg (bg === 0), so our
+ *  opacity slider on #page keeps its single-layer alpha for the terminal
+ *  area while cells with explicit SGR backgrounds still render opaque at
+ *  their own colours. The alpha we write on the returned rgba string is
+ *  always 0 — xterm forces it back to 1 for the atlas (via
+ *  `color.opaque`) but uses only the RGB, which is what we want. */
+export function composeTheme(
+  theme: ITheme,
+  opacityPct: number,
+  bodyBg?: string,
+): ITheme {
   const bg = theme.background ?? '#000000';
-  const { r, g, b } = hexToRgb(bg);
+  const themeRgb = hexToRgb(bg);
+  const a = Math.max(0, Math.min(100, opacityPct)) / 100;
+  const body = bodyBg ? parseRgbString(bodyBg) : null;
+  const useBody = body && body.a > 0 && a < 1;
+  const r = useBody ? Math.round(themeRgb.r * a + body.r * (1 - a)) : themeRgb.r;
+  const g = useBody ? Math.round(themeRgb.g * a + body.g * (1 - a)) : themeRgb.g;
+  const b = useBody ? Math.round(themeRgb.b * a + body.b * (1 - a)) : themeRgb.b;
   return { ...theme, background: `rgba(${r},${g},${b},0)` };
 }
 

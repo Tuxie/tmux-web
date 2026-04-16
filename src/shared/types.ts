@@ -32,6 +32,9 @@ export interface TerminalOptions {
   fontSize: number;
   lineHeight: number;
   theme: TerminalTheme;
+  /** 0..100. Drives xterm.js allowTransparency selection in the WebGL
+   *  adapter; the actual alpha blending lives on #page. */
+  opacity: number;
 }
 
 /** Info about a single tmux window. */

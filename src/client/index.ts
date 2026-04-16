@@ -71,12 +71,15 @@ async function main() {
   };
 
   const page = document.getElementById('page')!;
+  const getBodyBg = (): string =>
+    getComputedStyle(document.body).backgroundColor;
   page.style.backgroundColor = composeBgColor(coloursOrDefault(settings.colours), settings.opacity);
   await adapter.init(container, {
     fontFamily: `"${settings.fontFamily}", monospace`,
     fontSize: settings.fontSize,
     lineHeight: settings.spacing,
-    theme: composeTheme(coloursOrDefault(settings.colours), settings.opacity),
+    theme: composeTheme(coloursOrDefault(settings.colours), settings.opacity, getBodyBg()),
+    opacity: settings.opacity,
   });
   adapter.focus();
   (window as any).__adapter = adapter;
@@ -114,7 +117,7 @@ async function main() {
       }
 
       page.style.backgroundColor = composeBgColor(coloursOrDefault(s.colours), s.opacity);
-      adapter.setTheme(composeTheme(coloursOrDefault(s.colours), s.opacity));
+      adapter.setTheme(composeTheme(coloursOrDefault(s.colours), s.opacity, getBodyBg()));
 
       if (fontChanged && adapter.requiresReloadForFontChange) {
         const _dd = document.getElementById('menu-dropdown') as HTMLElement | null;
@@ -129,6 +132,7 @@ async function main() {
           fontFamily: `"${s.fontFamily}", monospace`,
           fontSize: s.fontSize,
           lineHeight: s.spacing,
+          opacity: s.opacity,
         });
       } else if (fontChanged) {
         const _dd = document.getElementById('menu-dropdown') as HTMLElement | null;

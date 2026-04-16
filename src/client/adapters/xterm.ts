@@ -36,13 +36,20 @@ export class XtermAdapter implements TerminalAdapter {
       import('@xterm/addon-image'),
     ]);
 
+    // Keep allowTransparency OFF so xterm's WebGL atlas uses subpixel AA
+    // (opaque tmpCanvas + clearColor). composeTheme feeds xterm a
+    // theme.background pre-blended with the body backdrop at the current
+    // opacity, so glyph halos come out of the atlas already matching
+    // what's behind the terminal — no coloured fringing at any opacity.
+    // RectangleRenderer skips default-bg cells, so the #page alpha slider
+    // keeps driving the visible transparency.
     this.term = new Terminal({
       fontFamily: options.fontFamily,
       // xterm throws for lineHeight < 1; clamp to 1 here, patched below after open()
       fontSize: options.fontSize,
       lineHeight: Math.max(1, options.lineHeight),
       theme: options.theme,
-      allowTransparency: true,
+      allowTransparency: false,
       allowProposedApi: true,
       scrollback: 0,
       scrollbar: { showScrollbar: false },
@@ -115,11 +122,58 @@ export class XtermAdapter implements TerminalAdapter {
     renderer._updateDimensions = () => {
       orig();
       const d = renderer.dimensions;
+
+      // Round instead of floor for char.width so the cumulative floor error
+      // (natural advance - floored cell width) is redistributed symmetrically.
+      // Upstream uses Math.floor which always under-sizes the cell, leaving
+      // the glyph visually crowded against the next column; rounding caps the
+      // error at ±0.5 device px per cell and makes fonts whose natural advance
+      // has a >0.5 fractional component render noticeably sharper.
+      const charSize = renderer._charSizeService;
+      const dpr = renderer._devicePixelRatio || 1;
+      if (charSize && typeof charSize.width === 'number') {
+        const newCharW = Math.round(charSize.width * dpr);
+        const ls = Math.round(renderer._optionsService?.rawOptions?.letterSpacing ?? 0);
+        d.device.char.width = newCharW;
+        d.device.cell.width = newCharW + ls;
+        d.css.cell.width = d.device.cell.width / dpr;
+        d.device.canvas.width = this.term.cols * d.device.cell.width;
+        d.css.canvas.width = Math.round(d.device.canvas.width / dpr);
+      }
+
       if (d.device.cell.height < d.device.char.height) {
         d.device.char.top = d.device.cell.height - d.device.char.height;
       }
     };
     renderer.handleResize(this.term.cols, this.term.rows);
+    this._patchWebglAtlasFilter(renderer);
+  }
+
+  // Force NEAREST-neighbour sampling on the glyph atlas texture. xterm's
+  // WebGL addon leaves TEXTURE_MAG_FILTER at the WebGL default (LINEAR),
+  // which bilinearly blends neighbouring texels whenever the glyph quad
+  // and atlas texels don't line up exactly — always the case at
+  // fractional-dpr layouts or after float→int rounding. For outline fonts
+  // the atlas is already anti-aliased and there's nothing to blend so
+  // LINEAR and NEAREST produce identical output, but bitmap fonts (e.g.
+  // Topaz8 as TTF) get their hard pixel edges smeared and the strokes
+  // appear visibly thinner. Setting both MIN and MAG to NEAREST keeps
+  // bitmap glyphs pixel-exact without affecting smooth fonts.
+  private _patchWebglAtlasFilter(renderer: any): void {
+    const glyphRenderer: any = renderer?._glyphRenderer?.value;
+    if (!glyphRenderer || typeof glyphRenderer._bindAtlasPageTexture !== 'function') return;
+    if (glyphRenderer.__tmuxWebFilterPatched) return;
+    glyphRenderer.__tmuxWebFilterPatched = true;
+    const orig = glyphRenderer._bindAtlasPageTexture.bind(glyphRenderer);
+    glyphRenderer._bindAtlasPageTexture = function (gl: WebGL2RenderingContext, atlas: unknown, i: number) {
+      orig(gl, atlas, i);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    };
+    // Force the next frame to rebind textures with the new filters.
+    for (const t of glyphRenderer._atlasTextures ?? []) {
+      if (t) t.version = -1;
+    }
   }
 
   // xterm rejects lineHeight < 1 via the public setter. For sub-1 values, write the
@@ -172,6 +226,8 @@ export class XtermAdapter implements TerminalAdapter {
     if (opts.fontFamily !== undefined) this.term.options.fontFamily = opts.fontFamily;
     if (opts.fontSize !== undefined) this.term.options.fontSize = opts.fontSize;
     if (opts.lineHeight !== undefined) this._applyLineHeight(opts.lineHeight);
+    // opacity lives in theme.background (pre-blended against body); no
+    // allowTransparency toggle here.
     this.fitAddon.fit();
   }
 
