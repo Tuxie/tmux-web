@@ -62,6 +62,31 @@ export function createWsServer(
 }
 
 /**
+ * Run a tmux session-level action (rename / kill) against the current
+ * session. Bypasses the PTY so it works regardless of the user's tmux
+ * prefix binding.
+ */
+async function applySessionAction(
+  sessionName: string,
+  msg: { action: string; name?: string },
+  config: ServerConfig,
+): Promise<void> {
+  if (config.testMode) return;
+  const bin = config.tmuxBin;
+  try {
+    switch (msg.action) {
+      case 'rename':
+        if (typeof msg.name !== 'string' || !msg.name.trim()) return;
+        await execFileAsync(bin, ['rename-session', '-t', sessionName, msg.name]);
+        break;
+      case 'kill':
+        await execFileAsync(bin, ['kill-session', '-t', sessionName]);
+        break;
+    }
+  } catch { /* ignore */ }
+}
+
+/**
  * Run a tmux window action against the target session, bypassing the PTY
  * so it works regardless of what the user has bound their tmux prefix
  * key to. `index` is the tmux window index; omit for session-level
@@ -204,6 +229,10 @@ function handleConnection(
         }
         if (parsed.type === 'window' && typeof parsed.action === 'string') {
           void applyWindowAction(lastSession, parsed, config);
+          return;
+        }
+        if (parsed.type === 'session' && typeof parsed.action === 'string') {
+          void applySessionAction(lastSession, parsed, config);
           return;
         }
       } catch { /* not JSON, pass through */ }
