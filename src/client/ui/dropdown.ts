@@ -136,6 +136,8 @@ export interface ContextMenuOptions {
    * dismiss the menu on selection.
    */
   renderContent?: (menu: HTMLElement, close: () => void) => void;
+  /** Invoked after the menu is torn down (selection, outside click, Escape). */
+  onClose?: () => void;
 }
 
 export function showContextMenu(opts: ContextMenuOptions): void {
@@ -154,6 +156,7 @@ export function showContextMenu(opts: ContextMenuOptions): void {
     menu.remove();
     document.removeEventListener('pointerdown', outside, true);
     document.removeEventListener('keydown', onEsc, true);
+    opts.onClose?.();
   };
   const outside = (ev: PointerEvent) => {
     if (!menu.contains(ev.target as Node)) close();

@@ -282,7 +282,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
+  width: 27px;
   background: #68b;
   border-left: 1px solid #fff;
   flex-shrink: 0;
@@ -312,6 +312,14 @@ body {
   top: calc(50% - 4px);
   left: calc(50% - 5px);
   box-sizing: content-box;
+}
+
+/* Pressed look while the windows menu is open (mirrors .tb-btn-session.open) */
+#topbar .tb-btn-window-compact.open {
+  border-top: 1px solid #000;
+  border-left: 1px solid #000;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
 }
 /*
 #topbar .tb-btn-session.open .tb-session-plus {

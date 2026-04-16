@@ -589,12 +589,18 @@ export class Topbar {
     }
   }
 
-  /** Open the shared windows menu at viewport coordinates. */
-  private openWindowsMenu(x: number, y: number): void {
+  /** Open the shared windows menu, anchored below the given trigger button.
+   *  Adds a `.open` class to the trigger while the menu is showing so
+   *  themes can render a pressed state (like the session button). */
+  private openWindowsMenu(trigger: HTMLElement): void {
+    trigger.classList.add('open');
+    const rect = trigger.getBoundingClientRect();
     showContextMenu({
-      x, y,
+      x: rect.left,
+      y: rect.bottom + 2,
       className: 'tw-dd-windows',
       renderContent: (menu, close) => this.renderWindowsMenu(menu, close),
+      onClose: () => trigger.classList.remove('open'),
     });
   }
 
@@ -620,8 +626,7 @@ export class Topbar {
 
     wrap.addEventListener('click', (ev) => {
       ev.stopPropagation();
-      const rect = wrap.getBoundingClientRect();
-      this.openWindowsMenu(rect.left, rect.bottom + 2);
+      this.openWindowsMenu(wrap);
     });
     wrap.addEventListener('contextmenu', (ev) => {
       ev.preventDefault();
