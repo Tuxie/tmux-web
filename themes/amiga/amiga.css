@@ -200,6 +200,7 @@ body {
 #topbar .tb-btn-session {
   display: inline-flex;
   align-items: stretch;
+  justify-content: flex-start;
   padding: 0;
   height: 24px;
   margin: 0;
@@ -242,10 +243,14 @@ body {
   border-bottom: 1px solid #000;
 }
 
-/* Compact window button: mirror of the session button with + on the right. */
+/* Compact window button: mirror of the session button with + on the right.
+ * All base styling matches .tb-btn-session; only the plus/name order,
+ * the separator orientation, and the gadget's ::before borders are
+ * flipped so the button reads [ name | + ]. */
 #topbar .tb-btn-window-compact {
   display: inline-flex;
   align-items: stretch;
+  justify-content: flex-start;
   padding: 0;
   height: 24px;
   margin: 0;
@@ -256,14 +261,19 @@ body {
   color: #000;
   font-family: inherit;
   font-size: 16px;
+  line-height: 1;
   cursor: pointer;
-  background: transparent;
+  background: #68b;
 }
 #topbar .tb-btn-window-compact .tb-window-compact-label {
   display: flex;
   align-items: center;
   padding: 0 10px;
   border-right: 1px solid #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 28ch;
 }
 #topbar .tb-btn-window-compact .tb-window-compact-plus {
   display: flex;
@@ -272,6 +282,7 @@ body {
   width: 22px;
   background: #68b;
   border-left: 1px solid #fff;
+  flex-shrink: 0;
 }
 #topbar .tb-btn-window-compact .tb-window-compact-plus::before {
   content: '';
