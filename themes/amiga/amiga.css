@@ -321,8 +321,8 @@ body {
 #topbar .tb-btn-window-compact .tb-window-compact-plus::before {
   content: '';
   position: absolute;
-  width: 10px;
-  height: 8px;
+  width: 14px;
+  height: 12px;
   border: 2px solid #000;
   top: 50%;
   left: 50%;
@@ -334,12 +334,14 @@ body {
 #topbar .tb-btn-window-compact .tb-window-compact-plus::after {
   content: '';
   position: absolute;
-  width: 5px;
-  height: 3px;
+  width: 8px;
+  height: 5px;
   background: #fff;
   border: 1px solid #000;
-  top: calc(50% - 4px);
-  left: calc(50% - 5px);
+  border-right-width: 2px;
+  border-bottom-width: 2px;
+  top: calc(50% - 6px);
+  left: calc(50% - 7px);
   box-sizing: content-box;
 }
 
