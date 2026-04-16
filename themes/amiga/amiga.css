@@ -376,6 +376,15 @@ body {
   border-bottom: 1px solid #000;
 }
 
+/* Pressed look while this tab's right-click menu is open — matches the
+ * session / windows / settings buttons' .open treatment. */
+#topbar .win-tab.open {
+  border-top: 1px solid #000;
+  border-left: 1px solid #000;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
+}
+
 #tb-windows .tb-btn {
   color: #fff;
   text-shadow: -1px 0 black, 0 1px black, 1px 0 black, 0 -1px black;
