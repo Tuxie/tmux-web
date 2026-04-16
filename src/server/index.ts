@@ -11,6 +11,19 @@ import type { ServerConfig } from '../shared/types.js';
 import { DEFAULT_HOST, DEFAULT_PORT } from '../shared/constants.js';
 import { embeddedAssets } from './assets-embedded.js';
 
+// Force a UTF-8 locale on the server process so every child (including the
+// tmux subcommands fired from ws.ts: display-message, list-windows,
+// set-environment, etc.) outputs raw UTF-8 bytes. Otherwise tmux's
+// display-message substitutes non-ASCII chars with `_` when the locale is
+// C / POSIX — pane titles like "✳ Claude Code" arrived at the client as
+// "_ Claude Code".
+if (!process.env.LC_ALL || /^(C|POSIX)$/i.test(process.env.LC_ALL)) {
+  process.env.LC_ALL = 'C.UTF-8';
+}
+if (!process.env.LANG || /^(C|POSIX)$/i.test(process.env.LANG)) {
+  process.env.LANG = 'C.UTF-8';
+}
+
 function parseListenAddr(addr: string): { host: string; port: number } {
   const ipv6 = addr.match(/^\[(.+)\]:(\d+)$/);
   if (ipv6) return { host: ipv6[1]!, port: Number(ipv6[2]!) };
