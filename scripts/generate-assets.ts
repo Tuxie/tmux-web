@@ -29,14 +29,6 @@ async function generate() {
     }
   }
 
-  // Add files from fonts/
-  const fontsGlob = new Glob("fonts/**/*");
-  for (const file of fontsGlob.scanSync(projectRoot)) {
-    if (fs.statSync(path.join(projectRoot, file)).isFile() && file.endsWith(".woff2")) {
-      assets.push({ key: file, path: "../../" + file });
-    }
-  }
-
   // Add files from themes/ (recursive — every file in every pack)
   const themesGlob = new Glob("themes/**/*");
   for (const file of themesGlob.scanSync(projectRoot)) {

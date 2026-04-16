@@ -127,7 +127,6 @@ Options:
   const tmuxConfPath = path.join(projectRoot, 'tmux.conf');
   const htmlTemplatePath = path.join(projectRoot, 'src/client/index.html');
   const distDir = path.join(projectRoot, 'dist');
-  const fontsDir = path.join(projectRoot, 'fonts');
   const themesBundledDir = path.join(projectRoot, 'themes');
 
   let htmlTemplate: string;
@@ -179,7 +178,6 @@ Options:
     config,
     htmlTemplate,
     distDir,
-    fontsDir,
     themesUserDir,
     themesBundledDir,
     projectRoot,

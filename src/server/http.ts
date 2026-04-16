@@ -24,7 +24,6 @@ export interface HttpHandlerOptions {
   config: ServerConfig;
   htmlTemplate: string;
   distDir: string;
-  fontsDir: string;
   themesUserDir: string;
   themesBundledDir: string;
   projectRoot: string;
@@ -164,17 +163,6 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     const pathname = url.pathname;
 
-    if (pathname.startsWith('/fonts/')) {
-      let filename: string;
-      try { filename = decodeURIComponent(pathname.slice(7)); } catch { res.writeHead(400); res.end(); return; }
-      if (!filename || filename.includes('/') || filename.includes('..')) {
-        res.writeHead(400); res.end(); return;
-      }
-      const asset = await readFile(path.join(opts.fontsDir, filename), `fonts/${filename}`);
-      if (asset) return serveFile(res, asset.data, asset.contentType);
-      return serve404(res);
-    }
-
     if (pathname === '/api/fonts') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(listFonts(packs)));
@@ -215,11 +203,6 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
       }
       const found = readPackFile(packDir, fileName, packs);
       if (!found) {
-        // The default theme pack still reuses the legacy bundled fonts/ dir.
-        if (packDir === 'default') {
-          const legacyFont = await readFile(path.join(opts.fontsDir, fileName), `fonts/${fileName}`);
-          if (legacyFont) return serveFile(res, legacyFont.data, legacyFont.contentType);
-        }
         res.writeHead(404);
         res.end();
         return;

@@ -1,6 +1,11 @@
 {
   "author": "tmux-web",
   "version": "1",
+  "fonts": [
+    { "file": "MicroKnight Nerd Font.woff2", "family": "MicroKnight Nerd Font" },
+    { "file": "Topaz8 Amiga1200 Nerd Font.woff2", "family": "Topaz8 Amiga1200 Nerd Font" },
+    { "file": "mOsOul Nerd Font.woff2", "family": "mOsOul Nerd Font" }
+  ],
   "themes": [
     {
       "name": "AmigaOS 3.1",
