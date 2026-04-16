@@ -19,5 +19,5 @@ test("switch colour scheme applies new background hex live", async ({ page }) =>
     const t = (window as any).__adapter?.term;
     return t?.options?.theme?.background;
   });
-  expect(bg).toMatch(/^rgba\(/);
+  expect(bg).toMatch(/^#[0-9a-fA-F]{6}$/);
 });

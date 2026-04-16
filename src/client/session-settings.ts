@@ -3,7 +3,7 @@ export interface SessionSettings {
   colours: string;
   fontFamily: string;
   fontSize: number;
-  lineHeight: number;
+  spacing: number;
   opacity: number; // 0..100
 }
 
@@ -12,7 +12,7 @@ export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
   colours: 'Gruvbox Dark',
   fontFamily: 'Iosevka Nerd Font Mono',
   fontSize: 18,
-  lineHeight: 0.85,
+  spacing: 0.85,
   opacity: 0,
 };
 
@@ -23,7 +23,8 @@ export interface ThemeDefaults {
   colours?: string;
   fontFamily?: string;
   fontSize?: number;
-  lineHeight?: number;
+  spacing?: number;
+  opacity?: number;
 }
 
 export interface LoadOpts {
@@ -42,7 +43,8 @@ export function loadSessionSettings(name: string, live: SessionSettings | null, 
   if (td.colours) overlay.colours = td.colours;
   if (td.fontFamily) overlay.fontFamily = td.fontFamily;
   if (td.fontSize !== undefined) overlay.fontSize = td.fontSize;
-  if (td.lineHeight !== undefined) overlay.lineHeight = td.lineHeight;
+  if (td.spacing !== undefined) overlay.spacing = td.spacing;
+  if (td.opacity !== undefined) overlay.opacity = td.opacity;
   return { ...opts.defaults, ...overlay };
 }
 
@@ -74,6 +76,7 @@ export function applyThemeDefaults(s: SessionSettings, td: ThemeDefaults): Sessi
     colours: td.colours ?? s.colours,
     fontFamily: td.fontFamily ?? s.fontFamily,
     fontSize: td.fontSize ?? s.fontSize,
-    lineHeight: td.lineHeight ?? s.lineHeight,
+    spacing: td.spacing ?? s.spacing,
+    opacity: td.opacity ?? s.opacity,
   };
 }

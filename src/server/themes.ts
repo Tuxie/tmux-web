@@ -15,8 +15,9 @@ export type ThemeInfo = {
   css: string;
   defaultFont?: string;
   defaultFontSize?: number;
-  defaultLineHeight?: number;
+  defaultSpacing?: number;
   defaultColours?: string;
+  defaultOpacity?: number;
   author?: string;
   version?: string;
   source: 'user' | 'bundled';
@@ -39,8 +40,9 @@ export type PackManifest = {
     name: string; css: string;
     defaultFont?: string;
     defaultFontSize?: number;
-    defaultLineHeight?: number;
+    defaultSpacing?: number;
     defaultColours?: string;
+    defaultOpacity?: number;
   }[];
 };
 
@@ -106,8 +108,9 @@ export function listThemes(packs: PackInfo[]): ThemeInfo[] {
         css: theme.css,
         defaultFont: theme.defaultFont,
         defaultFontSize: theme.defaultFontSize,
-        defaultLineHeight: theme.defaultLineHeight,
+        defaultSpacing: theme.defaultSpacing,
         defaultColours: theme.defaultColours,
+        defaultOpacity: theme.defaultOpacity,
         author: pack.manifest.author,
         version: pack.manifest.version,
         source: pack.source,

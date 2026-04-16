@@ -4,8 +4,9 @@ export type ThemeInfo = {
   css: string;
   defaultFont?: string;
   defaultFontSize?: number;
-  defaultLineHeight?: number;
+  defaultSpacing?: number;
   defaultColours?: string;
+  defaultOpacity?: number;
   author?: string;
   version?: string;
   source: 'user' | 'bundled';

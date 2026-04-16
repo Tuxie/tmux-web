@@ -1,6 +1,6 @@
 /**
  * Verifies that the settings menu remains open (and does not lose DOM focus)
- * while the user changes font, font size, or line height settings.
+ * while the user changes font, font size, or spacing settings.
  *
  * The terminal may internally re-render or even reload the page, but the
  * menu must stay visible and interactive throughout.
@@ -68,13 +68,13 @@ test.describe('menu stays open during settings changes: xterm', () => {
     await expect(page.locator('#menu-dropdown')).toBeVisible();
   });
 
-  test('menu stays open after line height number input change', async ({ page }) => {
-    await setNumberInput(page, '#inp-lineheight', '0.9');
+  test('menu stays open after spacing number input change', async ({ page }) => {
+    await setNumberInput(page, '#inp-spacing', '0.9');
     await expect(page.locator('#menu-dropdown')).toBeVisible();
   });
 
-  test('menu stays open after line height slider change', async ({ page }) => {
-    await setSlider(page, '#sld-lineheight', '0.9');
+  test('menu stays open after spacing slider change', async ({ page }) => {
+    await setSlider(page, '#sld-spacing', '0.9');
     await expect(page.locator('#menu-dropdown')).toBeVisible();
   });
 

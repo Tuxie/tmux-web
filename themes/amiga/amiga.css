@@ -1,40 +1,51 @@
 /* AmigaOS 3.1 Theme */
+
 body {
-  background: #aaaaaa;
-  border-top: 1px solid #ffffff;
-  border-left: 1px solid #ffffff;
-  border-right: 1px solid #000000;
-  border-bottom: 1px solid #000000;
-  box-shadow: inset 1px 1px 0 #aaaaaa, inset -1px -1px 0 #aaaaaa,
-              inset 2px 2px 0 #000000, inset -2px -2px 0 #ffffff;
-  box-sizing: border-box;
+  background: #bbb;
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
   font-family: 'Topaz8 Amiga1200 Nerd Font', monospace;
+  text-shadow: 0 0 2px #ddd;
+}
+
+#page {
+  margin-top: 1px;
+  margin-left: 1px;
+  margin-right: 0px;
+  margin-bottom: 0px;
+  border-top: 4px solid #68b;
+  border-left: 4px solid #68b;
+  border-right: 4px solid #68b;
+  border-bottom: 4px solid #68b;
+  box-shadow: inset 1px 1px 0 #000, inset -1px -1px 0 #fff;
 }
 
 #topbar {
   display: flex;
   align-items: center;
-  height: 22px;
-  background: #6688bb; /* Classic AmigaOS active title bar */
+  height: 20px;
+  background: #68b;
   color: #000000;
   font-family: 'Topaz8 Amiga1200 Nerd Font', monospace;
-  font-size: 16px;
+  font-size: 19px;
   position: absolute;
-  top: 3px;
-  left: 3px;
+  top: 0px;
+  left: 0px;
   right: 3px;
   z-index: 10;
-  padding: 0 4px;
-  border-top: 1px solid #ffffff;
-  border-left: 1px solid #ffffff;
-  border-right: 1px solid #000000;
-  border-bottom: 1px solid #000000;
+  padding: 0px 0px 4px 4px;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  border-bottom: 1px solid #000;
   transition: transform 0.3s ease;
   pointer-events: none;
 }
 
 #topbar > * { pointer-events: auto; }
-#topbar.hidden { transform: translateY(-100%); }
+#topbar.hidden { transform: translateY(-150%); }
 #topbar.hidden > * { pointer-events: none; }
 
 #tb-session, #tb-windows, #tb-right { display: flex; align-items: center; gap: 2px; }
@@ -48,12 +59,12 @@ body {
   border-right: 1px solid #000000;
   border-bottom: 1px solid #000000;
   color: #000000;
-  height: 16px;
-  margin: 0 2px;
+  height: 18px;
+  margin: 0px 2px 0px 2px;
   padding: 0 8px;
   font-family: inherit;
   font-size: 14px;
-  line-height: 12px;
+  line-height: 1em;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -68,25 +79,65 @@ body {
   background: #999999;
 }
 
-#topbar select {
+.menu-input-select {
   background: #aaaaaa;
-  border-top: 1px solid #ffffff;
+  border-top: 1px solid #fff;
   border-left: 1px solid #ffffff;
   border-right: 1px solid #000000;
   border-bottom: 1px solid #000000;
+  padding-top: 1px;
+  padding-left: 3px;
   color: #000000;
-  height: 16px;
+  height: 22px;
   margin: 0 2px;
   font-family: inherit;
-  font-size: 14px;
+  font-size: 15px;
   outline: none;
 }
 
-#topbar select:active {
-  border-top: 1px solid #000000;
-  border-left: 1px solid #000000;
-  border-right: 1px solid #ffffff;
-  border-bottom: 1px solid #ffffff;
+.menu-row {
+  font-size: 15px;
+}
+
+#tb-session {
+  padding-left: 25px;
+  padding-right: 20px;
+}
+
+#btn-new-session {
+  position: absolute;
+  left: -7px;
+  height: 24px !important;
+  border-top: 1px solid #fff !important;
+  border-left: 1px solid #fff !important;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #000;
+  background: #68b !important;
+  color: #fff !important;
+  font-size: 14px !important;
+}
+
+#tb-session select {
+  border: 1px solid #68b;
+  padding: 1px;
+  background: none;
+  font-family: inherit;
+  font-size: 16px !important;
+}
+
+#tb-session select:active {
+  border-top: 1px solid #000;
+  border-left: 1px solid #000;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #fff;
+  background: #68b !important;
+}
+
+select:active {
+  border-top: 1px solid #000;
+  border-left: 1px solid #000;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #fff;
 }
 
 #topbar .win-tab {
@@ -96,8 +147,8 @@ body {
   padding: 0 6px;
   cursor: pointer;
   font-family: inherit;
-  font-size: 14px;
-  line-height: 16px;
+  font-size: 16px;
+  line-height: 1em;
 }
 
 #topbar .win-tab:hover {
@@ -110,51 +161,63 @@ body {
   border-left: 1px solid #ffffff;
   border-right: 1px solid #000000;
   border-bottom: 1px solid #000000;
-  height: 16px;
-  line-height: 12px;
+  height: 19px;
+  line-height: 1em;
 }
 
-#btn-menu {
-  margin-right: 0;
-  height: 16px;
-}
 
 #menu-wrap { position: relative; display: flex; align-items: center; }
 
 #menu-dropdown {
   position: absolute;
-  top: calc(100% + 2px);
-  right: 0;
-  background: #000000; /* Config menu background same as terminal background */
-  border-top: 1px solid #aaaaaa;
-  border-left: 1px solid #aaaaaa;
-  border-right: 1px solid #ffffff; /* Typical Amiga inverted border for dropdowns */
-  border-bottom: 1px solid #ffffff;
-  color: #ffffff; /* Text color for menu */
+  top: calc(100% + 0px);
+  right: 1px;
+  background: #bbb; /* Config menu background same as terminal background */
+  border-top: 1px solid #fff;
+  border-left: 1px solid #fff;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
+  color: #000;
   padding: 4px 0;
   z-index: 100;
   min-width: 270px;
   font-family: 'Topaz8 Amiga1200 Nerd Font', monospace;
-  font-size: 14px;
 }
 
-.menu-row { display: flex; align-items: center; gap: 8px; padding: 5px 12px; cursor: pointer; white-space: nowrap; }
-.menu-row:hover { background: #333333; }
-.menu-row-static { cursor: default; gap: 6px; }
+.menu-row { display: flex; align-items: center; gap: 3px; padding: 2px 12px; cursor: pointer; white-space: nowrap; }
+.menu-row:hover { background: #68b; }
+.menu-row-static { cursor: default; gap: 3px; }
 
-.menu-label { color: #aaaaaa; min-width: 72px; }
+.menu-label { color: #000; min-width: 72px; }
 
-.menu-input-select, .menu-input-number {
-  background: #000000;
-  border: 1px solid #aaaaaa;
-  color: #ffffff;
+#btn-reset-colours, #btn-reset-font {
+  font-family: sans-serif !important;
+  font-size: 24px !important;
+  padding: 0px 6px !important;
+  height: 22px !important;
+}
+
+.menu-input-number {
+  background: #aaa;
+  color: #000;
   border-radius: 0;
-  padding: 1px 4px;
+  padding: 3px 4px;
   font-family: inherit;
-  font-size: 14px;
+  /* font-size: 14px; */
 }
 
-.menu-input-number { width: 46px; }
+.menu-input-number {
+  border-top: 1px solid #000;
+  border-left: 1px solid #000;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #fff;
+  width: 46px;
+}
+
+.menu-input-select {
+  background: #aaa;
+  color: #000;
+}
 
 .menu-hr { border: none; border-top: 1px solid #aaaaaa; margin: 4px 0; }
 
@@ -167,6 +230,11 @@ body {
   color: #aaaaaa;
   white-space: nowrap;
 }
+#menu-footer:hover { background: none !important; }
+
+input {
+  accent-color: #68b !important;
+}
 
 /* Terminal positioning and padding */
 #terminal {
@@ -175,14 +243,42 @@ body {
   left: 3px;
   right: 3px;
   bottom: 3px;
-  background: #000000;
-  padding: 4px; /* A few pixels padding */
-  border-top: 1px solid #000000;
-  border-left: 1px solid #000000;
-  border-right: 1px solid #ffffff;
-  border-bottom: 1px solid #ffffff;
+  padding: 0px;
+ /*  padding: 0px; */ /* A few pixels padding */
+  /*
+  border-top: 1px solid #000;
+  border-left: 1px solid #000;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #fff; */
 }
 
 body.topbar-pinned #terminal {
   top: 27px; /* 3px gap + 22px topbar + 2px gap */
 }
+/*
+#tb-spacer {
+  background: #68b !important;
+  border-right: 10px solid #f00 !important;
+  height: 24px !important;
+} */
+#menu-wrap {
+  width: 21px;
+  border-left: 1px solid #000 !important;
+}
+#btn-menu {
+  background: #68b !important;
+  position: relative;
+  right: 0px !important;
+  top: 0px !important;
+  width: 39px !important;
+  color: #fff !important;
+  font-size: 19px !important;
+  margin-left: 0px !important;
+  padding: 0px 8px !important;
+  height: 24px !important;
+  border-top: 1px solid #fff !important;
+  border-left: 1px solid #fff !important;
+  border-right: 1px solid #fff;
+  border-bottom: 1px solid #000;
+}
+

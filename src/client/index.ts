@@ -50,7 +50,7 @@ async function main() {
     colours: currentTheme.defaultColours,
     fontFamily: currentTheme.defaultFont,
     fontSize: currentTheme.defaultFontSize,
-    lineHeight: currentTheme.defaultLineHeight,
+    spacing: currentTheme.defaultSpacing,
   } : undefined;
 
   const liveSettings = getLiveSessionSettings(sessionName);
@@ -73,7 +73,7 @@ async function main() {
   await adapter.init(container, {
     fontFamily: `"${settings.fontFamily}", monospace`,
     fontSize: settings.fontSize,
-    lineHeight: settings.lineHeight,
+    lineHeight: settings.spacing,
     theme: composeTheme(coloursOrDefault(settings.colours)),
   });
   adapter.focus();
@@ -116,7 +116,7 @@ async function main() {
         adapter.updateOptions({
           fontFamily: `"${s.fontFamily}", monospace`,
           fontSize: s.fontSize,
-          lineHeight: s.lineHeight,
+          lineHeight: s.spacing,
         });
       } else if (fontChanged) {
         const _dd = document.getElementById('menu-dropdown') as HTMLElement | null;

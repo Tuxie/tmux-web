@@ -95,7 +95,7 @@ test.describe('font change rendering: xterm', () => {
         colours: 'Gruvbox Dark',
         fontFamily: 'Iosevka Nerd Font Mono',
         fontSize: 18,
-        lineHeight: 1.125,
+        spacing: 1.125,
         opacity: 0,
       };
       localStorage.setItem('tmux-web-session:main', JSON.stringify(settings));

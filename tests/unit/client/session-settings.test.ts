@@ -23,12 +23,12 @@ describe("session-settings", () => {
     const mod = await import("../../../src/client/session-settings.ts?v=" + Math.random());
     const s = mod.loadSessionSettings("foo", null, {
       defaults: mod.DEFAULT_SESSION_SETTINGS,
-      themeDefaults: { colours: "Dracula", fontFamily: "X", fontSize: 14, lineHeight: 1.2 },
+      themeDefaults: { colours: "Dracula", fontFamily: "X", fontSize: 14, spacing: 1.2 },
     });
     expect(s.colours).toBe("Dracula");
     expect(s.fontFamily).toBe("X");
     expect(s.fontSize).toBe(14);
-    expect(s.lineHeight).toBe(1.2);
+    expect(s.spacing).toBe(1.2);
   });
 
   test("inherits from live session when no stored", async () => {
@@ -51,12 +51,12 @@ describe("session-settings", () => {
 
   test("applyThemeDefaults overwrites all four fields when provided", async () => {
     const mod = await import("../../../src/client/session-settings.ts?v=" + Math.random());
-    const start = { ...mod.DEFAULT_SESSION_SETTINGS, colours: "Old", fontFamily: "Old", fontSize: 10, lineHeight: 1.5, opacity: 30 };
-    const result = mod.applyThemeDefaults(start, { colours: "New", fontFamily: "New", fontSize: 20, lineHeight: 0.9 });
+    const start = { ...mod.DEFAULT_SESSION_SETTINGS, colours: "Old", fontFamily: "Old", fontSize: 10, spacing: 1.5, opacity: 30 };
+    const result = mod.applyThemeDefaults(start, { colours: "New", fontFamily: "New", fontSize: 20, spacing: 0.9 });
     expect(result.colours).toBe("New");
     expect(result.fontFamily).toBe("New");
     expect(result.fontSize).toBe(20);
-    expect(result.lineHeight).toBe(0.9);
+    expect(result.spacing).toBe(0.9);
     expect(result.opacity).toBe(30);  // opacity not in theme defaults — unchanged
   });
 

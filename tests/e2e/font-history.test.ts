@@ -1,7 +1,7 @@
 /**
- * Verify that font and line height preferences are remembered per font.
+ * Verify that font and spacing preferences are remembered per font.
  *
- * - Line height is remembered per font: changing fonts restores the height last used with that font
+ * - Spacing is remembered per font: changing fonts restores the spacing last used with that font
  */
 import { test, expect } from '@playwright/test';
 import { mockApis, injectWsSpy, waitForWsOpen } from './helpers.js';
@@ -22,7 +22,7 @@ async function waitForFontList(page: import('@playwright/test').Page): Promise<v
   );
 }
 
-test.describe('font and line height memory', () => {
+test.describe('font and spacing memory', () => {
   test.beforeEach(async ({ page, context }) => {
     await context.clearCookies();
     await injectWsSpy(page);
@@ -32,33 +32,33 @@ test.describe('font and line height memory', () => {
     await waitForFontList(page);
   });
 
-  test('line height change persists in session settings', async ({ page }) => {
+  test('spacing change persists in session settings', async ({ page }) => {
     await openMenu(page);
 
-    // Change line height
-    await page.fill('#inp-lineheight', '1.5');
-    await page.locator('#inp-lineheight').dispatchEvent('change');
+    // Change spacing
+    await page.fill('#inp-spacing', '1.5');
+    await page.locator('#inp-spacing').dispatchEvent('change');
     await page.waitForTimeout(100);
 
     // Verify it's saved to localStorage
     const stored = await page.evaluate(() => {
       try { return JSON.parse(localStorage.getItem('tmux-web-session:main') || '{}'); } catch { return {}; }
     });
-    expect(stored.lineHeight).toBeCloseTo(1.5, 1);
+    expect(stored.spacing).toBeCloseTo(1.5, 1);
   });
 
-  test('font and line height persist across page reload', async ({ page }) => {
+  test('font and spacing persist across page reload', async ({ page }) => {
     const otherFont = await page.evaluate(() => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
       return Array.from(sel.options).find(o => !o.value.includes('Iosevka Nerd Font Mono'))?.value ?? '';
     });
     expect(otherFont).toBeTruthy();
 
-    // Open menu, select a bundled font and set line height
+    // Open menu, select a bundled font and set spacing
     await openMenu(page);
     await page.selectOption('#inp-font-bundled', otherFont);
-    await page.fill('#inp-lineheight', '0.85');
-    await page.locator('#inp-lineheight').dispatchEvent('change');
+    await page.fill('#inp-spacing', '0.85');
+    await page.locator('#inp-spacing').dispatchEvent('change');
     await page.waitForTimeout(100);
 
     // Close menu before reload
@@ -69,10 +69,10 @@ test.describe('font and line height memory', () => {
     await waitForWsOpen(page);
     await waitForFontList(page);
 
-    // Verify the font and line height are restored from localStorage
+    // Verify the font and spacing are restored from localStorage
     await openMenu(page);
     await expect(page.locator('#inp-font-bundled')).toHaveValue(otherFont);
-    const lineHeight = await page.inputValue('#inp-lineheight');
-    expect(parseFloat(lineHeight)).toBeCloseTo(0.85, 1);
+    const spacing = await page.inputValue('#inp-spacing');
+    expect(parseFloat(spacing)).toBeCloseTo(0.85, 1);
   });
 });

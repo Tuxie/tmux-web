@@ -28,7 +28,7 @@ test.describe('theming', () => {
     await page.addInitScript(() => {
       localStorage.setItem('tmux-web-session:main',
         JSON.stringify({ theme: 'NoSuchTheme', colours: 'Gruvbox Dark', fontFamily: 'Iosevka Nerd Font Mono',
-                         fontSize: 18, lineHeight: 0.85, opacity: 0 }));
+                         fontSize: 18, spacing: 0.85, opacity: 0 }));
     });
     await page.goto('/');
     await expect(page.locator('#terminal')).toBeVisible();

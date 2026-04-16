@@ -145,8 +145,8 @@ export class Topbar {
     const btnResetFont = document.getElementById('btn-reset-font') as HTMLButtonElement;
     const sldSize = document.getElementById('sld-fontsize') as HTMLInputElement;
     const inpSize = document.getElementById('inp-fontsize') as HTMLInputElement;
-    const sldHeight = document.getElementById('sld-lineheight') as HTMLInputElement;
-    const inpHeight = document.getElementById('inp-lineheight') as HTMLInputElement;
+    const sldHeight = document.getElementById('sld-spacing') as HTMLInputElement;
+    const inpHeight = document.getElementById('inp-spacing') as HTMLInputElement;
     const sldOpacity = document.getElementById('sld-opacity') as HTMLInputElement;
     const inpOpacity = document.getElementById('inp-opacity') as HTMLInputElement;
 
@@ -189,7 +189,7 @@ export class Topbar {
       coloursSelect.value = s.colours;
       fontSelect.value = s.fontFamily;
       sldSize.value = inpSize.value = String(s.fontSize);
-      sldHeight.value = inpHeight.value = String(s.lineHeight);
+      sldHeight.value = inpHeight.value = String(s.spacing);
       sldOpacity.value = inpOpacity.value = String(s.opacity);
     };
 
@@ -210,7 +210,8 @@ export class Topbar {
       if (theme?.defaultColours) td.colours = theme.defaultColours;
       if (theme?.defaultFont) td.fontFamily = theme.defaultFont;
       if (theme?.defaultFontSize !== undefined) td.fontSize = theme.defaultFontSize;
-      if (theme?.defaultLineHeight !== undefined) td.lineHeight = theme.defaultLineHeight;
+      if (theme?.defaultSpacing !== undefined) td.spacing = theme.defaultSpacing;
+      if (theme?.defaultOpacity !== undefined) td.opacity = theme.defaultOpacity;
       const current = getSettings();
       const updated = applyThemeDefaults({ ...current, theme: name }, td);
       saveSessionSettings(this.sessionName, updated);
@@ -225,10 +226,16 @@ export class Topbar {
     btnResetColours.addEventListener('click', () => {
       const current = getSettings();
       const theme = themes.find(t => t.name === current.theme);
+      const patch: Partial<SessionSettings> = {};
       if (theme?.defaultColours) {
         coloursSelect.value = theme.defaultColours;
-        commit({ colours: theme.defaultColours });
+        patch.colours = theme.defaultColours;
       }
+      if (theme?.defaultOpacity !== undefined) {
+        sldOpacity.value = inpOpacity.value = String(theme.defaultOpacity);
+        patch.opacity = theme.defaultOpacity;
+      }
+      if (Object.keys(patch).length) commit(patch);
     });
 
     fontSelect.addEventListener('change', () => {
@@ -238,17 +245,27 @@ export class Topbar {
     btnResetFont.addEventListener('click', () => {
       const current = getSettings();
       const theme = themes.find(t => t.name === current.theme);
+      const patch: Partial<SessionSettings> = {};
       if (theme?.defaultFont) {
         fontSelect.value = theme.defaultFont;
-        commit({ fontFamily: theme.defaultFont });
+        patch.fontFamily = theme.defaultFont;
       }
+      if (theme?.defaultFontSize !== undefined) {
+        sldSize.value = inpSize.value = String(theme.defaultFontSize);
+        patch.fontSize = theme.defaultFontSize;
+      }
+      if (theme?.defaultSpacing !== undefined) {
+        sldHeight.value = inpHeight.value = String(theme.defaultSpacing);
+        patch.spacing = theme.defaultSpacing;
+      }
+      if (Object.keys(patch).length) commit(patch);
     });
 
     sldSize.addEventListener('input', () => { inpSize.value = sldSize.value; commit({ fontSize: parseFloat(sldSize.value) }); });
     inpSize.addEventListener('change', () => { sldSize.value = inpSize.value; commit({ fontSize: parseFloat(inpSize.value) }); });
 
-    sldHeight.addEventListener('input', () => { inpHeight.value = sldHeight.value; commit({ lineHeight: parseFloat(sldHeight.value) }); });
-    inpHeight.addEventListener('change', () => { sldHeight.value = inpHeight.value; commit({ lineHeight: parseFloat(inpHeight.value) }); });
+    sldHeight.addEventListener('input', () => { inpHeight.value = sldHeight.value; commit({ spacing: parseFloat(sldHeight.value) }); });
+    inpHeight.addEventListener('change', () => { sldHeight.value = inpHeight.value; commit({ spacing: parseFloat(inpHeight.value) }); });
 
     sldOpacity.addEventListener('input', () => { inpOpacity.value = sldOpacity.value; commit({ opacity: parseInt(sldOpacity.value, 10) }); });
     inpOpacity.addEventListener('change', () => { sldOpacity.value = inpOpacity.value; commit({ opacity: parseInt(inpOpacity.value, 10) }); });

@@ -63,7 +63,7 @@ test.describe('font selection: xterm', () => {
       const settings = {
         fontFamily: 'Iosevka Nerd Font Mono',
         fontSize: 18,
-        lineHeight: 1.125
+        spacing: 1.125
       };
       document.cookie = `tmux-web-settings=${encodeURIComponent(JSON.stringify(settings))}; path=/;`;
       localStorage.clear();

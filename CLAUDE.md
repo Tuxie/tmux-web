@@ -243,7 +243,7 @@ IDs (do not rename):
 - `#inp-colours` — colour scheme `<select>`
 - `#inp-font-bundled` — bundled font `<select>`
 - `#inp-fontsize` / `#sld-fontsize` — font size number/slider
-- `#inp-lineheight` / `#sld-lineheight` — line height number/slider
+- `#inp-spacing` / `#sld-spacing` — spacing (line height) number/slider
 - `#inp-opacity` / `#sld-opacity` — opacity number/slider
 - `#btn-reset-colours` / `#btn-reset-font` — reset to theme defaults
 

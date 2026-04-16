@@ -2,14 +2,14 @@ import { test, expect } from "@playwright/test";
 
 async function waitForMenuInputs(page: import('@playwright/test').Page): Promise<void> {
   await page.waitForFunction(
-    () => (document.getElementById('inp-opacity') as HTMLInputElement | null) !== null,
+    () => (document.getElementById('inp-colours') as HTMLSelectElement | null)?.options.length > 0,
     { timeout: 5000 }
   );
 }
 
 test("opacity slider sets rgba background-color on #page", async ({ page }) => {
   await page.goto("/");
-  await page.waitForSelector("#page");
+  await page.waitForSelector("#terminal canvas, #terminal .xterm-screen");
 
   await page.click("#btn-menu");
   await waitForMenuInputs(page);
