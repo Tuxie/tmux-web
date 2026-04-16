@@ -22,6 +22,7 @@ export class Topbar {
   private topbar!: HTMLElement;
   private sessionSelect!: HTMLSelectElement;
   private winTabs!: HTMLElement;
+  private tbTitle!: HTMLElement;
   private autohideChk!: HTMLInputElement;
   private autohide = true;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
@@ -36,6 +37,7 @@ export class Topbar {
     this.topbar = document.getElementById('topbar')!;
     this.sessionSelect = document.getElementById('session-select') as HTMLSelectElement;
     this.winTabs = document.getElementById('win-tabs')!;
+    this.tbTitle = document.getElementById('tb-title')!;
     this.autohideChk = document.getElementById('chk-autohide') as HTMLInputElement;
 
     this.setupSessionDropdown();
@@ -371,6 +373,7 @@ export class Topbar {
       if (this.lastActiveWindowIndex !== null) this.show();
       this.lastActiveWindowIndex = activeIdx;
     }
+    this.tbTitle.textContent = activeWin?.name ?? '';
     this.winTabs.innerHTML = '';
     for (const w of windows) {
       const btn = document.createElement('button');
