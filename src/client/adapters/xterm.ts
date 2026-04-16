@@ -73,6 +73,7 @@ export class XtermAdapter implements TerminalAdapter {
         });
         this.term.loadAddon(addon);
         this.webglAddon = addon;
+        this._patchWebglLineHeightOverflow();
       } catch (err) {
         console.warn('WebGL renderer unavailable, falling back to DOM:', err);
       }
@@ -83,6 +84,42 @@ export class XtermAdapter implements TerminalAdapter {
 
     const resizeObserver = new ResizeObserver(() => this.fitAddon.fit());
     resizeObserver.observe(container);
+  }
+
+  // With lineHeight < 1 the WebGL renderer floors cellHeight = charHeight *
+  // lineHeight, so cellHeight < charHeight. By default xterm centers the glyph
+  // vertically in its cell (char.top = (cellH - charH)/2), so glyphs overflow
+  // both the top and bottom of each cell by (charH-cellH)/2 pixels. For the
+  // bottom row, the overflow below extends past the canvas buffer (which is
+  // sized to rows*cellH) and gets clipped — visible as missing descender
+  // pixels on the last line.
+  //
+  // Padding canvas.height doesn't fix it: the GlyphRenderer's per-cell
+  // `a_cellpos` is `(x/cols, y/rows)` in grid-fraction space, so any canvas
+  // height change stretches cell positions non-uniformly relative to bg
+  // rectangles.
+  //
+  // Workaround: anchor glyph bottoms to cell bottoms by rewriting char.top
+  // to `cellH - charH` (negative). Last row's descenders now fit; rows above
+  // lose the bottom half of their overflow (which previously overlapped the
+  // next row's top anyway). Row 0's top sheds a small strip of ascender
+  // headroom — typically empty space in monospace fonts.
+  private _patchWebglLineHeightOverflow(): void {
+    // _renderService._renderer is a MutableDisposable wrapper; the actual
+    // WebglRenderer sits at .value.
+    const renderer: any = this.term?._core?._renderService?._renderer?.value;
+    if (!renderer || typeof renderer._updateDimensions !== 'function') return;
+    if (renderer.__tmuxWebLineHeightPatched) return;
+    renderer.__tmuxWebLineHeightPatched = true;
+    const orig = renderer._updateDimensions.bind(renderer);
+    renderer._updateDimensions = () => {
+      orig();
+      const d = renderer.dimensions;
+      if (d.device.cell.height < d.device.char.height) {
+        d.device.char.top = d.device.cell.height - d.device.char.height;
+      }
+    };
+    renderer.handleResize(this.term.cols, this.term.rows);
   }
 
   // xterm rejects lineHeight < 1 via the public setter. For sub-1 values, write the
