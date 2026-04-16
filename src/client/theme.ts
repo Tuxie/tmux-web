@@ -18,12 +18,6 @@ export type FontInfo = {
   pack: string;
 };
 
-export type Insets = {
-  top: number;
-  right: number;
-  bottom: number;
-  left: number;
-};
 
 let cachedThemes: ThemeInfo[] | null = null;
 let cachedFonts: FontInfo[] | null = null;
@@ -86,16 +80,6 @@ export async function applyTheme(name: string): Promise<void> {
   activeTheme = name;
 }
 
-export function readBorderInsets(): Insets {
-  const styles = getComputedStyle(document.documentElement);
-  const px = (key: string) => parseFloat(styles.getPropertyValue(key)) || 0;
-  return {
-    top: px('--tw-border-top'),
-    right: px('--tw-border-right'),
-    bottom: px('--tw-border-bottom'),
-    left: px('--tw-border-left'),
-  };
-}
 
 export function clearCaches(): void {
   cachedThemes = null;

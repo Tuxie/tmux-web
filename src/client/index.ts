@@ -7,7 +7,7 @@ import { installMouseHandler, getSgrCoords, buildSgrSequence } from './ui/mouse.
 import { installKeyboardHandler } from './ui/keyboard.js';
 import { handleClipboard } from './ui/clipboard.js';
 import { getTopbarAutohide } from './prefs.js';
-import { applyTheme, loadAllFonts, listThemes, readBorderInsets } from './theme.js';
+import { applyTheme, loadAllFonts, listThemes } from './theme.js';
 import { fetchColours, composeBgColor, composeTheme, type ITheme } from './colours.js';
 import {
   loadSessionSettings,
@@ -25,15 +25,6 @@ declare global {
   }
 }
 
-function applyTerminalInsets(): void {
-  const terminal = document.getElementById('terminal')!;
-  const insets = readBorderInsets();
-  const pinned = document.body.classList.contains('topbar-pinned');
-  terminal.style.top = `${(pinned ? 28 : 3) + insets.top}px`;
-  terminal.style.right = `${insets.right || 3}px`;
-  terminal.style.bottom = `${insets.bottom || 3}px`;
-  terminal.style.left = `${insets.left || 3}px`;
-}
 
 async function main() {
   const adapter: TerminalAdapter = new XtermAdapter();
@@ -62,7 +53,6 @@ async function main() {
   saveSessionSettings(sessionName, settings);
 
   await applyTheme(settings.theme);
-  applyTerminalInsets();
 
   const colourByName = new Map(colours.map(c => [c.name, c.theme]));
   const coloursOrDefault = (name: string): ITheme =>
@@ -87,7 +77,6 @@ async function main() {
     focus: () => adapter.focus(),
     getLiveSettings: () => settings,
     onAutohideChange: () => {
-      applyTerminalInsets();
       adapter.fit();
     },
     onSettingsChange: async (s) => {
@@ -98,7 +87,6 @@ async function main() {
 
       if (themeChanged) {
         await applyTheme(s.theme);
-        applyTerminalInsets();
       }
 
       page.style.backgroundColor = composeBgColor(coloursOrDefault(s.colours), s.opacity);
@@ -133,7 +121,6 @@ async function main() {
     },
   });
   await topbar.init();
-  applyTerminalInsets();
   adapter.fit();
 
   function handleMessage(data: string) {

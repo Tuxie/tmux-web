@@ -33,11 +33,6 @@ function setupDom() {
 beforeEach(setupDom);
 
 describe('theme module', () => {
-  test('readBorderInsets parses CSS vars to numbers', async () => {
-    const { readBorderInsets } = await import('../../../src/client/theme');
-    expect(readBorderInsets()).toEqual({ top: 24, right: 8, bottom: 8, left: 8 });
-  });
-
   test('applyTheme injects link tag with correct href', async () => {
     const { applyTheme } = await import('../../../src/client/theme');
     await applyTheme('Default');
