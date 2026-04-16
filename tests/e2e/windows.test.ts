@@ -20,13 +20,15 @@ test.beforeEach(async ({ page }) => {
 test('window tabs render with correct labels', async ({ page }) => {
   await expect(page.locator('#win-tabs button').nth(0)).toHaveText('0:zsh');
   await expect(page.locator('#win-tabs button').nth(1)).toHaveText('1:vim');
-  await expect(page.locator('#win-tabs button').nth(2)).toHaveText('+');
+  // The trailing button is the windows-menu button showing the current window.
+  await expect(page.locator('#win-tabs .tb-btn-window-compact')).toHaveCount(1);
+  await expect(page.locator('#win-tabs .tb-window-compact-label')).toHaveText('0: zsh');
 });
 
 test('active window tab has class "active", inactive does not', async ({ page }) => {
-  await expect(page.locator('#win-tabs button').nth(0)).toHaveClass(/active/);
-  await expect(page.locator('#win-tabs button').nth(1)).not.toHaveClass(/active/);
-  await expect(page.locator('#win-tabs button').nth(2)).not.toHaveClass(/active/);
+  const tabs = page.locator('#win-tabs .win-tab');
+  await expect(tabs.nth(0)).toHaveClass(/active/);
+  await expect(tabs.nth(1)).not.toHaveClass(/active/);
 });
 
 test('clicking a window tab sends a select-window message for that tab', async ({ page }) => {
@@ -81,25 +83,25 @@ test('Name input in the menu renames the current window', async ({ page }) => {
   expect(sent).toContain(JSON.stringify({ type: 'window', action: 'rename', index: '0', name: 'shell' }));
 });
 
-test('unchecking Show windows as tabs switches to compact mode', async ({ page }) => {
-  // Start in tabs mode
+test('unchecking Show windows as tabs hides the tab buttons', async ({ page }) => {
+  // Start in tabs mode — tabs present and windows-menu button at the end.
   await expect(page.locator('#win-tabs .win-tab')).toHaveCount(2);
-  await expect(page.locator('#win-tabs .tb-btn-window-compact')).toHaveCount(0);
+  await expect(page.locator('#win-tabs .tb-btn-window-compact')).toHaveCount(1);
 
-  // Open the windows menu via left-click.
-  await page.locator('#win-tabs button').nth(2).click();
+  // Open the windows menu and uncheck the toggle.
+  await page.locator('#win-tabs .tb-btn-window-compact').click();
   await page.locator('.tw-dd-windows input[type="checkbox"]').click();
 
-  // Tabs gone; compact button shows current window (0:zsh)
+  // Tabs gone; only the windows-menu button remains.
   await expect(page.locator('#win-tabs .win-tab')).toHaveCount(0);
   await expect(page.locator('#win-tabs .tb-btn-window-compact')).toHaveCount(1);
   await expect(page.locator('.tb-window-compact-label')).toHaveText('0: zsh');
 
-  // Re-check to return to tabs — left-click the compact button to open menu.
+  // Re-check to bring tabs back.
   await page.locator('.tb-btn-window-compact').click();
   await page.locator('.tw-dd-windows input[type="checkbox"]').click();
   await expect(page.locator('#win-tabs .win-tab')).toHaveCount(2);
-  await expect(page.locator('#win-tabs .tb-btn-window-compact')).toHaveCount(0);
+  await expect(page.locator('#win-tabs .tb-btn-window-compact')).toHaveCount(1);
 });
 
 test('right-click on a window tab opens a Name input + Close window item', async ({ page }) => {

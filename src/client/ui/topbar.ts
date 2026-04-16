@@ -598,95 +598,84 @@ export class Topbar {
     });
   }
 
+  /** Build the session-button-mirror [ name | ▣ ] button used to open the
+   *  windows menu. Shown at the end of the tab strip in tabs mode and on
+   *  its own in compact mode. Left-click opens the menu, right-click creates
+   *  a new (unnamed) window. */
+  private buildWindowsMenuButton(): HTMLElement {
+    const active = this.cachedWindows.find(w => w.active);
+    const label = active ? `${active.index}: ${active.name}` : '\u2026';
+    const wrap = document.createElement('button');
+    wrap.className = 'tb-btn tb-btn-window-compact';
+    wrap.title = 'Windows';
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'tb-window-compact-label';
+    labelEl.textContent = label;
+    wrap.appendChild(labelEl);
+
+    const plus = document.createElement('span');
+    plus.className = 'tb-window-compact-plus';
+    wrap.appendChild(plus);
+
+    wrap.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const rect = wrap.getBoundingClientRect();
+      this.openWindowsMenu(rect.left, rect.bottom + 2);
+    });
+    wrap.addEventListener('contextmenu', (ev) => {
+      ev.preventDefault();
+      this.sendWindowMsg({ action: 'new' });
+    });
+    return wrap;
+  }
+
   /** Re-render the #win-tabs contents based on the current showWindowTabs pref. */
   private renderWinTabs(): void {
     const windows = this.cachedWindows;
     this.winTabs.innerHTML = '';
 
-    if (!getShowWindowTabs()) {
-      // Compact mode: single [name | +] button showing current window,
-      // styled like the session button but with the + gadget on the right.
-      const active = windows.find(w => w.active);
-      const label = active ? `${active.index}: ${active.name}` : '…';
-      const wrap = document.createElement('button');
-      wrap.className = 'tb-btn tb-btn-window-compact';
-      wrap.title = 'Windows';
-
-      const labelEl = document.createElement('span');
-      labelEl.className = 'tb-window-compact-label';
-      labelEl.textContent = label;
-      wrap.appendChild(labelEl);
-
-      const plus = document.createElement('span');
-      plus.className = 'tb-window-compact-plus';
-      wrap.appendChild(plus);
-
-      // Left-click anywhere on the button opens the windows menu; right-click
-      // creates a new window. Same as the + button in tabs mode, so behaviour
-      // doesn't depend on the Show-windows-as-tabs toggle.
-      wrap.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        const rect = wrap.getBoundingClientRect();
-        this.openWindowsMenu(rect.left, rect.bottom + 2);
-      });
-      wrap.addEventListener('contextmenu', (ev) => {
-        ev.preventDefault();
-        this.sendWindowMsg({ action: 'new' });
-      });
-      this.winTabs.appendChild(wrap);
-      return;
-    }
-
-    // Classic tab-strip mode
-    for (const w of windows) {
-      const btn = document.createElement('button');
-      btn.className = 'win-tab' + (w.active ? ' active' : '');
-      btn.textContent = w.index + ':' + w.name;
-      btn.addEventListener('click', () => {
-        this.sendWindowMsg({ action: 'select', index: w.index });
-      });
-      btn.addEventListener('contextmenu', (ev) => {
-        ev.preventDefault();
-        showContextMenu({
-          x: ev.clientX,
-          y: ev.clientY,
-          className: 'tw-dd-context-win',
-          input: {
-            label: 'Name:',
-            defaultValue: w.name,
-            onSubmit: (name) => {
-              if (name !== w.name) {
-                this.sendWindowMsg({ action: 'rename', index: w.index, name });
+    if (getShowWindowTabs()) {
+      // Tabs mode: render one button per window, then the windows-menu button
+      // at the end.
+      for (const w of windows) {
+        const btn = document.createElement('button');
+        btn.className = 'win-tab' + (w.active ? ' active' : '');
+        btn.textContent = w.index + ':' + w.name;
+        btn.addEventListener('click', () => {
+          this.sendWindowMsg({ action: 'select', index: w.index });
+        });
+        btn.addEventListener('contextmenu', (ev) => {
+          ev.preventDefault();
+          showContextMenu({
+            x: ev.clientX,
+            y: ev.clientY,
+            className: 'tw-dd-context-win',
+            input: {
+              label: 'Name:',
+              defaultValue: w.name,
+              onSubmit: (name) => {
+                if (name !== w.name) {
+                  this.sendWindowMsg({ action: 'rename', index: w.index, name });
+                }
+              },
+            },
+            items: [{ value: 'close', label: 'Close window', separator: true }],
+            onSelect: (action) => {
+              if (action === 'close') {
+                this.sendWindowMsg({ action: 'close', index: w.index });
               }
             },
-          },
-          items: [{ value: 'close', label: 'Close window', separator: true }],
-          onSelect: (action) => {
-            if (action === 'close') {
-              this.sendWindowMsg({ action: 'close', index: w.index });
-            }
-          },
+          });
         });
-      });
-      this.winTabs.appendChild(btn);
+        this.winTabs.appendChild(btn);
+      }
     }
 
-    // [+] button to create a new window. Left-click: unnamed; right-click:
-    // open the full windows menu.
-    const addBtn = document.createElement('button');
-    addBtn.className = 'tb-btn tb-btn-new-window';
-    addBtn.textContent = '+';
-    addBtn.title = 'Windows';
-    // Left-click opens the windows menu; right-click creates a new window.
-    addBtn.addEventListener('click', () => {
-      const rect = addBtn.getBoundingClientRect();
-      this.openWindowsMenu(rect.left, rect.bottom + 2);
-    });
-    addBtn.addEventListener('contextmenu', (ev) => {
-      ev.preventDefault();
-      this.sendWindowMsg({ action: 'new' });
-    });
-    this.winTabs.appendChild(addBtn);
+    // The [ name | ▣ ] button is always present — in tabs mode it replaces
+    // the old + button at the end of the strip; in compact mode it's the
+    // only control.
+    this.winTabs.appendChild(this.buildWindowsMenuButton());
   }
 
   updateWindows(windows: Array<{ index: string; name: string; active: boolean }>): void {
