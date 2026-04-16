@@ -42,6 +42,21 @@ export class Connection {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.ws?.close();
   }
+
+  /** Close the current socket and open a new one immediately (e.g. after
+   *  a client-initiated session switch where getUrl() now resolves
+   *  differently). Cancels any pending auto-reconnect timer. */
+  reconnect(): void {
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+    if (this.ws) {
+      // Suppress the auto-reconnect that would otherwise run from onclose.
+      this.ws.onclose = null;
+      this.ws.close();
+      this.ws = null;
+    }
+    this.connect();
+  }
 }
 
 export function buildWsUrl(session: string, cols: number, rows: number): string {

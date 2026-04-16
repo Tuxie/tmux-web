@@ -22,6 +22,9 @@ export interface TopbarOptions {
   getLiveSettings: () => SessionSettings | null;
   onAutohideChange?: () => void;
   onSettingsChange?: (s: SessionSettings) => void | Promise<void>;
+  /** Switch to a different (or new) session without a full page reload —
+   *  caller is expected to update the URL and reconnect the WebSocket. */
+  onSwitchSession?: (name: string) => void;
 }
 
 export class Topbar {
@@ -120,7 +123,7 @@ export class Topbar {
           el.addEventListener('click', (ev) => {
             ev.stopPropagation();
             close();
-            if (!isCurrent) location.href = '/' + encodeURIComponent(s);
+            if (!isCurrent) this.opts.onSwitchSession?.(s);
           });
           menu.appendChild(el);
         }
@@ -148,7 +151,7 @@ export class Topbar {
             close();
             const clean = name.replace(/[^a-zA-Z0-9_\-./]/g, '');
             if (!clean) return;
-            location.href = '/' + encodeURIComponent(clean);
+            this.opts.onSwitchSession?.(clean);
           },
         }));
 

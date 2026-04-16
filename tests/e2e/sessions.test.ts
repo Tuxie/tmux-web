@@ -46,6 +46,23 @@ test('selecting a session from the menu navigates to its URL', async ({ page }) 
   expect(new URL(page.url()).pathname).toBe('/dev');
 });
 
+test('switching session does not trigger a full page reload', async ({ page }) => {
+  await injectWsSpy(page);
+  await mockApis(page, ['main', 'dev'], []);
+  await page.goto('/main');
+  await waitForWsOpen(page);
+  // Tag the window — a full reload would wipe this; pushState/replaceState
+  // would preserve it (and so will fullscreen state).
+  await page.evaluate(() => { (window as any).__notReloaded = 'sentinel-42'; });
+  await page.click('#btn-session-menu');
+  await Promise.all([
+    page.waitForURL('**/dev'),
+    page.locator('.tw-dropdown-menu.tw-dd-sessions-menu:not([hidden]) .tw-dropdown-item', { hasText: 'dev' }).click(),
+  ]);
+  const sentinel = await page.evaluate(() => (window as any).__notReloaded);
+  expect(sentinel).toBe('sentinel-42');
+});
+
 test('Name input in session menu renames the current session on Enter', async ({ page }) => {
   await injectWsSpy(page);
   await mockApis(page, ['main'], []);

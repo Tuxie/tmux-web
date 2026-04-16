@@ -89,6 +89,16 @@ async function main() {
     onAutohideChange: () => {
       adapter.fit();
     },
+    onSwitchSession: (name) => {
+      // Switch sessions without a full page navigation — full reloads
+      // exit fullscreen and lose terminal state. updateSession runs the
+      // existing in-place session-change flow (URL replaceState, load
+      // per-session settings, sync UI, fire onSettingsChange). Then
+      // reconnect the WebSocket so the server attaches to the new tmux
+      // session.
+      topbar.updateSession(name);
+      connection.reconnect();
+    },
     onSettingsChange: async (s) => {
       const themeChanged = s.theme !== settings.theme;
       const fontChanged = s.fontFamily !== appliedFontKey;
