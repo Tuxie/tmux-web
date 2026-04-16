@@ -61,6 +61,30 @@ export function createWsServer(
   return wss;
 }
 
+/**
+ * Set COLORFGBG and CLITHEME on the tmux session so new windows/panes
+ * inherit them. No-op in --test mode (no tmux). Retries once after 500 ms
+ * to cover the race when the very first client connects and tmux is still
+ * starting up the fresh session.
+ */
+async function applyColourVariant(
+  sessionName: string,
+  variant: 'dark' | 'light',
+  config: ServerConfig,
+): Promise<void> {
+  if (config.testMode) return;
+  const colorFgBg = variant === 'dark' ? '15;0' : '0;15';
+  const run = () => Promise.all([
+    execFileAsync(config.tmuxBin, ['set-environment', '-t', sessionName, 'COLORFGBG', colorFgBg]),
+    execFileAsync(config.tmuxBin, ['set-environment', '-t', sessionName, 'CLITHEME', variant]),
+  ]);
+  try {
+    await run();
+  } catch {
+    setTimeout(() => { run().catch(() => {}); }, 500);
+  }
+}
+
 async function sendWindowState(ws: WebSocket, sessionName: string, config: ServerConfig): Promise<void> {
   try {
     const [winResult, titleResult] = await Promise.allSettled([
@@ -137,6 +161,10 @@ function handleConnection(
         const parsed = JSON.parse(msg);
         if (parsed.type === 'resize') {
           ptyProcess.resize(parsed.cols, parsed.rows);
+          return;
+        }
+        if (parsed.type === 'colour-variant' && (parsed.variant === 'dark' || parsed.variant === 'light')) {
+          void applyColourVariant(lastSession, parsed.variant, config);
           return;
         }
       } catch { /* not JSON, pass through */ }

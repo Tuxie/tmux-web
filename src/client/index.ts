@@ -57,6 +57,13 @@ async function main() {
   const colourByName = new Map(colours.map(c => [c.name, c.theme]));
   const coloursOrDefault = (name: string): ITheme =>
     colourByName.get(name) ?? { foreground: '#d4d4d4', background: '#1e1e1e' };
+  const variantByName = new Map(colours.map(c => [c.name, c.variant]));
+  const sendColourVariant = (colourName: string): void => {
+    const v = variantByName.get(colourName);
+    if (v === 'dark' || v === 'light') {
+      connection?.send(JSON.stringify({ type: 'colour-variant', variant: v }));
+    }
+  };
 
   const page = document.getElementById('page')!;
   page.style.backgroundColor = composeBgColor(coloursOrDefault(settings.colours), settings.opacity);
@@ -82,8 +89,10 @@ async function main() {
     onSettingsChange: async (s) => {
       const themeChanged = s.theme !== settings.theme;
       const fontChanged = s.fontFamily !== appliedFontKey;
+      const colourChanged = s.colours !== settings.colours;
       settings = s;
       saveSessionSettings(sessionName, s);
+      if (colourChanged) sendColourVariant(s.colours);
 
       if (themeChanged) {
         await applyTheme(s.theme);
@@ -147,6 +156,7 @@ async function main() {
     onMessage: handleMessage,
     onOpen: () => {
       connection.sendResize(adapter.cols, adapter.rows);
+      sendColourVariant(settings.colours);
     },
     onClose: () => {
       adapter.write('\r\n\x1b[33mDisconnected. Reconnecting...\x1b[0m\r\n');
