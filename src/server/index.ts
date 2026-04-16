@@ -134,8 +134,11 @@ Options:
 
   const isCompiled = !process.execPath.endsWith('bun') && !process.execPath.endsWith('bun.exe');
   let projectRoot = isCompiled ? path.dirname(process.execPath) : path.resolve(import.meta.dir, '../..');
+  const configDir = path.join(process.env.HOME ?? '', '.config/tmux-web');
   const themesUserDir = config.themesDir
-    ?? path.join(process.env.HOME ?? '', '.config/tmux-web/themes');
+    ?? path.join(configDir, 'themes');
+  const sessionsStorePath = process.env.TMUX_WEB_SESSIONS_FILE
+    ?? path.join(configDir, 'sessions.json');
 
   const tmuxConfPath = path.join(projectRoot, 'tmux.conf');
   const htmlTemplatePath = path.join(projectRoot, 'src/client/index.html');
@@ -195,6 +198,7 @@ Options:
     themesBundledDir,
     projectRoot,
     isCompiled,
+    sessionsStorePath,
   });
 
   let server: http.Server | https.Server;

@@ -86,13 +86,33 @@ body { background: #1e1e1e; }
 .tw-dropdown-item.selected { background: #3a3a3a; }
 /* Session menu items have a fixed-width gutter so the name column stays
  * aligned whether the row has a check mark or not. */
-.tw-dd-session-item { padding-left: 26px; position: relative; }
+.tw-dd-session-item {
+  padding-left: 26px;
+  padding-right: 22px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .tw-dd-session-item.current::before {
   content: '\2713';
   position: absolute;
   left: 10px;
   width: 12px;
 }
+.tw-dd-session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tw-dd-session-status {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transform: translateY(-50%);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4) inset;
+}
+.tw-dd-session-status.running { background: #2ecc40; }
+.tw-dd-session-status.stopped { background: #e74c3c; }
 .tw-dropdown-sep { border: none; border-top: 1px solid #444; margin: 4px 0; }
 /* Sessions dropdown menu — anchors under the session button by default (left-aligned) */
 

@@ -30,7 +30,8 @@ describe("/api/colours", () => {
                 tmuxBin: "tmux", auth: { enabled: false } } as any,
       htmlTemplate: "", distDir: "", fontsDir: "", themesUserDir: "",
       themesBundledDir: tmp, projectRoot: tmp, isCompiled: false,
-    });
+      sessionsStorePath: path.join(tmp, "sessions.json"),
+    } as any);
     const { status, body } = await once(handler, "/api/colours");
     expect(status).toBe(200);
     const json = JSON.parse(body);

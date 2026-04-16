@@ -8,7 +8,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { type ChildProcess } from 'child_process';
-import { mockApis, injectWsSpy, waitForWsOpen, startServer, killServer } from './helpers.js';
+import { mockApis, mockSessionStore, injectWsSpy, waitForWsOpen, startServer, killServer, type SessionStoreMock } from './helpers.js';
 
 const PORT_XTERM = 4071;
 
@@ -31,12 +31,8 @@ async function getAdapterMetrics(page: import('@playwright/test').Page): Promise
   });
 }
 
-async function readSessionSettings(page: import('@playwright/test').Page, session = 'main'): Promise<Record<string, unknown>> {
-  return page.evaluate((s) => {
-    try {
-      return JSON.parse(localStorage.getItem(`tmux-web-session:${s}`) || '{}');
-    } catch { return {}; }
-  }, session);
+function readSessionSettings(store: SessionStoreMock, session = 'main'): Record<string, unknown> {
+  return store.get().sessions[session] ?? {};
 }
 
 async function getOtherBundledFont(page: import('@playwright/test').Page): Promise<string> {
@@ -46,7 +42,11 @@ async function getOtherBundledFont(page: import('@playwright/test').Page): Promi
   });
 }
 
-async function openMenuAndChangeFont(page: import('@playwright/test').Page, newFont: string): Promise<void> {
+async function openMenuAndChangeFont(
+  page: import('@playwright/test').Page,
+  store: SessionStoreMock,
+  newFont: string,
+): Promise<void> {
   await page.mouse.move(640, 10);
   await page.waitForFunction(
     () => !document.getElementById('topbar')?.classList.contains('hidden'),
@@ -64,23 +64,25 @@ async function openMenuAndChangeFont(page: import('@playwright/test').Page, newF
   await page.selectOption('#inp-font-bundled', newFont);
   await page.locator('#inp-font-bundled').dispatchEvent('change');
 
-  // Wait for the change to propagate to localStorage
+  // Wait for the change to propagate to the persisted store (mocked).
+  for (let i = 0; i < 100; i++) {
+    if (store.get().sessions['main']?.fontFamily === newFont) break;
+    await new Promise(r => setTimeout(r, 50));
+  }
+
+  // Topbar autohides 1s after mouse leaves the top region — re-reveal it
+  // before clicking the menu button to close the panel.
+  await page.mouse.move(640, 10);
   await page.waitForFunction(
-    (font) => {
-      try {
-        const s = JSON.parse(localStorage.getItem('tmux-web-session:main') || '{}');
-        return s.fontFamily === font;
-      } catch { return false; }
-    },
-    newFont,
+    () => !document.getElementById('topbar')?.classList.contains('hidden'),
     { timeout: 5000 },
   );
-
   await page.click('#btn-menu'); // close menu
 }
 
 test.describe('font change rendering: xterm', () => {
   let server: ChildProcess;
+  let store: SessionStoreMock;
   const base = `http://127.0.0.1:${PORT_XTERM}`;
 
   test.beforeAll(async () => { server = await startXtermServer(PORT_XTERM); });
@@ -88,20 +90,23 @@ test.describe('font change rendering: xterm', () => {
 
   test.beforeEach(async ({ page, context }) => {
     await context.clearCookies();
-    await page.addInitScript(() => {
-      localStorage.clear();
-      const settings = {
-        theme: 'Default',
-        colours: 'Gruvbox Dark',
-        fontFamily: 'Iosevka Nerd Font Mono',
-        fontSize: 18,
-        spacing: 1.125,
-        opacity: 0,
-      };
-      localStorage.setItem('tmux-web-session:main', JSON.stringify(settings));
-    });
     await injectWsSpy(page);
-    await mockApis(page, ['main'], []);
+    store = await mockSessionStore(page, {
+      sessions: {
+        main: {
+          theme: 'Default',
+          colours: 'Gruvbox Dark',
+          fontFamily: 'Iosevka Nerd Font Mono',
+          fontSize: 18,
+          spacing: 1.125,
+          opacity: 0,
+        },
+      },
+    });
+    await page.route('**/api/sessions', route =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(['main']) }));
+    await page.route('**/api/windows**', route =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
     await page.goto(`${base}/main`);
     await waitForWsOpen(page);
     await page.waitForFunction(
@@ -118,7 +123,7 @@ test.describe('font change rendering: xterm', () => {
     const metricsBefore = await getAdapterMetrics(page);
     const navigationCountBefore = await page.evaluate(() => performance.getEntriesByType('navigation').length);
 
-    await openMenuAndChangeFont(page, otherFont);
+    await openMenuAndChangeFont(page, store, otherFont);
 
     await page.waitForFunction(
       (font) => document.fonts.check(`18px "${font}"`),
@@ -131,7 +136,7 @@ test.describe('font change rendering: xterm', () => {
       { timeout: 5000 },
     );
 
-    const settings = await readSessionSettings(page);
+    const settings = readSessionSettings(store);
     const metricsAfter = await getAdapterMetrics(page);
     const navigationCountAfter = await page.evaluate(() => performance.getEntriesByType('navigation').length);
 
@@ -153,7 +158,7 @@ test.describe('font change rendering: xterm', () => {
     const otherFont = await getOtherBundledFont(page);
     expect(otherFont).toBeTruthy();
 
-    await openMenuAndChangeFont(page, otherFont);
+    await openMenuAndChangeFont(page, store, otherFont);
     await page.waitForFunction(
       (font) => ((window as any).__adapter?.term?.options?.fontFamily ?? '').includes(font),
       otherFont,

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { mockSessionStore } from './helpers.js';
 
 test.describe('theming', () => {
   async function waitForThemeAndFontLists(page: import('@playwright/test').Page): Promise<void> {
@@ -36,10 +37,11 @@ test.describe('theming', () => {
   });
 
   test('colours trigger label reflects the saved value on initial render', async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem('tmux-web-session:main',
-        JSON.stringify({ theme: 'Default', colours: 'Dracula', fontFamily: 'Iosevka Nerd Font Mono',
-                         fontSize: 18, spacing: 0.85, opacity: 0 }));
+    await mockSessionStore(page, {
+      sessions: {
+        main: { theme: 'Default', colours: 'Dracula', fontFamily: 'Iosevka Nerd Font Mono',
+                fontSize: 18, spacing: 0.85, opacity: 0 },
+      },
     });
     await page.goto('/main');
     await page.click('#btn-menu');

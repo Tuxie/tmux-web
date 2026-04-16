@@ -19,11 +19,9 @@ test('opening session button lists sessions with the current one checked + Kill 
   const items = menu.locator('.tw-dropdown-item');
   // 3 session rows + 1 Kill row
   await expect(items).toHaveCount(4);
-  const texts = await items.allTextContents();
-  expect(texts[0]).toBe('main');
-  expect(texts[1]).toBe('dev');
-  expect(texts[2]).toBe('work');
-  expect(texts[3]).toBe('Kill session main\u2026');
+  const names = await menu.locator('.tw-dd-session-name').allTextContents();
+  expect(names).toEqual(['main', 'dev', 'work']);
+  expect(await items.nth(3).textContent()).toBe('Kill session main\u2026');
   // Only the current session gets the 'current' class (for the ✓ gutter).
   await expect(items.nth(0)).toHaveClass(/\bcurrent\b/);
   await expect(items.nth(1)).not.toHaveClass(/\bcurrent\b/);
@@ -31,6 +29,39 @@ test('opening session button lists sessions with the current one checked + Kill 
   // Input rows for Name and New session
   const labels = await menu.locator('.menu-label').allTextContents();
   expect(labels).toEqual(['Name:', 'New session:']);
+});
+
+test('session menu shows green/red status dots and lists stored-but-stopped sessions', async ({ page }) => {
+  await injectWsSpy(page);
+  await mockApis(page, ['main', 'dev'], []);
+  // Persisted store includes a session ('archived') that is not in the
+  // running list; it must still appear, with a red (stopped) dot.
+  await page.route('**/api/session-settings', route =>
+    route.fulfill({
+      status: 200, contentType: 'application/json',
+      body: JSON.stringify({
+        version: 1,
+        lastActive: 'main',
+        sessions: {
+          main: { theme: 'Default', colours: 'Gruvbox Dark', fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
+          archived: { theme: 'Default', colours: 'Gruvbox Dark', fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
+        },
+      }),
+    })
+  );
+  await page.goto('/main');
+  await waitForWsOpen(page);
+  await page.click('#btn-session-menu');
+  const menu = page.locator('.tw-dropdown-menu.tw-dd-sessions-menu:not([hidden])');
+  const rows = menu.locator('.tw-dd-session-item');
+  await expect(rows).toHaveCount(3);
+  // Running first (main, dev), then stored-but-not-running (archived).
+  const names = await rows.locator('.tw-dd-session-name').allTextContents();
+  expect(names).toEqual(['main', 'dev', 'archived']);
+  // Status dot classes.
+  await expect(rows.nth(0).locator('.tw-dd-session-status')).toHaveClass(/\brunning\b/);
+  await expect(rows.nth(1).locator('.tw-dd-session-status')).toHaveClass(/\brunning\b/);
+  await expect(rows.nth(2).locator('.tw-dd-session-status')).toHaveClass(/\bstopped\b/);
 });
 
 test('selecting a session from the menu navigates to its URL', async ({ page }) => {

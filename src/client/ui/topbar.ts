@@ -9,6 +9,8 @@ import {
   loadSessionSettings,
   saveSessionSettings,
   getLiveSessionSettings,
+  getStoredSessionNames,
+  initSessionStore,
   setLastActiveSession,
   applyThemeDefaults,
   DEFAULT_SESSION_SETTINGS,
@@ -29,7 +31,7 @@ export interface TopbarOptions {
 
 export class Topbar {
   private topbar!: HTMLElement;
-  private sessionName!: HTMLElement;
+  private sessionNameEl!: HTMLElement;
   private winTabs!: HTMLElement;
   private tbTitle!: HTMLElement;
   private autohideChk!: HTMLInputElement;
@@ -48,8 +50,8 @@ export class Topbar {
 
   async init(): Promise<void> {
     this.topbar = document.getElementById('topbar')!;
-    this.sessionName = document.getElementById('tb-session-name')!;
-    this.sessionName.textContent = this.currentSession;
+    this.sessionNameEl = document.getElementById('tb-session-name')!;
+    this.sessionNameEl.textContent = this.currentSession;
     this.winTabs = document.getElementById('win-tabs')!;
     this.tbTitle = document.getElementById('tb-title')!;
     this.autohideChk = document.getElementById('chk-autohide') as HTMLInputElement;
@@ -71,8 +73,11 @@ export class Topbar {
 
   private async refreshCachedSessions(): Promise<void> {
     try {
-      const res = await fetch('/api/sessions');
-      if (res.ok) this.cachedSessions = await res.json() as string[];
+      const [running] = await Promise.all([
+        fetch('/api/sessions').then(r => r.ok ? r.json() as Promise<string[]> : null),
+        initSessionStore(),
+      ]);
+      if (running) this.cachedSessions = running;
     } catch { /* keep previous cache */ }
   }
 
@@ -113,13 +118,30 @@ export class Topbar {
       renderContent: (menu, close) => {
         const current = this.currentSession;
 
-        // Existing sessions — current one marked with a check. The check
-        // lives in a fixed-width CSS gutter so session names always align.
-        for (const s of this.cachedSessions) {
+        // Union of running tmux sessions + persisted ones from sessions.json.
+        // Running first (in tmux's order), then any stored-but-not-running.
+        const running = new Set(this.cachedSessions);
+        const stored = getStoredSessionNames();
+        const ordered = [
+          ...this.cachedSessions,
+          ...stored.filter(n => !running.has(n)),
+        ];
+
+        // Sessions list — current one marked with a check (CSS gutter), and
+        // a coloured status dot on the right (green = running, red = not).
+        for (const s of ordered) {
           const isCurrent = s === current;
+          const isRunning = running.has(s);
           const el = document.createElement('div');
           el.className = 'tw-dropdown-item tw-dd-session-item' + (isCurrent ? ' current' : '');
-          el.textContent = s;
+          const name = document.createElement('span');
+          name.className = 'tw-dd-session-name';
+          name.textContent = s;
+          el.appendChild(name);
+          const dot = document.createElement('span');
+          dot.className = 'tw-dd-session-status ' + (isRunning ? 'running' : 'stopped');
+          dot.title = isRunning ? 'Running' : 'Not running';
+          el.appendChild(dot);
           el.addEventListener('click', (ev) => {
             ev.stopPropagation();
             close();
@@ -257,10 +279,6 @@ export class Topbar {
     });
   }
 
-  private get sessionName(): string {
-    return location.pathname.replace(/^\/+|\/+$/g, '') || 'main';
-  }
-
   // Returns a Promise that resolves once the async data fetches complete.
   private async setupSettingsInputs(): Promise<void> {
     const themeSelect = document.getElementById('inp-theme') as HTMLSelectElement;
@@ -317,7 +335,7 @@ export class Topbar {
 
     const getSettings = (): SessionSettings => {
       const live = this.opts.getLiveSettings();
-      return loadSessionSettings(this.sessionName, live, { defaults: DEFAULT_SESSION_SETTINGS });
+      return loadSessionSettings(this.currentSession, live, { defaults: DEFAULT_SESSION_SETTINGS });
     };
 
     // Keep a CSS custom property on each range input reflecting its value
@@ -357,7 +375,7 @@ export class Topbar {
     const commit = (patch: Partial<SessionSettings>) => {
       const current = getSettings();
       const updated: SessionSettings = { ...current, ...patch };
-      saveSessionSettings(this.sessionName, updated);
+      saveSessionSettings(this.currentSession, updated);
       this.opts.onSettingsChange?.(updated);
     };
 
@@ -373,7 +391,7 @@ export class Topbar {
       if (theme?.defaultOpacity !== undefined) td.opacity = theme.defaultOpacity;
       const current = getSettings();
       const updated = applyThemeDefaults({ ...current, theme: name }, td);
-      saveSessionSettings(this.sessionName, updated);
+      saveSessionSettings(this.currentSession, updated);
       syncUi(updated);
       this.opts.onSettingsChange?.(updated);
     });
@@ -737,7 +755,7 @@ export class Topbar {
       history.replaceState(null, '', newPath);
     }
     document.title = 'tmux-web \u2014 ' + session;
-    this.sessionName.textContent = session;
+    this.sessionNameEl.textContent = session;
 
     // When tmux changes the active session underneath us (via a tmux
     // keyboard shortcut, not the web UI), load the target session's

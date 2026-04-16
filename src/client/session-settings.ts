@@ -16,9 +16,6 @@ export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
   opacity: 0,
 };
 
-const prefix = 'tmux-web-session:';
-const LAST_SESSION_KEY = 'tmux-web-last-session';
-
 export interface ThemeDefaults {
   colours?: string;
   fontFamily?: string;
@@ -32,11 +29,39 @@ export interface LoadOpts {
   themeDefaults?: ThemeDefaults;
 }
 
-export function loadSessionSettings(name: string, live: SessionSettings | null, opts: LoadOpts): SessionSettings {
+interface SessionsCache {
+  lastActive?: string;
+  sessions: Record<string, SessionSettings>;
+}
+
+let cache: SessionsCache = { sessions: {} };
+
+/** Fetch the persisted settings map from the server. Call once on startup. */
+export async function initSessionStore(): Promise<void> {
   try {
-    const raw = localStorage.getItem(prefix + name);
-    if (raw) return { ...opts.defaults, ...JSON.parse(raw) };
+    const res = await fetch('/api/session-settings');
+    if (!res.ok) return;
+    const cfg = await res.json();
+    if (cfg && typeof cfg === 'object' && cfg.sessions) {
+      cache = {
+        lastActive: typeof cfg.lastActive === 'string' ? cfg.lastActive : undefined,
+        sessions: cfg.sessions,
+      };
+    }
   } catch {}
+}
+
+function persist(patch: { lastActive?: string; sessions?: Record<string, SessionSettings> }): void {
+  void fetch('/api/session-settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  }).catch(() => {});
+}
+
+export function loadSessionSettings(name: string, live: SessionSettings | null, opts: LoadOpts): SessionSettings {
+  const stored = cache.sessions[name];
+  if (stored) return { ...opts.defaults, ...stored };
   if (live) return { ...live };
   const overlay: Partial<SessionSettings> = {};
   const td = opts.themeDefaults ?? {};
@@ -49,25 +74,27 @@ export function loadSessionSettings(name: string, live: SessionSettings | null, 
 }
 
 export function saveSessionSettings(name: string, s: SessionSettings): void {
-  try { localStorage.setItem(prefix + name, JSON.stringify(s)); } catch {}
+  cache.sessions[name] = { ...s };
+  persist({ sessions: { [name]: { ...s } } });
+}
+
+/** Returns the names of all sessions persisted in the server-side store. */
+export function getStoredSessionNames(): string[] {
+  return Object.keys(cache.sessions);
 }
 
 /** Returns stored settings from the last-active session (for new-session inheritance). */
 export function getLiveSessionSettings(currentName: string): SessionSettings | null {
-  try {
-    const last = localStorage.getItem(LAST_SESSION_KEY);
-    if (!last || last === currentName) return null;
-    const raw = localStorage.getItem(prefix + last);
-    if (!raw) return null;
-    return JSON.parse(raw) as SessionSettings;
-  } catch {
-    return null;
-  }
+  const last = cache.lastActive;
+  if (!last || last === currentName) return null;
+  return cache.sessions[last] ?? null;
 }
 
-/** Record which session is currently active (call on page load). */
+/** Record which session is currently active. */
 export function setLastActiveSession(name: string): void {
-  try { localStorage.setItem(LAST_SESSION_KEY, name); } catch {}
+  if (cache.lastActive === name) return;
+  cache.lastActive = name;
+  persist({ lastActive: name });
 }
 
 export function applyThemeDefaults(s: SessionSettings, td: ThemeDefaults): SessionSettings {
@@ -79,4 +106,9 @@ export function applyThemeDefaults(s: SessionSettings, td: ThemeDefaults): Sessi
     spacing: td.spacing ?? s.spacing,
     opacity: td.opacity ?? s.opacity,
   };
+}
+
+/** Test/internal: reset the in-memory cache. */
+export function _resetSessionStore(initial?: SessionsCache): void {
+  cache = initial ?? { sessions: {} };
 }

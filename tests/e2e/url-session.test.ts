@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mockApis, injectWsSpy, waitForWsOpen, sendFromServer } from './helpers.js';
+import { mockApis, mockSessionStore, injectWsSpy, waitForWsOpen, sendFromServer } from './helpers.js';
 
 test('URL path becomes session name in WebSocket URL', async ({ page }) => {
   await injectWsSpy(page);
@@ -25,19 +25,24 @@ test('session change from server updates URL via history.replaceState', async ({
 });
 
 test('server-driven session switch applies the target session\'s stored settings', async ({ page }) => {
-  // Pre-populate per-session settings: "main" uses Dracula, "other" uses Nord.
-  await page.addInitScript(() => {
-    localStorage.setItem('tmux-web-session:main', JSON.stringify({
-      theme: 'Default', colours: 'Dracula', fontFamily: 'Iosevka Nerd Font Mono',
-      fontSize: 18, spacing: 0.85, opacity: 0,
-    }));
-    localStorage.setItem('tmux-web-session:other', JSON.stringify({
-      theme: 'Default', colours: 'Nord', fontFamily: 'Iosevka Nerd Font Mono',
-      fontSize: 18, spacing: 0.85, opacity: 0,
-    }));
-  });
   await injectWsSpy(page);
-  await mockApis(page, ['main', 'other'], []);
+  // Seed the persisted store so /api/session-settings GET returns settings
+  // for both "main" (Dracula) and "other" (Nord) on initial load.
+  await mockSessionStore(page, {
+    sessions: {
+      main:  { theme: 'Default', colours: 'Dracula', fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
+      other: { theme: 'Default', colours: 'Nord',    fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
+    },
+  });
+  // mockApis registers its own /api/session-settings route — call it BEFORE
+  // mockSessionStore so the seeded route (registered later) wins.
+  // Order matters: most recently registered Playwright route fires first.
+  await page.route('**/api/sessions', route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(['main', 'other']) })
+  );
+  await page.route('**/api/windows**', route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+  );
   await page.goto('/main');
   await waitForWsOpen(page);
 

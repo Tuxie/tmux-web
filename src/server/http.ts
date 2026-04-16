@@ -16,6 +16,7 @@ import {
   readPackFile,
   type PackInfo,
 } from './themes.js';
+import { applyPatch, loadConfig, type SessionsConfigPatch } from './sessions-store.js';
 import pkg from '../../package.json' with { type: 'json' };
 
 const execFileAsync = promisify(execFile);
@@ -28,6 +29,7 @@ export interface HttpHandlerOptions {
   themesBundledDir: string;
   projectRoot: string;
   isCompiled?: boolean;
+  sessionsStorePath: string;
 }
 
 function debug(config: ServerConfig, ...args: unknown[]): void {
@@ -251,6 +253,44 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end('[]');
       }
+      return;
+    }
+
+    if (pathname === '/api/session-settings') {
+      if (req.method === 'GET') {
+        const cfg = loadConfig(opts.sessionsStorePath);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(cfg));
+        return;
+      }
+      if (req.method === 'PUT') {
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) chunks.push(chunk as Buffer);
+        let patch: SessionsConfigPatch;
+        try {
+          patch = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
+        } catch {
+          res.writeHead(400);
+          res.end('Bad JSON');
+          return;
+        }
+        if (!patch || typeof patch !== 'object') {
+          res.writeHead(400);
+          res.end('Bad payload');
+          return;
+        }
+        try {
+          const next = applyPatch(opts.sessionsStorePath, patch);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(next));
+        } catch (err) {
+          res.writeHead(500);
+          res.end('Save failed');
+        }
+        return;
+      }
+      res.writeHead(405);
+      res.end();
       return;
     }
 

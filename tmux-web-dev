@@ -12,7 +12,8 @@ cleanup() {
     wait "$SERVER_PID" 2>/dev/null || true
   fi
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'cleanup; exit 0' INT TERM
 
 rebuild_if_needed() {
   if [ ! -f "$MARKER" ] || \

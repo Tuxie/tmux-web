@@ -14,6 +14,7 @@ import {
   saveSessionSettings,
   getLiveSessionSettings,
   setLastActiveSession,
+  initSessionStore,
   DEFAULT_SESSION_SETTINGS,
   type SessionSettings,
 } from './session-settings.js';
@@ -33,6 +34,7 @@ async function main() {
   if (!getTopbarAutohide()) document.body.classList.add('topbar-pinned');
 
   const [themes, colours] = await Promise.all([listThemes(), fetchColours()]);
+  await initSessionStore();
   await loadAllFonts();
 
   // Read from the URL every time we need it — the URL is rewritten in place
