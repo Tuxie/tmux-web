@@ -110,9 +110,18 @@ body { background: #1e1e1e; }
   gap: 0;
 }
 #topbar .tb-btn-session .tb-session-plus {
-  padding: 2px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
   border-right: 1px solid #555;
-  font-weight: bold;
+}
+#topbar .tb-btn-session .tb-session-plus::before {
+  content: '';
+  display: block;
+  width: 8px;
+  height: 8px;
+  background: #d4d4d4;
 }
 #topbar .tb-btn-session .tb-session-name {
   padding: 2px 8px;

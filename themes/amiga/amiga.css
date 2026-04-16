@@ -91,7 +91,7 @@ body {
 .tw-dropdown-arrow { font-size: 12px; }
 .tw-dropdown-menu {
   position: absolute;
-  top: calc(100% + 1px);
+  top: calc(100% + 0px);
   left: 0;
   min-width: 100%;
   background: #bbb;
@@ -188,12 +188,18 @@ body {
 #topbar .tb-btn-session .tb-session-plus {
   display: flex;
   align-items: center;
-  padding: 0 8px;
+  justify-content: center;
+  width: 18px;
   background: #68b;
-  color: #fff;
   border-right: 1px solid #000;
-  font-size: 14px;
-  text-shadow: -1px 0 black, 0 1px black, 1px 0 black, 0 -1px black;
+}
+#topbar .tb-btn-session .tb-session-plus::before {
+  content: '';
+  display: block;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border: 1px solid #000;
 }
 #topbar .tb-btn-session .tb-session-name {
   display: flex;
@@ -273,7 +279,7 @@ body {
 #menu-dropdown {
   position: absolute;
   top: calc(100% + 0px);
-  right: 1px;
+  right: -6px;
   background: #bbb; /* Config menu background same as terminal background */
   border-top: 1px solid #fff;
   border-left: 1px solid #fff;
@@ -347,7 +353,7 @@ input {
   right: 3px;
   bottom: 3px;
   padding: 0px;
-  text-shadow: 0 0 2px #ddd;
+  /* text-shadow: 0 0 2px #ddd; */
  /*  padding: 0px; */ /* A few pixels padding */
   /*
   border-top: 1px solid #000;
