@@ -87,6 +87,10 @@ body { background: #1e1e1e; }
 .tw-dropdown-sep { border: none; border-top: 1px solid #444; margin: 4px 0; }
 /* Sessions dropdown menu — anchors under the session button by default (left-aligned) */
 
+/* Context menu is position:fixed at the cursor — `min-width: 100%` would
+ * otherwise resolve to the viewport width. Let the content size it. */
+.tw-dropdown-menu.tw-dd-context { min-width: auto; }
+
 #topbar .tb-btn {
   background: none;
   border: none;

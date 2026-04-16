@@ -118,6 +118,10 @@ body {
 /* Sessions dropdown — anchor under the session button (now a normal inline child of #tb-session) */
 .tw-dropdown-menu.tw-dd-sessions-menu { min-width: 160px; }
 
+/* Context menu is position:fixed at the cursor — don't let min-width: 100%
+ * resolve to the viewport. Size to content instead. */
+.tw-dropdown-menu.tw-dd-context { min-width: auto; }
+
 #topbar .tb-btn {
   background: #68b;
   border-top: 1px solid #ffffff;
