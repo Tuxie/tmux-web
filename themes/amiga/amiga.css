@@ -274,6 +274,9 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 28ch;
+  color: #000;
+  text-shadow: none;
+  font-weight: normal;
 }
 #topbar .tb-btn-window-compact .tb-window-compact-plus {
   display: flex;
@@ -283,14 +286,32 @@ body {
   background: #68b;
   border-left: 1px solid #fff;
   flex-shrink: 0;
+  position: relative;
 }
+/* Outer square — thin black line, transparent interior. */
 #topbar .tb-btn-window-compact .tb-window-compact-plus::before {
   content: '';
-  display: block;
+  position: absolute;
+  width: 10px;
+  height: 8px;
+  border: 1px solid #000;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  box-sizing: content-box;
+}
+/* Inner top-left mini-window — white fill + black border, nested inside the
+ * outer square in its top-left corner (matches Amiga depth-gadget icon). */
+#topbar .tb-btn-window-compact .tb-window-compact-plus::after {
+  content: '';
+  position: absolute;
   width: 4px;
-  height: 6px;
+  height: 2px;
   background: #fff;
-  border: 2px solid #000;
+  border: 1px solid #000;
+  top: calc(50% - 4px);
+  left: calc(50% - 5px);
+  box-sizing: content-box;
 }
 /*
 #topbar .tb-btn-session.open .tb-session-plus {
@@ -351,7 +372,6 @@ body {
   color: #fff;
   text-shadow: -1px 0 black, 0 1px black, 1px 0 black, 0 -1px black;
   font-weight: bold;
-  width: 25px;
 }
 
 #menu-wrap { position: relative; display: flex; align-items: center; }

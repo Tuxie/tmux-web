@@ -203,13 +203,32 @@ body { background: #1e1e1e; }
   align-items: center;
   justify-content: center;
   width: 18px;
+  position: relative;
 }
+/* Outer square — thin line, transparent interior. */
 #topbar .tb-btn-window-compact .tb-window-compact-plus::before {
   content: '';
-  display: block;
-  width: 8px;
+  position: absolute;
+  width: 10px;
   height: 8px;
+  border: 1px solid #d4d4d4;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  box-sizing: content-box;
+}
+/* Inner top-left mini-window — contrasting fill + thin border, nested in
+ * the outer square's top-left corner (window-on-top-of-windows icon). */
+#topbar .tb-btn-window-compact .tb-window-compact-plus::after {
+  content: '';
+  position: absolute;
+  width: 4px;
+  height: 2px;
   background: #d4d4d4;
+  border: 1px solid #262626;
+  top: calc(50% - 4px);
+  left: calc(50% - 5px);
+  box-sizing: content-box;
 }
 
 #btn-menu { padding: 2px 8px; font-size: 18px; }
