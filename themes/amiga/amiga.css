@@ -365,7 +365,7 @@ input {
 }
 
 body.topbar-pinned #terminal {
-  top: 27px; /* 3px gap + 22px topbar + 2px gap */
+  top: 23px;
 }
 /*
 #tb-title {
