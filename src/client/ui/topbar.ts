@@ -469,7 +469,7 @@ export class Topbar {
               }
             },
           },
-          items: [{ value: 'close', label: 'Close' }],
+          items: [{ value: 'close', label: 'Close window', separator: true }],
           onSelect: (action) => {
             if (action === 'close') {
               sendWindowMsg({ action: 'close', index: w.index });
