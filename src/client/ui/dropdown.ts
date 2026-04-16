@@ -144,6 +144,14 @@ export interface ContextMenuOptions {
    * its right border lines up with the anchor's right edge.
    */
   alignRight?: boolean;
+  /**
+   * Minimum width in CSS pixels. The base `.tw-dropdown-menu` sets
+   * `min-width: 100%` which is useless for position:fixed (resolves to
+   * viewport width), so the context menu strips it via `.tw-dd-context`;
+   * pass `minWidth` to restore a sensible width — typically the trigger's
+   * measured width so the menu lines up visually with what opened it.
+   */
+  minWidth?: number;
 }
 
 export function showContextMenu(opts: ContextMenuOptions): void {
@@ -152,11 +160,19 @@ export function showContextMenu(opts: ContextMenuOptions): void {
     .forEach(m => m.remove());
 
   const menu = document.createElement('div');
-  menu.className = 'tw-dropdown-menu tw-dd-context'
-    + (opts.className ? ' ' + opts.className : '');
+  // Append '-menu' suffix to `className` to match Dropdown.custom /
+  // Dropdown.menu conventions (createMenu does the same). This lets
+  // theme CSS target e.g. `.tw-dd-windows-menu` with the same naming it
+  // uses for `.tw-dd-sessions-menu` without a separate case for context
+  // menus.
+  const extra = opts.className ? ' ' + opts.className + '-menu' : '';
+  menu.className = 'tw-dropdown-menu tw-dd-context' + extra;
   menu.style.position = 'fixed';
   menu.style.top = opts.y + 'px';
   menu.style.left = opts.x + 'px';
+  if (opts.minWidth !== undefined) {
+    menu.style.minWidth = opts.minWidth + 'px';
+  }
 
   const close = () => {
     menu.remove();

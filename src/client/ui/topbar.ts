@@ -651,6 +651,10 @@ export class Topbar {
       y: rect.bottom,
       alignRight: true,
       className: 'tw-dd-windows',
+      // Match the trigger's width — without this, tw-dd-context strips
+      // min-width and the menu collapses to its content, which looks
+      // narrower and inconsistent next to the sessions/settings menus.
+      minWidth: rect.width,
       renderContent: (menu, close) => this.renderWindowsMenu(menu, close),
       onClose: () => trigger.classList.remove('open'),
     });
