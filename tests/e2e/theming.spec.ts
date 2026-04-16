@@ -35,6 +35,22 @@ test.describe('theming', () => {
     await expect(page.locator('#theme-css')).toHaveAttribute('href', '/themes/default/default.css');
   });
 
+  test('colours trigger label reflects the saved value on initial render', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('tmux-web-session:main',
+        JSON.stringify({ theme: 'Default', colours: 'Dracula', fontFamily: 'Iosevka Nerd Font Mono',
+                         fontSize: 18, spacing: 0.85, opacity: 0 }));
+    });
+    await page.goto('/main');
+    await page.click('#btn-menu');
+    // The custom dropdown trigger should show the saved value ("Dracula"),
+    // not the first option in the <select> (regression: programmatic
+    // `select.value = x` doesn't fire change, so the visible label would
+    // be stale unless the dropdown refreshes it explicitly).
+    await expect(page.locator('#inp-colours-btn .tw-dropdown-value')).toHaveText('Dracula');
+    await expect(page.locator('#inp-colours')).toHaveValue('Dracula');
+  });
+
   test('font picker is populated', async ({ page }) => {
     await page.goto('/');
     await waitForThemeAndFontLists(page);

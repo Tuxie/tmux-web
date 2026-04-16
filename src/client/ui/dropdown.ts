@@ -253,6 +253,18 @@ export class Dropdown {
   get menuElement(): HTMLElement { return this.menu; }
   get triggerElement(): HTMLElement { return this.trigger; }
 
+  /**
+   * Programmatically set the selected value. For `fromSelect` mode this
+   * writes to the wrapped <select> and refreshes the visible label —
+   * necessary because setting `<select>.value` does not fire a `change`
+   * event. No-op in standalone / attachTo modes.
+   */
+  setValue(value: string): void {
+    if (!this.select) return;
+    this.select.value = value;
+    this.syncLabelFromSelect();
+  }
+
   private syncLabelFromSelect(): void {
     if (!this.select || !this.valueEl) return;
     const opt = this.select.selectedOptions[0];

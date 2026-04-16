@@ -212,9 +212,9 @@ export class Topbar {
     };
 
     const syncUi = (s: SessionSettings) => {
-      themeSelect.value = s.theme;
-      coloursSelect.value = s.colours;
-      fontSelect.value = s.fontFamily;
+      ddTheme.setValue(s.theme);
+      ddColours.setValue(s.colours);
+      ddFont.setValue(s.fontFamily);
       sldSize.value = inpSize.value = String(s.fontSize);
       sldHeight.value = inpHeight.value = String(s.spacing);
       sldOpacity.value = inpOpacity.value = String(s.opacity);
@@ -255,7 +255,7 @@ export class Topbar {
       const theme = themes.find(t => t.name === current.theme);
       const patch: Partial<SessionSettings> = {};
       if (theme?.defaultColours) {
-        coloursSelect.value = theme.defaultColours;
+        ddColours.setValue(theme.defaultColours);
         patch.colours = theme.defaultColours;
       }
       if (theme?.defaultOpacity !== undefined) {
@@ -274,7 +274,7 @@ export class Topbar {
       const theme = themes.find(t => t.name === current.theme);
       const patch: Partial<SessionSettings> = {};
       if (theme?.defaultFont) {
-        fontSelect.value = theme.defaultFont;
+        ddFont.setValue(theme.defaultFont);
         patch.fontFamily = theme.defaultFont;
       }
       if (theme?.defaultFontSize !== undefined) {
