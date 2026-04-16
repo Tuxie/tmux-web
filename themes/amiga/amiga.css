@@ -578,3 +578,12 @@ body.topbar-pinned #terminal {
   border-bottom: 1px solid #000;
 }
 
+/* Pressed look while the settings menu is open — mirrors the session /
+ * windows buttons. All four borders switch to black. */
+#btn-menu.open {
+  border-top: 1px solid #000 !important;
+  border-left: 1px solid #000 !important;
+  border-right: 1px solid #000 !important;
+  border-bottom: 1px solid #000 !important;
+}
+

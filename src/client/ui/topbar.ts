@@ -35,6 +35,8 @@ export class Topbar {
   private lastActiveWindowIndex: string | null = null;
   private syncSettingsUi?: (s: SessionSettings) => void;
   private cachedWindows: Array<{ index: string; name: string; active: boolean }> = [];
+  private menuBtn?: HTMLButtonElement;
+  private menuDropdown?: HTMLElement;
   private opts: TopbarOptions;
 
   constructor(opts: TopbarOptions) {
@@ -196,9 +198,12 @@ export class Topbar {
     // menu-reopen flag is consumed synchronously by an inline <script> in index.html
     // (via window.__menuReopen) to avoid a race where the flag lingers in sessionStorage
     // if a subsequent reload happens before this module script runs.
+    this.menuBtn = menuBtn;
+    this.menuDropdown = dropdown;
+
     if ((window as any).__menuReopen) {
       (window as any).__menuReopen = false;
-      dropdown.hidden = false;
+      this.setConfigMenuOpen(true);
       const chkFs = document.getElementById('chk-fullscreen') as HTMLInputElement;
       if (chkFs) chkFs.checked = !!document.fullscreenElement;
     }
@@ -206,9 +211,9 @@ export class Topbar {
     const toggleConfigMenu = (ev: Event): void => {
       ev.preventDefault();
       ev.stopPropagation();
-      const isHidden = dropdown.hidden;
-      dropdown.hidden = !isHidden;
-      if (!dropdown.hidden) {
+      const nextOpen = dropdown.hidden;
+      this.setConfigMenuOpen(nextOpen);
+      if (nextOpen) {
         // Sync fullscreen checkbox state on open
         const chkFs = document.getElementById('chk-fullscreen') as HTMLInputElement;
         chkFs.checked = !!document.fullscreenElement;
@@ -225,11 +230,19 @@ export class Topbar {
     // don't inadvertently close the dropdown.
     document.addEventListener('pointerdown', (ev) => {
       if (!dropdown.hidden && !menuWrap.contains(ev.target as Node)) {
-        dropdown.hidden = true;
+        this.setConfigMenuOpen(false);
         this.opts.focus();
         this.show();
       }
     });
+  }
+
+  /** Keep #menu-dropdown.hidden and #btn-menu.open in lockstep so themes
+   *  can render a pressed look while the settings menu is showing. */
+  private setConfigMenuOpen(open: boolean): void {
+    if (!this.menuDropdown) return;
+    this.menuDropdown.hidden = !open;
+    this.menuBtn?.classList.toggle('open', open);
   }
 
   private setupFullscreenCheckbox(): void {
@@ -477,7 +490,7 @@ export class Topbar {
     if (this.autohide && !dropdownOpen && !anyCustomOpen) {
       this.hideTimer = setTimeout(() => {
         this.topbar.classList.add('hidden');
-        if (dropdown) dropdown.hidden = true;
+        this.setConfigMenuOpen(false);
       }, 1000);
     } else {
       this.hideTimer = null;
