@@ -76,8 +76,16 @@ export async function applyTheme(name: string): Promise<void> {
   link.id = 'theme-css';
   link.rel = 'stylesheet';
   link.href = `/themes/${encodeURIComponent(theme.pack)}/${encodeURIComponent(theme.css)}`;
+  const loaded = new Promise<void>((resolve) => {
+    link.addEventListener('load', () => resolve(), { once: true });
+    link.addEventListener('error', () => resolve(), { once: true });
+  });
   document.head.appendChild(link);
   activeTheme = name;
+  // Wait until the stylesheet has parsed and applied so callers that read
+  // computed styles (e.g. body backgroundColor for WebGL atlas blending)
+  // see the new theme, not the previous one.
+  await loaded;
 }
 
 
