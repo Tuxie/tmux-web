@@ -582,7 +582,9 @@ body.topbar-pinned #terminal {
 #btn-menu {
   background: #68b !important;
   position: relative;
-  right: 0px !important;
+  /* Shift 1px rightward so the button's black right border covers the
+   * final pixel of the topbar instead of leaving the blue gap showing. */
+  right: -1px !important;
   top: 0px !important;
   width: 39px !important;
   color: #fff !important;
