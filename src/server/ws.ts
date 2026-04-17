@@ -224,9 +224,27 @@ function handleConnection(
   const newReqId = (): string => `r${Date.now().toString(36)}${(nextReqId++).toString(36)}`;
 
   /** Respond to the PTY for an OSC 52 read. Empty base64 = denied/empty
-   *  clipboard (well-formed but no content). */
-  const replyToRead = (selection: string, base64: string): void => {
-    ptyProcess.write(buildOsc52Response(selection, base64));
+   *  clipboard (well-formed but no content).
+   *
+   *  Bytes can't just be written to the tmux-client PTY: tmux parses its
+   *  client-keyboard channel as an outer-terminal reply stream and drops
+   *  an OSC 52 WRITE that doesn't match a pending query. Inject directly
+   *  into the focused pane's stdin via `tmux send-keys -H <hex bytes>`. */
+  const replyToRead = async (selection: string, base64: string): Promise<void> => {
+    const bytes = buildOsc52Response(selection, base64);
+    if (config.testMode) {
+      ptyProcess.write(bytes);
+      return;
+    }
+    const hex: string[] = [];
+    for (let i = 0; i < bytes.length; i++) {
+      hex.push(bytes.charCodeAt(i).toString(16).padStart(2, '0'));
+    }
+    try {
+      await execFileAsync(config.tmuxBin, ['send-keys', '-H', '-t', lastSession, ...hex]);
+    } catch (err) {
+      debug(config, `OSC 52 reply send-keys failed: ${err}`);
+    }
   };
 
   /** Ask the client for the current clipboard contents so we can deliver
@@ -245,14 +263,14 @@ function handleConnection(
       // Can't identify the caller — deny silently. Most apps handle an
       // empty reply gracefully (nothing gets pasted).
       debug(config, `OSC 52 read: unknown foreground process, denying`);
-      replyToRead(selection, '');
+      void replyToRead(selection, '');
       return;
     }
 
     const decision = await resolvePolicy(sessionsStorePath, lastSession, exePath, 'read');
     if (decision === 'deny') {
       debug(config, `OSC 52 read: denied by policy for ${exePath}`);
-      replyToRead(selection, '');
+      void replyToRead(selection, '');
       return;
     }
 
@@ -350,7 +368,7 @@ function handleConnection(
             requestClipboardFromClient(parsed.reqId);
           } else {
             pendingReads.delete(parsed.reqId);
-            replyToRead(pending.selection, '');
+            void replyToRead(pending.selection, '');
           }
           return;
         }
@@ -363,7 +381,7 @@ function handleConnection(
           // stall the PTY. 1 MiB base64 ≈ 768 KiB raw — plenty for sane use.
           const MAX = 1024 * 1024;
           const clipped = base64.length > MAX ? '' : base64;
-          replyToRead(pending.selection, clipped);
+          void replyToRead(pending.selection, clipped);
           return;
         }
       } catch { /* not JSON, pass through */ }
