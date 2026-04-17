@@ -253,14 +253,6 @@ body {
  * Custom dropdown — trigger, open menu, items.
  * ------------------------------------------------------------------- */
 .tw-dropdown { position: relative; display: inline-flex; align-items: center; }
-.tw-dd-hidden-select {
-  position: absolute !important;
-  left: -9999px !important;
-  width: 1px !important;
-  height: 1px !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-}
 .tw-dropdown-trigger {
   display: inline-flex;
   align-items: center;
@@ -420,9 +412,9 @@ body {
   color: #777;
   white-space: nowrap;
 }
-#menu-footer:hover { background: none !important; }
+#menu-footer:hover { background: none; }
 
-input { accent-color: #7096ce !important; }
+input { accent-color: #7096ce; }
 
 /* ---------------------------------------------------------------------
  * Range sliders (settings menu).
