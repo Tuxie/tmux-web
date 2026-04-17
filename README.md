@@ -98,11 +98,15 @@ Edit the unit to set `TMUX_WEB_USERNAME` and `TMUX_WEB_PASSWORD` before enabling
 The bundled `tmux.conf` enables the settings tmux-web relies on (terminal passthrough, extended keys, clipboard integration) and then sources your own config:
 
 ```tmux
-source-file -q ~/.config/tmux/tmux.conf
+source-file -q /etc/tmux.conf
 source-file -q ~/.tmux.conf
+source-file -q ~/.config/tmux/tmux.conf
+source-file -q /etc/tmux-web.conf
+source-file -q ~/.config/tmux-web/tmux.conf
+source-file -q ~/.config/tmux-web/tmux-web.conf
 ```
 
-Your existing tmux configuration keeps working; tmux-web simply ensures the required options are set first. You can also specify an alternative config to source using `--tmux-conf <path>`, which replaces the default `source-file` commands. To use a specific tmux executable, pass `--tmux <path>`.
+Each path is silent if missing. General `tmux.conf` paths are sourced first so a single user config works everywhere; the `tmux-web*` paths come last so you can override anything specifically for the web frontend. Your existing tmux configuration keeps working; tmux-web simply ensures the required options are set first. You can also specify an alternative config to source using `--tmux-conf <path>`, which replaces the default `source-file` commands. To use a specific tmux executable, pass `--tmux <path>`.
 
 ## Security
 
@@ -164,4 +168,4 @@ Tests follow a strict policy: failing tests indicate implementation bugs and are
 
 ## License
 
-See `LICENSE` if present, otherwise treat as all rights reserved by the author.
+MIT — see [LICENSE](LICENSE).

@@ -10,6 +10,12 @@
 
 **Spec:** `docs/superpowers/specs/2026-04-15-colours-and-ghostty-removal-design.md`
 
+> **UPDATE 2026-04-18:** The session-settings storage model was pivoted
+> during implementation from client-side `localStorage` to server-side
+> `~/.config/tmux-web/sessions.json` via `PUT /api/session-settings`. The
+> rest of this plan (colour schemes, Ghostty removal) shipped as
+> documented. See CLAUDE.md "Per-session storage" for the current design.
+
 ---
 
 ## File Structure

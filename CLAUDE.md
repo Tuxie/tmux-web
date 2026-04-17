@@ -187,7 +187,7 @@ Session settings are persisted server-side at `~/.config/tmux-web/sessions.json`
 
 ### Theme-switch semantics
 
-When the user switches theme, `colours`, `fontFamily`, `fontSize`, and `lineHeight` are **unconditionally overwritten** with the new theme's defaults (`theme.json` fields `defaultColours`, `defaultFont`, `defaultFontSize`, `defaultLineHeight`). This avoids stale cross-theme combinations.
+When the user switches theme, `colours`, `fontFamily`, `fontSize`, and `spacing` are **unconditionally overwritten** with the new theme's defaults (`theme.json` fields `defaultColours`, `defaultFont`, `defaultFontSize`, `defaultSpacing`). This avoids stale cross-theme combinations.
 
 ## Server-Client Protocol
 
@@ -197,6 +197,7 @@ Out-of-band messages: `\x00TT:<json>` in WS stream.
 |---|---|---|
 | `session` | OSC title change | tmux session name |
 | `windows` | OSC title change | `tmux list-windows` result |
+| `title` | OSC title change | active pane title string (foreground process's window title) |
 | `clipboard` | OSC 52 received | Base64 clipboard text |
 | `clipboardPrompt`, `clipboardReadRequest` | OSC 52 read (DCS passthrough) | Prompt user + deliver reply |
 | `dropsChanged` | File-drop write/delete/TTL-sweep | Refresh drops panel |
@@ -213,7 +214,7 @@ Forward `\x1b[<64;col;rowM` / `\x1b[<65;col;rowM` (up/down). Shift+wheel bypass 
 
 ### 2. Mouse button + drag forwarding
 
-Backends no forward mouse button as SGR for tmux.
+Backends do not forward mouse buttons as SGR sequences to tmux.
 **Fix:** `src/client/ui/mouse.ts` register `mousedown`/`mouseup`/`mousemove` on **`document`** (capture). `stopPropagation()` prevent terminal from see event. Shift+click bypass for native selection.
 
 Format: `\x1b[<btn;col;rowM` (press), `\x1b[<btn;col;rowm` (release), motion add 32 to btn.
@@ -271,8 +272,8 @@ WS reconnect: call `adapter.fit()`, send `{"type":"resize"}` on `ws.onopen`. `sr
 32px toolbar overlay terminal. `src/client/ui/topbar.ts`:
 
 - **Session menu button** (`#btn-session-menu`) — `[ + | <session name> ]` button that opens a custom dropdown listing sessions from `/api/sessions` plus a "Create new session" entry at the bottom. Label is `#tb-session-name`. Button gets `.open` while dropdown is showing.
-- **Window tabs** (`#win-tabs`) — one per tmux window, click send `Ctrl-S <index>`
-- **Fullscreen button** (`#btn-fullscreen`)
+- **Window tabs** (`#win-tabs`) — one per tmux window; click sends a `{type:'window', action:'select', index}` WS message, which the server translates to `tmux select-window`
+- **Fullscreen checkbox** (`#chk-fullscreen`) — inside the settings menu
 
 **Auto-hide:** slide out after 1s. Reappear on mouse near top or window/fullscreen change.
 **Focus:** `mousedown` + `preventDefault()` on buttons prevent focus theft. `adapter.focus()` call after interact.
@@ -294,7 +295,7 @@ IDs (do not rename):
 - `#btn-session-menu` — session menu button (`[ + | name ]`), opens sessions dropdown
 - `#tb-session-name` — text label inside the session menu button (the `<name>` part)
 - `#win-tabs` — window buttons
-- `#btn-fullscreen` — toggle button
+- `#chk-fullscreen` — fullscreen checkbox (inside settings menu)
 - `#inp-theme` — theme `<select>` (visually replaced by `#inp-theme-dd` + `#inp-theme-btn` custom dropdown; original `<select>` stays hidden as source of truth)
 - `#inp-colours` — colour scheme `<select>` (custom dropdown: `#inp-colours-dd` / `#inp-colours-btn`)
 - `#inp-font-bundled` — bundled font `<select>` (custom dropdown: `#inp-font-bundled-dd` / `#inp-font-bundled-btn`)
