@@ -48,7 +48,7 @@ test('right-click on the windows button sends a new-window message', async ({ pa
 
 test('left-click on the windows button opens the rich windows menu', async ({ page }) => {
   await page.locator('#win-tabs button').nth(2).click();
-  const menu = page.locator('.tw-dropdown-menu.tw-dd-windows');
+  const menu = page.locator('.tw-dropdown-menu.tw-dd-windows-menu');
   await expect(menu).toBeVisible();
   // Window list: two rows, current one marked .current
   const sessionItems = menu.locator('.tw-dd-session-item');
@@ -67,7 +67,7 @@ test('left-click on the windows button opens the rich windows menu', async ({ pa
 
 test('New window input in the menu creates a named window', async ({ page }) => {
   await page.locator('#win-tabs button').nth(2).click();
-  const menu = page.locator('.tw-dd-windows');
+  const menu = page.locator('.tw-dd-windows-menu');
   const input = menu.locator('.menu-row', { hasText: 'New window:' }).locator('input');
   await input.fill('logs');
   await input.press('Enter');
@@ -77,7 +77,7 @@ test('New window input in the menu creates a named window', async ({ page }) => 
 
 test('Name input in the menu renames the current window', async ({ page }) => {
   await page.locator('#win-tabs button').nth(2).click();
-  const menu = page.locator('.tw-dd-windows');
+  const menu = page.locator('.tw-dd-windows-menu');
   const nameInput = menu.locator('.menu-row', { hasText: 'Name:' }).locator('input');
   await expect(nameInput).toHaveValue('zsh');
   await nameInput.fill('shell');
@@ -93,7 +93,7 @@ test('unchecking Show windows as tabs hides the tab buttons', async ({ page }) =
 
   // Open the windows menu and uncheck the toggle.
   await page.locator('#win-tabs .tb-btn-window-compact').click();
-  await page.locator('.tw-dd-windows input[type="checkbox"]').click();
+  await page.locator('.tw-dd-windows-menu input[type="checkbox"]').click();
 
   // Tabs gone; only the windows-menu button remains.
   await expect(page.locator('#win-tabs .win-tab')).toHaveCount(0);
@@ -102,14 +102,14 @@ test('unchecking Show windows as tabs hides the tab buttons', async ({ page }) =
 
   // Re-check to bring tabs back.
   await page.locator('.tb-btn-window-compact').click();
-  await page.locator('.tw-dd-windows input[type="checkbox"]').click();
+  await page.locator('.tw-dd-windows-menu input[type="checkbox"]').click();
   await expect(page.locator('#win-tabs .win-tab')).toHaveCount(2);
   await expect(page.locator('#win-tabs .tb-btn-window-compact')).toHaveCount(1);
 });
 
 test('right-click on a window tab opens a Name input + Close window item', async ({ page }) => {
   await page.locator('#win-tabs button').nth(1).click({ button: 'right' });
-  const menu = page.locator('.tw-dropdown-menu.tw-dd-context-win');
+  const menu = page.locator('.tw-dropdown-menu.tw-dd-context-win-menu');
   await expect(menu).toBeVisible();
   await expect(menu.locator('.menu-label')).toHaveText('Name:');
   // Name input is pre-filled with the current window name.
@@ -122,17 +122,17 @@ test('right-click on a window tab opens a Name input + Close window item', async
 
 test('editing the Name input and pressing Enter sends rename-window', async ({ page }) => {
   await page.locator('#win-tabs button').nth(1).click({ button: 'right' });
-  const input = page.locator('.tw-dd-context-win .tw-dd-input');
+  const input = page.locator('.tw-dd-context-win-menu .tw-dd-input');
   await input.fill('editor');
   await input.press('Enter');
   const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
   expect(sent).toContain(JSON.stringify({ type: 'window', action: 'rename', index: '1', name: 'editor' }));
-  await expect(page.locator('.tw-dropdown-menu.tw-dd-context-win')).toHaveCount(0);
+  await expect(page.locator('.tw-dropdown-menu.tw-dd-context-win-menu')).toHaveCount(0);
 });
 
 test('pressing Enter with the name unchanged does not send rename', async ({ page }) => {
   await page.locator('#win-tabs button').nth(1).click({ button: 'right' });
-  const input = page.locator('.tw-dd-context-win .tw-dd-input');
+  const input = page.locator('.tw-dd-context-win-menu .tw-dd-input');
   await input.press('Enter');
   const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
   expect(sent.some(s => s.includes('"action":"rename"'))).toBe(false);
@@ -140,7 +140,7 @@ test('pressing Enter with the name unchanged does not send rename', async ({ pag
 
 test('Close window from context menu sends a close-window message for that tab', async ({ page }) => {
   await page.locator('#win-tabs button').nth(1).click({ button: 'right' });
-  await page.locator('.tw-dd-context-win .tw-dropdown-item', { hasText: 'Close window' }).click();
+  await page.locator('.tw-dd-context-win-menu .tw-dropdown-item', { hasText: 'Close window' }).click();
   const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
   expect(sent).toContain(JSON.stringify({ type: 'window', action: 'close', index: '1' }));
 });

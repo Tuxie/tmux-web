@@ -7,14 +7,6 @@ export const DEFAULT_PORT = 4022;
 /** Default listen host. */
 export const DEFAULT_HOST = '0.0.0.0';
 
-/** Keys handled by CSI-u forwarding: key name → CSI code. */
-export const CSI_U_KEYS: Record<string, number> = {
-  Enter: 13,
-  Tab: 9,
-  Backspace: 127,
-  Escape: 27,
-};
-
 /** MIME types by file extension. */
 export const MIME_TYPES: Record<string, string> = {
   '.js': 'application/javascript',

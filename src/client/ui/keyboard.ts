@@ -1,42 +1,17 @@
-import { CSI_U_KEYS } from '../../shared/constants.js';
-
-export interface ModifierState {
-  shiftKey: boolean;
-  altKey: boolean;
-  ctrlKey: boolean;
-  metaKey: boolean;
-}
-
-export function getModifierCode(mods: ModifierState): number {
-  return 1
-    + (mods.shiftKey ? 1 : 0)
-    + (mods.altKey ? 2 : 0)
-    + (mods.ctrlKey ? 4 : 0)
-    + (mods.metaKey ? 8 : 0);
-}
-
-export function buildCsiU(keyCode: number, modifier: number): string {
-  return `\x1b[${keyCode};${modifier}u`;
-}
-
 export interface KeyboardHandlerOptions {
   terminalElement: HTMLElement;
   send: (data: string) => void;
   toggleFullscreen: () => void;
 }
 
+/**
+ * Browser-shortcut passthrough. Modified special-key reporting
+ * (CSI-u for Shift+Enter, Shift+Tab, Ctrl+Backspace, etc.) is now handled
+ * by xterm's built-in Kitty keyboard protocol — enabled via
+ * `vtExtensions.kittyKeyboard: true` in the adapter. Applications opt in
+ * by writing `CSI > flags u`; xterm then emits the proper sequences.
+ */
 export function installKeyboardHandler(opts: KeyboardHandlerOptions): () => void {
-  function handleCsiU(ev: KeyboardEvent) {
-    const mod = getModifierCode(ev);
-    if (mod <= 1) return;
-    const code = CSI_U_KEYS[ev.key];
-    if (code !== undefined) {
-      opts.send(buildCsiU(code, mod));
-      ev.stopPropagation();
-      ev.preventDefault();
-    }
-  }
-
   function handleShortcuts(ev: KeyboardEvent) {
     if (ev.metaKey && !ev.ctrlKey && ev.key.toLowerCase() === 'r') {
       ev.stopPropagation();
@@ -48,11 +23,9 @@ export function installKeyboardHandler(opts: KeyboardHandlerOptions): () => void
     }
   }
 
-  opts.terminalElement.addEventListener('keydown', handleCsiU, true);
   document.addEventListener('keydown', handleShortcuts, true);
 
   return () => {
-    opts.terminalElement.removeEventListener('keydown', handleCsiU, true);
     document.removeEventListener('keydown', handleShortcuts, true);
   };
 }

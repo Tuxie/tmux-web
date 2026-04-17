@@ -53,6 +53,12 @@ export class XtermAdapter implements TerminalAdapter {
       allowProposedApi: true,
       scrollback: 0,
       scrollbar: { showScrollbar: false },
+      // Opt-in to xterm's built-in Kitty keyboard protocol
+      // (https://sw.kovidgoyal.net/kitty/keyboard-protocol/). When
+      // applications negotiate via `CSI > flags u`, xterm emits proper
+      // CSI-u sequences for modified keys — we no longer need to hand-roll
+      // Shift+Enter / Shift+Tab / etc. in ui/keyboard.ts.
+      vtExtensions: { kittyKeyboard: true },
     });
 
     this.fitAddon = new FitAddon();
