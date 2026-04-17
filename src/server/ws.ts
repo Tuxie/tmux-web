@@ -11,6 +11,7 @@ import { deliverOsc52Reply } from './osc52-reply.js';
 import { buildPtyCommand, buildPtyEnv, spawnPty, sanitizeSession } from './pty.js';
 import { isAllowed } from './allowlist.js';
 import { isAuthorized } from './http.js';
+import { isOriginAllowed, logOriginReject } from './origin.js';
 import { getForegroundProcess } from './foreground-process.js';
 import { resolvePolicy, recordGrant } from './clipboard-policy.js';
 import { onDropsChange } from './file-drop.js';
@@ -29,6 +30,43 @@ function debug(config: ServerConfig, ...args: unknown[]): void {
   if (config.debug) process.stderr.write(`[debug] ${args.join(' ')}\n`);
 }
 
+/**
+ * Send a short HTTP error response on a raw upgrade socket and close it.
+ *
+ * Under Bun's Node.js compat layer, `socket.write()` followed immediately by
+ * `socket.destroy()` drops the bytes — and `socket.end(payload)` also silently
+ * discards the payload in the upgrade context. The only path that reliably
+ * flushes is to use the underlying Bun response object exposed via the
+ * `::bunternal::` symbol. We prefer that path when available and fall back to
+ * `socket.write() + socket.destroy()` (which works on plain Node.js).
+ */
+function rejectUpgradeSocket(
+  socket: Duplex,
+  statusCode: number,
+  statusText: string,
+  extraHeaders: Record<string, string> = {},
+): void {
+  const native = (socket as any)[Symbol.for('::bunternal::')];
+  if (native && typeof native.writeHead === 'function') {
+    native.writeHead(statusCode, statusText, {
+      'Content-Length': '0',
+      'Connection': 'close',
+      ...extraHeaders,
+    });
+    native.end('');
+    return;
+  }
+  // Plain Node.js: socket.write() flushes synchronously before destroy().
+  const lines = [
+    `HTTP/1.1 ${statusCode} ${statusText}`,
+    'Content-Length: 0',
+    'Connection: close',
+    ...Object.entries(extraHeaders).map(([k, v]) => `${k}: ${v}`),
+  ];
+  socket.write(lines.join('\r\n') + '\r\n\r\n');
+  socket.destroy();
+}
+
 export function createWsServer(
   httpServer: HttpServer | HttpsServer,
   opts: WsServerOptions,
@@ -45,10 +83,24 @@ export function createWsServer(
       return;
     }
 
+    if (!config.testMode && !isOriginAllowed(req, {
+      allowedIps: config.allowedIps,
+      allowedOrigins: config.allowedOrigins,
+      serverScheme: config.tls ? 'https' : 'http',
+      serverPort: config.port,
+    })) {
+      const origin = req.headers.origin ?? '<none>';
+      debug(config, `WS upgrade from ${remoteIp} - rejected (Origin: ${origin})`);
+      logOriginReject(origin, remoteIp);
+      rejectUpgradeSocket(socket, 403, 'Forbidden');
+      return;
+    }
+
     if (!isAuthorized(req, config)) {
       debug(config, `WS upgrade from ${remoteIp} - unauthorized`);
-      socket.write('HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm="tmux-web"\r\n\r\n');
-      socket.destroy();
+      rejectUpgradeSocket(socket, 401, 'Unauthorized', {
+        'WWW-Authenticate': 'Basic realm="tmux-web"',
+      });
       return;
     }
 

@@ -65,18 +65,19 @@ xattr -d com.apple.quarantine tmux-web-darwin-*
 ## CLI options
 
 ```
---listen <host:port>     Bind address (default: 0.0.0.0:4022)
---username <name>        Basic Auth user (default: $TMUX_WEB_USERNAME or current user)
---password <pass>        Basic Auth password (default: $TMUX_WEB_PASSWORD, required unless --no-auth)
---no-auth                Disable HTTP Basic Auth
---allow-ip <ip>          Allow a client IP (repeatable; localhost is always allowed)
---tls                    Enable HTTPS with a self-signed certificate (default)
---no-tls                 Disable HTTPS and fallback to HTTP
---tls-cert <file>        Use a specific TLS certificate
---tls-key <file>         Use a specific TLS private key
---tmux <path>            Path to tmux executable (default: tmux)
---tmux-conf <path>       Alternative tmux.conf to load instead of user default
---test                   Test mode: `cat` instead of tmux, bypass IP allowlist
+-l, --listen <host:port>       Bind address (default: 0.0.0.0:4022)
+-u, --username <name>          Basic Auth user (default: $TMUX_WEB_USERNAME or current user)
+-p, --password <pass>          Basic Auth password (default: $TMUX_WEB_PASSWORD, required unless --no-auth)
+    --no-auth                  Disable HTTP Basic Auth
+-i, --allow-ip <ip>            Allow a client IP (repeatable; default: 127.0.0.1 and ::1)
+-o, --allow-origin <origin>    Allow browser Origin (repeatable; full scheme://host[:port] or '*')
+    --tls                      Enable HTTPS with a self-signed certificate (default)
+    --no-tls                   Disable HTTPS and fallback to HTTP
+    --tls-cert <file>          Use a specific TLS certificate
+    --tls-key <file>           Use a specific TLS private key
+    --tmux <path>              Path to tmux executable (default: tmux)
+    --tmux-conf <path>         Alternative tmux.conf to load instead of user default
+    --test                     Test mode: `cat` instead of tmux, bypass IP/Origin allowlists
 ```
 
 ## Running as a service
@@ -112,9 +113,32 @@ tmux-web exposes an interactive shell over the network. Treat it accordingly.
 - **Never bind to a public interface without TLS.** If you use `--no-tls`, ensure you are terminating TLS in front of tmux-web (nginx, Caddy, Cloudflare Tunnel, Tailscale Funnel).
 - **Prefer localhost + reverse proxy** for production deployments. `--listen 127.0.0.1:4022` behind nginx/Caddy with a real certificate is the recommended setup. Use `--no-tls` if the proxy handles TLS.
 - **Use `--allow-ip`** to restrict access to known client IPs when binding beyond localhost. Localhost is always allowed so local health checks keep working.
+- **Use `--allow-origin`** to whitelist the browser Origins that are permitted to open WebSocket connections (see below).
 - **Rotate the password** if the service has ever been exposed without TLS.
 - **Consider a VPN or overlay network** (Tailscale, WireGuard) rather than exposing tmux-web directly to the internet.
 - **Remember what this is.** Anyone who reaches a logged-in session has full shell access as the service user.
+
+### Origin validation
+
+tmux-web validates the browser `Origin` header on HTTP and WebSocket requests to close DNS-rebinding and cross-site-WebSocket attacks. Requests without an `Origin` header (curl, scripts) are not affected.
+
+Default behaviour:
+
+- Origins whose host is a literal IP listed in `--allow-ip` are auto-allowed (so `http://127.0.0.1:4022` and `http://<your-LAN-IP>:4022` work without extra config).
+- Origins whose host is a hostname must appear in `--allow-origin`.
+
+Examples:
+
+```bash
+# Direct LAN access
+tmux-web --listen 0.0.0.0:4022 -i 192.168.2.4
+
+# Behind nginx-proxy-manager at https://tmux.example.com
+tmux-web --listen 127.0.0.1:4022 -i 10.0.0.5 \
+  -o https://tmux.example.com
+```
+
+`-o *` disables the Origin check entirely — including the scheme/port tightening on IP-literal origins. It is an explicit opt-in; the server warns at startup if it's combined with any non-loopback `--allow-ip`.
 
 ## Architecture
 

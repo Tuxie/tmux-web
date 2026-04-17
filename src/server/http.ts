@@ -7,6 +7,7 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import { MIME_TYPES } from '../shared/constants.js';
 import type { ServerConfig } from '../shared/types.js';
 import { isAllowed } from './allowlist.js';
+import { isOriginAllowed, logOriginReject } from './origin.js';
 import { embeddedAssets } from './assets-embedded.js';
 import {
   listColours,
@@ -181,6 +182,20 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
     const remoteIp = req.socket.remoteAddress || '';
     if (!config.testMode && !isAllowed(remoteIp, config.allowedIps)) {
       debug(config, `HTTP ${req.method} ${req.url} from ${remoteIp} - rejected (IP)`);
+      res.writeHead(403);
+      res.end('Forbidden');
+      return;
+    }
+
+    if (!config.testMode && !isOriginAllowed(req, {
+      allowedIps: config.allowedIps,
+      allowedOrigins: config.allowedOrigins,
+      serverScheme: config.tls ? 'https' : 'http',
+      serverPort: config.port,
+    })) {
+      const origin = req.headers.origin ?? '<none>';
+      debug(config, `HTTP ${req.method} ${req.url} from ${remoteIp} - rejected (Origin: ${origin})`);
+      logOriginReject(origin, remoteIp);
       res.writeHead(403);
       res.end('Forbidden');
       return;

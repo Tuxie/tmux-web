@@ -84,6 +84,7 @@ export interface ServerConfig {
   host: string;
   port: number;
   allowedIps: Set<string>;
+  allowedOrigins: Array<{ scheme: 'http' | 'https'; host: string; port: number } | '*'>;
   tls: boolean;
   tlsCert?: string;
   tlsKey?: string;

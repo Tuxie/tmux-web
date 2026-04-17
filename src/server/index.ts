@@ -10,6 +10,7 @@ import { defaultDropStorage, cleanupAll as cleanupDrops } from './file-drop.js';
 import { generateSelfSignedCert } from './tls.js';
 import type { ServerConfig } from '../shared/types.js';
 import { DEFAULT_HOST, DEFAULT_PORT } from '../shared/constants.js';
+import { parseAllowOriginFlag } from './origin.js';
 import { embeddedAssets } from './assets-embedded.js';
 import pkg from '../../package.json' with { type: 'json' };
 
@@ -48,26 +49,25 @@ export function parseConfig(argv: string[]): ConfigResult {
   const { values: args } = parseArgs({
     args: argv,
     options: {
-      listen:       { type: 'string',  short: 'l', default: `${DEFAULT_HOST}:${DEFAULT_PORT}` },
-      // Temporary compatibility alias: accept legacy --terminal callers so
-      // strict arg parsing does not fail while backend selection is removed.
-      terminal:     { type: 'string' },
-      'allow-ip':   { type: 'string',  short: 'a', multiple: true, default: [] as string[] },
-      username:     { type: 'string',  short: 'u' },
-      password:     { type: 'string',  short: 'p' },
-      'no-auth':    { type: 'boolean', default: false },
-      tls:          { type: 'boolean', default: true },
-      'no-tls':     { type: 'boolean', default: false },
-      'tls-cert':   { type: 'string' },
-      'tls-key':    { type: 'string' },
-      'tmux':       { type: 'string',  default: 'tmux' },
-      'tmux-conf':  { type: 'string' },
-      'themes-dir': { type: 'string' },
-      'theme':      { type: 'string',  short: 't' },
-      test:         { type: 'boolean', default: false },
-      debug:        { type: 'boolean', short: 'd', default: false },
-      help:         { type: 'boolean', short: 'h', default: false },
-      version:      { type: 'boolean', short: 'V', default: false },
+      listen:         { type: 'string',  short: 'l', default: `${DEFAULT_HOST}:${DEFAULT_PORT}` },
+      terminal:       { type: 'string' },
+      'allow-ip':     { type: 'string',  short: 'i', multiple: true, default: [] as string[] },
+      'allow-origin': { type: 'string',  short: 'o', multiple: true, default: [] as string[] },
+      username:       { type: 'string',  short: 'u' },
+      password:       { type: 'string',  short: 'p' },
+      'no-auth':      { type: 'boolean', default: false },
+      tls:            { type: 'boolean', default: true },
+      'no-tls':       { type: 'boolean', default: false },
+      'tls-cert':     { type: 'string' },
+      'tls-key':      { type: 'string' },
+      'tmux':         { type: 'string',  default: 'tmux' },
+      'tmux-conf':    { type: 'string' },
+      'themes-dir':   { type: 'string' },
+      'theme':        { type: 'string',  short: 't' },
+      test:           { type: 'boolean', default: false },
+      debug:          { type: 'boolean', short: 'd', default: false },
+      help:           { type: 'boolean', short: 'h', default: false },
+      version:        { type: 'boolean', short: 'V', default: false },
     },
     strict: true,
   });
@@ -81,10 +81,17 @@ export function parseConfig(argv: string[]): ConfigResult {
   const username = args.username || process.env.TMUX_WEB_USERNAME || userInfo().username;
   const password = args.password || process.env.TMUX_WEB_PASSWORD;
 
+  const rawAllowIps = args['allow-ip'] as string[];
+  const allowedIps = new Set<string>(['127.0.0.1', '::1', ...rawAllowIps]);
+
+  const rawAllowOrigins = args['allow-origin'] as string[];
+  const allowedOrigins = rawAllowOrigins.map(parseAllowOriginFlag);
+
   const config: ServerConfig = {
     host,
     port,
-    allowedIps: new Set(args['allow-ip'] as string[]),
+    allowedIps,
+    allowedOrigins,
     tls: !!args.tls && !args['no-tls'],
     tlsCert: args['tls-cert'] as string | undefined,
     tlsKey: args['tls-key'] as string | undefined,
@@ -104,6 +111,21 @@ export function parseConfig(argv: string[]): ConfigResult {
   return { config, host, port };
 }
 
+const LOOPBACK_IPS = new Set(['127.0.0.1', '::1']);
+
+export function warnIfDangerousOriginConfig(
+  cfg: Pick<ServerConfig, 'allowedIps' | 'allowedOrigins'>,
+): void {
+  const hasWildcard = cfg.allowedOrigins.some(e => e === '*');
+  if (!hasWildcard) return;
+  const hasNonLoopback = [...cfg.allowedIps].some(ip => !LOOPBACK_IPS.has(ip));
+  if (!hasNonLoopback) return;
+  console.error(
+    'tmux-web: warning: --allow-origin * with non-loopback --allow-ip re-opens DNS rebinding;\n'
+    + '  prefer listing explicit origins.',
+  );
+}
+
 async function startServer() {
   const { config, host, port, help, version } = parseConfig(process.argv.slice(2));
 
@@ -117,7 +139,8 @@ async function startServer() {
 
 Options:
   -l, --listen <host:port>     Address to listen on (default: ${DEFAULT_HOST}:${DEFAULT_PORT})
-  -a, --allow-ip <ip>          Allow IP address (repeatable; localhost always allowed)
+  -i, --allow-ip <ip>          Allow an IP address to connect (repeatable; default: 127.0.0.1 and ::1)
+  -o, --allow-origin <origin>  Allow a browser Origin (repeatable; full scheme://host[:port], or '*')
   -u, --username <name>        HTTP Basic Auth username (default: $TMUX_WEB_USERNAME or current user)
   -p, --password <pass>        HTTP Basic Auth password (default: $TMUX_WEB_PASSWORD, required)
       --no-auth                Disable HTTP Basic Auth
@@ -129,7 +152,7 @@ Options:
       --tmux-conf <path>       Alternative tmux.conf to load instead of user default
       --themes-dir <path>      User theme-pack directory override
   -t, --theme <name>           Initial theme name
-      --test                   Test mode: use cat PTY, bypass IP allowlist
+      --test                   Test mode: use cat PTY, bypass IP/Origin allowlists
   -d, --debug                  Log debug messages to stderr
   -V, --version                Print version and exit
   -h, --help                   Show this help`);
@@ -144,6 +167,8 @@ Options:
     console.error('Error: --password or $TMUX_WEB_PASSWORD is required unless --no-auth is used.');
     process.exit(1);
   }
+
+  warnIfDangerousOriginConfig(config);
 
   // Fail early if the configured tmux binary isn't runnable. Otherwise
   // the first WebSocket connection tries to spawn it and the user just
