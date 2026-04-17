@@ -88,6 +88,21 @@ describe("sessions-store", () => {
     expect(next.sessions.b).toBeDefined();
   });
 
+  test("sanitiseSessions drops __proto__, constructor, and prototype keys", () => {
+    const file = path.join(tmp, "sessions.json");
+    // Write raw JSON that includes dangerous prototype-pollution keys.
+    // JSON.parse won't give us __proto__ as an own property so write via
+    // a manually crafted JSON string.
+    const raw = `{"version":1,"sessions":{"__proto__":${JSON.stringify(SAMPLE)},"constructor":${JSON.stringify(SAMPLE)},"prototype":${JSON.stringify(SAMPLE)},"main":${JSON.stringify(SAMPLE)}}}`;
+    fs.writeFileSync(file, raw);
+    const cfg = loadConfig(file);
+    const keys = Object.keys(cfg.sessions);
+    expect(keys).toEqual(["main"]);
+    expect(Object.prototype.hasOwnProperty.call(cfg.sessions, "__proto__")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(cfg.sessions, "constructor")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(cfg.sessions, "prototype")).toBe(false);
+  });
+
   test("applyPatch persists merged result", () => {
     const file = path.join(tmp, "sessions.json");
     applyPatch(file, { sessions: { one: SAMPLE } });

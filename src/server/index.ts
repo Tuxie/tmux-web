@@ -128,6 +128,12 @@ export function warnIfDangerousOriginConfig(
 }
 
 async function startServer() {
+  // Check before parseConfig so we can detect CLI password usage before it's
+  // merged into config (env var vs CLI flag indistinguishable afterwards).
+  const argvHasPassword = process.argv.some(
+    a => a === '--password' || a === '-p' || a.startsWith('--password=') || a.startsWith('-p='),
+  );
+
   const { config, host, port, help, version } = parseConfig(process.argv.slice(2));
 
   if (version) {
@@ -168,6 +174,23 @@ Options:
     process.exit(1);
   }
 
+  if (config.auth.enabled && argvHasPassword) {
+    console.error(
+      'tmux-web: warning: --password is visible in ps/proc/cmdline; prefer $TMUX_WEB_PASSWORD.',
+    );
+    // Best-effort scrub of argv. Does not change /proc/<pid>/cmdline but limits
+    // in-process inspection after startup.
+    for (let i = 0; i < process.argv.length; i++) {
+      if (process.argv[i] === '--password' || process.argv[i] === '-p') {
+        if (i + 1 < process.argv.length) process.argv[i + 1] = '***';
+      } else if (process.argv[i]?.startsWith('--password=')) {
+        process.argv[i] = '--password=***';
+      } else if (process.argv[i]?.startsWith('-p=')) {
+        process.argv[i] = '-p=***';
+      }
+    }
+  }
+
   warnIfDangerousOriginConfig(config);
 
   // Fail early if the configured tmux binary isn't runnable. Otherwise
@@ -191,7 +214,8 @@ Options:
 
   const isCompiled = !process.execPath.endsWith('bun') && !process.execPath.endsWith('bun.exe');
   let projectRoot = isCompiled ? path.dirname(process.execPath) : path.resolve(import.meta.dir, '../..');
-  const configDir = path.join(process.env.HOME ?? '', '.config/tmux-web');
+  const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(process.env.HOME ?? '', '.config');
+  const configDir = path.join(xdgConfigHome, 'tmux-web');
   const themesUserDir = config.themesDir
     ?? path.join(configDir, 'themes');
   const sessionsStorePath = process.env.TMUX_WEB_SESSIONS_FILE
@@ -305,7 +329,7 @@ Options:
         console.error(`Install openssl, pass --tls-cert / --tls-key to use your own certificate, or disable TLS with --no-tls.`);
         process.exit(1);
       }
-      const generated = generateSelfSignedCert();
+      const generated = generateSelfSignedCert(configDir);
       cert = generated.cert;
       key = generated.key;
     }

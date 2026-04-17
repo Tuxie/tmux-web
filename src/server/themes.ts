@@ -192,8 +192,16 @@ export function readPackFile(packDir: string, file: string, packs: PackInfo[]): 
   if (!pack) return null;
   const fullPath = path.join(pack.fullPath, file);
   const resolved = path.resolve(fullPath);
-  const root = path.resolve(pack.fullPath);
-  if (!resolved.startsWith(root + path.sep) && resolved !== root) return null;
-  if (!fs.existsSync(resolved)) return null;
-  return { fullPath: resolved };
+  // Use realpathSync to resolve symlinks and prevent symlink-escape attacks.
+  // realpathSync throws if the path does not exist; treat that as not-found.
+  let realResolved: string;
+  let realRoot: string;
+  try {
+    realResolved = fs.realpathSync(resolved);
+    realRoot = fs.realpathSync(pack.fullPath);
+  } catch {
+    return null;
+  }
+  if (!realResolved.startsWith(realRoot + path.sep) && realResolved !== realRoot) return null;
+  return { fullPath: realResolved };
 }
