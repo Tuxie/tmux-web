@@ -92,6 +92,28 @@ export function isOriginAllowed(
   );
 }
 
+const recentOriginRejects = new Map<string, number>();
+
+/**
+ * Emit a rate-limited stderr line for a rejected Origin. At most one line
+ * per distinct origin per minute; capped at 256 entries to avoid unbounded
+ * growth under attack.
+ */
+export function logOriginReject(origin: string, remoteIp: string): void {
+  const now = Date.now();
+  const last = recentOriginRejects.get(origin) ?? 0;
+  if (now - last < 60_000) return;
+  recentOriginRejects.set(origin, now);
+  if (recentOriginRejects.size > 256) {
+    // Map preserves insertion order; the first key is the oldest.
+    const oldest = recentOriginRejects.keys().next().value;
+    if (oldest !== undefined) recentOriginRejects.delete(oldest);
+  }
+  console.error(
+    `tmux-web: rejected origin ${origin} from ${remoteIp} — add \`--allow-origin ${origin}\` to accept`,
+  );
+}
+
 function normaliseIpV4Mapped(ip: string): string {
   if (!ip.startsWith('::ffff:')) return ip;
   const suffix = ip.slice(7); // everything after '::ffff:'

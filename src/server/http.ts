@@ -7,7 +7,7 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import { MIME_TYPES } from '../shared/constants.js';
 import type { ServerConfig } from '../shared/types.js';
 import { isAllowed } from './allowlist.js';
-import { isOriginAllowed } from './origin.js';
+import { isOriginAllowed, logOriginReject } from './origin.js';
 import { embeddedAssets } from './assets-embedded.js';
 import {
   listColours,
@@ -68,22 +68,6 @@ async function formatDropPasteBytes(
 
 function debug(config: ServerConfig, ...args: unknown[]): void {
   if (config.debug) process.stderr.write(`[debug] ${args.join(' ')}\n`);
-}
-
-const recentOriginRejects = new Map<string, number>();
-function logOriginReject(origin: string, remoteIp: string): void {
-  const now = Date.now();
-  const last = recentOriginRejects.get(origin) ?? 0;
-  if (now - last < 60_000) return;
-  recentOriginRejects.set(origin, now);
-  // Cap memory: keep at most 256 distinct origins in the rate-limit table.
-  if (recentOriginRejects.size > 256) {
-    const oldest = [...recentOriginRejects.entries()].sort((a, b) => a[1] - b[1])[0];
-    if (oldest) recentOriginRejects.delete(oldest[0]);
-  }
-  console.error(
-    `tmux-web: rejected origin ${origin} from ${remoteIp} — add \`--allow-origin ${origin}\` to accept`,
-  );
 }
 
 function getAssetPath(key: string): string | null {
