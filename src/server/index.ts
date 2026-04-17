@@ -62,6 +62,10 @@ export function parseConfig(argv: string[]): ConfigResult {
       'tmux':         { type: 'string',  default: 'tmux' },
       'tmux-conf':    { type: 'string' },
       'themes-dir':   { type: 'string' },
+      // Legacy no-op: --theme was never wired. Accepted here so old systemd
+      // units / Homebrew installs that pass --theme X don't fail on upgrade.
+      // Remove in a future major if the flag is definitely gone from the wild.
+      'theme':        { type: 'string' },
       test:           { type: 'boolean', default: false },
       debug:          { type: 'boolean', short: 'd', default: false },
       help:           { type: 'boolean', short: 'h', default: false },
