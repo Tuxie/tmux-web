@@ -57,7 +57,9 @@ const MAX_DROP_BYTES = 50 * 1024 * 1024;
 
 /** Build the bracketed-paste payload for a drop's absolute path, respecting
  *  the foreground process's expectations (raw for Claude/TUIs, single-quoted
- *  for shells). Pure helper — caller does the send-keys. */
+ *  for shells). Always appends a trailing space so the caller can either
+ *  press Enter directly or keep typing (e.g. `cp <path> <path> ~/Downloads/`
+ *  when multiple files are dropped in sequence — each arrives pre-spaced). */
 async function formatDropPasteBytes(
   config: ServerConfig,
   session: string,
@@ -72,7 +74,7 @@ async function formatDropPasteBytes(
       }
     } catch { /* unknown foreground — default to bare path (Claude-style) */ }
   }
-  return bracketedPaste(pastedText);
+  return bracketedPaste(pastedText + ' ');
 }
 
 function debug(config: ServerConfig, ...args: unknown[]): void {
