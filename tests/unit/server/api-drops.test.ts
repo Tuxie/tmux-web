@@ -134,3 +134,49 @@ describe("/api/drops", () => {
     expect(r.status).toBe(405);
   });
 });
+
+describe("/api/drops/paste", () => {
+  test("POST with a live drop returns 200 and echoes the path", async () => {
+    const d = writeDrop(storage, "main", "foo.png", Buffer.from("x"));
+    const h = await makeHandler();
+    const r = await call(h, {
+      method: "POST",
+      url: `/api/drops/paste?session=main&id=${encodeURIComponent(d.dropId)}`,
+    });
+    expect(r.status).toBe(200);
+    expect(JSON.parse(r.body)).toEqual({
+      pasted: true,
+      id: d.dropId,
+      path: d.absolutePath,
+      filename: "foo.png",
+    });
+  });
+
+  test("POST for an unknown id returns 404 (file was auto-unlinked / TTL'd)", async () => {
+    const h = await makeHandler();
+    const r = await call(h, {
+      method: "POST",
+      url: "/api/drops/paste?session=main&id=missing-12345",
+    });
+    expect(r.status).toBe(404);
+    expect(JSON.parse(r.body)).toEqual({ pasted: false, id: "missing-12345" });
+  });
+
+  test("POST without an id returns 400", async () => {
+    const h = await makeHandler();
+    const r = await call(h, {
+      method: "POST",
+      url: "/api/drops/paste?session=main",
+    });
+    expect(r.status).toBe(400);
+  });
+
+  test("non-POST methods return 405", async () => {
+    const h = await makeHandler();
+    const r = await call(h, {
+      method: "GET",
+      url: "/api/drops/paste?session=main&id=x",
+    });
+    expect(r.status).toBe(405);
+  });
+});

@@ -55,6 +55,26 @@ function bracketedPaste(text: string): string {
  *  buffered in the HTTP handler before being written to disk. */
 const MAX_DROP_BYTES = 50 * 1024 * 1024;
 
+/** Build the bracketed-paste payload for a drop's absolute path, respecting
+ *  the foreground process's expectations (raw for Claude/TUIs, single-quoted
+ *  for shells). Pure helper — caller does the send-keys. */
+async function formatDropPasteBytes(
+  config: ServerConfig,
+  session: string,
+  absolutePath: string,
+): Promise<string> {
+  let pastedText = absolutePath;
+  if (!config.testMode) {
+    try {
+      const fg = await getForegroundProcess(config.tmuxBin, session);
+      if (isShell(fg.exePath)) {
+        pastedText = shellQuote(absolutePath);
+      }
+    } catch { /* unknown foreground — default to bare path (Claude-style) */ }
+  }
+  return bracketedPaste(pastedText);
+}
+
 function debug(config: ServerConfig, ...args: unknown[]): void {
   if (config.debug) process.stderr.write(`[debug] ${args.join(' ')}\n`);
 }
@@ -279,6 +299,48 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
       return;
     }
 
+    if (pathname === '/api/drops/paste') {
+      if (req.method !== 'POST') {
+        res.writeHead(405);
+        res.end();
+        return;
+      }
+      const session = sanitizeSession(url.searchParams.get('session') || 'main');
+      const id = url.searchParams.get('id');
+      if (!id) {
+        res.writeHead(400);
+        res.end('Missing id');
+        return;
+      }
+      // Re-resolve the drop from the store rather than trusting any path
+      // on the query — guarantees we only paste paths that still exist
+      // and are inside the session's drop dir.
+      const drops = listDrops(opts.dropStorage, session);
+      const hit = drops.find(d => d.dropId === id);
+      if (!hit) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ pasted: false, id }));
+        return;
+      }
+      if (!config.testMode) {
+        try {
+          await sendBytesToPane({
+            tmuxBin: config.tmuxBin,
+            target: session,
+            bytes: await formatDropPasteBytes(config, session, hit.absolutePath),
+          });
+        } catch (err) {
+          debug(config, `drop re-paste send-keys failed: ${err}`);
+          res.writeHead(500);
+          res.end('Inject failed');
+          return;
+        }
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ pasted: true, id, path: hit.absolutePath, filename: hit.filename }));
+      return;
+    }
+
     if (pathname === '/api/drops') {
       const session = sanitizeSession(url.searchParams.get('session') || 'main');
       if (req.method === 'GET') {
@@ -362,28 +424,12 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
         return;
       }
 
-      // Decide raw vs shell-quoted based on what's in the pane. Shells
-      // need the path wrapped so spaces / special chars don't split into
-      // multiple arguments when the user hits Enter. Claude Code and
-      // most TUIs accept the bare path and may refuse quoted forms.
-      let pastedText = absolutePath;
-      if (!config.testMode) {
-        try {
-          const fg = await getForegroundProcess(config.tmuxBin, session);
-          if (isShell(fg.exePath)) {
-            pastedText = shellQuote(absolutePath);
-          }
-        } catch {
-          // Foreground lookup failed — err on Claude's side (bare path).
-        }
-      }
-
       if (!config.testMode) {
         try {
           await sendBytesToPane({
             tmuxBin: config.tmuxBin,
             target: session,
-            bytes: bracketedPaste(pastedText),
+            bytes: await formatDropPasteBytes(config, session, absolutePath),
           });
         } catch (err) {
           debug(config, `drop send-keys failed: ${err}`);

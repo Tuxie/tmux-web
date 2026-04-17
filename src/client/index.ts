@@ -295,11 +295,8 @@ async function main() {
     },
   });
 
-  // When the settings menu opens, refresh the drops list so it reflects
-  // what's actually on disk (e.g. after inotify auto-unlinks).
-  document.getElementById('btn-menu')?.addEventListener('click', () => {
-    void dropsPanel.refresh();
-  });
+  // (drops-panel handles auto-refresh itself via a MutationObserver on
+  // #menu-dropdown, polling while the settings menu is visible.)
 }
 
 main();

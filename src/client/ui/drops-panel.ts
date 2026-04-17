@@ -1,8 +1,10 @@
 import { formatBytes, showToast } from './toast.js';
 
-/** Wire up the "Dropped files" row in the settings menu. Refreshes the
- *  list on demand (opens the settings dropdown / refresh button / after
- *  a successful upload), supports per-row revoke and bulk purge. */
+/** Wire up the "Dropped files" row in the settings menu. Keeps itself
+ *  fresh by polling while the settings dropdown is visible, supports
+ *  per-row revoke (✕), bulk purge, and row-click to re-paste a drop's
+ *  path into the terminal (in case the original paste-on-drop was
+ *  missed). */
 
 export interface DropInfo {
   dropId: string;
@@ -46,13 +48,14 @@ export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promis
       row.style.alignItems = 'center';
       row.style.gap = '6px';
       row.style.padding = '2px 0';
+      row.style.cursor = 'pointer';
+      row.title = `Click to paste path into the terminal\n${d.absolutePath}\n${formatBytes(d.size)} · ${d.mtime}`;
 
       const label = document.createElement('span');
       label.style.flex = '1';
       label.style.overflow = 'hidden';
       label.style.textOverflow = 'ellipsis';
       label.style.whiteSpace = 'nowrap';
-      label.title = `${d.absolutePath}\n${formatBytes(d.size)} · ${d.mtime}`;
       label.textContent = d.filename;
       row.appendChild(label);
 
@@ -67,7 +70,10 @@ export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promis
       revoke.textContent = '✕';
       revoke.title = `Remove ${d.filename} from disk`;
       revoke.style.padding = '0 6px';
-      revoke.addEventListener('click', async () => {
+      revoke.addEventListener('click', async (ev) => {
+        // Prevent the row-click re-paste handler from also firing when
+        // the user meant to revoke.
+        ev.stopPropagation();
         revoke.disabled = true;
         try {
           const res = await fetch(
@@ -87,6 +93,26 @@ export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promis
         }
       });
       row.appendChild(revoke);
+
+      row.addEventListener('click', async () => {
+        try {
+          const res = await fetch(
+            `/api/drops/paste?session=${encodeURIComponent(opts.getSession())}&id=${encodeURIComponent(d.dropId)}`,
+            { method: 'POST' },
+          );
+          if (res.ok) {
+            showToast(`Pasted ${d.filename}`);
+          } else if (res.status === 404) {
+            showToast(`${d.filename} is no longer on disk`, { variant: 'error' });
+            await refresh();
+          } else {
+            showToast(`Paste failed: ${d.filename}`, { variant: 'error' });
+          }
+        } catch (err) {
+          showToast(`Paste error: ${err}`, { variant: 'error' });
+        }
+      });
+
       list.appendChild(row);
     }
   };
@@ -129,6 +155,36 @@ export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promis
       purgeBtn.disabled = false;
     }
   });
+
+  // Auto-refresh while the settings dropdown is visible. 2 s cadence keeps
+  // the list honest even when drops disappear silently (inotify
+  // auto-unlink after first read, TTL sweep, ring-buffer trim from a
+  // concurrent drop). Cleanup stops the timer the moment the dropdown
+  // closes so we're not polling when nobody's looking.
+  const menuDropdown = document.getElementById('menu-dropdown') as HTMLElement | null;
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  const stopPoll = () => {
+    if (pollTimer !== null) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  };
+  const startPoll = () => {
+    if (pollTimer !== null) return;
+    void refresh();
+    pollTimer = setInterval(() => { void refresh(); }, 2000);
+  };
+  if (menuDropdown) {
+    const syncPoll = () => {
+      if (menuDropdown.hidden) stopPoll();
+      else startPoll();
+    };
+    new MutationObserver(syncPoll).observe(menuDropdown, {
+      attributes: true,
+      attributeFilter: ['hidden'],
+    });
+    syncPoll();
+  }
 
   // Initial render — empty on cold start, populated on first open.
   render([]);
