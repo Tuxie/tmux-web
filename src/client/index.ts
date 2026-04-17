@@ -236,6 +236,14 @@ async function main() {
   adapter.onData((data) => connection.send(data));
   adapter.onResize(({ cols, rows }) => connection.sendResize(cols, rows));
   window.addEventListener('resize', () => adapter.fit());
+  // A theme swap changes #topbar height, #terminal insets, and CSS font
+  // metrics — none of which fire a `resize` event on window. Observe the
+  // terminal container directly so we re-fit whenever its own box
+  // changes, regardless of the trigger.
+  if (typeof ResizeObserver !== 'undefined') {
+    const ro = new ResizeObserver(() => adapter.fit());
+    ro.observe(container);
+  }
 
   document.addEventListener('keydown', (ev) => {
     const target = ev.target as HTMLElement | null;
