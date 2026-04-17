@@ -50,7 +50,6 @@ export function parseConfig(argv: string[]): ConfigResult {
     args: argv,
     options: {
       listen:         { type: 'string',  short: 'l', default: `${DEFAULT_HOST}:${DEFAULT_PORT}` },
-      terminal:       { type: 'string' },
       'allow-ip':     { type: 'string',  short: 'i', multiple: true, default: [] as string[] },
       'allow-origin': { type: 'string',  short: 'o', multiple: true, default: [] as string[] },
       username:       { type: 'string',  short: 'u' },
@@ -63,7 +62,10 @@ export function parseConfig(argv: string[]): ConfigResult {
       'tmux':         { type: 'string',  default: 'tmux' },
       'tmux-conf':    { type: 'string' },
       'themes-dir':   { type: 'string' },
-      'theme':        { type: 'string',  short: 't' },
+      // Legacy no-op: --theme was never wired. Accepted here so old systemd
+      // units / Homebrew installs that pass --theme X don't fail on upgrade.
+      // Remove in a future major if the flag is definitely gone from the wild.
+      'theme':        { type: 'string' },
       test:           { type: 'boolean', default: false },
       debug:          { type: 'boolean', short: 'd', default: false },
       help:           { type: 'boolean', short: 'h', default: false },
@@ -105,7 +107,6 @@ export function parseConfig(argv: string[]): ConfigResult {
       password,
     },
     themesDir: args['themes-dir'] as string | undefined,
-    theme: args.theme as string | undefined,
   };
 
   return { config, host, port };
@@ -151,7 +152,6 @@ Options:
       --tmux <path>            Path to tmux executable (default: tmux)
       --tmux-conf <path>       Alternative tmux.conf to load instead of user default
       --themes-dir <path>      User theme-pack directory override
-  -t, --theme <name>           Initial theme name
       --test                   Test mode: use cat PTY, bypass IP/Origin allowlists
   -d, --debug                  Log debug messages to stderr
   -V, --version                Print version and exit

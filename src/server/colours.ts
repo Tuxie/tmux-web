@@ -15,6 +15,7 @@ function normalize(c: unknown): string | undefined {
 const NORMAL_KEYS = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"] as const;
 
 export function alacrittyTomlToITheme(src: string): ITheme {
+  // safe: Bun.TOML.parse returns unknown-shape; validated by alacrittyTomlToITheme below
   const parsed = TOML.parse(src) as any;
   const colors = parsed?.colors ?? {};
   const primary = colors.primary ?? {};
@@ -29,9 +30,9 @@ export function alacrittyTomlToITheme(src: string): ITheme {
 
   for (const key of NORMAL_KEYS) {
     const n = normalize(colors.normal?.[key]);
-    if (n) (out as any)[key] = n;
+    if (n) (out as Record<string, string>)[key] = n;
     const b = normalize(colors.bright?.[key]);
-    if (b) (out as any)["bright" + key[0]!.toUpperCase() + key.slice(1)] = b;
+    if (b) (out as Record<string, string>)["bright" + key[0]!.toUpperCase() + key.slice(1)] = b;
   }
 
   const cur = normalize(colors.cursor?.cursor);

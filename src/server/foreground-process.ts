@@ -1,8 +1,5 @@
 import fs from 'fs';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from './exec.js';
 
 export interface ForegroundProcessInfo {
   /** Kernel-resolved absolute executable path, or null if unreadable

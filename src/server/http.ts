@@ -1,8 +1,6 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { MIME_TYPES } from '../shared/constants.js';
 import type { ServerConfig } from '../shared/types.js';
@@ -28,9 +26,8 @@ import { getForegroundProcess } from './foreground-process.js';
 import { sendBytesToPane } from './tmux-inject.js';
 import { formatBracketedPasteForDrop } from './drop-paste.js';
 import { sanitizeSession } from './pty.js';
+import { execFileAsync } from './exec.js';
 import pkg from '../../package.json' with { type: 'json' };
-
-const execFileAsync = promisify(execFile);
 
 export interface HttpHandlerOptions {
   config: ServerConfig;
@@ -48,6 +45,10 @@ export interface HttpHandlerOptions {
  *  screenshots and small docs, small enough to not starve memory when
  *  buffered in the HTTP handler before being written to disk. */
 const MAX_DROP_BYTES = 50 * 1024 * 1024;
+
+/** Session-settings body cap. 1 MiB is generous for a JSON schema of
+ *  per-session UI preferences but still finite. */
+const MAX_SESSION_SETTINGS_BYTES = 1 * 1024 * 1024;
 
 /** Thin wrapper that resolves the foreground process (so we know
  *  whether to shell-quote) and hands off to the pure formatter. */
@@ -82,7 +83,7 @@ async function materializeBundledThemes(): Promise<string | null> {
   for (const key of keys) {
     const src = embeddedAssets[key]!;
     const dest = path.join(root, key.slice('themes/'.length));
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.mkdirSync(path.dirname(dest), { recursive: true, mode: 0o700 });
     const bytes = new Uint8Array(await Bun.file(src).arrayBuffer());
     fs.writeFileSync(dest, bytes);
   }
@@ -171,6 +172,7 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
     bundledDir = await materializeBundledThemes();
   }
   const packs: PackInfo[] = listPacks(opts.themesUserDir, bundledDir);
+  const colourInfos = listColours(packs);
 
   const makeHtml = () => {
     return opts.htmlTemplate
@@ -227,7 +229,7 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
 
     if (pathname === '/api/colours') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(listColours(packs).map(c => ({
+      res.end(JSON.stringify(colourInfos.map(c => ({
         name: c.name, variant: c.variant, theme: c.theme,
       }))));
       return;
@@ -458,11 +460,35 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
         return;
       }
       if (req.method === 'PUT') {
-        const chunks: Buffer[] = [];
-        for await (const chunk of req) chunks.push(chunk as Buffer);
+        const contentLength = Number(req.headers['content-length'] ?? 0);
+        if (contentLength > MAX_SESSION_SETTINGS_BYTES) {
+          res.writeHead(413);
+          res.end('Payload Too Large');
+          return;
+        }
+        let body: string;
+        try {
+          const chunks: Buffer[] = [];
+          let total = 0;
+          for await (const chunk of req) {
+            total += (chunk as Buffer).length;
+            if (total > MAX_SESSION_SETTINGS_BYTES) {
+              res.writeHead(413);
+              res.end('Payload Too Large');
+              return;
+            }
+            chunks.push(chunk as Buffer);
+          }
+          body = Buffer.concat(chunks).toString('utf-8');
+        } catch (err) {
+          debug(config, `session-settings PUT error: ${(err as Error).message}`);
+          res.writeHead(400);
+          res.end('Bad Request');
+          return;
+        }
         let patch: SessionsConfigPatch;
         try {
-          patch = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
+          patch = JSON.parse(body);
         } catch {
           res.writeHead(400);
           res.end('Bad JSON');
