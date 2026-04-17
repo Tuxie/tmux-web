@@ -29,6 +29,10 @@ export class Connection {
     this.ws.onerror = () => {};
   }
 
+  get isOpen(): boolean {
+    return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
+  }
+
   send(data: string): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(data);
   }

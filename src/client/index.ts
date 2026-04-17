@@ -27,6 +27,7 @@ import { XtermAdapter } from './adapters/xterm.ts';
 declare global {
   interface Window {
     __TMUX_WEB_CONFIG: ClientConfig;
+    __adapter?: TerminalAdapter;
   }
 }
 
@@ -86,7 +87,7 @@ async function main() {
     opacity: settings.opacity,
   });
   adapter.focus();
-  (window as any).__adapter = adapter;
+  window.__adapter = adapter;
 
   let appliedFontKey = settings.fontFamily;
   let connection: Connection;
@@ -258,11 +259,14 @@ async function main() {
 
   document.addEventListener('paste', (ev) => {
     const text = ev.clipboardData?.getData('text/plain');
-    if (text) {
-      connection.send(text);
-      ev.preventDefault();
-      ev.stopPropagation();
+    if (!text) return;
+    if (!connection.isOpen) {
+      showToast('Not connected — paste ignored', { variant: 'error' });
+      return;
     }
+    connection.send(text);
+    ev.preventDefault();
+    ev.stopPropagation();
   });
 
   installMouseHandler({

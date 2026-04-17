@@ -121,7 +121,8 @@ body {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4) inset;
 }
 .tw-dd-session-status.running { background: #2ecc40; }
-.tw-dd-session-status.stopped { background: #e74c3c; }
+/* stopped: hollow outline; background: transparent and border set in base.css */
+.tw-dd-session-status.stopped { color: #e74c3c; }
 .tw-dropdown-sep { border: none; border-top: 1px solid #444; margin: 4px 0; }
 /* Sessions dropdown menu — anchors under the session button by default (left-aligned) */
 

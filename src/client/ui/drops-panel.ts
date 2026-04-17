@@ -21,13 +21,13 @@ export interface DropsPanelOpts {
   onChange?: () => void;
 }
 
-export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promise<void> } {
+export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promise<void>; dispose: () => void } {
   const list = document.getElementById('drops-list') as HTMLElement | null;
   const count = document.getElementById('drops-count') as HTMLElement | null;
   const refreshBtn = document.getElementById('btn-drops-refresh') as HTMLButtonElement | null;
   const purgeBtn = document.getElementById('btn-drops-purge') as HTMLButtonElement | null;
   if (!list || !count || !refreshBtn || !purgeBtn) {
-    return { refresh: async () => {} };
+    return { refresh: async () => {}, dispose: () => {} };
   }
 
   const render = (drops: DropInfo[]) => {
@@ -149,11 +149,13 @@ export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promis
   // hidden attribute rather than hooking the button so the behaviour
   // survives programmatic opens (e.g. reopen-after-reload).
   const menuDropdown = document.getElementById('menu-dropdown') as HTMLElement | null;
+  let menuObserver: MutationObserver | null = null;
   if (menuDropdown) {
     const maybeRefresh = () => {
       if (!menuDropdown.hidden) void refresh();
     };
-    new MutationObserver(maybeRefresh).observe(menuDropdown, {
+    menuObserver = new MutationObserver(maybeRefresh);
+    menuObserver.observe(menuDropdown, {
       attributes: true,
       attributeFilter: ['hidden'],
     });
@@ -163,5 +165,8 @@ export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promis
   // Initial render — empty on cold start, populated on first open.
   render([]);
 
-  return { refresh };
+  return {
+    refresh,
+    dispose: () => { menuObserver?.disconnect(); },
+  };
 }

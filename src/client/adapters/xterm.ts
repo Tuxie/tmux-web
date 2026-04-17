@@ -95,9 +95,6 @@ export class XtermAdapter implements TerminalAdapter {
 
     this._applyLineHeight(options.lineHeight);
     this.fitAddon.fit();
-
-    const resizeObserver = new ResizeObserver(() => this.fitAddon.fit());
-    resizeObserver.observe(container);
   }
 
   // With lineHeight < 1 the WebGL renderer floors cellHeight = charHeight *
