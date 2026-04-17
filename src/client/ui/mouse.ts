@@ -32,11 +32,27 @@ export interface MouseHandlerOptions {
   send: (data: string) => void;
 }
 
+/** xterm's web-links addon sets `cursor: pointer` on the cell overlay
+ *  when a URL is under the mouse. Use that as the signal that the
+ *  click belongs to xterm (the link handler) and not to our SGR
+ *  forwarding — our document-capture stopPropagation would otherwise
+ *  swallow the event before xterm's listeners see it. */
+function isOverLink(ev: MouseEvent): boolean {
+  const target = ev.target as Element | null;
+  if (!target) return false;
+  try {
+    return getComputedStyle(target).cursor === 'pointer';
+  } catch {
+    return false;
+  }
+}
+
 export function installMouseHandler(opts: MouseHandlerOptions): () => void {
   let dragButton = -1;
 
   function handleMouseDown(ev: MouseEvent) {
     if (ev.shiftKey || !opts.getTerminalElement().contains(ev.target as Node)) return;
+    if (isOverLink(ev)) return;
     dragButton = mouseButton(ev);
     const coords = getSgrCoords(ev.clientX, ev.clientY, opts.getMetrics(), opts.getCanvasRect());
     const btn = addModifiers(dragButton, ev);
@@ -47,6 +63,7 @@ export function installMouseHandler(opts: MouseHandlerOptions): () => void {
 
   function handleMouseUp(ev: MouseEvent) {
     if (ev.shiftKey || dragButton < 0) return;
+    if (isOverLink(ev)) { dragButton = -1; return; }
     const coords = getSgrCoords(ev.clientX, ev.clientY, opts.getMetrics(), opts.getCanvasRect());
     const btn = addModifiers(dragButton, ev);
     opts.send(buildSgrSequence(btn, coords.col, coords.row, true));
