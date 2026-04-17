@@ -8,6 +8,8 @@ tmp/
 .worktrees/
 docs/superpowers/
 .codex
+.claude/
+*.swp
 
 fonts/**
 !fonts/*.woff2
