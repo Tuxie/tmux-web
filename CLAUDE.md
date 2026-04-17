@@ -125,12 +125,16 @@ systemctl --user status tmux-web
 
 ## tmux.conf
 
-`tmux.conf` set defaults (passthrough, extended-keys, clipboard). End with:
+`tmux.conf` sets defaults (passthrough, extended-keys, clipboard) then sources user configs in this order (each silent if missing):
 ```
-source-file -q ~/.config/tmux/tmux.conf
-source-file -q ~/.tmux.conf
+/etc/tmux.conf
+~/.tmux.conf
+~/.config/tmux/tmux.conf
+/etc/tmux-web.conf
+~/.config/tmux-web/tmux.conf
+~/.config/tmux-web/tmux-web.conf
 ```
-User override via own config. Server pass via `tmux -f <path>`. Alternative config can be supplied via `--tmux-conf`.
+General `tmux.conf` files are picked up first so a single user config works everywhere; the `tmux-web*` files come last so you can override anything specifically for the web frontend. Server passes via `tmux -f <path>`. Alternative config via `--tmux-conf`.
 
 ---
 
