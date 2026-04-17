@@ -65,18 +65,28 @@ jobs:
 
       - name: Package release
         run: |
-          mkdir -p release/tmux-web-${{ github.ref_name }}-${{ matrix.name }}
-          cp tmux-web release/tmux-web-${{ github.ref_name }}-${{ matrix.name }}/
-          cp README.md release/tmux-web-${{ github.ref_name }}-${{ matrix.name }}/
-          cp tmux-web.service release/tmux-web-${{ github.ref_name }}-${{ matrix.name }}/
+          # Flat archive layout so Homebrew / other packagers can
+          # `bin.install "tmux-web"` without a cd-into-subdir dance.
+          mkdir -p release
+          cp README.md LICENSE tmux-web.service tmux-web release/
           cd release
-          tar -cJf tmux-web-${{ github.ref_name }}-${{ matrix.name }}.tar.xz tmux-web-${{ github.ref_name }}-${{ matrix.name }}
+          tar -cJf ../tmux-web-${{ github.ref_name }}-${{ matrix.name }}.tar.xz \
+            tmux-web README.md LICENSE tmux-web.service
+          cd ..
+          mv tmux-web-${{ github.ref_name }}-${{ matrix.name }}.tar.xz release/
+          # SHA-256 alongside the archive — consumed by the Homebrew
+          # formula and by users verifying the download.
+          cd release
+          shasum -a 256 tmux-web-${{ github.ref_name }}-${{ matrix.name }}.tar.xz \
+            > tmux-web-${{ github.ref_name }}-${{ matrix.name }}.tar.xz.sha256
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: tmux-web-${{ github.ref_name }}-${{ matrix.name }}-artifact
-          path: release/tmux-web-${{ github.ref_name }}-${{ matrix.name }}.tar.xz
+          path: |
+            release/tmux-web-${{ github.ref_name }}-${{ matrix.name }}.tar.xz
+            release/tmux-web-${{ github.ref_name }}-${{ matrix.name }}.tar.xz.sha256
           retention-days: 1
 
   release:
@@ -96,6 +106,8 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v3
         with:
-          files: artifacts/*.tar.xz
+          files: |
+            artifacts/*.tar.xz
+            artifacts/*.tar.xz.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -3,6 +3,7 @@
   "version": "1.4.0",
   "type": "module",
   "private": true,
+  "license": "MIT",
   "description": "Browser-based tmux frontend with multiple terminal backends",
   "main": "src/server/index.ts",
   "scripts": {

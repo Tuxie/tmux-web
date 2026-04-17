@@ -11,6 +11,9 @@ import { generateSelfSignedCert } from './tls.js';
 import type { ServerConfig } from '../shared/types.js';
 import { DEFAULT_HOST, DEFAULT_PORT } from '../shared/constants.js';
 import { embeddedAssets } from './assets-embedded.js';
+import pkg from '../../package.json' with { type: 'json' };
+
+const VERSION: string = (pkg as { version: string }).version;
 
 // Force a UTF-8 locale on the server process so every child (including the
 // tmux subcommands fired from ws.ts: display-message, list-windows,
@@ -38,6 +41,7 @@ export interface ConfigResult {
   host: string;
   port: number;
   help?: boolean;
+  version?: boolean;
 }
 
 export function parseConfig(argv: string[]): ConfigResult {
@@ -63,10 +67,12 @@ export function parseConfig(argv: string[]): ConfigResult {
       test:         { type: 'boolean', short: 't', default: false },
       debug:        { type: 'boolean', short: 'd', default: false },
       help:         { type: 'boolean', short: 'h', default: false },
+      version:      { type: 'boolean', short: 'v', default: false },
     },
     strict: true,
   });
 
+  if (args.version) return { config: null, host: '', port: 0, version: true };
   if (args.help) return { config: null, host: '', port: 0, help: true };
 
   const { host, port } = parseListenAddr(args.listen!);
@@ -99,7 +105,12 @@ export function parseConfig(argv: string[]): ConfigResult {
 }
 
 async function startServer() {
-  const { config, host, port, help } = parseConfig(process.argv.slice(2));
+  const { config, host, port, help, version } = parseConfig(process.argv.slice(2));
+
+  if (version) {
+    console.log(`tmux-web ${VERSION}`);
+    process.exit(0);
+  }
 
   if (help) {
     console.log(`Usage: tmux-web [options]
@@ -120,6 +131,7 @@ Options:
       --theme <name>           Initial theme name
   -t, --test                   Test mode: use cat PTY, bypass IP allowlist
   -d, --debug                  Log debug messages to stderr
+  -v, --version                Print version and exit
   -h, --help                   Show this help`);
     process.exit(0);
   }
