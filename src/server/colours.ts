@@ -3,13 +3,22 @@ import type { ITheme } from '../shared/types.js';
 
 export type { ITheme };
 
-function normalize(c: unknown): string | undefined {
+const HEX_RE = /^[0-9a-f]{6}([0-9a-f]{2})?$/;
+
+export function normalize(c: unknown): string | undefined {
   if (typeof c !== "string") return undefined;
   const trimmed = c.trim();
   if (!trimmed) return undefined;
-  if (trimmed.startsWith("#")) return trimmed.toLowerCase();
-  if (trimmed.startsWith("0x") || trimmed.startsWith("0X")) return "#" + trimmed.slice(2).toLowerCase();
-  return "#" + trimmed.toLowerCase();
+  let hex: string;
+  if (trimmed.startsWith("#")) {
+    hex = trimmed.slice(1).toLowerCase();
+  } else if (trimmed.startsWith("0x") || trimmed.startsWith("0X")) {
+    hex = trimmed.slice(2).toLowerCase();
+  } else {
+    return undefined;
+  }
+  if (!HEX_RE.test(hex)) return undefined;
+  return "#" + hex;
 }
 
 const NORMAL_KEYS = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"] as const;

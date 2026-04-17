@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { alacrittyTomlToITheme } from "../../../src/server/colours.ts";
+import { alacrittyTomlToITheme, normalize } from "../../../src/server/colours.ts";
 
 const minimal = `
 [colors.primary]
@@ -34,6 +34,50 @@ text   = "#112233"
 background = "#334455"
 text       = "#665544"
 `;
+
+describe("normalize — adversarial inputs", () => {
+  test("rejects 0x prefix with non-hex characters", () => {
+    expect(normalize("0xgg")).toBeUndefined();
+  });
+
+  test("accepts uppercase hex and lowercases it", () => {
+    expect(normalize("0xABCDEF")).toBe("#abcdef");
+  });
+
+  test("rejects whitespace-only value", () => {
+    expect(normalize("   ")).toBeUndefined();
+  });
+
+  test("rejects empty string", () => {
+    expect(normalize("")).toBeUndefined();
+  });
+
+  test("rejects wrong-length hex (5 chars)", () => {
+    expect(normalize("0xABCDE")).toBeUndefined();
+  });
+
+  test("accepts standard #RRGGBB form and lowercases it", () => {
+    expect(normalize("#AABBCC")).toBe("#aabbcc");
+  });
+
+  test("accepts #RRGGBBAA (8 hex digits)", () => {
+    expect(normalize("#AABBCC80")).toBe("#aabbcc80");
+  });
+
+  test("rejects non-hex after # prefix", () => {
+    expect(normalize("#GGHHII")).toBeUndefined();
+  });
+
+  test("rejects non-string input", () => {
+    expect(normalize(42)).toBeUndefined();
+    expect(normalize(null)).toBeUndefined();
+    expect(normalize(undefined)).toBeUndefined();
+  });
+
+  test("rejects bare hex string without prefix", () => {
+    expect(normalize("aabbcc")).toBeUndefined();
+  });
+});
 
 describe("alacrittyTomlToITheme", () => {
   test("maps all primary/normal/bright/cursor/selection", () => {

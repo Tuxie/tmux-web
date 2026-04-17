@@ -24,6 +24,23 @@ const OSC_TITLE_RE = /\x1b\]([02]);([^\x07\x1b]*?)(?:\x07|\x1b\\)/g;
 const OSC_52_WRITE_RE = /\x1b\]52;[^;]*;([A-Za-z0-9+/=]+)(?:\x07|\x1b\\)/g;
 const OSC_52_READ_RE = /\x1b\]52;([^;]*);\?(?:\x07|\x1b\\)/g;
 
+/** Maximum byte length of an OSC 52 write payload (base64 string length).
+ *  Matches the 1 MiB cap on the read path in ws.ts. */
+const MAX_OSC52_WRITE_BYTES = 1 * 1024 * 1024;
+
+const _osc52WarnTimes = new Map<string, number>();
+
+function warnTooLargeOsc52Write(length: number): void {
+  const key = 'osc52-write-too-large';
+  const now = Date.now();
+  const last = _osc52WarnTimes.get(key) ?? 0;
+  if (now - last < 60_000) return;
+  _osc52WarnTimes.set(key, now);
+  console.error(
+    `tmux-web: OSC 52 write payload too large (${length} bytes > ${MAX_OSC52_WRITE_BYTES}); dropping`,
+  );
+}
+
 export function processData(data: string, _currentSession: string): ProcessResult {
   const messages: ServerMessage[] = [];
   let titleChanged = false;
@@ -46,7 +63,12 @@ export function processData(data: string, _currentSession: string): ProcessResul
   OSC_52_WRITE_RE.lastIndex = 0;
   while ((match = OSC_52_WRITE_RE.exec(data)) !== null) {
     const b64 = match[1];
-    if (b64) messages.push({ clipboard: b64 });
+    if (!b64) continue;
+    if (b64.length > MAX_OSC52_WRITE_BYTES) {
+      warnTooLargeOsc52Write(b64.length);
+      continue;
+    }
+    messages.push({ clipboard: b64 });
   }
 
   OSC_52_READ_RE.lastIndex = 0;
