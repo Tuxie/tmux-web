@@ -13,13 +13,19 @@ test('topbar auto-hides after inactivity', async ({ page }) => {
   await expect(page.locator('#topbar')).not.toHaveClass(/hidden/);
 
   await page.mouse.move(640, 400);
-  await page.waitForTimeout(1500);
+  await page.waitForFunction(
+    () => document.getElementById('topbar')?.classList.contains('hidden') === true,
+    { timeout: 5000 },
+  );
   await expect(page.locator('#topbar')).toHaveClass(/hidden/);
 });
 
 test('topbar reappears when mouse moves near top', async ({ page }) => {
   await page.mouse.move(640, 400);
-  await page.waitForTimeout(1500);
+  await page.waitForFunction(
+    () => document.getElementById('topbar')?.classList.contains('hidden') === true,
+    { timeout: 5000 },
+  );
   await expect(page.locator('#topbar')).toHaveClass(/hidden/);
 
   await page.mouse.move(640, 50);

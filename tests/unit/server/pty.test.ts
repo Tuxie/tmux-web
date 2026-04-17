@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { buildPtyCommand, buildPtyEnv, sanitizeSession } from '../../../src/server/pty.js';
 
 describe('sanitizeSession', () => {
@@ -8,6 +8,9 @@ describe('sanitizeSession', () => {
   it('collapses double dots', () => {
     const result = sanitizeSession('../../../etc');
     expect(result).not.toContain('..');
+  });
+  it('collapses a single dot-dot segment even when mixed with slash', () => {
+    expect(sanitizeSession('../etc')).not.toContain('..');
   });
   it('defaults empty session to "main"', () => {
     expect(sanitizeSession('')).toBe('main');
