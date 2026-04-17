@@ -100,18 +100,17 @@ jobs:
 
           # sha256 lines — replace first four in document order with
           # the four architectures in the canonical order above.
-          idx = 0
+          state = {"i": 0}
           def repl(m):
-              nonlocal idx
-              if idx >= 4:
+              i = state["i"]
+              if i >= 4:
                   return m.group(0)
-              sha = shas[idx]
-              idx += 1
-              return f'sha256 "{sha}"'
+              state["i"] = i + 1
+              return f'sha256 "{shas[i]}"'
           txt = re.sub(r'sha256\s+"[^"]+"', repl, txt)
 
-          if idx != 4:
-              raise SystemExit(f"expected 4 sha256 lines, rewrote {idx}")
+          if state["i"] != 4:
+              raise SystemExit(f'expected 4 sha256 lines, rewrote {state["i"]}')
 
           p.write_text(txt)
           PY
