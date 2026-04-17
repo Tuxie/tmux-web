@@ -138,7 +138,7 @@ tmux-web --listen 127.0.0.1:4022 -i 10.0.0.5 \
   -o https://tmux.example.com
 ```
 
-`-o *` disables the hostname check entirely. It is an explicit opt-in; the server warns at startup if it's combined with any non-loopback `--allow-ip`.
+`-o *` disables the Origin check entirely — including the scheme/port tightening on IP-literal origins. It is an explicit opt-in; the server warns at startup if it's combined with any non-loopback `--allow-ip`.
 
 ## Architecture
 
