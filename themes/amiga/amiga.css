@@ -32,9 +32,15 @@ body {
   position: absolute;
   top: 0px;
   left: 0px;
-  right: 3px;
+  right: 0px;
   z-index: 10;
-  padding: 0px 0px 4px 4px;
+  /* Horizontal padding is 0 so edge children (session button on the
+   * left, menu button on the right) sit flush against the page's blue
+   * border. Any non-zero padding creates a gap whose width rounds
+   * differently at devicePixelRatio 1 vs 2, which is what made the
+   * leftmost and rightmost button borders disappear on non-retina
+   * displays. */
+  padding: 0 0 4px 0;
   border-top: none;
   border-left: none;
   border-right: none;
@@ -212,9 +218,10 @@ body {
   font-size: 15px;
 }
 
-#tb-session {
-  margin-left: -8px;
-}
+/* Flush against the left edge of the topbar (= the page's blue border).
+ * No negative margin — those rely on exact pixel arithmetic that breaks
+ * at fractional devicePixelRatios. */
+#tb-session { margin-left: 0; }
 
 /* [ + | name ] session menu button — bevelled, two visual segments joined.
  * No left border so the button meets the page's blue border on the left
@@ -449,13 +456,39 @@ body {
 .tw-dd-context-win .menu-label { min-width: auto; padding-right: 6px; }
 .tw-dd-context-win .tw-dd-input { min-width: 130px; }
 
-#btn-reset-colours, #btn-reset-font {
+/* Glyph-only in-menu buttons with Unicode arrows: use sans-serif so
+ * ↺/↻ render at a legible size instead of picking up the Topaz bitmap. */
+#btn-reset-colours, #btn-reset-font, #btn-drops-refresh {
   font-family: sans-serif !important;
   font-size: 24px !important;
   padding: 0px 6px !important;
   height: 22px !important;
   background: #aaa !important;
 }
+/* Per-row trash button uses the Nerd Font glyph (U+F014), which is
+ * present in Topaz8 NF. Keep the theme font, just size it up to match. */
+.drops-revoke {
+  font-size: 18px !important;
+  /* nf-cod-trash has a hair of trailing whitespace baked into the
+   * glyph, so shave the right padding to compensate. */
+  padding: 0 7px 0 5px !important;
+  height: 22px !important;
+  background: #aaa !important;
+}
+/* Text-only in-menu button: Purge. Same neutral grey as the glyph
+ * buttons, but keep the menu's text size. */
+#btn-drops-purge {
+  background: #aaa !important;
+  height: 22px !important;
+  padding: 0 8px !important;
+}
+/* Drops list: black text on the menu's grey background. Raise the
+ * specificity a notch (ID + descendant) so nothing in the default
+ * inline-style fallback path wins out. */
+#drops-list,
+#drops-list > div,
+#drops-list span { color: #000; }
+#drops-list .meta-size { color: #555; }
 
 .menu-input-number {
   background: #aaa;
@@ -600,26 +633,23 @@ body.topbar-pinned #terminal {
   height: 24px !important;
 }
  */
-#menu-wrap {
-  width: 21px;
-}
+/* Menu wrap sits at the very right edge of the topbar. Content-sized so
+ * the button's right border is always flush with the topbar right edge
+ * regardless of devicePixelRatio. */
+#menu-wrap { width: auto; }
 #btn-menu {
   background: #68b !important;
   position: relative;
   top: 0px !important;
-  /* Width is 1px wider than it needs to be so the right edge covers the
-   * final pixel of the topbar without leaving a gap on the left against
-   * the windows-menu button. */
-  width: 40px !important;
   color: #fff !important;
   text-shadow: -1px 0 black, 0 1px black, 1px 0 black, 0 -1px black;
   font-size: 19px !important;
   margin-left: 0px !important;
-  padding: 0px 8px !important;
+  padding: 0px 10px !important;
   height: 24px !important;
   border-top: 1px solid #fff !important;
   border-left: 1px solid #fff !important;
-  border-right: 1px solid #fff;
+  border-right: 1px solid #000;
   border-bottom: 1px solid #000;
 }
 

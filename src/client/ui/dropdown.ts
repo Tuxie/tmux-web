@@ -167,7 +167,8 @@ export function showContextMenu(opts: ContextMenuOptions): void {
   // menus.
   const extra = opts.className ? ' ' + opts.className + '-menu' : '';
   menu.className = 'tw-dropdown-menu tw-dd-context' + extra;
-  menu.style.position = 'fixed';
+  // top/left/minWidth are computed from the click coordinates — these
+  // must remain as inline style assignments (dynamic values).
   menu.style.top = opts.y + 'px';
   menu.style.left = opts.x + 'px';
   if (opts.minWidth !== undefined) {

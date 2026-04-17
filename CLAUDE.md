@@ -257,6 +257,29 @@ IDs (do not rename):
 - Review git commits before modify test.
 - Unclear? Ask for clarify.
 
+## CSS
+
+**No inline CSS, ever.** All styling lives in CSS files:
+
+- **`src/client/base.css`** — shared, theme-neutral defaults (layout,
+  sizing, positioning, flex/grid rules). Everything that is *not*
+  "look and feel" goes here.
+- **`themes/<name>/<name>.css`** — colours, borders, fonts, bevels,
+  background — i.e. look-and-feel overrides that can override the base
+  cleanly without `!important`.
+
+This includes `style=""` attributes in `index.html` *and* `el.style.*`
+/ `Object.assign(el.style, …)` in TypeScript. If you catch yourself
+writing either, stop: give the element a class or id, and put the
+rule in `base.css`. The only exception is a value that is genuinely
+dynamic (e.g. `overlay.style.display = 'flex' | 'none'` toggled at
+runtime) — those are fine.
+
+Why: inline styles have the highest specificity short of `!important`,
+which forces every theme override to use `!important` and turns the
+cascade into a shouting match. Keeping rules in files means themes can
+override any base style with a plain selector.
+
 ## Development methodology
 
 TDD: Test verify behavior → verify fail → implement → verify pass.

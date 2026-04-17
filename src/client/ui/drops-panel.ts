@@ -35,41 +35,31 @@ export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promis
     list.innerHTML = '';
     if (drops.length === 0) {
       const empty = document.createElement('div');
-      empty.style.color = '#777';
-      empty.style.fontStyle = 'italic';
-      empty.style.padding = '4px 0';
+      empty.className = 'drops-empty';
       empty.textContent = 'No files. Drag one onto the terminal.';
       list.appendChild(empty);
       return;
     }
     for (const d of drops) {
       const row = document.createElement('div');
-      row.style.display = 'flex';
-      row.style.alignItems = 'center';
-      row.style.gap = '6px';
-      row.style.padding = '2px 0';
-      row.style.cursor = 'pointer';
+      row.className = 'drops-row';
       row.title = `Click to paste path into the terminal\n${d.absolutePath}\n${formatBytes(d.size)} · ${d.mtime}`;
 
       const label = document.createElement('span');
-      label.style.flex = '1';
-      label.style.overflow = 'hidden';
-      label.style.textOverflow = 'ellipsis';
-      label.style.whiteSpace = 'nowrap';
+      label.className = 'drops-row-label';
       label.textContent = d.filename;
       row.appendChild(label);
 
       const meta = document.createElement('span');
-      meta.style.color = '#777';
-      meta.style.fontSize = '10px';
+      meta.className = 'drops-row-meta';
       meta.textContent = formatBytes(d.size);
       row.appendChild(meta);
 
       const revoke = document.createElement('button');
-      revoke.className = 'tb-btn';
-      revoke.textContent = '✕';
+      revoke.className = 'tb-btn drops-revoke';
+      // Nerd Font nf-cod-trash (U+EA81). Topaz8 NF ships this glyph.
+      revoke.textContent = '\uEA81';
       revoke.title = `Remove ${d.filename} from disk`;
-      revoke.style.padding = '0 6px';
       revoke.addEventListener('click', async (ev) => {
         // Prevent the row-click re-paste handler from also firing when
         // the user meant to revoke.

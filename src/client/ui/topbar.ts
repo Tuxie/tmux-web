@@ -343,9 +343,7 @@ export class Topbar {
     const ddTheme = Dropdown.fromSelect(themeSelect);
     const ddColours = Dropdown.fromSelect(coloursSelect);
     const ddFont = Dropdown.fromSelect(fontSelect);
-    ddTheme.element.style.flex = '1';
-    ddColours.element.style.flex = '1';
-    ddFont.element.style.flex = '1';
+    // Flex is applied via `#menu-dropdown .tw-dropdown { flex: 1 }` in base.css.
 
     const getSettings = (): SessionSettings => {
       const live = this.opts.getLiveSettings();

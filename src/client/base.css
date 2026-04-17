@@ -8,7 +8,7 @@ html, body { height: 100%; overflow: hidden; }
 }
 
 #page { position: absolute; inset: 0; }
-#terminal { background-color: #0000; }
+#terminal { background-color: #0000; position: absolute; }
 #terminal .terminal,
 .xterm-scrollable-element { background-color: #0000 !important; }
 .xterm .xterm-viewport { overflow-y: hidden !important; background-color: #0000 !important; }
@@ -17,6 +17,13 @@ html, body { height: 100%; overflow: hidden; }
 #menu-dropdown input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 #menu-dropdown input[type="number"]::-webkit-inner-spin-button,
 #menu-dropdown input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+#menu-wrap { position: relative; }
+
+/* Stretch selects / sliders / custom-dropdown elements inside a menu row. */
+#menu-dropdown .menu-input-select,
+#menu-dropdown .tw-dropdown,
+#menu-dropdown input[type="range"] { flex: 1; }
 
 .menu-row { display: flex; align-items: center; gap: 8px; padding: 5px 12px; cursor: pointer; font-size: 13px; white-space: nowrap; }
 .menu-row-static { cursor: default; gap: 6px; }
@@ -27,3 +34,90 @@ html, body { height: 100%; overflow: hidden; }
 }
 .menu-input-number { width: 46px; }
 .menu-hr { border: none; border-top: 1px solid #444; margin: 4px 0; }
+
+/* Menu footer: left and right side labels. */
+#menu-footer { justify-content: space-between; color: #888; font-size: 11px; }
+
+/* "Dropped files" row: stacked header + list. */
+.menu-row-drops { flex-direction: column; align-items: stretch; gap: 4px; }
+.drops-header { display: flex; align-items: center; gap: 8px; }
+#drops-count { flex: 1; }
+#drops-list { max-height: 140px; overflow-y: auto; font-size: 13px; }
+#drops-list .drops-empty { font-style: italic; opacity: 0.55; padding: 4px 0; }
+#drops-list .drops-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 2px 0; cursor: pointer;
+}
+#drops-list .drops-row-label {
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#drops-list .drops-row-meta { font-size: 10px; opacity: 0.65; }
+
+/* Drag-and-drop overlay across the terminal area. */
+.tw-drop-overlay {
+  position: absolute; inset: 0;
+  display: none;
+  align-items: center; justify-content: center;
+  background: rgba(40, 80, 140, 0.25);
+  border: 2px dashed #88bbff;
+  color: #eee; font-size: 14px; font-family: inherit;
+  pointer-events: none; z-index: 50;
+}
+.tw-drop-overlay.visible { display: flex; }
+
+/* Toast stack, bottom-right. */
+.tw-toast-stack {
+  position: fixed; right: 12px; bottom: 12px;
+  display: flex; flex-direction: column-reverse; gap: 6px;
+  z-index: 9000; pointer-events: none;
+}
+.tw-toast {
+  background: #262626; color: #e0e0e0;
+  border: 1px solid #555;
+  border-radius: 3px;
+  padding: 6px 10px;
+  font-size: 12px; font-family: inherit;
+  max-width: 360px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 120ms ease, transform 120ms ease;
+  pointer-events: auto;
+}
+.tw-toast.visible { opacity: 1; transform: translateY(0); }
+.tw-toast-error { background: #5a2a2a; border-color: #a05555; }
+
+/* Clipboard-read prompt modal. */
+.tw-clip-prompt-backdrop {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex; align-items: center; justify-content: center;
+  font-family: inherit;
+}
+.tw-clip-prompt-card {
+  min-width: 340px; max-width: 520px;
+  background: #262626; color: #d4d4d4;
+  border: 1px solid #555; border-radius: 4px;
+  padding: 14px 16px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  font-size: 13px;
+}
+.tw-clip-prompt-title { font-weight: bold; margin-bottom: 8px; }
+.tw-clip-prompt-body { margin-bottom: 10px; word-break: break-all; }
+.tw-clip-prompt-pin {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 12px; font-size: 12px; color: #aaa;
+}
+.tw-clip-prompt-btns { display: flex; gap: 6px; justify-content: flex-end; }
+.tw-clip-prompt-btn {
+  padding: 4px 10px;
+  border: 1px solid #555; border-radius: 3px;
+  cursor: pointer; font-family: inherit; font-size: 12px;
+  color: #eee;
+}
+.tw-clip-prompt-btn-deny { background: #5a2a2a; }
+.tw-clip-prompt-btn-once { background: #3a3a3a; }
+.tw-clip-prompt-btn-always { background: #2a6a2a; }
+
+/* Context dropdown menu (positioned imperatively via top/left). */
+.tw-dropdown-menu { position: fixed; }
