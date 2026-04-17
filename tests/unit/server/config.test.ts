@@ -94,6 +94,7 @@ describe("--allow-origin / --allow-ip defaults", () => {
 });
 
 import { warnIfDangerousOriginConfig } from "../../../src/server/index.js";
+import { isOriginAllowed } from "../../../src/server/origin.js";
 
 describe("warnIfDangerousOriginConfig", () => {
   test("warns when -o * combines with a non-loopback --allow-ip", () => {
@@ -137,5 +138,20 @@ describe("warnIfDangerousOriginConfig", () => {
       console.error = origErr;
     }
     expect(messages).toEqual([]);
+  });
+});
+
+describe("HTTP Origin check integration (pure shape)", () => {
+  test("default config rejects cross-origin from evil.com", () => {
+    const { config } = parseConfig(["--no-auth"]);
+    expect(isOriginAllowed(
+      { headers: { origin: "https://evil.com" } } as any,
+      {
+        allowedIps: config!.allowedIps,
+        allowedOrigins: config!.allowedOrigins,
+        serverScheme: config!.tls ? "https" : "http",
+        serverPort: config!.port,
+      },
+    )).toBe(false);
   });
 });
