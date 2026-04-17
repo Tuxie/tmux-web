@@ -28,10 +28,14 @@ test('server-driven session switch applies the target session\'s stored settings
   await injectWsSpy(page);
   // Seed the persisted store so /api/session-settings GET returns settings
   // for both "main" (Dracula) and "other" (Nord) on initial load.
+  // opacity 100 keeps composeTheme's composite equal to the pure theme bg;
+  // at opacity 0 the composite collapses to the body colour regardless of
+  // the colour scheme, so the per-session bg check below couldn't tell the
+  // two sessions apart.
   await mockSessionStore(page, {
     sessions: {
-      main:  { theme: 'Default', colours: 'Dracula', fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
-      other: { theme: 'Default', colours: 'Nord',    fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
+      main:  { theme: 'Default', colours: 'Dracula', fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 100 },
+      other: { theme: 'Default', colours: 'Nord',    fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 100 },
     },
   });
   // mockApis registers its own /api/session-settings route — call it BEFORE
@@ -47,8 +51,9 @@ test('server-driven session switch applies the target session\'s stored settings
   await waitForWsOpen(page);
 
   // Sanity: at /main the adapter shows Dracula's background colour.
+  // composeTheme emits it as rgba(r,g,b,0); Dracula #282a36 → (40,42,54).
   await page.waitForFunction(() =>
-    (window as any).__adapter?.term?.options?.theme?.background === '#282a36',
+    (window as any).__adapter?.term?.options?.theme?.background === 'rgba(40,42,54,0)',
     { timeout: 3000 }
   );
 
@@ -57,9 +62,9 @@ test('server-driven session switch applies the target session\'s stored settings
   await sendFromServer(page, { session: 'other' });
 
   // The client should have loaded "other"'s stored settings and re-applied
-  // them — Nord's background is #2e3440.
+  // them — Nord's background is #2e3440 → rgba(46,52,64,0).
   await page.waitForFunction(() =>
-    (window as any).__adapter?.term?.options?.theme?.background === '#2e3440',
+    (window as any).__adapter?.term?.options?.theme?.background === 'rgba(46,52,64,0)',
     { timeout: 3000 }
   );
   await expect(page.locator('#inp-colours')).toHaveValue('Nord');

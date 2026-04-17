@@ -16,11 +16,15 @@ test("switch colour scheme applies new background hex live", async ({ page }) =>
   await waitForMenuInputs(page);
   await page.selectOption("#inp-colours", "Dracula");
 
+  // composeTheme writes the terminal background as `rgba(r,g,b,0)` so the
+  // WebGL atlas rasterises glyph halos against the composite of the body
+  // bg and the theme bg (see src/client/colours.ts). Accept that format
+  // instead of the pre-1.3 plain #rrggbb.
   const bg = await page.evaluate(() => {
     const t = (window as any).__adapter?.term;
     return t?.options?.theme?.background;
   });
-  expect(bg).toMatch(/^#[0-9a-fA-F]{6}$/);
+  expect(bg).toMatch(/^rgba\(\d+,\d+,\d+,0\)$/);
 });
 
 test("sends colour-variant message on connect and on colour change", async ({ page }) => {

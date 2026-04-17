@@ -168,6 +168,18 @@ test.describe('font change rendering: xterm', () => {
     await page.evaluate(() => { (window as any).__mockWsReceive('font change render\r\n'); });
 
     await expect(page.locator('#terminal .xterm')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('#terminal .xterm-rows')).toContainText('font change render', { timeout: 5000 });
+    // The WebGL renderer draws glyphs to a canvas, so `.xterm-rows` stays
+    // empty even when text is present. Assert via the terminal buffer
+    // instead — works for both DOM and WebGL renderers.
+    await page.waitForFunction(() => {
+      const term = (window as any).__adapter?.term;
+      const buf = term?.buffer?.active;
+      if (!buf) return false;
+      for (let y = 0; y < term.rows; y++) {
+        const line = buf.getLine(y)?.translateToString(true) ?? '';
+        if (line.includes('font change render')) return true;
+      }
+      return false;
+    }, null, { timeout: 5000 });
   });
 });
