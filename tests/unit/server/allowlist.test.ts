@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { isAllowed, normalizeIp } from '../../../src/server/allowlist.js';
 
 describe('normalizeIp', () => {

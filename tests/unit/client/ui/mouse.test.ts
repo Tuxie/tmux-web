@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { getSgrCoords, buildSgrSequence } from '../../../../src/client/ui/mouse.js';
 
 describe('getSgrCoords', () => {

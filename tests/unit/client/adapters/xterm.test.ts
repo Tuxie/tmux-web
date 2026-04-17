@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi } from 'bun:test';
 import { XtermAdapter } from '../../../../src/client/adapters/xterm.js';
 
 function makeAdapterWithMockTerm(lineHeight = 1) {
