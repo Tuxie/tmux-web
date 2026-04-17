@@ -49,10 +49,17 @@ function buildVendorXterm(vendorDir: string): void {
     "src/common/tsconfig.json",
     "src/headless/tsconfig.json",
   ];
+  // Snapshot originals so we can restore after the build. This keeps the
+  // vendor submodule's working tree clean — `git status` inside
+  // vendor/xterm.js stays empty even after `make build`. The patch itself
+  // is idempotent (skips already-patched files), so restore-then-rebuild
+  // is safe on every run.
+  const originals = new Map<string, string>();
   for (const rel of patchTargets) {
     const p = path.join(vendorDir, rel);
     if (!fs.existsSync(p)) continue;
     const raw = fs.readFileSync(p, "utf8");
+    originals.set(p, raw);
     if (raw.includes('"experimentalDecorators"')) continue;
     // Textual insert (not JSON.parse) because tsconfigs contain JSONC comments
     // and path strings like "common/*" that break naive comment stripping.
@@ -64,6 +71,12 @@ function buildVendorXterm(vendorDir: string): void {
     fs.writeFileSync(p, patched);
   }
 
+  const restoreOriginals = () => {
+    for (const [p, raw] of originals) {
+      try { fs.writeFileSync(p, raw); } catch { /* best-effort */ }
+    }
+  };
+
   const buildEntry = (entry: string, outdir: string, name: string) => {
     const result = Bun.spawnSync(
       ["bun", "build", entry, "--outdir", outdir, "--minify", "--target", "browser", "--entry-naming", name],
@@ -74,24 +87,28 @@ function buildVendorXterm(vendorDir: string): void {
     }
   };
 
-  buildEntry(
-    "src/browser/public/Terminal.ts",
-    "lib",
-    "xterm.mjs"
-  );
-  for (const [dir, entry] of [
-    ["addon-fit", "FitAddon"],
-    ["addon-webgl", "WebglAddon"],
-    ["addon-unicode-graphemes", "UnicodeGraphemesAddon"],
-    ["addon-web-links", "WebLinksAddon"],
-    ["addon-web-fonts", "WebFontsAddon"],
-    ["addon-image", "ImageAddon"],
-  ]) {
+  try {
     buildEntry(
-      `addons/${dir}/src/${entry}.ts`,
-      `addons/${dir}/lib`,
-      `${dir}.mjs`,
+      "src/browser/public/Terminal.ts",
+      "lib",
+      "xterm.mjs"
     );
+    for (const [dir, entry] of [
+      ["addon-fit", "FitAddon"],
+      ["addon-webgl", "WebglAddon"],
+      ["addon-unicode-graphemes", "UnicodeGraphemesAddon"],
+      ["addon-web-links", "WebLinksAddon"],
+      ["addon-web-fonts", "WebFontsAddon"],
+      ["addon-image", "ImageAddon"],
+    ]) {
+      buildEntry(
+        `addons/${dir}/src/${entry}.ts`,
+        `addons/${dir}/lib`,
+        `${dir}.mjs`,
+      );
+    }
+  } finally {
+    restoreOriginals();
   }
 }
 
