@@ -17,7 +17,12 @@ import {
   type PackInfo,
 } from './themes.js';
 import { applyPatch, loadConfig, type SessionsConfigPatch } from './sessions-store.js';
-import { writeDrop, type DropStorage } from './file-drop.js';
+import {
+  writeDrop,
+  listDrops,
+  deleteDrop,
+  type DropStorage,
+} from './file-drop.js';
 import { getForegroundProcess } from './foreground-process.js';
 import { isShell, shellQuote } from './shell-quote.js';
 import { sendBytesToPane } from './tmux-inject.js';
@@ -271,6 +276,40 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end('[]');
       }
+      return;
+    }
+
+    if (pathname === '/api/drops') {
+      const session = sanitizeSession(url.searchParams.get('session') || 'main');
+      if (req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ drops: listDrops(opts.dropStorage, session) }));
+        return;
+      }
+      if (req.method === 'DELETE') {
+        const filename = url.searchParams.get('filename');
+        if (filename) {
+          // Single-file revoke. Strip path separators defensively — the
+          // server-side deleteDrop also re-validates confinement.
+          const safe = filename.replace(/[\/\\]/g, '');
+          const ok = deleteDrop(opts.dropStorage, session, safe);
+          res.writeHead(ok ? 200 : 404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ deleted: ok, filename: safe }));
+          return;
+        }
+        // Purge-all: list first, then unlink one by one so the watcher
+        // map stays consistent.
+        const before = listDrops(opts.dropStorage, session);
+        let count = 0;
+        for (const d of before) {
+          if (deleteDrop(opts.dropStorage, session, d.filename)) count++;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ purged: count }));
+        return;
+      }
+      res.writeHead(405);
+      res.end();
       return;
     }
 

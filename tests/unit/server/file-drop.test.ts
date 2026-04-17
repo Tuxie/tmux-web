@@ -7,6 +7,8 @@ import {
   writeDrop,
   cleanupSession,
   cleanupAll,
+  listDrops,
+  deleteDrop,
   type DropStorage,
 } from "../../../src/server/file-drop.ts";
 
@@ -15,7 +17,7 @@ let storage: DropStorage;
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), "tw-drop-"));
-  storage = { root, maxFilesPerSession: 3, ttlMs: 60_000 };
+  storage = { root, maxFilesPerSession: 3, ttlMs: 60_000, autoUnlinkOnClose: false };
 });
 
 afterEach(() => {
@@ -131,5 +133,55 @@ describe("cleanup helpers", () => {
     writeDrop(storage, "main", "f.bin", Buffer.from("x"));
     cleanupAll(storage);
     expect(fs.existsSync(root)).toBe(false);
+  });
+});
+
+describe("listDrops", () => {
+  test("empty when no session dir exists", () => {
+    expect(listDrops(storage, "nope")).toEqual([]);
+  });
+
+  test("returns drops sorted newest-first with size and ISO mtime", () => {
+    const a = writeDrop(storage, "main", "a.txt", Buffer.from("aa"));
+    const b = writeDrop(storage, "main", "b.txt", Buffer.from("bbbb"));
+    // Backdate mtimes AFTER both writes so the second write's TTL sweep
+    // (which uses the real mtime) doesn't unlink the first file.
+    const now = Date.now();
+    fs.utimesSync(a.absolutePath, (now - 2000) / 1000, (now - 2000) / 1000);
+    fs.utimesSync(b.absolutePath, (now - 1000) / 1000, (now - 1000) / 1000);
+
+    const list = listDrops(storage, "main");
+    expect(list).toHaveLength(2);
+    expect(list[0]!.filename).toBe(path.basename(b.absolutePath));
+    expect(list[1]!.filename).toBe(path.basename(a.absolutePath));
+    expect(list[0]!.size).toBe(4);
+    expect(list[1]!.size).toBe(2);
+    // ISO 8601 round-trip.
+    expect(() => new Date(list[0]!.mtime).toISOString()).not.toThrow();
+  });
+});
+
+describe("deleteDrop", () => {
+  test("unlinks a file inside the session dir and returns true", () => {
+    const r = writeDrop(storage, "main", "doomed", Buffer.from("x"));
+    const filename = path.basename(r.absolutePath);
+    expect(deleteDrop(storage, "main", filename)).toBe(true);
+    expect(fs.existsSync(r.absolutePath)).toBe(false);
+  });
+
+  test("returns false when the file doesn't exist", () => {
+    writeDrop(storage, "main", "keep", Buffer.from("x"));
+    expect(deleteDrop(storage, "main", "nonexistent")).toBe(false);
+  });
+
+  test("rejects filenames that resolve outside the session dir", () => {
+    // Relative-parent traversal attempt. path.join normalises this to
+    // something escaping the session dir, which the confinement check
+    // refuses.
+    writeDrop(storage, "other", "neighbour", Buffer.from("x"));
+    const escaped = "../other/neighbour";
+    expect(deleteDrop(storage, "main", escaped)).toBe(false);
+    // Neighbour file is untouched.
+    expect(fs.readdirSync(path.join(root, "other")).length).toBe(1);
   });
 });

@@ -82,6 +82,16 @@
             <input type="number" id="inp-spacing" min="0.5" max="2" step="0.05" class="menu-input-number">
           </div>
           <hr class="menu-hr">
+          <div class="menu-row menu-row-static" style="flex-direction:column;align-items:stretch;gap:4px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="menu-label">Dropped files</span>
+              <span id="drops-count" style="flex:1;color:#888;font-size:11px">0</span>
+              <button class="tb-btn" id="btn-drops-refresh" title="Refresh list">↻</button>
+              <button class="tb-btn" id="btn-drops-purge" title="Delete all drops for this session">Purge</button>
+            </div>
+            <div id="drops-list" style="max-height:140px;overflow-y:auto;font-size:11px;color:#bbb"></div>
+          </div>
+          <hr class="menu-hr">
           <div id="menu-footer" class="menu-row menu-row-static" style="justify-content:space-between;color:#888;font-size:11px"><span id="menu-footer-left"></span><span id="menu-footer-right"></span></div>
         </div>
       </div>

@@ -2,6 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
+import { spawn, type ChildProcess } from 'child_process';
 
 export interface DropStorage {
   /** Absolute path of the root dir shared by all sessions. */
@@ -10,6 +11,10 @@ export interface DropStorage {
   maxFilesPerSession: number;
   /** Drops older than this (ms) are opportunistically unlinked on each write. */
   ttlMs: number;
+  /** If true, spawn `inotifywait` per drop to unlink the file the moment
+   *  its first reader closes it. Falls back to TTL-only when the binary
+   *  is missing. */
+  autoUnlinkOnClose: boolean;
 }
 
 /** Build a default per-user drop storage under $XDG_RUNTIME_DIR when set
@@ -22,7 +27,76 @@ export function defaultDropStorage(): DropStorage {
     ? path.join(xdg, 'tmux-web', 'drop')
     : path.join(os.tmpdir(), `tmux-web-drop-${uid}`);
   fs.mkdirSync(base, { recursive: true, mode: 0o700 });
-  return { root: base, maxFilesPerSession: 20, ttlMs: 10 * 60 * 1000 };
+  return {
+    root: base,
+    maxFilesPerSession: 20,
+    ttlMs: 10 * 60 * 1000,
+    autoUnlinkOnClose: hasInotifywait(),
+  };
+}
+
+let _inotifywaitProbed: boolean | null = null;
+/** One-shot feature probe. Inotify-tools isn't guaranteed everywhere; on
+ *  macOS / BSD / broken installs we quietly fall back to TTL-only. */
+export function hasInotifywait(): boolean {
+  if (_inotifywaitProbed !== null) return _inotifywaitProbed;
+  try {
+    const res = Bun.spawnSync(['inotifywait', '--help'], {
+      stdio: ['ignore', 'ignore', 'ignore'],
+    });
+    _inotifywaitProbed = res.exitCode === 0;
+  } catch {
+    _inotifywaitProbed = false;
+  }
+  return _inotifywaitProbed;
+}
+
+/** Reset the inotifywait probe cache. Only used by tests. */
+export function _resetInotifyProbe(): void {
+  _inotifywaitProbed = null;
+}
+
+/** Active auto-unlink watchers so we can kill them on session cleanup
+ *  and server exit without leaking child processes. Keyed by absolute
+ *  file path. */
+const activeWatchers = new Map<string, ChildProcess>();
+
+/** Spawn `inotifywait` on `absolutePath`, unlinking the file (and clearing
+ *  the watcher entry) when any close event fires. Returns immediately.
+ *  If inotifywait isn't available or spawn fails, the file simply survives
+ *  until the TTL sweep picks it up. */
+function armAutoUnlink(absolutePath: string): void {
+  if (activeWatchers.has(absolutePath)) return;
+  try {
+    // -q quiet (no header), no -m → one-shot; exits on first matching
+    // event. close_write covers readers that opened the file read-write
+    // (rare, but vim-style workflows do); close_nowrite covers the common
+    // case where a tool opens the file read-only.
+    const child = spawn('inotifywait', [
+      '-q', '-e', 'close_write,close_nowrite', absolutePath,
+    ], { stdio: ['ignore', 'ignore', 'ignore'] });
+    activeWatchers.set(absolutePath, child);
+    const finish = () => {
+      activeWatchers.delete(absolutePath);
+      try { fs.unlinkSync(absolutePath); } catch { /* already gone */ }
+    };
+    child.on('exit', finish);
+    child.on('error', () => {
+      // spawn failed (rare post-probe). Fall back to TTL — don't unlink.
+      activeWatchers.delete(absolutePath);
+    });
+  } catch {
+    /* spawn threw synchronously — TTL handles it */
+  }
+}
+
+/** Kill every active watcher (fire-and-forget). Their `exit` handlers
+ *  will also unlink the corresponding files, which is fine: the session
+ *  is going away anyway. */
+function stopAllWatchers(): void {
+  for (const [, child] of activeWatchers) {
+    try { child.kill('SIGTERM'); } catch { /* best-effort */ }
+  }
 }
 
 /** Drop sanitisation. `name` is the filename the browser supplied; we
@@ -116,7 +190,67 @@ export function writeDrop(
     fs.closeSync(fd);
   }
 
+  // Arm the close-watch AFTER our own fd is closed so our write's
+  // IN_CLOSE_WRITE can't trigger an immediate unlink. The reader's open
+  // happens after we return, so inotifywait catches its close events.
+  if (storage.autoUnlinkOnClose) {
+    armAutoUnlink(absolutePath);
+  }
+
   return { absolutePath, filename: safe, size: data.byteLength };
+}
+
+/** List currently-persisted drops under a session dir (newest first).
+ *  Used by the settings panel to show the user what's still on disk. */
+export function listDrops(storage: DropStorage, session: string): Array<{
+  filename: string;
+  absolutePath: string;
+  size: number;
+  mtime: string; // ISO 8601
+}> {
+  const dir = path.join(storage.root, session);
+  if (!fs.existsSync(dir)) return [];
+  const entries = fs.readdirSync(dir)
+    .map(name => {
+      const p = path.join(dir, name);
+      try {
+        const stat = fs.statSync(p);
+        return {
+          filename: name,
+          absolutePath: p,
+          size: stat.size,
+          mtime: new Date(stat.mtimeMs).toISOString(),
+          sortKey: stat.mtimeMs,
+        };
+      } catch {
+        return null;
+      }
+    })
+    .filter((x): x is { filename: string; absolutePath: string; size: number; mtime: string; sortKey: number } => x !== null)
+    .sort((a, b) => b.sortKey - a.sortKey);
+  return entries.map(({ sortKey: _sortKey, ...rest }) => rest);
+}
+
+/** Unlink a single drop (and stop its watcher, if any). Returns true on
+ *  successful unlink, false if the file wasn't present. Rejects paths
+ *  that escape the session dir — purely defensive; the HTTP layer
+ *  validates filename separately. */
+export function deleteDrop(storage: DropStorage, session: string, filename: string): boolean {
+  const dir = path.join(storage.root, session);
+  const target = path.join(dir, filename);
+  // Require the resolved path to remain inside the session dir.
+  if (!target.startsWith(dir + path.sep)) return false;
+  const watcher = activeWatchers.get(target);
+  if (watcher) {
+    activeWatchers.delete(target);
+    try { watcher.kill('SIGTERM'); } catch { /* best-effort */ }
+  }
+  try {
+    fs.unlinkSync(target);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Remove a session's drop dir entirely (e.g. on WS disconnect). */
@@ -126,7 +260,9 @@ export function cleanupSession(storage: DropStorage, session: string): void {
 }
 
 /** Remove every session dir under the storage root. Call once on server
- *  shutdown to avoid leaving drops around across restarts. */
+ *  shutdown to avoid leaving drops around across restarts. Also stops
+ *  any pending auto-unlink watchers. */
 export function cleanupAll(storage: DropStorage): void {
+  stopAllWatchers();
   try { fs.rmSync(storage.root, { recursive: true, force: true }); } catch { /* ignore */ }
 }

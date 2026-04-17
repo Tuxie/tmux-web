@@ -8,6 +8,8 @@ import { installKeyboardHandler } from './ui/keyboard.js';
 import { handleClipboard } from './ui/clipboard.js';
 import { showClipboardPrompt } from './ui/clipboard-prompt.js';
 import { installFileDropHandler } from './ui/file-drop.js';
+import { showToast, formatBytes } from './ui/toast.js';
+import { installDropsPanel } from './ui/drops-panel.js';
 import { getTopbarAutohide } from './prefs.js';
 import { applyTheme, loadAllFonts, listThemes } from './theme.js';
 import { fetchColours, composeBgColor, composeTheme, type ITheme } from './colours.js';
@@ -278,12 +280,25 @@ async function main() {
     toggleFullscreen: () => topbar.toggleFullscreen(),
   });
 
+  const dropsPanel = installDropsPanel({ getSession });
+
   installFileDropHandler({
     terminal: container,
     getSession,
+    onDropped: (info) => {
+      showToast(`Uploaded ${info.filename} — ${formatBytes(info.size)}`);
+      void dropsPanel.refresh();
+    },
     onError: (err, file) => {
       console.warn(`file-drop upload failed for ${file.name}:`, err);
+      showToast(`Upload failed: ${file.name}`, { variant: 'error' });
     },
+  });
+
+  // When the settings menu opens, refresh the drops list so it reflects
+  // what's actually on disk (e.g. after inotify auto-unlinks).
+  document.getElementById('btn-menu')?.addEventListener('click', () => {
+    void dropsPanel.refresh();
   });
 }
 
