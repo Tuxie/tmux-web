@@ -183,10 +183,34 @@ Options:
       baseTmuxConfContent = baseTmuxConfContent.replace(/^source-file -q .*$/gm, '');
       baseTmuxConfContent += `\nsource-file -q ${config.tmuxConf}\n`;
     }
-    const tmpPath = path.join(tmpdir(), `tmux-web-embedded-${Date.now()}.conf`);
-    fs.writeFileSync(tmpPath, baseTmuxConfContent);
-    effectiveTmuxConfPath = tmpPath;
-    process.on('exit', () => { try { fs.unlinkSync(tmpPath); } catch {} });
+    // Stable materialised location so we don't litter /tmp with per-start
+    // timestamped copies. One tmux-web process per user is the normal
+    // case; two racing writes of the same content are fine (deterministic
+    // output + rename would require more plumbing than it's worth).
+    const uid = typeof process.getuid === 'function' ? process.getuid() : 0;
+    const runtimeBase = process.env.XDG_RUNTIME_DIR && fs.existsSync(process.env.XDG_RUNTIME_DIR)
+      ? path.join(process.env.XDG_RUNTIME_DIR, 'tmux-web')
+      : path.join(tmpdir(), `tmux-web-${uid}`);
+    fs.mkdirSync(runtimeBase, { recursive: true, mode: 0o700 });
+    const confPath = path.join(runtimeBase, 'tmux.conf');
+    fs.writeFileSync(confPath, baseTmuxConfContent);
+    effectiveTmuxConfPath = confPath;
+
+    // If a tmux server is already running (we survived a tmux-web
+    // restart), push the freshly-materialised config into it so users
+    // see config edits without having to kill their sessions. No-op
+    // when no server is up — the subsequent `tmux new-session -A` in
+    // ws.ts will boot the server and read the config at that point.
+    try {
+      const probe = Bun.spawnSync([config.tmuxBin, 'list-sessions', '-F', ''], {
+        stdio: ['ignore', 'ignore', 'ignore'],
+      });
+      if (probe.exitCode === 0) {
+        Bun.spawnSync([config.tmuxBin, 'source-file', confPath], {
+          stdio: ['ignore', 'ignore', 'ignore'],
+        });
+      }
+    } catch { /* best-effort */ }
   } else if (isCompiled && !fs.existsSync(tmuxConfPath)) {
     effectiveTmuxConfPath = path.join(projectRoot, 'tmux.conf');
   }
