@@ -4,7 +4,6 @@ import {
   listPacks,
   listThemes,
   listFonts,
-  resolveTheme,
   readPackFile,
 } from '../../../src/server/themes';
 
@@ -31,25 +30,12 @@ describe('themes module', () => {
     expect(families).toEqual(['FontOnly', 'Shared']);
   });
 
-  test('resolveTheme returns the correct pack and css', () => {
-    const packs = listPacks(FIX, null);
-    const t = resolveTheme('Foo Brown', packs);
-    expect(t).not.toBeNull();
-    expect(t!.pack).toBe('multi');
-    expect(t!.css).toBe('brown.css');
-    expect(t!.defaultFont).toBe('Shared');
-  });
-
-  test('resolveTheme returns null for unknown name', () => {
-    const packs = listPacks(FIX, null);
-    expect(resolveTheme('Nope', packs)).toBeNull();
-  });
-
   test('user dir wins over bundled on name collision', () => {
     const userDir = path.join(FIX, '__user_override');
-    const packs = listPacks(userDir, FIX);
-    const t = resolveTheme('Foo Brown', packs);
-    expect(t).not.toBeNull();
+    const userPacks = listPacks(userDir, FIX);
+    const allThemes = listThemes(userPacks);
+    const t = allThemes.find(th => th.name === 'Foo Brown');
+    expect(t).not.toBeUndefined();
     expect(t!.source).toBe('user');
   });
 

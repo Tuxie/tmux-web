@@ -89,7 +89,6 @@ export interface ServerConfig {
   tmuxBin: string;
   tmuxConf?: string;
   themesDir?: string;
-  theme?: string;
   auth: {
     enabled: boolean;
     username?: string;

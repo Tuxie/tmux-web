@@ -211,6 +211,7 @@ export function writeDrop(
 
   const fd = fs.openSync(absolutePath, 'wx', 0o600);
   try {
+    // safe: data is Uint8Array | Buffer; fs.writeSync accepts both but overload resolution picks the string overload without the cast
     fs.writeSync(fd, data as any);
   } finally {
     fs.closeSync(fd);

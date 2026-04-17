@@ -21,10 +21,6 @@ test("parseConfig includes themes-dir when provided", () => {
   expect(config?.themesDir).toBe("/tmp/themes");
 });
 
-test("parseConfig includes theme when provided", () => {
-  const { config } = parseConfig(["--theme", "Default"]);
-  expect(config?.theme).toBe("Default");
-});
 
 test("--version short-circuits parsing with version:true", () => {
   const r = parseConfig(["--version"]);
@@ -42,19 +38,17 @@ test("--help short-circuits parsing with help:true", () => {
   expect(r.config).toBeNull();
 });
 
-test("short flags: -i / -u / -p / -t / -d map to their long forms", () => {
+test("short flags: -i / -u / -p / -d map to their long forms", () => {
   const { config } = parseConfig([
     "-i", "10.0.0.1",
     "-u", "alice",
     "-p", "secret",
-    "-t", "Amiga",
     "-d",
     "--no-tls",
   ]);
   expect(config?.allowedIps.has("10.0.0.1")).toBe(true);
   expect(config?.auth.username).toBe("alice");
   expect(config?.auth.password).toBe("secret");
-  expect(config?.theme).toBe("Amiga");
   expect(config?.debug).toBe(true);
 });
 

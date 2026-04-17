@@ -1,5 +1,3 @@
-import { execFile } from 'child_process';
-import { promisify } from 'util';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { IncomingMessage } from 'http';
 import type { Server as HttpServer } from 'http';
@@ -15,8 +13,7 @@ import { isOriginAllowed, logOriginReject } from './origin.js';
 import { getForegroundProcess } from './foreground-process.js';
 import { resolvePolicy, recordGrant } from './clipboard-policy.js';
 import { onDropsChange } from './file-drop.js';
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from './exec.js';
 
 export interface WsServerOptions {
   config: ServerConfig;
@@ -75,6 +72,7 @@ export function createWsServer(
   const wss = new WebSocketServer({ noServer: true });
 
   httpServer.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+    // safe: Duplex does not declare remoteAddress but the underlying socket does; see https://nodejs.org/api/net.html#socketremoteaddress
     const remoteIp = (socket as any).remoteAddress || '';
     debug(config, `WS upgrade from ${remoteIp}`);
     if (!config.testMode && !isAllowed(remoteIp, config.allowedIps)) {
@@ -245,6 +243,7 @@ function handleConnection(
   tmuxConfPath: string,
   sessionsStorePath: string,
 ): void {
+  // safe: Duplex does not declare remoteAddress but the underlying socket does; see https://nodejs.org/api/net.html#socketremoteaddress
   const remoteIp = (req.socket as any).remoteAddress || '';
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   const cols = parseInt(url.searchParams.get('cols') || '80');
@@ -370,7 +369,7 @@ function handleConnection(
     if (result.titleChanged && result.detectedTitle !== lastTitle) {
       lastTitle = result.detectedTitle || '';
       if (result.detectedSession) lastSession = result.detectedSession;
-      sendWindowState(ws, lastSession, config);
+      void sendWindowState(ws, lastSession, config);
     }
   });
 

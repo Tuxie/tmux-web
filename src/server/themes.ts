@@ -170,10 +170,6 @@ export function listColours(packs: PackInfo[]): ColourInfo[] {
   return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function resolveTheme(name: string, packs: PackInfo[]): ThemeInfo | null {
-  return listThemes(packs).find(theme => theme.name === name) ?? null;
-}
-
 function findPack(packDir: string, packs: PackInfo[]): PackInfo | null {
   return packs.find(pack => pack.dir === packDir) ?? null;
 }
