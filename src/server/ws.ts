@@ -31,22 +31,39 @@ function debug(config: ServerConfig, ...args: unknown[]): void {
 }
 
 /**
- * Send an HTTP error response on a raw upgrade socket and close it.
+ * Send a short HTTP error response on a raw upgrade socket and close it.
  *
- * Under Bun's Node.js compat layer, `socket.write()` in the 'upgrade' event
- * does not flush before `socket.destroy()` — the bytes are silently dropped.
- * Bun exposes the underlying response object via `Symbol.for('::bunternal::')`,
- * which does flush correctly. We prefer that path and fall back to the
- * standard `socket.write()` + `socket.destroy()` for plain Node.js.
+ * Under Bun's Node.js compat layer, `socket.write()` followed immediately by
+ * `socket.destroy()` drops the bytes — and `socket.end(payload)` also silently
+ * discards the payload in the upgrade context. The only path that reliably
+ * flushes is to use the underlying Bun response object exposed via the
+ * `::bunternal::` symbol. We prefer that path when available and fall back to
+ * `socket.write() + socket.destroy()` (which works on plain Node.js).
  */
-function rejectUpgradeSocket(socket: Duplex, statusCode: number, statusText: string): void {
+function rejectUpgradeSocket(
+  socket: Duplex,
+  statusCode: number,
+  statusText: string,
+  extraHeaders: Record<string, string> = {},
+): void {
   const native = (socket as any)[Symbol.for('::bunternal::')];
   if (native && typeof native.writeHead === 'function') {
-    native.writeHead(statusCode, statusText, { 'Content-Length': '0', 'Connection': 'close' });
+    native.writeHead(statusCode, statusText, {
+      'Content-Length': '0',
+      'Connection': 'close',
+      ...extraHeaders,
+    });
     native.end('');
     return;
   }
-  socket.write(`HTTP/1.1 ${statusCode} ${statusText}\r\n\r\n`);
+  // Plain Node.js: socket.write() flushes synchronously before destroy().
+  const lines = [
+    `HTTP/1.1 ${statusCode} ${statusText}`,
+    'Content-Length: 0',
+    'Connection: close',
+    ...Object.entries(extraHeaders).map(([k, v]) => `${k}: ${v}`),
+  ];
+  socket.write(lines.join('\r\n') + '\r\n\r\n');
   socket.destroy();
 }
 
@@ -81,7 +98,9 @@ export function createWsServer(
 
     if (!isAuthorized(req, config)) {
       debug(config, `WS upgrade from ${remoteIp} - unauthorized`);
-      rejectUpgradeSocket(socket, 401, 'Unauthorized');
+      rejectUpgradeSocket(socket, 401, 'Unauthorized', {
+        'WWW-Authenticate': 'Basic realm="tmux-web"',
+      });
       return;
     }
 
