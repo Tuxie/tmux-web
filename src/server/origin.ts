@@ -93,5 +93,17 @@ export function isOriginAllowed(
 }
 
 function normaliseIpV4Mapped(ip: string): string {
-  return ip.startsWith('::ffff:') ? ip.slice(7) : ip;
+  if (!ip.startsWith('::ffff:')) return ip;
+  const suffix = ip.slice(7); // everything after '::ffff:'
+  // Dotted-decimal form: ::ffff:a.b.c.d  →  a.b.c.d
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(suffix)) return suffix;
+  // Hex form: ::ffff:XXXX:YYYY  (URL API normalises dotted to hex)
+  // Convert two 16-bit hex groups to dotted-decimal IPv4.
+  const hexMatch = /^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i.exec(suffix);
+  if (hexMatch) {
+    const hi = parseInt(hexMatch[1], 16);
+    const lo = parseInt(hexMatch[2], 16);
+    return `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+  }
+  return ip;
 }

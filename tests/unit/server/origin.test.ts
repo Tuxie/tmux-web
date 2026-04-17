@@ -79,3 +79,96 @@ describe('parseAllowOriginFlag', () => {
     expect(() => parseAllowOriginFlag('ws://example.com')).toThrow();
   });
 });
+
+describe('isIpLiteral', () => {
+  it('recognises IPv4', () => {
+    expect(isIpLiteral('127.0.0.1')).toBe(true);
+    expect(isIpLiteral('192.168.2.4')).toBe(true);
+  });
+  it('recognises IPv6 (colons present)', () => {
+    expect(isIpLiteral('::1')).toBe(true);
+    expect(isIpLiteral('fe80::1')).toBe(true);
+  });
+  it('rejects hostnames', () => {
+    expect(isIpLiteral('myserver.lan')).toBe(false);
+    expect(isIpLiteral('tmux.example.com')).toBe(false);
+    expect(isIpLiteral('localhost')).toBe(false);
+  });
+});
+
+describe('isOriginAllowed', () => {
+  const mkCtx = (overrides: Partial<Parameters<typeof isOriginAllowed>[1]> = {}) => ({
+    allowedIps: new Set(['127.0.0.1', '::1']),
+    allowedOrigins: [] as ReturnType<typeof parseAllowOriginFlag>[],
+    serverScheme: 'http' as const,
+    serverPort: 4022,
+    ...overrides,
+  });
+  const mkReq = (origin: string | undefined) =>
+    ({ headers: origin === undefined ? {} : { origin } }) as any;
+
+  it('allows requests with no Origin header', () => {
+    expect(isOriginAllowed(mkReq(undefined), mkCtx())).toBe(true);
+  });
+  it('allows loopback IPv4 Origin on default config', () => {
+    expect(isOriginAllowed(mkReq('http://127.0.0.1:4022'), mkCtx())).toBe(true);
+  });
+  it('allows loopback IPv6 Origin on default config', () => {
+    expect(isOriginAllowed(mkReq('http://[::1]:4022'), mkCtx())).toBe(true);
+  });
+  it('allows LAN IP Origin when IP is in allowedIps', () => {
+    const ctx = mkCtx({ allowedIps: new Set(['127.0.0.1', '::1', '192.168.2.4']) });
+    expect(isOriginAllowed(mkReq('http://192.168.2.4:4022'), ctx)).toBe(true);
+  });
+  it('rejects LAN IP Origin when IP is not in allowedIps', () => {
+    expect(isOriginAllowed(mkReq('http://192.168.2.4:4022'), mkCtx())).toBe(false);
+  });
+  it('rejects IP Origin on scheme mismatch', () => {
+    const ctx = mkCtx({ serverScheme: 'https' });
+    expect(isOriginAllowed(mkReq('http://127.0.0.1:4022'), ctx)).toBe(false);
+  });
+  it('rejects IP Origin on port mismatch', () => {
+    expect(isOriginAllowed(mkReq('http://127.0.0.1:9999'), mkCtx())).toBe(false);
+  });
+  it('rejects DNS-rebind-shape hostname (evil.com → 127.0.0.1)', () => {
+    expect(isOriginAllowed(mkReq('https://evil.com'), mkCtx())).toBe(false);
+  });
+  it('allows hostname matching an --allow-origin entry (exact triple)', () => {
+    const ctx = mkCtx({
+      allowedOrigins: [parseAllowOriginFlag('https://tmux.example.com')],
+    });
+    expect(isOriginAllowed(mkReq('https://tmux.example.com'), ctx)).toBe(true);
+  });
+  it('rejects hostname on scheme mismatch with --allow-origin', () => {
+    const ctx = mkCtx({
+      allowedOrigins: [parseAllowOriginFlag('https://tmux.example.com')],
+    });
+    expect(isOriginAllowed(mkReq('http://tmux.example.com'), ctx)).toBe(false);
+  });
+  it('rejects hostname on port mismatch with --allow-origin', () => {
+    const ctx = mkCtx({
+      allowedOrigins: [parseAllowOriginFlag('https://tmux.example.com:4443')],
+    });
+    expect(isOriginAllowed(mkReq('https://tmux.example.com'), ctx)).toBe(false);
+  });
+  it('matches hostname case-insensitively', () => {
+    const ctx = mkCtx({
+      allowedOrigins: [parseAllowOriginFlag('https://tmux.example.com')],
+    });
+    expect(isOriginAllowed(mkReq('https://Tmux.Example.COM'), ctx)).toBe(true);
+  });
+  it('allows any origin when "*" is present', () => {
+    const ctx = mkCtx({ allowedOrigins: ['*'] });
+    expect(isOriginAllowed(mkReq('https://evil.com'), ctx)).toBe(true);
+  });
+  it('rejects malformed Origin header', () => {
+    expect(isOriginAllowed(mkReq('not-a-url'), mkCtx())).toBe(false);
+  });
+  it('rejects Origin: null (sandboxed iframe)', () => {
+    expect(isOriginAllowed(mkReq('null'), mkCtx())).toBe(false);
+  });
+  it('treats ::ffff:-mapped IPv4 Origin as its unmapped form', () => {
+    const ctx = mkCtx({ allowedIps: new Set(['127.0.0.1', '::1']) });
+    expect(isOriginAllowed(mkReq('http://[::ffff:127.0.0.1]:4022'), ctx)).toBe(true);
+  });
+});
