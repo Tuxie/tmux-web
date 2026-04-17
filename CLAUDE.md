@@ -339,3 +339,24 @@ When asked to fix a bug, first run the full test suite and note the result. If e
 ### Git
 
 Commit after every change with descriptive message.
+
+### Releases
+
+**Every release must ship a human-readable changelog in the
+GitHub Release body, not just a bump commit title.**
+
+Before tagging `vX.Y.Z`:
+
+1. Add a new `## X.Y.Z — YYYY-MM-DD` section at the top of
+   `CHANGELOG.md` summarising what changed in plain English
+   (grouped under *Added* / *Changed* / *Fixed* / *Internal*
+   headings as appropriate). Write for the user, not for the
+   committer — the goal is a reader who taps "Releases" on the
+   repo page should understand what changed and why.
+2. Bump `version` in `package.json`.
+3. Commit, tag, push.
+
+The release workflow extracts the matching section from
+`CHANGELOG.md` and uses it verbatim as the release body. A missing
+or empty section falls back to a placeholder — **don't rely on
+the fallback**; always write the section before tagging.

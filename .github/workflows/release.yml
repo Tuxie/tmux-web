@@ -96,6 +96,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
       - name: Download artifacts
         uses: actions/download-artifact@v8
         with:
@@ -103,9 +106,30 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      - name: Extract release notes for this tag
+        id: notes
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          # Pull everything between "## <VERSION>" and the next "## "
+          # heading out of CHANGELOG.md. If no section exists we still
+          # want a release body, so fall back to a short placeholder.
+          awk -v ver="## $VERSION" '
+            $0 ~ "^" ver "( |$)" { found=1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "No CHANGELOG.md section found for $VERSION — using a placeholder." >&2
+            printf 'Release %s. See the commit log for details.\n' "$VERSION" > release-notes.md
+          fi
+          echo "---- release-notes.md ----"
+          cat release-notes.md
+
       - name: Create Release
         uses: softprops/action-gh-release@v3
         with:
+          body_path: release-notes.md
           files: |
             artifacts/*.tar.xz
             artifacts/*.tar.xz.sha256
