@@ -40,16 +40,6 @@ body {
 
 /* --- Custom dropdown (themable, replaces native <select>) --- */
 .tw-dropdown { position: relative; display: inline-flex; align-items: center; }
-/* Keep the wrapped <select> technically in the page (so Playwright's
- * selectOption() and .value access keep working) but invisible to users. */
-.tw-dd-hidden-select {
-  position: absolute !important;
-  left: -9999px !important;
-  width: 1px !important;
-  height: 1px !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-}
 .tw-dropdown-trigger {
   display: inline-flex;
   align-items: center;
@@ -294,6 +284,8 @@ body {
 }
 
 .menu-row:hover { background: #333; }
+
+#menu-dropdown input[type="range"] { accent-color: #aaa; }
 
 #menu-footer {
   display: flex;
