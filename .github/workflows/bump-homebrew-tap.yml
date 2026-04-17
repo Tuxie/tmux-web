@@ -1,0 +1,136 @@
+name: Bump Homebrew tap
+
+# Runs after a GitHub release is published (i.e. after release.yml has
+# finished uploading the per-arch tarballs and their .sha256 sidecars).
+# Updates Tuxie/homebrew-tap's Formula/tmux-web.rb with the new version
+# and SHA-256 values, then commits + pushes to the tap's main branch.
+#
+# Requires a repo secret named HOMEBREW_TAP_TOKEN — a fine-grained or
+# classic PAT with `contents: write` on Tuxie/homebrew-tap.
+
+on:
+  release:
+    types: [published]
+  # Manual dispatch for catching up after a botched release or testing
+  # the bump logic against an existing tag.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to bump to (e.g. v1.4.1)'
+        required: true
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          TAG="${{ github.event.release.tag_name || github.event.inputs.tag }}"
+          if [ -z "$TAG" ]; then
+            echo "No tag resolved" >&2; exit 1
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG"         >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch SHA-256 sidecars
+        id: shas
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          # GITHUB_TOKEN is enough to read our own public release assets.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          base="https://github.com/${{ github.repository }}/releases/download/${TAG}"
+          for arch in darwin-arm64 darwin-x64 linux-arm64 linux-x64; do
+            url="${base}/tmux-web-${TAG}-${arch}.tar.xz.sha256"
+            # Sidecar file format: "<sha>  <filename>".
+            sha=$(curl -fsSL "$url" | awk '{print $1}')
+            if [ -z "$sha" ]; then
+              echo "Failed to read sha for $arch from $url" >&2
+              exit 1
+            fi
+            key=$(echo "$arch" | tr '-' '_')
+            echo "${key}=${sha}" >> "$GITHUB_OUTPUT"
+            echo "$arch = $sha"
+          done
+
+      - name: Check out homebrew-tap
+        uses: actions/checkout@v6
+        with:
+          repository: Tuxie/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Rewrite Formula/tmux-web.rb
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          DARWIN_ARM64: ${{ steps.shas.outputs.darwin_arm64 }}
+          DARWIN_X64:   ${{ steps.shas.outputs.darwin_x64 }}
+          LINUX_ARM64:  ${{ steps.shas.outputs.linux_arm64 }}
+          LINUX_X64:    ${{ steps.shas.outputs.linux_x64 }}
+        run: |
+          set -euo pipefail
+          cd homebrew-tap
+          FILE=Formula/tmux-web.rb
+
+          # Update version. The four URLs already use `#{version}`, so
+          # they pick up the bump automatically. We only have to
+          # rewrite `version "..."` and the four `sha256 "..."` lines,
+          # which appear in a fixed order in the formula:
+          # darwin arm, darwin intel, linux arm, linux intel.
+
+          python3 - <<'PY'
+          import os, re, pathlib
+
+          version      = os.environ["VERSION"]
+          shas         = [
+            os.environ["DARWIN_ARM64"],
+            os.environ["DARWIN_X64"],
+            os.environ["LINUX_ARM64"],
+            os.environ["LINUX_X64"],
+          ]
+
+          p = pathlib.Path("Formula/tmux-web.rb")
+          txt = p.read_text()
+
+          # version
+          txt = re.sub(r'version\s+"[^"]+"', f'version "{version}"', txt, count=1)
+
+          # sha256 lines — replace first four in document order with
+          # the four architectures in the canonical order above.
+          idx = 0
+          def repl(m):
+              nonlocal idx
+              if idx >= 4:
+                  return m.group(0)
+              sha = shas[idx]
+              idx += 1
+              return f'sha256 "{sha}"'
+          txt = re.sub(r'sha256\s+"[^"]+"', repl, txt)
+
+          if idx != 4:
+              raise SystemExit(f"expected 4 sha256 lines, rewrote {idx}")
+
+          p.write_text(txt)
+          PY
+
+          # Show the diff so the Actions log captures the change.
+          git --no-pager diff "$FILE"
+
+      - name: Commit and push to homebrew-tap
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -euo pipefail
+          cd homebrew-tap
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "No changes to commit — formula is already at v$VERSION."
+            exit 0
+          fi
+          git add Formula/tmux-web.rb
+          git commit -m "tmux-web $VERSION"
+          git push origin HEAD:main
