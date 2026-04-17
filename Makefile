@@ -9,7 +9,7 @@ SHAREDIR  = $(PREFIX)/share/tmux-web
 SRCS_CLIENT := $(shell find src/client src/shared -name "*.ts") bun-build.ts
 SRCS_SERVER := $(shell find src/server src/shared -name "*.ts")
 
-.PHONY: all dev clean test test-unit test-e2e test-e2e-headed vendor install build build-client build-server
+.PHONY: all dev clean test typecheck test-unit test-e2e test-e2e-headed vendor install build build-client build-server
 
 all: tmux-web
 
@@ -32,10 +32,14 @@ build-server: tmux-web
 
 # --- Testing ---
 
-test: test-unit test-e2e
+test: typecheck test-unit test-e2e
 
 test-unit:
 	$(BUN) test
+
+typecheck: src/server/assets-embedded.ts
+	$(BUN) x tsc --noEmit -p tsconfig.json
+	$(BUN) x tsc --noEmit -p tsconfig.client.json
 
 test-e2e: dist/client/xterm.js
 	node node_modules/.bin/playwright test

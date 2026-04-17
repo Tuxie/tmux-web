@@ -28,7 +28,7 @@ export async function listThemes(): Promise<ThemeInfo[]> {
     const response = await fetch('/api/themes');
     cachedThemes = response.ok ? await response.json() : [];
   }
-  return cachedThemes;
+  return cachedThemes!;
 }
 
 export async function listFonts(): Promise<FontInfo[]> {
@@ -36,7 +36,7 @@ export async function listFonts(): Promise<FontInfo[]> {
     const response = await fetch('/api/fonts');
     cachedFonts = response.ok ? await response.json() : [];
   }
-  return cachedFonts;
+  return cachedFonts!;
 }
 
 export function getActiveTheme(): string {

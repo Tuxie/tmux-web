@@ -18,13 +18,9 @@ export interface ITheme {
   brightBlue?: string; brightMagenta?: string; brightCyan?: string; brightWhite?: string;
 }
 
-/** Terminal color theme. */
-export interface TerminalTheme {
-  background: string;
-  foreground: string;
-  cursor?: string;
-  selectionBackground?: string;
-}
+/** Terminal color theme. Mirrors ITheme — all fields optional to allow partial
+ *  colour schemes (xterm.js accepts undefined for any field). */
+export type TerminalTheme = ITheme;
 
 /** Options passed to terminal adapter on init. */
 export interface TerminalOptions {
