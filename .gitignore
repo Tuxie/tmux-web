@@ -6,7 +6,6 @@ test-results/
 playwright-report/
 tmp/
 .worktrees/
-docs/superpowers/
 .codex
 .claude/
 *.swp
