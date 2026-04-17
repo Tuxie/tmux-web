@@ -37,7 +37,7 @@ Entry points: `src/server/index.ts`, `src/client/index.ts`, `bun-build.ts`, `Mak
   - ~~[05 — backend-hygiene](./clusters/05-backend-hygiene.md)~~ — floating async, body-guard, cache, dead shims · Small · severity Medium · **closed 2026-04-18**
   - ~~[06 — test-coverage-framework](./clusters/06-test-coverage-framework.md)~~ — fix vitest imports + add two E2E flows · Medium · severity Medium · **closed 2026-04-18 (OSC-52 consent E2E deferred — see placeholder)**
   - ~~[07 — frontend-hygiene](./clusters/07-frontend-hygiene.md)~~ — dup observers, `as any` casts, teardown, a11y, UX · Medium · severity Low · **closed 2026-04-18**
-  - [08 — css-theming](./clusters/08-css-theming.md) — push structural rules to base.css, drop theme `!important` · Small · severity Low
+  - ~~[08 — css-theming](./clusters/08-css-theming.md)~~ — push structural rules to base.css, drop theme `!important` · Small · severity Low · **closed 2026-04-18**
   - [09 — fuzz-parsers](./clusters/09-fuzz-parsers.md) — size-cap OSC-52, property tests for TOML + base64 · Small · severity Low
   - [10 — minor-security-hardening](./clusters/10-minor-security-hardening.md) — timing-safe auth, TLS persistence, proto-pollution, perms · Small · severity Low
 - **By analyst** (for traceability, not end-to-end reading):
