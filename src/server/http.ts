@@ -24,8 +24,8 @@ import {
   type DropStorage,
 } from './file-drop.js';
 import { getForegroundProcess } from './foreground-process.js';
-import { isShell, shellQuote } from './shell-quote.js';
 import { sendBytesToPane } from './tmux-inject.js';
+import { formatBracketedPasteForDrop } from './drop-paste.js';
 import { sanitizeSession } from './pty.js';
 import pkg from '../../package.json' with { type: 'json' };
 
@@ -43,38 +43,26 @@ export interface HttpHandlerOptions {
   dropStorage: DropStorage;
 }
 
-/** Bracketed paste — what the shell / Claude see as "the user pasted this".
- *  Shells with bracketed-paste support insert the bytes literally and wait
- *  for Enter; no accidental execution. */
-function bracketedPaste(text: string): string {
-  return `\x1b[200~${text}\x1b[201~`;
-}
-
 /** Per-session upload cap. 50 MiB — comfortably larger than typical
  *  screenshots and small docs, small enough to not starve memory when
  *  buffered in the HTTP handler before being written to disk. */
 const MAX_DROP_BYTES = 50 * 1024 * 1024;
 
-/** Build the bracketed-paste payload for a drop's absolute path, respecting
- *  the foreground process's expectations (raw for Claude/TUIs, single-quoted
- *  for shells). Always appends a trailing space so the caller can either
- *  press Enter directly or keep typing (e.g. `cp <path> <path> ~/Downloads/`
- *  when multiple files are dropped in sequence — each arrives pre-spaced). */
+/** Thin wrapper that resolves the foreground process (so we know
+ *  whether to shell-quote) and hands off to the pure formatter. */
 async function formatDropPasteBytes(
   config: ServerConfig,
   session: string,
   absolutePath: string,
 ): Promise<string> {
-  let pastedText = absolutePath;
+  let exePath: string | null = null;
   if (!config.testMode) {
     try {
       const fg = await getForegroundProcess(config.tmuxBin, session);
-      if (isShell(fg.exePath)) {
-        pastedText = shellQuote(absolutePath);
-      }
-    } catch { /* unknown foreground — default to bare path (Claude-style) */ }
+      exePath = fg.exePath;
+    } catch { /* foreground lookup failed — raw path */ }
   }
-  return bracketedPaste(pastedText + ' ');
+  return formatBracketedPasteForDrop(exePath, absolutePath);
 }
 
 function debug(config: ServerConfig, ...args: unknown[]): void {
