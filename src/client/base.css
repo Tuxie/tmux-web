@@ -38,8 +38,10 @@ html, body { height: 100%; overflow: hidden; }
 /* Menu footer: left and right side labels. */
 #menu-footer { justify-content: space-between; color: #888; font-size: 11px; }
 
-/* "Dropped files" row: stacked header + list. */
-.menu-row-drops { flex-direction: column; align-items: stretch; gap: 4px; }
+/* "Dropped files" row: stacked header + list. Selector is double-classed
+ * so the column + stretch beats any theme .menu-row rule with
+ * align-items: center / flex-direction: row. */
+.menu-row.menu-row-drops { flex-direction: column; align-items: stretch; gap: 4px; }
 .drops-header { display: flex; align-items: center; gap: 8px; }
 #drops-count { flex: 1; }
 #drops-list { max-height: 140px; overflow-y: auto; font-size: 13px; }

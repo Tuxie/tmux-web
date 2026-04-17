@@ -150,20 +150,27 @@ Theme packs contribute colour schemes alongside font and theming assets.
 
 ### Per-session storage
 
-Session settings are stored in `localStorage['tmux-web-session:<name>']` as JSON:
+Session settings are persisted server-side at `~/.config/tmux-web/sessions.json` (override via `TMUX_WEB_SESSIONS_FILE`). Atomic writes via `.part` → rename. Format:
 
-```ts
-interface SessionSettings {
-  theme: string;       // theme pack name, e.g. "Default"
-  colours: string;     // colour scheme name, e.g. "Gruvbox Dark"
-  fontFamily: string;
-  fontSize: number;
-  lineHeight: number;
-  opacity: number;     // 0-100 (%)
+```jsonc
+{
+  "version": 1,
+  "lastActive": "main",
+  "sessions": {
+    "<name>": {
+      "theme": "Default",
+      "colours": "Gruvbox Dark",
+      "fontFamily": "Iosevka Nerd Font Mono",
+      "fontSize": 18,
+      "spacing": 0.85,
+      "opacity": 0,
+      "clipboard": { /* per-binary OSC 52 read grants, BLAKE3-pinned */ }
+    }
+  }
 }
 ```
 
-`loadSessionSettings` in `src/client/session-settings.ts` merges stored values with defaults. New sessions inherit settings from the last-active session (tracked in `localStorage['tmux-web-last-session']`).
+`initSessionStore()` fetches the full config on page load; `saveSessionSettings` / `setLastActiveSession` update an in-memory cache and fire-and-forget `PUT /api/session-settings` with a partial body. Server merges and writes atomically. New sessions inherit settings from `lastActive`.
 
 ### Theme-switch semantics
 
@@ -178,6 +185,8 @@ Out-of-band messages: `\x00TT:<json>` in WS stream.
 | `session` | OSC title change | tmux session name |
 | `windows` | OSC title change | `tmux list-windows` result |
 | `clipboard` | OSC 52 received | Base64 clipboard text |
+| `clipboardPrompt`, `clipboardReadRequest` | OSC 52 read (DCS passthrough) | Prompt user + deliver reply |
+| `dropsChanged` | File-drop write/delete/TTL-sweep | Refresh drops panel |
 
 Server logic: `src/server/protocol.ts` (pure). Client parse: `src/client/protocol.ts`.
 
@@ -196,14 +205,49 @@ Backends no forward mouse button as SGR for tmux.
 
 Format: `\x1b[<btn;col;rowM` (press), `\x1b[<btn;col;rowm` (release), motion add 32 to btn.
 
-### 3. CSI-u keyboard sequences
+### 3. Kitty keyboard protocol
 
-Emulators no send CSI-u for modified special keys. `src/client/ui/keyboard.ts` intercept `keydown` (capture) and send `\x1b[<code>;<mod>u`.
-Keys: Enter (13), Tab (9), Backspace (127), Escape (27). Only with modifiers.
+xterm.js's `vtExtensions.kittyKeyboard: true` option (vendored build) emits
+Kitty-protocol CSI sequences for modified special keys. Our custom CSI-u
+handler in `src/client/ui/keyboard.ts` is now browser-shortcut-only (Cmd+R,
+Cmd+F) — xterm handles the modified-key encoding itself.
 
-### 4. OSC 52 clipboard (tmux to browser)
+### 4. OSC 52 clipboard
 
-Intercepted **server-side** (`src/server/protocol.ts`). Sequence strip from PTY, base64 payload send as `\x00TT:{"clipboard":"..."}`. Client decode via `atob()`, write to `navigator.clipboard` (`src/client/ui/clipboard.ts`).
+**Write (tmux → browser):** intercepted server-side (`src/server/protocol.ts`).
+Sequence stripped from PTY, base64 payload sent as `\x00TT:{"clipboard":"…"}`.
+Client decodes via `atob()`, writes to `navigator.clipboard`
+(`src/client/ui/clipboard.ts`).
+
+**Read (browser → tmux):** `ESC ] 52 ; c ; ? BEL` requests trigger a per-binary
+consent prompt (`src/client/ui/clipboard-prompt.ts`). Grants persist in
+`sessions.json` under `clipboard: { [exePath]: { read, write } }`; optional
+BLAKE3 pinning (`src/server/hash.ts`) guards against binary swap. Reply is
+delivered to the tmux pane via `tmux send-keys -H <hex>` (see
+`src/server/tmux-inject.ts` + `src/server/osc52-reply.ts`).
+
+### 4b. File drop & clipboard paste
+
+`POST /api/drop?session=<name>` persists an uploaded file under a stable
+per-user tmp dir (`$XDG_RUNTIME_DIR/tmux-web/drop/<dropId>/<filename>`, or
+uid-scoped `/tmp` fallback), then injects the absolute path into the pane as
+a bracketed paste — shell-quoted when the foreground process is a shell
+(`/bin/bash`, `/bin/zsh`, …), raw otherwise. Trailing space so multi-file
+drops concatenate to `p1 p2 p3 ` for e.g. `cp …`.
+
+Client hooks:
+- **Drag-and-drop**: `src/client/ui/file-drop.ts` (`installFileDropHandler`).
+- **Clipboard paste**: same module installs a document-level `paste` listener;
+  pastes with file entries upload via the same pipeline. Firefox on macOS
+  Finder only exposes the first file from a multi-file paste — browser
+  limit, can't be worked around.
+
+Auto-cleanup: `inotifywait -q -e close_write,close_nowrite` fires once per
+drop; when the client-side process finishes reading, the file is unlinked
+and the parent subdir removed. TTL sweep + per-session ring-buffer cap in
+`src/server/file-drop.ts` provide backstops. Drop state changes emit a
+`dropsChanged` TT push so the drops panel (`src/client/ui/drops-panel.ts`)
+stays in sync without polling.
 
 ### 5. Reconnect size sync
 

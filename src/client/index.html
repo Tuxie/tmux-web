@@ -47,6 +47,16 @@
       <div id="menu-wrap">
         <button class="tb-btn" id="btn-menu" title="Settings">☰</button>
         <div id="menu-dropdown" hidden>
+          <div class="menu-row menu-row-static menu-row-drops">
+            <div class="drops-header">
+              <span class="menu-label">Dropped files</span>
+              <span id="drops-count">0</span>
+              <button class="tb-btn" id="btn-drops-refresh" title="Refresh list">↻</button>
+              <button class="tb-btn" id="btn-drops-purge" title="Delete all drops for this session">Purge</button>
+            </div>
+            <div id="drops-list"></div>
+          </div>
+          <hr class="menu-hr">
           <label class="menu-row"><input type="checkbox" id="chk-autohide" checked> Autohide toolbar</label>
           <label class="menu-row"><input type="checkbox" id="chk-fullscreen"> Fullscreen</label>
           <label class="menu-row" title="Hardware-accelerated rendering. Reload required after change."><input type="checkbox" id="chk-webgl"> WebGL renderer</label>
@@ -80,16 +90,6 @@
             <span class="menu-label">Spacing</span>
             <input type="range" id="sld-spacing" min="0.5" max="2" step="0.05">
             <input type="number" id="inp-spacing" min="0.5" max="2" step="0.05" class="menu-input-number">
-          </div>
-          <hr class="menu-hr">
-          <div class="menu-row menu-row-static menu-row-drops">
-            <div class="drops-header">
-              <span class="menu-label">Dropped files</span>
-              <span id="drops-count">0</span>
-              <button class="tb-btn" id="btn-drops-refresh" title="Refresh list">↻</button>
-              <button class="tb-btn" id="btn-drops-purge" title="Delete all drops for this session">Purge</button>
-            </div>
-            <div id="drops-list"></div>
           </div>
           <hr class="menu-hr">
           <div id="menu-footer" class="menu-row menu-row-static"><span id="menu-footer-left"></span><span id="menu-footer-right"></span></div>

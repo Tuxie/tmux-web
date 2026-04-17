@@ -17,12 +17,14 @@ It is intentionally small: a Bun server, a static client bundle, and a thin adap
 
 ## Features
 
-- **Real terminal emulator in the browser** — [xterm.js](https://xtermjs.org/) built from a pinned vendor submodule.
+- **Real terminal emulator in the browser** — [xterm.js](https://xtermjs.org/) built from a pinned vendor submodule, with the WebGL, unicode-graphemes, web-links, web-fonts, and image addons.
 - **Full mouse support** — click, drag, wheel, and SGR mouse reporting are forwarded to tmux.
-- **Modern keyboard support** — CSI-u sequences for modified special keys (Ctrl+Enter, Shift+Tab, etc.).
-- **OSC 52 clipboard** — `tmux` copy actions land in the browser clipboard automatically.
+- **Modern keyboard support** — Kitty keyboard protocol via xterm's `vtExtensions` for modified special keys (Ctrl+Enter, Shift+Tab, etc.).
+- **Two-way OSC 52 clipboard** — `tmux` copy actions land in the browser clipboard automatically; clipboard reads from inside the pane (e.g. vim `+` register) work too, gated by a per-binary consent prompt.
+- **Drag-and-drop and paste files into the terminal** — files are staged under a per-user tmp dir and their absolute path is pasted into the focused pane as a bracketed paste (shell-quoted for shells, raw for Claude / TUIs). Auto-cleaned via inotify close-watch plus a TTL sweep.
+- **Theme packs** — colour scheme, font, spacing, opacity; two built-in themes ("Default" and an AmigaOS 3.1 workbench look).
 - **Session and window switcher** — auto-hiding toolbar with a session dropdown, per-window tabs, a "new session" button, and a fullscreen toggle.
-- **Colour schemes** — Alacritty-format colour packs selectable per session; opacity slider; settings persist across reloads in `localStorage`.
+- **Server-side session settings** — per-session colours/font/opacity/etc. persist in `~/.config/tmux-web/sessions.json` (atomic writes) and follow you across browsers.
 - **URL-as-session** — the path (`/dev`, `/work`) maps to a tmux session name; bookmarkable.
 - **Reconnect-safe** — WebSocket reconnect resyncs the terminal size automatically.
 - **HTTP Basic Auth** — on by default.
