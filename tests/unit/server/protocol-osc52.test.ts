@@ -43,3 +43,60 @@ describe("buildOsc52Response", () => {
     expect(buildOsc52Response("c", "")).toBe("\x1b]52;c;\x07");
   });
 });
+
+describe("OSC 52 write interceptor — adversarial inputs", () => {
+  test("drops payloads larger than 1 MiB and does not emit a TT message", () => {
+    // 2 MiB of base64 'A' characters — well over the 1 MiB cap
+    const huge = "A".repeat(2 * 1024 * 1024);
+    const seq = `\x1b]52;c;${huge}\x07`;
+    const { messages } = processData(seq, "main");
+    expect(messages.some(m => "clipboard" in m)).toBe(false);
+  });
+
+  test("accepts small payloads under the 1 MiB cap", () => {
+    const small = Buffer.from("hello").toString("base64"); // "aGVsbG8="
+    const seq = `\x1b]52;c;${small}\x07`;
+    const { messages } = processData(seq, "main");
+    expect(messages.some(m => m.clipboard === small)).toBe(true);
+  });
+
+  test("accepts a payload exactly at the 1 MiB boundary", () => {
+    // 1 MiB of valid base64 characters (A) — exactly at the limit, should pass
+    const atLimit = "A".repeat(1 * 1024 * 1024);
+    const seq = `\x1b]52;c;${atLimit}\x07`;
+    const { messages } = processData(seq, "main");
+    expect(messages.some(m => m.clipboard === atLimit)).toBe(true);
+  });
+
+  test("drops a payload one byte over the 1 MiB cap", () => {
+    const overLimit = "A".repeat(1 * 1024 * 1024 + 1);
+    const seq = `\x1b]52;c;${overLimit}\x07`;
+    const { messages } = processData(seq, "main");
+    expect(messages.some(m => "clipboard" in m)).toBe(false);
+  });
+
+  test("rejects base64 with invalid characters — poisoned char is not matched by OSC_52_WRITE_RE", () => {
+    // OSC_52_WRITE_RE only matches [A-Za-z0-9+/=]+; a '!' stops the match.
+    // The sequence is either rejected entirely or the poisoned payload is not captured.
+    const poisoned = `\x1b]52;c;AAA!BBB\x07`;
+    const { messages } = processData(poisoned, "main");
+    // The regex only captures the valid-base64 prefix "AAA"; the match terminates
+    // at '!' so the full sequence is not stripped from output, but no large payload leaks.
+    // What matters: no clipboard message contains the poison character.
+    const clipboardMessages = messages.filter(m => "clipboard" in m);
+    for (const m of clipboardMessages) {
+      expect(m.clipboard).not.toContain("!");
+    }
+  });
+
+  test("handles multiple OSC 52 writes in one chunk, dropping only the oversized one", () => {
+    const small = Buffer.from("ok").toString("base64"); // "b2s="
+    const huge = "A".repeat(2 * 1024 * 1024);
+    const seq = `\x1b]52;c;${small}\x07\x1b]52;c;${huge}\x07`;
+    const { messages } = processData(seq, "main");
+    const clipMessages = messages.filter(m => "clipboard" in m);
+    // Only the small payload should be forwarded
+    expect(clipMessages).toHaveLength(1);
+    expect(clipMessages[0]!.clipboard).toBe(small);
+  });
+});
