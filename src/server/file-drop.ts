@@ -7,7 +7,7 @@ import { spawn, type ChildProcess } from 'child_process';
 export interface DropStorage {
   /** Absolute path of the root dir shared by all sessions. */
   root: string;
-  /** Maximum files kept per session dir before the oldest are unlinked. */
+  /** Maximum drops kept per session before the oldest are unlinked. */
   maxFilesPerSession: number;
   /** Drops older than this (ms) are opportunistically unlinked on each write. */
   ttlMs: number;
@@ -56,43 +56,36 @@ export function _resetInotifyProbe(): void {
   _inotifywaitProbed = null;
 }
 
-/** Active auto-unlink watchers so we can kill them on session cleanup
- *  and server exit without leaking child processes. Keyed by absolute
- *  file path. */
+/** Active auto-unlink watchers keyed by the drop's subdir so purge and
+ *  server-exit can kill them. */
 const activeWatchers = new Map<string, ChildProcess>();
 
-/** Spawn `inotifywait` on `absolutePath`, unlinking the file (and clearing
- *  the watcher entry) when any close event fires. Returns immediately.
- *  If inotifywait isn't available or spawn fails, the file simply survives
+/** Spawn `inotifywait` on the drop's file; when any close event fires,
+ *  unlink the file and rmdir the parent drop-dir. Returns immediately.
+ *  If inotifywait is unavailable or spawn fails, the drop survives
  *  until the TTL sweep picks it up. */
-function armAutoUnlink(absolutePath: string): void {
-  if (activeWatchers.has(absolutePath)) return;
+function armAutoUnlink(dropDir: string, filePath: string): void {
+  if (activeWatchers.has(dropDir)) return;
   try {
-    // -q quiet (no header), no -m → one-shot; exits on first matching
-    // event. close_write covers readers that opened the file read-write
-    // (rare, but vim-style workflows do); close_nowrite covers the common
-    // case where a tool opens the file read-only.
+    // -q quiet, no -m → one-shot; exits on first matching event.
+    // close_write covers RW opens (rare), close_nowrite covers the
+    // common read-only consumer path (cat, cp, image viewers, etc.).
     const child = spawn('inotifywait', [
-      '-q', '-e', 'close_write,close_nowrite', absolutePath,
+      '-q', '-e', 'close_write,close_nowrite', filePath,
     ], { stdio: ['ignore', 'ignore', 'ignore'] });
-    activeWatchers.set(absolutePath, child);
+    activeWatchers.set(dropDir, child);
     const finish = () => {
-      activeWatchers.delete(absolutePath);
-      try { fs.unlinkSync(absolutePath); } catch { /* already gone */ }
+      activeWatchers.delete(dropDir);
+      try { fs.unlinkSync(filePath); } catch { /* already gone */ }
+      try { fs.rmdirSync(dropDir); } catch { /* not empty / already gone */ }
     };
     child.on('exit', finish);
-    child.on('error', () => {
-      // spawn failed (rare post-probe). Fall back to TTL — don't unlink.
-      activeWatchers.delete(absolutePath);
-    });
+    child.on('error', () => { activeWatchers.delete(dropDir); });
   } catch {
     /* spawn threw synchronously — TTL handles it */
   }
 }
 
-/** Kill every active watcher (fire-and-forget). Their `exit` handlers
- *  will also unlink the corresponding files, which is fine: the session
- *  is going away anyway. */
 function stopAllWatchers(): void {
   for (const [, child] of activeWatchers) {
     try { child.kill('SIGTERM'); } catch { /* best-effort */ }
@@ -100,23 +93,24 @@ function stopAllWatchers(): void {
 }
 
 /** Drop sanitisation. `name` is the filename the browser supplied; we
- *  strip anything path-like, trim to a sane length, and prefix a
- *  timestamp + random nonce so collisions are impossible within a
- *  session dir (and ordering is mtime-stable enough for the ring
- *  buffer sweep). */
+ *  strip anything path-like, collapse control chars, cap length, and
+ *  rescue empty / dot / dot-dot results to a stable "file" placeholder.
+ *  The original name is preserved as-is otherwise (so spaces, unicode,
+ *  etc. come through unchanged). */
 export function sanitiseFilename(name: string): string {
-  // Strip directory separators and NULs. Keep dots (people drop hidden
-  // files deliberately). Collapse control chars to underscore.
   let out = (name ?? '')
     .replace(/[\/\\\x00]/g, '')
     .replace(/[\x01-\x1f\x7f]/g, '_')
     .trim();
-  // Never let the whole thing reduce to '.' or '..' which some tools
-  // interpret as the current / parent dir.
   if (out === '' || out === '.' || out === '..') out = 'file';
-  // Cap length — filesystems allow 255, be conservative.
   if (out.length > 200) out = out.slice(-200);
   return out;
+}
+
+/** Drop-id generator. `<base36 timestamp>-<8 hex nonce>`. Sortable by
+ *  time; collision-free. Used as the subdir name for each drop. */
+function newDropId(): string {
+  return `${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
 }
 
 function sessionDir(storage: DropStorage, session: string): string {
@@ -125,15 +119,16 @@ function sessionDir(storage: DropStorage, session: string): string {
   return dir;
 }
 
-/** Sweep the session dir: unlink anything older than ttlMs, then if more
- *  than maxFilesPerSession files remain, unlink the oldest by mtime. */
-function sweepSession(storage: DropStorage, dir: string): void {
-  let entries: Array<{ name: string; path: string; mtime: number }>;
+/** Sweep the session root: any drop subdir whose mtime is older than the
+ *  TTL is rm-rf'd. Then if more than maxFilesPerSession drops remain,
+ *  the oldest are rm-rf'd until we're under the cap. */
+function sweepSession(storage: DropStorage, sessionRoot: string): void {
+  let entries: Array<{ id: string; dir: string; mtime: number }>;
   try {
-    entries = fs.readdirSync(dir).map(name => {
-      const p = path.join(dir, name);
+    entries = fs.readdirSync(sessionRoot).map(id => {
+      const p = path.join(sessionRoot, id);
       const stat = fs.statSync(p);
-      return { name, path: p, mtime: stat.mtimeMs };
+      return { id, dir: p, mtime: stat.mtimeMs };
     });
   } catch { return; }
 
@@ -141,7 +136,7 @@ function sweepSession(storage: DropStorage, dir: string): void {
   const fresh: typeof entries = [];
   for (const e of entries) {
     if (now - e.mtime > storage.ttlMs) {
-      try { fs.unlinkSync(e.path); } catch { /* best-effort */ }
+      rmDrop(e.dir);
     } else {
       fresh.push(e);
     }
@@ -150,39 +145,50 @@ function sweepSession(storage: DropStorage, dir: string): void {
   fresh.sort((a, b) => a.mtime - b.mtime); // oldest first
   const excess = fresh.length - storage.maxFilesPerSession;
   for (let i = 0; i < excess; i++) {
-    try { fs.unlinkSync(fresh[i]!.path); } catch { /* best-effort */ }
+    rmDrop(fresh[i]!.dir);
+  }
+}
+
+function rmDrop(dropDir: string): void {
+  try { fs.rmSync(dropDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  const watcher = activeWatchers.get(dropDir);
+  if (watcher) {
+    activeWatchers.delete(dropDir);
+    try { watcher.kill('SIGTERM'); } catch { /* best-effort */ }
   }
 }
 
 export interface WriteDropResult {
-  /** Absolute path of the written file — what gets injected into the pane. */
+  /** The drop's stable id (subdir name). */
+  dropId: string;
+  /** Absolute path of the written file — what gets pasted into the pane. */
   absolutePath: string;
-  /** Sanitised filename (no directory prefix). Useful for UI toasts. */
+  /** Sanitised original filename (no directory prefix). */
   filename: string;
   /** Bytes written. */
   size: number;
 }
 
-/** Persist a dropped file under the session dir, returning the path the
- *  caller should paste into the terminal. Runs opportunistic sweep on
- *  every drop so the dir stays bounded. */
+/** Persist a dropped file under `<session>/<dropId>/<originalName>`.
+ *  The per-drop subdir keeps the original filename intact so commands
+ *  like `cp (path) ~/Downloads/` produce a file with the user's
+ *  expected name. Runs opportunistic sweep on every drop so the
+ *  session root stays bounded. */
 export function writeDrop(
   storage: DropStorage,
   session: string,
   rawName: string,
   data: Uint8Array | Buffer,
 ): WriteDropResult {
-  const dir = sessionDir(storage, session);
-  sweepSession(storage, dir);
+  const sroot = sessionDir(storage, session);
+  sweepSession(storage, sroot);
 
-  const safe = sanitiseFilename(rawName);
-  const ts = Date.now().toString(36);
-  const nonce = crypto.randomBytes(4).toString('hex');
-  const filename = `${ts}-${nonce}-${safe}`;
-  const absolutePath = path.join(dir, filename);
+  const filename = sanitiseFilename(rawName);
+  const dropId = newDropId();
+  const dropDir = path.join(sroot, dropId);
+  fs.mkdirSync(dropDir, { mode: 0o700 });
+  const absolutePath = path.join(dropDir, filename);
 
-  // Write-exclusive so a pathological collision (same ts+nonce, astronomically
-  // unlikely) fails loudly rather than clobbering a prior drop.
   const fd = fs.openSync(absolutePath, 'wx', 0o600);
   try {
     fs.writeSync(fd, data as any);
@@ -190,67 +196,66 @@ export function writeDrop(
     fs.closeSync(fd);
   }
 
-  // Arm the close-watch AFTER our own fd is closed so our write's
-  // IN_CLOSE_WRITE can't trigger an immediate unlink. The reader's open
-  // happens after we return, so inotifywait catches its close events.
   if (storage.autoUnlinkOnClose) {
-    armAutoUnlink(absolutePath);
+    armAutoUnlink(dropDir, absolutePath);
   }
 
-  return { absolutePath, filename: safe, size: data.byteLength };
+  return { dropId, absolutePath, filename, size: data.byteLength };
 }
 
-/** List currently-persisted drops under a session dir (newest first).
- *  Used by the settings panel to show the user what's still on disk. */
-export function listDrops(storage: DropStorage, session: string): Array<{
+export interface ListedDrop {
+  dropId: string;
   filename: string;
   absolutePath: string;
   size: number;
   mtime: string; // ISO 8601
-}> {
-  const dir = path.join(storage.root, session);
-  if (!fs.existsSync(dir)) return [];
-  const entries = fs.readdirSync(dir)
-    .map(name => {
-      const p = path.join(dir, name);
-      try {
-        const stat = fs.statSync(p);
-        return {
-          filename: name,
-          absolutePath: p,
-          size: stat.size,
-          mtime: new Date(stat.mtimeMs).toISOString(),
-          sortKey: stat.mtimeMs,
-        };
-      } catch {
-        return null;
-      }
-    })
-    .filter((x): x is { filename: string; absolutePath: string; size: number; mtime: string; sortKey: number } => x !== null)
-    .sort((a, b) => b.sortKey - a.sortKey);
-  return entries.map(({ sortKey: _sortKey, ...rest }) => rest);
 }
 
-/** Unlink a single drop (and stop its watcher, if any). Returns true on
- *  successful unlink, false if the file wasn't present. Rejects paths
- *  that escape the session dir — purely defensive; the HTTP layer
- *  validates filename separately. */
-export function deleteDrop(storage: DropStorage, session: string, filename: string): boolean {
-  const dir = path.join(storage.root, session);
-  const target = path.join(dir, filename);
-  // Require the resolved path to remain inside the session dir.
-  if (!target.startsWith(dir + path.sep)) return false;
-  const watcher = activeWatchers.get(target);
-  if (watcher) {
-    activeWatchers.delete(target);
-    try { watcher.kill('SIGTERM'); } catch { /* best-effort */ }
+/** List current drops for a session, newest-first. Each drop is a
+ *  subdir containing a single file; we report the inner file's name,
+ *  size, and mtime but key actions (revoke, etc.) on the subdir id. */
+export function listDrops(storage: DropStorage, session: string): ListedDrop[] {
+  const sroot = path.join(storage.root, session);
+  if (!fs.existsSync(sroot)) return [];
+  const entries: Array<ListedDrop & { sortKey: number }> = [];
+  for (const id of fs.readdirSync(sroot)) {
+    const dir = path.join(sroot, id);
+    let stat: fs.Stats;
+    try { stat = fs.statSync(dir); } catch { continue; }
+    if (!stat.isDirectory()) continue;
+    let inner: string[];
+    try { inner = fs.readdirSync(dir); } catch { continue; }
+    if (inner.length !== 1) continue; // pathological; skip
+    const filename = inner[0]!;
+    const absolutePath = path.join(dir, filename);
+    let fstat: fs.Stats;
+    try { fstat = fs.statSync(absolutePath); } catch { continue; }
+    entries.push({
+      dropId: id,
+      filename,
+      absolutePath,
+      size: fstat.size,
+      mtime: new Date(fstat.mtimeMs).toISOString(),
+      sortKey: fstat.mtimeMs,
+    });
   }
-  try {
-    fs.unlinkSync(target);
-    return true;
-  } catch {
+  entries.sort((a, b) => b.sortKey - a.sortKey);
+  return entries.map(({ sortKey: _s, ...rest }) => rest);
+}
+
+/** Remove a drop by id (rm -rf its subdir). Returns true if the subdir
+ *  existed. Rejects ids that contain path separators or resolve outside
+ *  the session root. */
+export function deleteDrop(storage: DropStorage, session: string, dropId: string): boolean {
+  if (typeof dropId !== 'string' || dropId === '' || dropId.includes('/') || dropId.includes('\\')) {
     return false;
   }
+  const sroot = path.join(storage.root, session);
+  const target = path.join(sroot, dropId);
+  if (!target.startsWith(sroot + path.sep)) return false;
+  if (!fs.existsSync(target)) return false;
+  rmDrop(target);
+  return true;
 }
 
 /** Remove a session's drop dir entirely (e.g. on WS disconnect). */

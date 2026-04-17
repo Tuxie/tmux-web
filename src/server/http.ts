@@ -287,22 +287,21 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
         return;
       }
       if (req.method === 'DELETE') {
-        const filename = url.searchParams.get('filename');
-        if (filename) {
-          // Single-file revoke. Strip path separators defensively — the
-          // server-side deleteDrop also re-validates confinement.
-          const safe = filename.replace(/[\/\\]/g, '');
-          const ok = deleteDrop(opts.dropStorage, session, safe);
+        const id = url.searchParams.get('id');
+        if (id) {
+          // Single-drop revoke. deleteDrop rejects anything with path
+          // separators or that resolves outside the session root.
+          const ok = deleteDrop(opts.dropStorage, session, id);
           res.writeHead(ok ? 200 : 404, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ deleted: ok, filename: safe }));
+          res.end(JSON.stringify({ deleted: ok, id }));
           return;
         }
-        // Purge-all: list first, then unlink one by one so the watcher
-        // map stays consistent.
+        // Purge-all: list first, then remove by id so the watcher map
+        // stays consistent.
         const before = listDrops(opts.dropStorage, session);
         let count = 0;
         for (const d of before) {
-          if (deleteDrop(opts.dropStorage, session, d.filename)) count++;
+          if (deleteDrop(opts.dropStorage, session, d.dropId)) count++;
         }
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ purged: count }));

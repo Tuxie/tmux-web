@@ -64,37 +64,38 @@ describe("/api/drops", () => {
     expect(JSON.parse(r.body)).toEqual({ drops: [] });
   });
 
-  test("GET lists existing drops newest-first", async () => {
-    const a = writeDrop(storage, "main", "a", Buffer.from("aa"));
-    const b = writeDrop(storage, "main", "b", Buffer.from("bbbb"));
-    // Backdate mtimes after both writes so the second write's TTL sweep
-    // doesn't unlink the first.
+  test("GET lists existing drops newest-first with dropId and original filename", async () => {
+    const a = writeDrop(storage, "main", "a.txt", Buffer.from("aa"));
+    const b = writeDrop(storage, "main", "b.txt", Buffer.from("bbbb"));
     const now = Date.now();
     fs.utimesSync(a.absolutePath, (now - 2000) / 1000, (now - 2000) / 1000);
     fs.utimesSync(b.absolutePath, (now - 1000) / 1000, (now - 1000) / 1000);
 
     const h = await makeHandler();
     const r = await call(h, { method: "GET", url: "/api/drops?session=main" });
-    const body = JSON.parse(r.body) as { drops: Array<{ filename: string; size: number }> };
+    const body = JSON.parse(r.body) as {
+      drops: Array<{ dropId: string; filename: string; size: number }>;
+    };
     expect(body.drops).toHaveLength(2);
-    expect(body.drops[0]!.size).toBe(4);
-    expect(body.drops[1]!.size).toBe(2);
+    expect(body.drops[0]!.filename).toBe("b.txt");
+    expect(body.drops[0]!.dropId).toBe(b.dropId);
+    expect(body.drops[1]!.filename).toBe("a.txt");
+    expect(body.drops[1]!.dropId).toBe(a.dropId);
   });
 
-  test("DELETE with ?filename= removes one drop", async () => {
+  test("DELETE with ?id= removes one drop (whole subdir)", async () => {
     const a = writeDrop(storage, "main", "f", Buffer.from("x"));
-    const filename = path.basename(a.absolutePath);
     const h = await makeHandler();
     const r = await call(h, {
       method: "DELETE",
-      url: `/api/drops?session=main&filename=${encodeURIComponent(filename)}`,
+      url: `/api/drops?session=main&id=${encodeURIComponent(a.dropId)}`,
     });
     expect(r.status).toBe(200);
-    expect(JSON.parse(r.body)).toEqual({ deleted: true, filename });
-    expect(fs.existsSync(a.absolutePath)).toBe(false);
+    expect(JSON.parse(r.body)).toEqual({ deleted: true, id: a.dropId });
+    expect(fs.existsSync(path.dirname(a.absolutePath))).toBe(false);
   });
 
-  test("DELETE with no filename purges the session dir and reports count", async () => {
+  test("DELETE with no id purges the session dir and reports count", async () => {
     writeDrop(storage, "main", "a", Buffer.from("a"));
     writeDrop(storage, "main", "b", Buffer.from("b"));
     writeDrop(storage, "other", "c", Buffer.from("c"));
@@ -104,31 +105,27 @@ describe("/api/drops", () => {
     expect(r.status).toBe(200);
     expect(JSON.parse(r.body)).toEqual({ purged: 2 });
     expect(fs.readdirSync(path.join(storage.root, "main"))).toHaveLength(0);
-    // Other session untouched.
     expect(fs.readdirSync(path.join(storage.root, "other"))).toHaveLength(1);
   });
 
-  test("DELETE of a non-existent file returns 404 but doesn't crash", async () => {
+  test("DELETE of a non-existent id returns 404 but doesn't crash", async () => {
     const h = await makeHandler();
     const r = await call(h, {
       method: "DELETE",
-      url: "/api/drops?session=main&filename=nothing-here",
+      url: "/api/drops?session=main&id=nothing-here",
     });
     expect(r.status).toBe(404);
   });
 
-  test("DELETE strips path separators from filename (defence in depth)", async () => {
-    // Plant a "neighbour" in a sibling session dir.
+  test("DELETE rejects an id that contains path separators (defence in depth)", async () => {
     const victim = writeDrop(storage, "other", "victim", Buffer.from("x"));
     const h = await makeHandler();
-    // Even with a traversal-shaped filename, the server strips / and \ and
-    // then deleteDrop re-validates confinement — so nothing outside the
-    // session dir can be touched.
-    await call(h, {
+    const r = await call(h, {
       method: "DELETE",
-      url: "/api/drops?session=main&filename=..%2Fother%2F" + encodeURIComponent(path.basename(victim.absolutePath)),
+      url: "/api/drops?session=main&id=" + encodeURIComponent("../other/" + victim.dropId),
     });
-    expect(fs.existsSync(victim.absolutePath)).toBe(true);
+    expect(r.status).toBe(404);
+    expect(fs.existsSync(path.dirname(victim.absolutePath))).toBe(true);
   });
 
   test("unsupported methods return 405", async () => {

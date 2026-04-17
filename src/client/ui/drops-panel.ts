@@ -5,6 +5,7 @@ import { formatBytes, showToast } from './toast.js';
  *  a successful upload), supports per-row revoke and bulk purge. */
 
 export interface DropInfo {
+  dropId: string;
   filename: string;
   absolutePath: string;
   size: number;
@@ -70,7 +71,7 @@ export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promis
         revoke.disabled = true;
         try {
           const res = await fetch(
-            `/api/drops?session=${encodeURIComponent(opts.getSession())}&filename=${encodeURIComponent(d.filename)}`,
+            `/api/drops?session=${encodeURIComponent(opts.getSession())}&id=${encodeURIComponent(d.dropId)}`,
             { method: 'DELETE' },
           );
           if (res.ok) {
