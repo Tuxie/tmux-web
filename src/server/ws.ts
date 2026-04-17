@@ -11,6 +11,7 @@ import { deliverOsc52Reply } from './osc52-reply.js';
 import { buildPtyCommand, buildPtyEnv, spawnPty, sanitizeSession } from './pty.js';
 import { isAllowed } from './allowlist.js';
 import { isAuthorized } from './http.js';
+import { isOriginAllowed } from './origin.js';
 import { getForegroundProcess } from './foreground-process.js';
 import { resolvePolicy, recordGrant } from './clipboard-policy.js';
 import { onDropsChange } from './file-drop.js';
@@ -41,6 +42,19 @@ export function createWsServer(
     debug(config, `WS upgrade from ${remoteIp}`);
     if (!config.testMode && !isAllowed(remoteIp, config.allowedIps)) {
       debug(config, `WS upgrade from ${remoteIp} - rejected (IP)`);
+      socket.destroy();
+      return;
+    }
+
+    if (!config.testMode && !isOriginAllowed(req, {
+      allowedIps: config.allowedIps,
+      allowedOrigins: config.allowedOrigins,
+      serverScheme: config.tls ? 'https' : 'http',
+      serverPort: config.port,
+    })) {
+      const origin = req.headers.origin ?? '<none>';
+      debug(config, `WS upgrade from ${remoteIp} - rejected (Origin: ${origin})`);
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
       socket.destroy();
       return;
     }
