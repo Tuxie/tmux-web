@@ -13,6 +13,7 @@ import { isAllowed } from './allowlist.js';
 import { isAuthorized } from './http.js';
 import { getForegroundProcess } from './foreground-process.js';
 import { resolvePolicy, recordGrant } from './clipboard-policy.js';
+import { onDropsChange } from './file-drop.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -224,6 +225,16 @@ function handleConnection(
   let nextReqId = 0;
   const newReqId = (): string => `r${Date.now().toString(36)}${(nextReqId++).toString(36)}`;
 
+  // Forward drop-list mutations (new drop, auto-unlink on close, TTL
+  // sweep, revoke, purge) to this client as a `dropsChanged` TT message.
+  // Filter on the connection's current session so a drop in session A
+  // doesn't refresh session B's panel. Unsubscribed on ws close below.
+  const unsubscribeDrops = onDropsChange(({ session: changed }) => {
+    if (changed !== lastSession) return;
+    if (ws.readyState !== WebSocket.OPEN) return;
+    ws.send(frameTTMessage({ dropsChanged: { session: changed } }));
+  });
+
   /** Respond to the PTY for an OSC 52 read. Empty base64 = denied/empty
    *  clipboard (well-formed but no content).
    *
@@ -389,6 +400,7 @@ function handleConnection(
 
   ws.on('close', () => {
     debug(config, `WS closed from ${remoteIp} session=${session}`);
+    unsubscribeDrops();
     ptyProcess.kill();
   });
   ws.on('error', () => {});

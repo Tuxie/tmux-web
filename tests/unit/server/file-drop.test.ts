@@ -9,6 +9,7 @@ import {
   cleanupAll,
   listDrops,
   deleteDrop,
+  onDropsChange,
   type DropStorage,
 } from "../../../src/server/file-drop.ts";
 
@@ -116,6 +117,36 @@ describe("writeDrop", () => {
 
     writeDrop(storage, "main", "new.bin", Buffer.from("y"));
     expect(fs.existsSync(oldDir)).toBe(false);
+  });
+});
+
+describe("onDropsChange", () => {
+  test("fires on writeDrop, deleteDrop, and cleanupSession — with the session name", () => {
+    const events: Array<{ session: string }> = [];
+    const unsub = onDropsChange((e) => { events.push(e); });
+
+    const d = writeDrop(storage, "main", "foo", Buffer.from("x"));
+    expect(events.at(-1)).toEqual({ session: "main" });
+
+    const eventsBeforeDelete = events.length;
+    deleteDrop(storage, "main", d.dropId);
+    expect(events.length).toBeGreaterThan(eventsBeforeDelete);
+    expect(events.at(-1)).toEqual({ session: "main" });
+
+    cleanupSession(storage, "main");
+    expect(events.at(-1)).toEqual({ session: "main" });
+
+    unsub();
+  });
+
+  test("unsubscribe stops further deliveries", () => {
+    let count = 0;
+    const unsub = onDropsChange(() => { count++; });
+    writeDrop(storage, "main", "a", Buffer.from("a"));
+    const before = count;
+    unsub();
+    writeDrop(storage, "main", "b", Buffer.from("b"));
+    expect(count).toBe(before);
   });
 });
 

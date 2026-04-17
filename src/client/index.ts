@@ -90,6 +90,9 @@ async function main() {
 
   let appliedFontKey = settings.fontFamily;
   let connection: Connection;
+  // Forward-declared so handleMessage can refresh the drops panel on
+  // server-push notifications. Assigned after topbar init below.
+  let dropsPanel: ReturnType<typeof installDropsPanel> | null = null;
 
   const topbar = new Topbar({
     send: (data) => connection.send(data),
@@ -208,6 +211,9 @@ async function main() {
           msg.clipboardPrompt.commandName,
         );
       }
+      if (msg.dropsChanged) {
+        void dropsPanel?.refresh();
+      }
     }
   }
 
@@ -280,14 +286,17 @@ async function main() {
     toggleFullscreen: () => topbar.toggleFullscreen(),
   });
 
-  const dropsPanel = installDropsPanel({ getSession });
+  dropsPanel = installDropsPanel({ getSession });
 
   installFileDropHandler({
     terminal: container,
     getSession,
     onDropped: (info) => {
       showToast(`Uploaded ${info.filename} — ${formatBytes(info.size)}`);
-      void dropsPanel.refresh();
+      // The server push (dropsChanged TT) already refreshes the panel;
+      // this is just a belt-and-braces call for the case where the WS
+      // message hasn't arrived yet.
+      void dropsPanel?.refresh();
     },
     onError: (err, file) => {
       console.warn(`file-drop upload failed for ${file.name}:`, err);

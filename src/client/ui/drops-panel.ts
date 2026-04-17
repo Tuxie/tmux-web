@@ -156,34 +156,21 @@ export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promis
     }
   });
 
-  // Auto-refresh while the settings dropdown is visible. 2 s cadence keeps
-  // the list honest even when drops disappear silently (inotify
-  // auto-unlink after first read, TTL sweep, ring-buffer trim from a
-  // concurrent drop). Cleanup stops the timer the moment the dropdown
-  // closes so we're not polling when nobody's looking.
+  // Refresh whenever the menu opens — the server-side push takes care of
+  // in-session updates while the menu is already visible, but we still
+  // want a fresh snapshot the first time each open. Watch #menu-dropdown's
+  // hidden attribute rather than hooking the button so the behaviour
+  // survives programmatic opens (e.g. reopen-after-reload).
   const menuDropdown = document.getElementById('menu-dropdown') as HTMLElement | null;
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
-  const stopPoll = () => {
-    if (pollTimer !== null) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
-  };
-  const startPoll = () => {
-    if (pollTimer !== null) return;
-    void refresh();
-    pollTimer = setInterval(() => { void refresh(); }, 2000);
-  };
   if (menuDropdown) {
-    const syncPoll = () => {
-      if (menuDropdown.hidden) stopPoll();
-      else startPoll();
+    const maybeRefresh = () => {
+      if (!menuDropdown.hidden) void refresh();
     };
-    new MutationObserver(syncPoll).observe(menuDropdown, {
+    new MutationObserver(maybeRefresh).observe(menuDropdown, {
       attributes: true,
       attributeFilter: ['hidden'],
     });
-    syncPoll();
+    maybeRefresh();
   }
 
   // Initial render — empty on cold start, populated on first open.

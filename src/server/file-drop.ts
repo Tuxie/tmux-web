@@ -60,11 +60,28 @@ export function _resetInotifyProbe(): void {
  *  server-exit can kill them. */
 const activeWatchers = new Map<string, ChildProcess>();
 
+/** Pub/sub for drop list mutations. The WS layer subscribes and pushes
+ *  a `{dropsChanged: session}` TT message to clients on the matching
+ *  session — replaces any client-side polling. */
+export type DropsChangeListener = (event: { session: string }) => void;
+const listeners = new Set<DropsChangeListener>();
+
+export function onDropsChange(cb: DropsChangeListener): () => void {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+}
+
+function emitChange(session: string): void {
+  for (const cb of listeners) {
+    try { cb({ session }); } catch { /* isolate one bad listener */ }
+  }
+}
+
 /** Spawn `inotifywait` on the drop's file; when any close event fires,
  *  unlink the file and rmdir the parent drop-dir. Returns immediately.
  *  If inotifywait is unavailable or spawn fails, the drop survives
  *  until the TTL sweep picks it up. */
-function armAutoUnlink(dropDir: string, filePath: string): void {
+function armAutoUnlink(session: string, dropDir: string, filePath: string): void {
   if (activeWatchers.has(dropDir)) return;
   try {
     // -q quiet, no -m → one-shot; exits on first matching event.
@@ -78,6 +95,7 @@ function armAutoUnlink(dropDir: string, filePath: string): void {
       activeWatchers.delete(dropDir);
       try { fs.unlinkSync(filePath); } catch { /* already gone */ }
       try { fs.rmdirSync(dropDir); } catch { /* not empty / already gone */ }
+      emitChange(session);
     };
     child.on('exit', finish);
     child.on('error', () => { activeWatchers.delete(dropDir); });
@@ -121,8 +139,9 @@ function sessionDir(storage: DropStorage, session: string): string {
 
 /** Sweep the session root: any drop subdir whose mtime is older than the
  *  TTL is rm-rf'd. Then if more than maxFilesPerSession drops remain,
- *  the oldest are rm-rf'd until we're under the cap. */
-function sweepSession(storage: DropStorage, sessionRoot: string): void {
+ *  the oldest are rm-rf'd until we're under the cap. Emits once per
+ *  session if anything was removed. */
+function sweepSession(storage: DropStorage, session: string, sessionRoot: string): void {
   let entries: Array<{ id: string; dir: string; mtime: number }>;
   try {
     entries = fs.readdirSync(sessionRoot).map(id => {
@@ -134,19 +153,24 @@ function sweepSession(storage: DropStorage, sessionRoot: string): void {
 
   const now = Date.now();
   const fresh: typeof entries = [];
+  let removed = 0;
   for (const e of entries) {
     if (now - e.mtime > storage.ttlMs) {
       rmDrop(e.dir);
+      removed++;
     } else {
       fresh.push(e);
     }
   }
-  if (fresh.length <= storage.maxFilesPerSession) return;
-  fresh.sort((a, b) => a.mtime - b.mtime); // oldest first
-  const excess = fresh.length - storage.maxFilesPerSession;
-  for (let i = 0; i < excess; i++) {
-    rmDrop(fresh[i]!.dir);
+  if (fresh.length > storage.maxFilesPerSession) {
+    fresh.sort((a, b) => a.mtime - b.mtime); // oldest first
+    const excess = fresh.length - storage.maxFilesPerSession;
+    for (let i = 0; i < excess; i++) {
+      rmDrop(fresh[i]!.dir);
+      removed++;
+    }
   }
+  if (removed > 0) emitChange(session);
 }
 
 function rmDrop(dropDir: string): void {
@@ -181,7 +205,7 @@ export function writeDrop(
   data: Uint8Array | Buffer,
 ): WriteDropResult {
   const sroot = sessionDir(storage, session);
-  sweepSession(storage, sroot);
+  sweepSession(storage, session, sroot);
 
   const filename = sanitiseFilename(rawName);
   const dropId = newDropId();
@@ -197,9 +221,10 @@ export function writeDrop(
   }
 
   if (storage.autoUnlinkOnClose) {
-    armAutoUnlink(dropDir, absolutePath);
+    armAutoUnlink(session, dropDir, absolutePath);
   }
 
+  emitChange(session);
   return { dropId, absolutePath, filename, size: data.byteLength };
 }
 
@@ -255,6 +280,7 @@ export function deleteDrop(storage: DropStorage, session: string, dropId: string
   if (!target.startsWith(sroot + path.sep)) return false;
   if (!fs.existsSync(target)) return false;
   rmDrop(target);
+  emitChange(session);
   return true;
 }
 
@@ -262,6 +288,7 @@ export function deleteDrop(storage: DropStorage, session: string, dropId: string
 export function cleanupSession(storage: DropStorage, session: string): void {
   const dir = path.join(storage.root, session);
   try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
+  emitChange(session);
 }
 
 /** Remove every session dir under the storage root. Call once on server
