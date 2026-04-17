@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.5.0 — 2026-04-18
+
+### Added
+
+- `-i` short flag for `--allow-ip`.
+- `-o` / `--allow-origin` flag to whitelist browser Origins for HTTP and WebSocket access. Repeatable. Values are full origins (`scheme://host[:port]`) or `*`.
+
+### Security
+
+- HTTP requests and WebSocket upgrades now validate the browser `Origin` header. Origins whose host is an IP literal in `--allow-ip` are auto-allowed; hostnames must appear in `--allow-origin`. Requests without an `Origin` header (curl, scripts) are unaffected. Closes a DNS-rebinding and cross-site-WebSocket vector identified in the 2026-04-17 code review.
+
+### Changed
+
+- Default `--allow-ip` now explicitly lists `127.0.0.1` and `::1` rather than relying only on the inline loopback guard.
+- `--allow-ip`'s short flag is now `-i` (was `-a`). The long form is unchanged.
+
 ## 1.4.3 — 2026-04-17
 
 ### Added

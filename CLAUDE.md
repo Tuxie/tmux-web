@@ -96,15 +96,24 @@ Use `bun`. No `pnpm`, `npm`, `tsx`, or `vitest`.
 ## CLI Options
 
 ```
---listen <host:port>     Bind address (default: 0.0.0.0:4022)
---username <name>        Basic Auth user (default: $TMUX_WEB_USERNAME or current user)
---password <pass>        Basic Auth pass (default: $TMUX_WEB_PASSWORD, required)
---no-auth                Disable HTTP Basic Auth
---allow-ip <ip>          Allow IP (repeatable; localhost always allowed)
---tls                    Enable HTTPS with self-signed cert (default)
---no-tls                 Disable HTTPS and fallback to HTTP
---tls-cert / --tls-key   Custom TLS certificate files
---test                   Test mode: cat PTY, bypass IP allowlist
+-l, --listen <host:port>       Bind address (default: 0.0.0.0:4022)
+-i, --allow-ip <ip>            Allow IP (repeatable; default: 127.0.0.1 and ::1)
+-o, --allow-origin <origin>    Allow browser Origin (repeatable; full scheme://host[:port] or '*')
+-u, --username <name>          Basic Auth user (default: $TMUX_WEB_USERNAME or current user)
+-p, --password <pass>          Basic Auth pass (default: $TMUX_WEB_PASSWORD, required)
+    --no-auth                  Disable HTTP Basic Auth
+    --tls                      Enable HTTPS with self-signed cert (default)
+    --no-tls                   Disable HTTPS and fallback to HTTP
+    --tls-cert <path>          Custom TLS certificate file (use with --tls-key)
+    --tls-key <path>           Custom TLS private key file (use with --tls-cert)
+    --tmux <path>              Path to tmux executable (default: tmux)
+    --tmux-conf <path>         Alternative tmux.conf
+    --themes-dir <path>        User theme-pack directory override
+-t, --theme <name>             Initial theme name
+    --test                     Test mode: cat PTY, bypass IP/Origin allowlists
+-d, --debug                    Log debug messages to stderr
+-V, --version                  Print version and exit
+-h, --help                     Show this help
 ```
 
 ## Production Binary
