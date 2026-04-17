@@ -33,7 +33,7 @@ Entry points: `src/server/index.ts`, `src/client/index.ts`, `bun-build.ts`, `Mak
   - ~~[01 — ws-network-trust](./clusters/01-ws-network-trust.md)~~ — close DNS-rebind / cross-site WS hole · Small · severity High · **closed 2026-04-18 (v1.5.0, merge 92cfb4e)**
   - ~~[02 — ci-supply-chain](./clusters/02-ci-supply-chain.md)~~ — pin Actions to SHAs, narrow job permissions · Small · severity Medium · **closed 2026-04-18**
   - ~~[03 — ci-repro-coverage](./clusters/03-ci-repro-coverage.md)~~ — deterministic builds + full-matrix tests · Small · severity Medium · **closed 2026-04-18**
-  - [04 — doc-drift](./clusters/04-doc-drift.md) — bring CLAUDE.md + README back in sync with code · Small · severity Medium
+  - ~~[04 — doc-drift](./clusters/04-doc-drift.md)~~ — bring CLAUDE.md + README back in sync with code · Small · severity Medium · **closed 2026-04-18**
   - [05 — backend-hygiene](./clusters/05-backend-hygiene.md) — floating async, body-guard, cache, dead shims · Small · severity Medium
   - [06 — test-coverage-framework](./clusters/06-test-coverage-framework.md) — fix vitest imports + add two E2E flows · Medium · severity Medium
   - [07 — frontend-hygiene](./clusters/07-frontend-hygiene.md) — dup observers, `as any` casts, teardown, a11y, UX · Medium · severity Low
