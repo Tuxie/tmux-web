@@ -30,6 +30,26 @@ function debug(config: ServerConfig, ...args: unknown[]): void {
   if (config.debug) process.stderr.write(`[debug] ${args.join(' ')}\n`);
 }
 
+/**
+ * Send an HTTP error response on a raw upgrade socket and close it.
+ *
+ * Under Bun's Node.js compat layer, `socket.write()` in the 'upgrade' event
+ * does not flush before `socket.destroy()` — the bytes are silently dropped.
+ * Bun exposes the underlying response object via `Symbol.for('::bunternal::')`,
+ * which does flush correctly. We prefer that path and fall back to the
+ * standard `socket.write()` + `socket.destroy()` for plain Node.js.
+ */
+function rejectUpgradeSocket(socket: Duplex, statusCode: number, statusText: string): void {
+  const native = (socket as any)[Symbol.for('::bunternal::')];
+  if (native && typeof native.writeHead === 'function') {
+    native.writeHead(statusCode, statusText, { 'Content-Length': '0', 'Connection': 'close' });
+    native.end('');
+    return;
+  }
+  socket.write(`HTTP/1.1 ${statusCode} ${statusText}\r\n\r\n`);
+  socket.destroy();
+}
+
 export function createWsServer(
   httpServer: HttpServer | HttpsServer,
   opts: WsServerOptions,
@@ -55,15 +75,13 @@ export function createWsServer(
       const origin = req.headers.origin ?? '<none>';
       debug(config, `WS upgrade from ${remoteIp} - rejected (Origin: ${origin})`);
       logOriginReject(origin, remoteIp);
-      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
-      socket.destroy();
+      rejectUpgradeSocket(socket, 403, 'Forbidden');
       return;
     }
 
     if (!isAuthorized(req, config)) {
       debug(config, `WS upgrade from ${remoteIp} - unauthorized`);
-      socket.write('HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm="tmux-web"\r\n\r\n');
-      socket.destroy();
+      rejectUpgradeSocket(socket, 401, 'Unauthorized');
       return;
     }
 
