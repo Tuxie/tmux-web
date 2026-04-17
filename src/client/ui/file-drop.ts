@@ -1,9 +1,17 @@
-/** Drag-and-drop files onto the terminal. Dropped files are POSTed to
- *  /api/drop?session=<name>; the server persists under a per-session
- *  tmp dir and injects the absolute path into the focused pane as a
- *  bracketed paste (shell-quoted when the foreground process is a
- *  shell, raw otherwise). Visual overlay highlights the terminal while
- *  a drag is in progress. */
+/** Drag-and-drop AND clipboard-paste of files onto the terminal.
+ *  Both paths POST to /api/drop?session=<name>; the server persists
+ *  under a per-session tmp dir and injects the absolute path into the
+ *  focused pane as a bracketed paste (shell-quoted when the foreground
+ *  process is a shell, raw otherwise).
+ *
+ *  Firefox + macOS Finder caveat: pasting *multiple* files exposes only
+ *  the first file to JS. The clipboard advertises just
+ *  `application/x-moz-file` + `Files` — no uri-list, no promise URLs —
+ *  so we can't even detect that the user tried to paste more. Chrome
+ *  and Safari expose all files correctly. Workaround in Firefox: use
+ *  drag-and-drop for multi-file, or paste one at a time. */
+
+export interface UploadedInfo { filename: string; size: number; path: string }
 
 export interface FileDropOptions {
   terminal: HTMLElement;
@@ -12,9 +20,38 @@ export interface FileDropOptions {
   getSession: () => string;
   /** Optional callback for a UI toast. Called per file after the server
    *  confirms the drop. */
-  onDropped?: (info: { filename: string; size: number; path: string }) => void;
+  onDropped?: (info: UploadedInfo) => void;
   /** Optional callback on upload failure. */
   onError?: (err: unknown, file: File) => void;
+}
+
+export async function uploadFile(
+  session: string,
+  file: File,
+  fetchImpl: typeof fetch = fetch,
+): Promise<UploadedInfo> {
+  const res = await fetchImpl(`/api/drop?session=${encodeURIComponent(session)}`, {
+    method: 'POST',
+    headers: { 'X-Filename': encodeURIComponent(file.name) },
+    body: file,
+  });
+  if (!res.ok) throw new Error(`drop upload ${res.status}`);
+  return await res.json() as UploadedInfo;
+}
+
+async function uploadAll(
+  files: Iterable<File>,
+  session: string,
+  opts: Pick<FileDropOptions, 'onDropped' | 'onError'>,
+): Promise<void> {
+  for (const file of files) {
+    try {
+      const info = await uploadFile(session, file);
+      opts.onDropped?.(info);
+    } catch (err) {
+      opts.onError?.(err, file);
+    }
+  }
 }
 
 export function installFileDropHandler(opts: FileDropOptions): () => void {
@@ -22,33 +59,15 @@ export function installFileDropHandler(opts: FileDropOptions): () => void {
 
   const overlay = document.createElement('div');
   overlay.className = 'tw-drop-overlay';
-  Object.assign(overlay.style, {
-    position: 'absolute', inset: '0',
-    display: 'none',
-    alignItems: 'center', justifyContent: 'center',
-    background: 'rgba(40, 80, 140, 0.25)',
-    border: '2px dashed #88bbff',
-    color: '#eee', fontSize: '14px', fontFamily: 'inherit',
-    pointerEvents: 'none', zIndex: '50',
-  } as Partial<CSSStyleDeclaration>);
   overlay.textContent = 'Drop to upload';
-  // Terminal is absolutely positioned; make its parent the overlay anchor
-  // by inserting the overlay as a sibling inside the same container.
-  terminal.style.position = terminal.style.position || 'relative';
   terminal.appendChild(overlay);
 
-  // The browser fires dragenter/dragleave on child elements too, which
-  // would flicker the overlay. Count enters vs. leaves to get a stable
-  // "drag is happening over us" signal.
   let depth = 0;
-  const show = () => { overlay.style.display = 'flex'; };
-  const hide = () => { overlay.style.display = 'none'; };
+  const show = () => { overlay.classList.add('visible'); };
+  const hide = () => { overlay.classList.remove('visible'); };
 
   const hasFiles = (dt: DataTransfer | null): boolean => {
     if (!dt) return false;
-    // Chromium sets types ['Files'] when files are being dragged. Filter out
-    // in-page text selection drags so we don't advertise as a drop target
-    // for those.
     return Array.from(dt.types).includes('Files');
   };
 
@@ -76,36 +95,69 @@ export function installFileDropHandler(opts: FileDropOptions): () => void {
     hide();
     const files = ev.dataTransfer?.files;
     if (!files || files.length === 0) return;
-    const session = getSession();
-    for (const file of Array.from(files)) {
-      try {
-        const res = await fetch(`/api/drop?session=${encodeURIComponent(session)}`, {
-          method: 'POST',
-          headers: { 'X-Filename': encodeURIComponent(file.name) },
-          body: file,
-        });
-        if (!res.ok) {
-          opts.onError?.(new Error(`drop upload ${res.status}`), file);
-          continue;
-        }
-        const info = await res.json() as { filename: string; size: number; path: string };
-        opts.onDropped?.(info);
-      } catch (err) {
-        opts.onError?.(err, file);
-      }
-    }
+    await uploadAll(Array.from(files), getSession(), opts);
+  };
+
+  // Clipboard paste: DataTransfer may include files (image copy, file
+  // manager "copy"). Handled on the document so it works regardless of
+  // which element holds focus — xterm swallows paste events itself.
+  const onPaste = async (ev: ClipboardEvent): Promise<void> => {
+    const cd = ev.clipboardData;
+    if (!cd) return;
+    const files = filesFromClipboard(cd);
+    if (files.length === 0) return;
+    // Only pre-empt the terminal's own paste when we actually have files;
+    // plain-text paste must still reach xterm.
+    ev.preventDefault();
+    ev.stopPropagation();
+    await uploadAll(files, getSession(), opts);
   };
 
   terminal.addEventListener('dragenter', onEnter);
   terminal.addEventListener('dragover', onOver);
   terminal.addEventListener('dragleave', onLeave);
   terminal.addEventListener('drop', onDrop);
+  // Capture phase so we run before xterm's textarea paste handler.
+  document.addEventListener('paste', onPaste, true);
 
   return () => {
     terminal.removeEventListener('dragenter', onEnter);
     terminal.removeEventListener('dragover', onOver);
     terminal.removeEventListener('dragleave', onLeave);
     terminal.removeEventListener('drop', onDrop);
+    document.removeEventListener('paste', onPaste, true);
     overlay.remove();
   };
+}
+
+/** Extract File objects from a ClipboardEvent's DataTransfer.
+ *
+ *  Multi-file paste is messy across browsers:
+ *    - Chromium paste from OS file manager: all files land in both
+ *      `cd.files` and `cd.items[kind=file]`.
+ *    - Some browsers / some sources populate only `cd.items` (e.g.
+ *      image paste) and leave `cd.files` empty.
+ *    - Occasionally `cd.files` only has the first item while `items[]`
+ *      has all of them.
+ *
+ *  So: collect from BOTH sources and dedupe by identity, preferring
+ *  whichever gives us more files. Dropping the early-return means we
+ *  never silently discard trailing files because one source was short. */
+export function filesFromClipboard(cd: DataTransfer): File[] {
+  const fromFiles: File[] = cd.files ? Array.from(cd.files) : [];
+  const fromItems: File[] = [];
+  if (cd.items) {
+    for (const item of Array.from(cd.items)) {
+      if (item.kind === 'file') {
+        const f = item.getAsFile();
+        if (f) fromItems.push(f);
+      }
+    }
+  }
+  // Pick the larger set; if equal, prefer files[] (more canonical).
+  const base = fromItems.length > fromFiles.length ? fromItems : fromFiles;
+  const other = base === fromItems ? fromFiles : fromItems;
+  const seen = new Set<File>(base);
+  for (const f of other) if (!seen.has(f)) { base.push(f); seen.add(f); }
+  return base;
 }
