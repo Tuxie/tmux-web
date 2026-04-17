@@ -64,6 +64,7 @@ function sanitiseSessions(input: unknown): Record<string, StoredSessionSettings>
   if (!input || typeof input !== 'object') return {};
   const out: Record<string, StoredSessionSettings> = {};
   for (const [k, v] of Object.entries(input as Record<string, StoredSessionSettings>)) {
+    if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
     if (isValidSessionName(k)) out[k] = v;
   }
   return out;

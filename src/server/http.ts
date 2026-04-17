@@ -1,6 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { timingSafeEqual } from 'crypto';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { MIME_TYPES } from '../shared/constants.js';
 import type { ServerConfig } from '../shared/types.js';
@@ -146,6 +147,13 @@ function getTerminalVersions(projectRoot: string): Record<string, string> {
   return versions;
 }
 
+function safeStringEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, 'utf-8');
+  const bufB = Buffer.from(b, 'utf-8');
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
+
 export function isAuthorized(req: IncomingMessage, config: ServerConfig): boolean {
   if (!config.auth.enabled) return true;
 
@@ -162,7 +170,11 @@ export function isAuthorized(req: IncomingMessage, config: ServerConfig): boolea
   const user = credentials.slice(0, index);
   const pass = credentials.slice(index + 1);
 
-  return user === config.auth.username && pass === config.auth.password;
+  // Compute both comparisons independently before ANDing so we don't
+  // short-circuit on the username side and reveal timing information.
+  const userMatch = safeStringEqual(user, config.auth.username || '');
+  const passMatch = safeStringEqual(pass, config.auth.password || '');
+  return userMatch && passMatch;
 }
 
 export async function createHttpHandler(opts: HttpHandlerOptions) {
