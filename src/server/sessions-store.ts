@@ -1,6 +1,27 @@
 import fs from 'fs';
 import path from 'path';
 
+/** Per-binary clipboard grant. Absent entry means "prompt user". */
+export interface ClipboardGrant {
+  allow: boolean;
+  /** ISO 8601 timestamp, or null for never-expires. */
+  expiresAt: string | null;
+  /** ISO 8601 timestamp when the grant was stored. */
+  grantedAt: string;
+}
+
+/** Policy for one absolute executable path. Keys at the clipboard level are
+ *  the absolute paths themselves. */
+export interface ClipboardPolicyEntry {
+  /** BLAKE3 hex digest of the binary at the time the grant was made. null
+   *  means path-only match (accept whatever binary lives there today). When
+   *  non-null the resolver re-hashes on read and falls back to prompt on
+   *  mismatch, so a binary swap implicitly revokes the grant. */
+  blake3: string | null;
+  read?: ClipboardGrant;
+  write?: ClipboardGrant;
+}
+
 export interface StoredSessionSettings {
   theme: string;
   colours: string;
@@ -8,6 +29,8 @@ export interface StoredSessionSettings {
   fontSize: number;
   spacing: number;
   opacity: number;
+  /** OSC 52 per-binary policy. Keyed by absolute exe path. */
+  clipboard?: Record<string, ClipboardPolicyEntry>;
 }
 
 export interface SessionsConfig {

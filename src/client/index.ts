@@ -6,6 +6,7 @@ import { Topbar } from './ui/topbar.js';
 import { installMouseHandler, getSgrCoords, buildSgrSequence } from './ui/mouse.js';
 import { installKeyboardHandler } from './ui/keyboard.js';
 import { handleClipboard } from './ui/clipboard.js';
+import { showClipboardPrompt } from './ui/clipboard-prompt.js';
 import { getTopbarAutohide } from './prefs.js';
 import { applyTheme, loadAllFonts, listThemes } from './theme.js';
 import { fetchColours, composeBgColor, composeTheme, type ITheme } from './colours.js';
@@ -158,6 +159,34 @@ async function main() {
   // `session:window_name`), which tmux sanitises (non-printables → `_`) and
   // differs from pane_title. Having both sources race made the topbar
   // flicker between the two forms on rapid title updates.
+  async function sendClipboardForRead(reqId: string): Promise<void> {
+    let text = '';
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      // Browser blocked the read (no user gesture, permissions) — reply
+      // with empty so the server sends an empty OSC 52 response back to
+      // the app and it doesn't hang.
+    }
+    const bytes = new TextEncoder().encode(text);
+    let binary = '';
+    for (const b of bytes) binary += String.fromCharCode(b);
+    const base64 = btoa(binary);
+    connection.send(JSON.stringify({ type: 'clipboard-read-reply', reqId, base64 }));
+  }
+
+  async function handleClipboardPrompt(reqId: string, exePath: string | null, commandName: string | null): Promise<void> {
+    const decision = await showClipboardPrompt({ exePath, commandName });
+    connection.send(JSON.stringify({
+      type: 'clipboard-decision',
+      reqId,
+      allow: decision.allow,
+      persist: decision.persist,
+      pinHash: decision.pinHash,
+      expiresAt: decision.expiresAt,
+    }));
+  }
+
   function handleMessage(data: string) {
     const { terminalData, messages } = extractTTMessages(data);
     if (terminalData) adapter.write(terminalData);
@@ -166,6 +195,16 @@ async function main() {
       if (msg.session) topbar.updateSession(msg.session);
       if (msg.windows) topbar.updateWindows(msg.windows);
       if (msg.title !== undefined) topbar.updateTitle(msg.title);
+      if (msg.clipboardReadRequest) {
+        void sendClipboardForRead(msg.clipboardReadRequest.reqId);
+      }
+      if (msg.clipboardPrompt) {
+        void handleClipboardPrompt(
+          msg.clipboardPrompt.reqId,
+          msg.clipboardPrompt.exePath,
+          msg.clipboardPrompt.commandName,
+        );
+      }
     }
   }
 

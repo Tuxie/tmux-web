@@ -219,7 +219,11 @@ Options:
     server = http.createServer(handler);
   }
 
-  createWsServer(server, { config, tmuxConfPath: effectiveTmuxConfPath });
+  createWsServer(server, {
+    config,
+    tmuxConfPath: effectiveTmuxConfPath,
+    sessionsStorePath,
+  });
 
   const scheme = config.tls ? 'https' : 'http';
   server.listen(port, host, () => {

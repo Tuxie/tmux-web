@@ -6,16 +6,21 @@ import type { Server as HttpServer } from 'http';
 import type { Server as HttpsServer } from 'https';
 import type { Duplex } from 'stream';
 import type { ServerConfig, WindowInfo } from '../shared/types.js';
-import { processData, frameTTMessage } from './protocol.js';
+import { processData, frameTTMessage, buildOsc52Response } from './protocol.js';
 import { buildPtyCommand, buildPtyEnv, spawnPty, sanitizeSession } from './pty.js';
 import { isAllowed } from './allowlist.js';
 import { isAuthorized } from './http.js';
+import { getForegroundProcess } from './foreground-process.js';
+import { resolvePolicy, recordGrant } from './clipboard-policy.js';
 
 const execFileAsync = promisify(execFile);
 
 export interface WsServerOptions {
   config: ServerConfig;
   tmuxConfPath: string;
+  /** Path to sessions.json; used for reading & writing the per-binary
+   *  OSC 52 clipboard policy. */
+  sessionsStorePath: string;
 }
 
 function debug(config: ServerConfig, ...args: unknown[]): void {
@@ -26,7 +31,7 @@ export function createWsServer(
   httpServer: HttpServer | HttpsServer,
   opts: WsServerOptions,
 ): WebSocketServer {
-  const { config, tmuxConfPath } = opts;
+  const { config, tmuxConfPath, sessionsStorePath } = opts;
   const wss = new WebSocketServer({ noServer: true });
 
   httpServer.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
@@ -55,7 +60,7 @@ export function createWsServer(
   });
 
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
-    handleConnection(ws, req, config, tmuxConfPath);
+    handleConnection(ws, req, config, tmuxConfPath, sessionsStorePath);
   });
 
   return wss;
@@ -184,6 +189,7 @@ function handleConnection(
   req: IncomingMessage,
   config: ServerConfig,
   tmuxConfPath: string,
+  sessionsStorePath: string,
 ): void {
   const remoteIp = (req.socket as any).remoteAddress || '';
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
@@ -201,11 +207,86 @@ function handleConnection(
   let lastSession = session;
   let lastTitle = '';
 
+  /** Pending OSC 52 read requests keyed by reqId. Each entry remembers the
+   *  OSC 52 selection char ('c'/'p'/…) and the resolved exe path (if any),
+   *  so the decision reply knows where to record the grant and which
+   *  selection to echo back to the PTY. */
+  interface PendingRead {
+    selection: string;
+    exePath: string | null;
+    commandName: string | null;
+    /** Populated when the server has already decided to allow and is
+     *  awaiting the client's clipboard content for this request. */
+    awaitingContent?: boolean;
+  }
+  const pendingReads = new Map<string, PendingRead>();
+  let nextReqId = 0;
+  const newReqId = (): string => `r${Date.now().toString(36)}${(nextReqId++).toString(36)}`;
+
+  /** Respond to the PTY for an OSC 52 read. Empty base64 = denied/empty
+   *  clipboard (well-formed but no content). */
+  const replyToRead = (selection: string, base64: string): void => {
+    ptyProcess.write(buildOsc52Response(selection, base64));
+  };
+
+  /** Ask the client for the current clipboard contents so we can deliver
+   *  them back to the PTY via OSC 52. The reply comes in as a
+   *  `{type:'clipboard-read-reply', reqId, base64}` message. */
+  const requestClipboardFromClient = (reqId: string): void => {
+    if (ws.readyState !== WebSocket.OPEN) return;
+    ws.send(frameTTMessage({ clipboardReadRequest: { reqId } }));
+  };
+
+  const handleReadRequest = async (selection: string): Promise<void> => {
+    // Find who asked so we can gate policy on the exe path.
+    const fg = await getForegroundProcess(config.tmuxBin, lastSession);
+    const exePath = fg.exePath;
+    if (!exePath) {
+      // Can't identify the caller — deny silently. Most apps handle an
+      // empty reply gracefully (nothing gets pasted).
+      debug(config, `OSC 52 read: unknown foreground process, denying`);
+      replyToRead(selection, '');
+      return;
+    }
+
+    const decision = await resolvePolicy(sessionsStorePath, lastSession, exePath, 'read');
+    if (decision === 'deny') {
+      debug(config, `OSC 52 read: denied by policy for ${exePath}`);
+      replyToRead(selection, '');
+      return;
+    }
+
+    const reqId = newReqId();
+    pendingReads.set(reqId, { selection, exePath, commandName: fg.commandName });
+
+    if (decision === 'allow') {
+      pendingReads.get(reqId)!.awaitingContent = true;
+      requestClipboardFromClient(reqId);
+      return;
+    }
+
+    // 'prompt' — ask the user, decision reply will drive the rest.
+    if (ws.readyState !== WebSocket.OPEN) {
+      pendingReads.delete(reqId);
+      return;
+    }
+    ws.send(frameTTMessage({
+      clipboardPrompt: {
+        reqId,
+        exePath,
+        commandName: fg.commandName,
+      },
+    }));
+  };
+
   ptyProcess.onData((data: string) => {
     if (ws.readyState !== WebSocket.OPEN) return;
     const result = processData(data, lastSession);
     for (const msg of result.messages) {
       ws.send(frameTTMessage(msg));
+    }
+    for (const req of result.readRequests) {
+      void handleReadRequest(req.selection);
     }
     if (result.output) ws.send(result.output);
     if (result.titleChanged && result.detectedTitle !== lastTitle) {
@@ -243,6 +324,46 @@ function handleConnection(
         }
         if (parsed.type === 'session' && typeof parsed.action === 'string') {
           void applySessionAction(lastSession, parsed, config);
+          return;
+        }
+        if (parsed.type === 'clipboard-decision' && typeof parsed.reqId === 'string') {
+          const pending = pendingReads.get(parsed.reqId);
+          if (!pending) return; // stale / duplicate
+          const allow = !!parsed.allow;
+          const pinHash = !!parsed.pinHash;
+          const expiresAt = (typeof parsed.expiresAt === 'string' || parsed.expiresAt === null)
+            ? parsed.expiresAt : null;
+          const persist = parsed.persist === true;
+          if (persist && pending.exePath) {
+            void recordGrant({
+              filePath: sessionsStorePath,
+              session: lastSession,
+              exePath: pending.exePath,
+              action: 'read',
+              allow,
+              expiresAt,
+              pinHash,
+            }).catch(() => { /* store failure is non-fatal for this request */ });
+          }
+          if (allow) {
+            pending.awaitingContent = true;
+            requestClipboardFromClient(parsed.reqId);
+          } else {
+            pendingReads.delete(parsed.reqId);
+            replyToRead(pending.selection, '');
+          }
+          return;
+        }
+        if (parsed.type === 'clipboard-read-reply' && typeof parsed.reqId === 'string') {
+          const pending = pendingReads.get(parsed.reqId);
+          if (!pending || !pending.awaitingContent) return;
+          pendingReads.delete(parsed.reqId);
+          const base64 = typeof parsed.base64 === 'string' ? parsed.base64 : '';
+          // Cap the payload to 1 MiB of base64 so a huge clipboard can't
+          // stall the PTY. 1 MiB base64 ≈ 768 KiB raw — plenty for sane use.
+          const MAX = 1024 * 1024;
+          const clipped = base64.length > MAX ? '' : base64;
+          replyToRead(pending.selection, clipped);
           return;
         }
       } catch { /* not JSON, pass through */ }

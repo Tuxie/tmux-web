@@ -54,6 +54,17 @@ export interface ServerMessage {
   windows?: WindowInfo[];
   clipboard?: string; // base64-encoded
   title?: string;    // active pane title (shell window title)
+  /** OSC 52 read request needs a user decision. Client pops a modal and
+   *  replies with `{type:'clipboard-decision', ...}`. */
+  clipboardPrompt?: {
+    reqId: string;
+    exePath: string | null;
+    commandName: string | null;
+  };
+  /** OSC 52 read has been allowed by policy; server is asking the client
+   *  for current clipboard contents. Client replies with
+   *  `{type:'clipboard-read-reply', ...}`. */
+  clipboardReadRequest?: { reqId: string };
 }
 
 /** Client-to-server resize message. */
