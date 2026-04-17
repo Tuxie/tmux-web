@@ -121,5 +121,13 @@ html, body { height: 100%; overflow: hidden; }
 .tw-clip-prompt-btn-once { background: #3a3a3a; }
 .tw-clip-prompt-btn-always { background: #2a6a2a; }
 
+/* Session status dots: non-colour shape cue (A11Y-3).
+ * Running = solid filled circle (colour-only in theme files, unchanged).
+ * Stopped = hollow circle — background is cleared here so the border
+ * carries the signal even for colour-blind users.
+ * box-sizing ensures the border sits inside the 8×8px box. */
+.tw-dd-session-status { box-sizing: border-box; }
+.tw-dd-session-status.stopped { background: transparent; border: 1.5px solid currentColor; }
+
 /* Context dropdown menu (positioned imperatively via top/left). */
 .tw-dropdown-menu { position: fixed; }

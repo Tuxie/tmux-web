@@ -325,7 +325,8 @@ body {
   box-shadow: 0 0 0 1px #000 inset;
 }
 .tw-dd-session-status.running { background: #2c2; }
-.tw-dd-session-status.stopped { background: #c22; }
+/* stopped: hollow outline; background: transparent and border set in base.css */
+.tw-dd-session-status.stopped { color: #c22; }
 
 /* Text input used in some context-menu dropdowns — sunken bevel. */
 .tw-dd-input {

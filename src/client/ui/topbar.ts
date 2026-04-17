@@ -189,6 +189,9 @@ export class Topbar {
         killItem.addEventListener('click', (ev) => {
           ev.stopPropagation();
           close();
+          // Native confirm() is intentional here — destructive tmux actions are
+          // infrequent and a custom modal would duplicate the clipboard-prompt
+          // code path for marginal UX gain. See 2026-04-17 code-analysis UX-1.
           if (!confirm(`Kill session "${current}"?`)) return;
           this.opts.send(JSON.stringify({ type: 'session', action: 'kill' }));
         });
@@ -212,6 +215,8 @@ export class Topbar {
   private setupMenu(): void {
     const menuWrap = document.getElementById('menu-wrap') as HTMLElement;
     const menuBtn = document.getElementById('btn-menu') as HTMLButtonElement;
+    menuBtn.setAttribute('aria-haspopup', 'true');
+    menuBtn.setAttribute('aria-expanded', 'false');
     const dropdown = document.getElementById('menu-dropdown') as HTMLElement;
     const footerLeft = document.getElementById('menu-footer-left');
     const footerRight = document.getElementById('menu-footer-right');
@@ -270,6 +275,7 @@ export class Topbar {
     if (!this.menuDropdown) return;
     this.menuDropdown.hidden = !open;
     this.menuBtn?.classList.toggle('open', open);
+    this.menuBtn?.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
 
   private setupFullscreenCheckbox(): void {
@@ -628,6 +634,9 @@ export class Topbar {
       closeItem.addEventListener('click', (ev) => {
         ev.stopPropagation();
         close();
+        // Native confirm() is intentional here — destructive tmux actions are
+        // infrequent and a custom modal would duplicate the clipboard-prompt
+        // code path for marginal UX gain. See 2026-04-17 code-analysis UX-1.
         if (!confirm(`Close window "${activeName}"?`)) return;
         this.sendWindowMsg({ action: 'close', index: activeIdx });
       });

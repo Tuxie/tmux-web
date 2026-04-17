@@ -52,7 +52,7 @@ export async function loadAllFonts(): Promise<void> {
         `url(/themes/${encodeURIComponent(font.pack)}/${encodeURIComponent(font.file)})`
       );
       await ff.load();
-      (document as any).fonts.add(ff);
+      document.fonts.add(ff);
     } catch (error) {
       console.warn(`[theme] failed to load font ${font.family}:`, error);
     }

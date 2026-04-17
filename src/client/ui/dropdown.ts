@@ -304,6 +304,9 @@ export class Dropdown {
     this.beforeOpen = args.beforeOpen;
     this.renderContent = args.renderContent;
 
+    this.trigger.setAttribute('aria-haspopup', 'listbox');
+    this.trigger.setAttribute('aria-expanded', 'false');
+
     this.trigger.addEventListener('click', (ev) => {
       ev.stopPropagation();
       if (this.menu.hidden) void this.open();
@@ -488,6 +491,7 @@ export class Dropdown {
       renderItems(this.menu, this.getItems(), this.currentValue(), (v) => this.handlePick(v));
     }
     this.menu.hidden = false;
+    this.trigger.setAttribute('aria-expanded', 'true');
     this.trigger.classList.add('open');
     if (this.wrap) this.wrap.classList.add('open');
     this._positionFixed();
@@ -495,6 +499,7 @@ export class Dropdown {
 
   close(): void {
     this.menu.hidden = true;
+    this.trigger.setAttribute('aria-expanded', 'false');
     this.trigger.classList.remove('open');
     if (this.wrap) this.wrap.classList.remove('open');
     // Reset inline positioning so subsequent opens recompute cleanly
