@@ -37,14 +37,19 @@ export function defaultDropStorage(): DropStorage {
 
 let _inotifywaitProbed: boolean | null = null;
 /** One-shot feature probe. Inotify-tools isn't guaranteed everywhere; on
- *  macOS / BSD / broken installs we quietly fall back to TTL-only. */
+ *  macOS / BSD / broken installs we quietly fall back to TTL-only.
+ *
+ *  Note: inotifywait prints its help text and exits 1 (not 0), which is
+ *  the tool's convention. We treat any "it ran without the kernel / OS
+ *  rejecting the executable" as success — a failed spawn raises
+ *  ENOENT/EACCES and lands us in the catch. */
 export function hasInotifywait(): boolean {
   if (_inotifywaitProbed !== null) return _inotifywaitProbed;
   try {
     const res = Bun.spawnSync(['inotifywait', '--help'], {
       stdio: ['ignore', 'ignore', 'ignore'],
     });
-    _inotifywaitProbed = res.exitCode === 0;
+    _inotifywaitProbed = res.exitCode !== null;
   } catch {
     _inotifywaitProbed = false;
   }
