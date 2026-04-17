@@ -147,17 +147,21 @@ Options:
 
   // Fail early if the configured tmux binary isn't runnable. Otherwise
   // the first WebSocket connection tries to spawn it and the user just
-  // sees a dead terminal.
-  try {
-    const r = Bun.spawnSync([config.tmuxBin, '-V'], { stdout: 'pipe', stderr: 'pipe' });
-    if (!r.success) {
-      console.error(`Error: tmux command '${config.tmuxBin}' exited with status ${r.exitCode}.`);
+  // sees a dead terminal. Test mode uses a `cat` PTY and never touches
+  // tmux, so we skip the check there (and the release-workflow
+  // vendor-xterm verification relies on that).
+  if (!config.testMode) {
+    try {
+      const r = Bun.spawnSync([config.tmuxBin, '-V'], { stdout: 'pipe', stderr: 'pipe' });
+      if (!r.success) {
+        console.error(`Error: tmux command '${config.tmuxBin}' exited with status ${r.exitCode}.`);
+        process.exit(1);
+      }
+    } catch (err) {
+      console.error(`Error: tmux command '${config.tmuxBin}' not found in $PATH (${(err as Error).message}).`);
+      console.error(`Install tmux or pass --tmux <path> to point at a specific binary.`);
       process.exit(1);
     }
-  } catch (err) {
-    console.error(`Error: tmux command '${config.tmuxBin}' not found in $PATH (${(err as Error).message}).`);
-    console.error(`Install tmux or pass --tmux <path> to point at a specific binary.`);
-    process.exit(1);
   }
 
   const isCompiled = !process.execPath.endsWith('bun') && !process.execPath.endsWith('bun.exe');
