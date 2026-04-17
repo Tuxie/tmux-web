@@ -6,7 +6,8 @@ import type { Server as HttpServer } from 'http';
 import type { Server as HttpsServer } from 'https';
 import type { Duplex } from 'stream';
 import type { ServerConfig, WindowInfo } from '../shared/types.js';
-import { processData, frameTTMessage, buildOsc52Response } from './protocol.js';
+import { processData, frameTTMessage } from './protocol.js';
+import { deliverOsc52Reply } from './osc52-reply.js';
 import { buildPtyCommand, buildPtyEnv, spawnPty, sanitizeSession } from './pty.js';
 import { isAllowed } from './allowlist.js';
 import { isAuthorized } from './http.js';
@@ -231,19 +232,16 @@ function handleConnection(
    *  an OSC 52 WRITE that doesn't match a pending query. Inject directly
    *  into the focused pane's stdin via `tmux send-keys -H <hex bytes>`. */
   const replyToRead = async (selection: string, base64: string): Promise<void> => {
-    const bytes = buildOsc52Response(selection, base64);
-    if (config.testMode) {
-      ptyProcess.write(bytes);
-      return;
-    }
-    const hex: string[] = [];
-    for (let i = 0; i < bytes.length; i++) {
-      hex.push(bytes.charCodeAt(i).toString(16).padStart(2, '0'));
-    }
     try {
-      await execFileAsync(config.tmuxBin, ['send-keys', '-H', '-t', lastSession, ...hex]);
+      await deliverOsc52Reply({
+        tmuxBin: config.tmuxBin,
+        target: lastSession,
+        selection,
+        base64,
+        directWrite: config.testMode ? (bytes) => ptyProcess.write(bytes) : undefined,
+      });
     } catch (err) {
-      debug(config, `OSC 52 reply send-keys failed: ${err}`);
+      debug(config, `OSC 52 reply delivery failed: ${err}`);
     }
   };
 
