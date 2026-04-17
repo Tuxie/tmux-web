@@ -52,9 +52,9 @@ export function parseConfig(argv: string[]): ConfigResult {
       // Temporary compatibility alias: accept legacy --terminal callers so
       // strict arg parsing does not fail while backend selection is removed.
       terminal:     { type: 'string' },
-      'allow-ip':   { type: 'string',  multiple: true, default: [] as string[] },
-      username:     { type: 'string' },
-      password:     { type: 'string' },
+      'allow-ip':   { type: 'string',  short: 'a', multiple: true, default: [] as string[] },
+      username:     { type: 'string',  short: 'u' },
+      password:     { type: 'string',  short: 'p' },
       'no-auth':    { type: 'boolean', default: false },
       tls:          { type: 'boolean', default: true },
       'no-tls':     { type: 'boolean', default: false },
@@ -63,11 +63,11 @@ export function parseConfig(argv: string[]): ConfigResult {
       'tmux':       { type: 'string',  default: 'tmux' },
       'tmux-conf':  { type: 'string' },
       'themes-dir': { type: 'string' },
-      'theme':      { type: 'string' },
-      test:         { type: 'boolean', short: 't', default: false },
+      'theme':      { type: 'string',  short: 't' },
+      test:         { type: 'boolean', default: false },
       debug:        { type: 'boolean', short: 'd', default: false },
       help:         { type: 'boolean', short: 'h', default: false },
-      version:      { type: 'boolean', short: 'v', default: false },
+      version:      { type: 'boolean', short: 'V', default: false },
     },
     strict: true,
   });
@@ -117,9 +117,9 @@ async function startServer() {
 
 Options:
   -l, --listen <host:port>     Address to listen on (default: ${DEFAULT_HOST}:${DEFAULT_PORT})
-      --allow-ip <ip>          Allow IP address (repeatable; localhost always allowed)
-      --username <name>        HTTP Basic Auth username (default: $TMUX_WEB_USERNAME or current user)
-      --password <pass>        HTTP Basic Auth password (default: $TMUX_WEB_PASSWORD, required)
+  -a, --allow-ip <ip>          Allow IP address (repeatable; localhost always allowed)
+  -u, --username <name>        HTTP Basic Auth username (default: $TMUX_WEB_USERNAME or current user)
+  -p, --password <pass>        HTTP Basic Auth password (default: $TMUX_WEB_PASSWORD, required)
       --no-auth                Disable HTTP Basic Auth
       --tls                    Enable HTTPS with self-signed certificate (default)
       --no-tls                 Disable HTTPS
@@ -128,10 +128,10 @@ Options:
       --tmux <path>            Path to tmux executable (default: tmux)
       --tmux-conf <path>       Alternative tmux.conf to load instead of user default
       --themes-dir <path>      User theme-pack directory override
-      --theme <name>           Initial theme name
-  -t, --test                   Test mode: use cat PTY, bypass IP allowlist
+  -t, --theme <name>           Initial theme name
+      --test                   Test mode: use cat PTY, bypass IP allowlist
   -d, --debug                  Log debug messages to stderr
-  -v, --version                Print version and exit
+  -V, --version                Print version and exit
   -h, --help                   Show this help`);
     process.exit(0);
   }
@@ -142,6 +142,21 @@ Options:
 
   if (config.auth.enabled && !config.auth.password) {
     console.error('Error: --password or $TMUX_WEB_PASSWORD is required unless --no-auth is used.');
+    process.exit(1);
+  }
+
+  // Fail early if the configured tmux binary isn't runnable. Otherwise
+  // the first WebSocket connection tries to spawn it and the user just
+  // sees a dead terminal.
+  try {
+    const r = Bun.spawnSync([config.tmuxBin, '-V'], { stdout: 'pipe', stderr: 'pipe' });
+    if (!r.success) {
+      console.error(`Error: tmux command '${config.tmuxBin}' exited with status ${r.exitCode}.`);
+      process.exit(1);
+    }
+  } catch (err) {
+    console.error(`Error: tmux command '${config.tmuxBin}' not found in $PATH (${(err as Error).message}).`);
+    console.error(`Install tmux or pass --tmux <path> to point at a specific binary.`);
     process.exit(1);
   }
 
@@ -251,6 +266,16 @@ Options:
       cert = fs.readFileSync(config.tlsCert, 'utf-8');
       key = fs.readFileSync(config.tlsKey, 'utf-8');
     } else {
+      // Self-signed path: we shell out to `openssl req`. Fail early
+      // with a clear message instead of a cryptic ENOENT trace.
+      try {
+        const r = Bun.spawnSync(['openssl', 'version'], { stdout: 'pipe', stderr: 'pipe' });
+        if (!r.success) throw new Error(`exited with status ${r.exitCode}`);
+      } catch (err) {
+        console.error(`Error: openssl not found in $PATH (${(err as Error).message}).`);
+        console.error(`Install openssl, pass --tls-cert / --tls-key to use your own certificate, or disable TLS with --no-tls.`);
+        process.exit(1);
+      }
       const generated = generateSelfSignedCert();
       cert = generated.cert;
       key = generated.key;
