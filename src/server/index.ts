@@ -139,7 +139,8 @@ async function startServer() {
 
 Options:
   -l, --listen <host:port>     Address to listen on (default: ${DEFAULT_HOST}:${DEFAULT_PORT})
-  -i, --allow-ip <ip>          Allow IP address (repeatable; 127.0.0.1/::1 always allowed)
+  -i, --allow-ip <ip>          Allow an IP address to connect (repeatable; default: 127.0.0.1 and ::1)
+  -o, --allow-origin <origin>  Allow a browser Origin (repeatable; full scheme://host[:port], or '*')
   -u, --username <name>        HTTP Basic Auth username (default: $TMUX_WEB_USERNAME or current user)
   -p, --password <pass>        HTTP Basic Auth password (default: $TMUX_WEB_PASSWORD, required)
       --no-auth                Disable HTTP Basic Auth
@@ -151,7 +152,7 @@ Options:
       --tmux-conf <path>       Alternative tmux.conf to load instead of user default
       --themes-dir <path>      User theme-pack directory override
   -t, --theme <name>           Initial theme name
-      --test                   Test mode: use cat PTY, bypass IP allowlist
+      --test                   Test mode: use cat PTY, bypass IP/Origin allowlists
   -d, --debug                  Log debug messages to stderr
   -V, --version                Print version and exit
   -h, --help                   Show this help`);
