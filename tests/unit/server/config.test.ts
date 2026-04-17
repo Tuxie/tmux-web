@@ -92,3 +92,50 @@ describe("--allow-origin / --allow-ip defaults", () => {
     expect(() => parseConfig(["--no-auth", "-o", "not-a-url"])).toThrow();
   });
 });
+
+import { warnIfDangerousOriginConfig } from "../../../src/server/index.js";
+
+describe("warnIfDangerousOriginConfig", () => {
+  test("warns when -o * combines with a non-loopback --allow-ip", () => {
+    const messages: string[] = [];
+    const origErr = console.error;
+    console.error = (m: unknown) => { messages.push(String(m)); };
+    try {
+      warnIfDangerousOriginConfig({
+        allowedIps: new Set(["127.0.0.1", "::1", "192.168.2.4"]),
+        allowedOrigins: ["*"],
+      });
+    } finally {
+      console.error = origErr;
+    }
+    expect(messages.some(m => m.includes("--allow-origin *"))).toBe(true);
+  });
+  test("does not warn when -o * combines only with loopback", () => {
+    const messages: string[] = [];
+    const origErr = console.error;
+    console.error = (m: unknown) => { messages.push(String(m)); };
+    try {
+      warnIfDangerousOriginConfig({
+        allowedIps: new Set(["127.0.0.1", "::1"]),
+        allowedOrigins: ["*"],
+      });
+    } finally {
+      console.error = origErr;
+    }
+    expect(messages).toEqual([]);
+  });
+  test("does not warn when -o is not wildcard", () => {
+    const messages: string[] = [];
+    const origErr = console.error;
+    console.error = (m: unknown) => { messages.push(String(m)); };
+    try {
+      warnIfDangerousOriginConfig({
+        allowedIps: new Set(["127.0.0.1", "192.168.2.4"]),
+        allowedOrigins: [{ scheme: "https", host: "tmux.example.com", port: 443 }],
+      });
+    } finally {
+      console.error = origErr;
+    }
+    expect(messages).toEqual([]);
+  });
+});

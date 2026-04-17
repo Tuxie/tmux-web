@@ -111,6 +111,21 @@ export function parseConfig(argv: string[]): ConfigResult {
   return { config, host, port };
 }
 
+const LOOPBACK_IPS = new Set(['127.0.0.1', '::1']);
+
+export function warnIfDangerousOriginConfig(
+  cfg: Pick<ServerConfig, 'allowedIps' | 'allowedOrigins'>,
+): void {
+  const hasWildcard = cfg.allowedOrigins.some(e => e === '*');
+  if (!hasWildcard) return;
+  const hasNonLoopback = [...cfg.allowedIps].some(ip => !LOOPBACK_IPS.has(ip));
+  if (!hasNonLoopback) return;
+  console.error(
+    'tmux-web: warning: --allow-origin * with non-loopback --allow-ip re-opens DNS rebinding;\n'
+    + '  prefer listing explicit origins.',
+  );
+}
+
 async function startServer() {
   const { config, host, port, help, version } = parseConfig(process.argv.slice(2));
 
@@ -151,6 +166,8 @@ Options:
     console.error('Error: --password or $TMUX_WEB_PASSWORD is required unless --no-auth is used.');
     process.exit(1);
   }
+
+  warnIfDangerousOriginConfig(config);
 
   // Fail early if the configured tmux binary isn't runnable. Otherwise
   // the first WebSocket connection tries to spawn it and the user just
