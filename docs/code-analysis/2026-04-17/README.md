@@ -35,7 +35,7 @@ Entry points: `src/server/index.ts`, `src/client/index.ts`, `bun-build.ts`, `Mak
   - ~~[03 — ci-repro-coverage](./clusters/03-ci-repro-coverage.md)~~ — deterministic builds + full-matrix tests · Small · severity Medium · **closed 2026-04-18**
   - ~~[04 — doc-drift](./clusters/04-doc-drift.md)~~ — bring CLAUDE.md + README back in sync with code · Small · severity Medium · **closed 2026-04-18**
   - ~~[05 — backend-hygiene](./clusters/05-backend-hygiene.md)~~ — floating async, body-guard, cache, dead shims · Small · severity Medium · **closed 2026-04-18**
-  - [06 — test-coverage-framework](./clusters/06-test-coverage-framework.md) — fix vitest imports + add two E2E flows · Medium · severity Medium
+  - ~~[06 — test-coverage-framework](./clusters/06-test-coverage-framework.md)~~ — fix vitest imports + add two E2E flows · Medium · severity Medium · **closed 2026-04-18 (OSC-52 consent E2E deferred — see placeholder)**
   - [07 — frontend-hygiene](./clusters/07-frontend-hygiene.md) — dup observers, `as any` casts, teardown, a11y, UX · Medium · severity Low
   - [08 — css-theming](./clusters/08-css-theming.md) — push structural rules to base.css, drop theme `!important` · Small · severity Low
   - [09 — fuzz-parsers](./clusters/09-fuzz-parsers.md) — size-cap OSC-52, property tests for TOML + base64 · Small · severity Low
