@@ -490,12 +490,49 @@ export class Dropdown {
     this.menu.hidden = false;
     this.trigger.classList.add('open');
     if (this.wrap) this.wrap.classList.add('open');
+    this._positionFixed();
   }
 
   close(): void {
     this.menu.hidden = true;
     this.trigger.classList.remove('open');
     if (this.wrap) this.wrap.classList.remove('open');
+    // Reset inline positioning so subsequent opens recompute cleanly
+    // and the menu isn't left floating relative to a stale anchor if
+    // CSS rules ever take over again.
+    this.menu.style.position = '';
+    this.menu.style.top = '';
+    this.menu.style.left = '';
+    this.menu.style.minWidth = '';
+    this.menu.style.maxHeight = '';
+  }
+
+  /** Position the menu with `position: fixed` relative to the trigger
+   *  so it can overflow its parent — settings-menu dropdowns (theme /
+   *  colours / font) used to get a scrollbar inside the settings menu
+   *  because the menu was clipped by its #menu-dropdown ancestor.
+   *  Fixed positioning escapes that, and we clamp max-height so a
+   *  long list scrolls against the viewport rather than inside the
+   *  settings menu. */
+  private _positionFixed(): void {
+    const rect = this.trigger.getBoundingClientRect();
+    const viewportH = window.innerHeight;
+    const spaceBelow = viewportH - rect.bottom - 8;
+    const spaceAbove = rect.top - 8;
+    // Prefer opening below; flip above if there's clearly more room
+    // up there and less than ~160px below (one-item-tall lists are
+    // happier upward than pinned to a near-zero spaceBelow).
+    const openUp = spaceBelow < 160 && spaceAbove > spaceBelow;
+    const maxH = openUp ? spaceAbove : spaceBelow;
+    this.menu.style.position = 'fixed';
+    this.menu.style.left = `${rect.left}px`;
+    this.menu.style.minWidth = `${rect.width}px`;
+    this.menu.style.maxHeight = `${Math.max(120, maxH)}px`;
+    if (openUp) {
+      this.menu.style.top = `${rect.top - this.menu.offsetHeight}px`;
+    } else {
+      this.menu.style.top = `${rect.bottom}px`;
+    }
   }
 
   dispose(): void {
