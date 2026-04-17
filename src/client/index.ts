@@ -7,6 +7,7 @@ import { installMouseHandler, getSgrCoords, buildSgrSequence } from './ui/mouse.
 import { installKeyboardHandler } from './ui/keyboard.js';
 import { handleClipboard } from './ui/clipboard.js';
 import { showClipboardPrompt } from './ui/clipboard-prompt.js';
+import { installFileDropHandler } from './ui/file-drop.js';
 import { getTopbarAutohide } from './prefs.js';
 import { applyTheme, loadAllFonts, listThemes } from './theme.js';
 import { fetchColours, composeBgColor, composeTheme, type ITheme } from './colours.js';
@@ -275,6 +276,14 @@ async function main() {
     terminalElement: container,
     send: (data) => connection.send(data),
     toggleFullscreen: () => topbar.toggleFullscreen(),
+  });
+
+  installFileDropHandler({
+    terminal: container,
+    getSession,
+    onError: (err, file) => {
+      console.warn(`file-drop upload failed for ${file.name}:`, err);
+    },
   });
 }
 

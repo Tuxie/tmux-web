@@ -31,6 +31,7 @@ describe("/api/colours", () => {
       htmlTemplate: "", distDir: "", fontsDir: "", themesUserDir: "",
       themesBundledDir: tmp, projectRoot: tmp, isCompiled: false,
       sessionsStorePath: path.join(tmp, "sessions.json"),
+      dropStorage: { root: path.join(tmp, "drop"), maxFilesPerSession: 20, ttlMs: 60_000 },
     } as any);
     const { status, body } = await once(handler, "/api/colours");
     expect(status).toBe(200);

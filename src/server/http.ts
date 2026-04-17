@@ -17,6 +17,11 @@ import {
   type PackInfo,
 } from './themes.js';
 import { applyPatch, loadConfig, type SessionsConfigPatch } from './sessions-store.js';
+import { writeDrop, type DropStorage } from './file-drop.js';
+import { getForegroundProcess } from './foreground-process.js';
+import { isShell, shellQuote } from './shell-quote.js';
+import { sendBytesToPane } from './tmux-inject.js';
+import { sanitizeSession } from './pty.js';
 import pkg from '../../package.json' with { type: 'json' };
 
 const execFileAsync = promisify(execFile);
@@ -30,7 +35,20 @@ export interface HttpHandlerOptions {
   projectRoot: string;
   isCompiled?: boolean;
   sessionsStorePath: string;
+  dropStorage: DropStorage;
 }
+
+/** Bracketed paste — what the shell / Claude see as "the user pasted this".
+ *  Shells with bracketed-paste support insert the bytes literally and wait
+ *  for Enter; no accidental execution. */
+function bracketedPaste(text: string): string {
+  return `\x1b[200~${text}\x1b[201~`;
+}
+
+/** Per-session upload cap. 50 MiB — comfortably larger than typical
+ *  screenshots and small docs, small enough to not starve memory when
+ *  buffered in the HTTP handler before being written to disk. */
+const MAX_DROP_BYTES = 50 * 1024 * 1024;
 
 function debug(config: ServerConfig, ...args: unknown[]): void {
   if (config.debug) process.stderr.write(`[debug] ${args.join(' ')}\n`);
@@ -253,6 +271,94 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end('[]');
       }
+      return;
+    }
+
+    if (pathname === '/api/drop') {
+      if (req.method !== 'POST') {
+        res.writeHead(405);
+        res.end();
+        return;
+      }
+      const session = sanitizeSession(url.searchParams.get('session') || 'main');
+      // Browser encodes the original filename so arbitrary UTF-8 / special
+      // chars survive HTTP headers (which are latin-1 by default).
+      const rawNameHeader = req.headers['x-filename'];
+      let rawName = 'file';
+      if (typeof rawNameHeader === 'string' && rawNameHeader) {
+        try { rawName = decodeURIComponent(rawNameHeader); } catch { rawName = rawNameHeader; }
+      }
+
+      const chunks: Buffer[] = [];
+      let total = 0;
+      let tooBig = false;
+      try {
+        for await (const chunk of req) {
+          const buf = chunk as Buffer;
+          total += buf.length;
+          if (total > MAX_DROP_BYTES) { tooBig = true; break; }
+          chunks.push(buf);
+        }
+      } catch {
+        res.writeHead(400);
+        res.end('Read error');
+        return;
+      }
+      if (tooBig) {
+        res.writeHead(413);
+        res.end('Too large');
+        return;
+      }
+      const data = Buffer.concat(chunks);
+
+      let absolutePath: string;
+      let filename: string;
+      try {
+        const wrote = writeDrop(opts.dropStorage, session, rawName, data);
+        absolutePath = wrote.absolutePath;
+        filename = wrote.filename;
+      } catch (err) {
+        debug(config, `drop write failed: ${err}`);
+        res.writeHead(500);
+        res.end('Write failed');
+        return;
+      }
+
+      // Decide raw vs shell-quoted based on what's in the pane. Shells
+      // need the path wrapped so spaces / special chars don't split into
+      // multiple arguments when the user hits Enter. Claude Code and
+      // most TUIs accept the bare path and may refuse quoted forms.
+      let pastedText = absolutePath;
+      if (!config.testMode) {
+        try {
+          const fg = await getForegroundProcess(config.tmuxBin, session);
+          if (isShell(fg.exePath)) {
+            pastedText = shellQuote(absolutePath);
+          }
+        } catch {
+          // Foreground lookup failed — err on Claude's side (bare path).
+        }
+      }
+
+      if (!config.testMode) {
+        try {
+          await sendBytesToPane({
+            tmuxBin: config.tmuxBin,
+            target: session,
+            bytes: bracketedPaste(pastedText),
+          });
+        } catch (err) {
+          debug(config, `drop send-keys failed: ${err}`);
+          // File is already on disk; surface a 500 so the client can warn
+          // the user. The orphaned file will be TTL-swept.
+          res.writeHead(500);
+          res.end('Inject failed');
+          return;
+        }
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ path: absolutePath, filename, size: data.length }));
       return;
     }
 

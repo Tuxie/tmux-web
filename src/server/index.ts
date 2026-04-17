@@ -6,6 +6,7 @@ import { parseArgs } from 'util';
 import { tmpdir, userInfo } from 'os';
 import { createHttpHandler } from './http.js';
 import { createWsServer } from './ws.js';
+import { defaultDropStorage, cleanupAll as cleanupDrops } from './file-drop.js';
 import { generateSelfSignedCert } from './tls.js';
 import type { ServerConfig } from '../shared/types.js';
 import { DEFAULT_HOST, DEFAULT_PORT } from '../shared/constants.js';
@@ -190,6 +191,9 @@ Options:
     effectiveTmuxConfPath = path.join(projectRoot, 'tmux.conf');
   }
 
+  const dropStorage = defaultDropStorage();
+  process.on('exit', () => { cleanupDrops(dropStorage); });
+
   const handler = await createHttpHandler({
     config,
     htmlTemplate,
@@ -199,6 +203,7 @@ Options:
     projectRoot,
     isCompiled,
     sessionsStorePath,
+    dropStorage,
   });
 
   let server: http.Server | https.Server;

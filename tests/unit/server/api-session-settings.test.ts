@@ -34,6 +34,7 @@ async function makeHandler() {
     themesUserDir: tmp,
     themesBundledDir: tmp, projectRoot: tmp, isCompiled: false,
     sessionsStorePath: storePath,
+    dropStorage: { root: path.join(tmp, "drop"), maxFilesPerSession: 20, ttlMs: 60_000 },
   });
 }
 
