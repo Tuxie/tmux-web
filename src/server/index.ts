@@ -10,6 +10,7 @@ import { defaultDropStorage, cleanupAll as cleanupDrops } from './file-drop.js';
 import { generateSelfSignedCert } from './tls.js';
 import type { ServerConfig } from '../shared/types.js';
 import { DEFAULT_HOST, DEFAULT_PORT } from '../shared/constants.js';
+import { parseAllowOriginFlag } from './origin.js';
 import { embeddedAssets } from './assets-embedded.js';
 import pkg from '../../package.json' with { type: 'json' };
 
@@ -48,26 +49,25 @@ export function parseConfig(argv: string[]): ConfigResult {
   const { values: args } = parseArgs({
     args: argv,
     options: {
-      listen:       { type: 'string',  short: 'l', default: `${DEFAULT_HOST}:${DEFAULT_PORT}` },
-      // Temporary compatibility alias: accept legacy --terminal callers so
-      // strict arg parsing does not fail while backend selection is removed.
-      terminal:     { type: 'string' },
-      'allow-ip':   { type: 'string',  short: 'a', multiple: true, default: [] as string[] },
-      username:     { type: 'string',  short: 'u' },
-      password:     { type: 'string',  short: 'p' },
-      'no-auth':    { type: 'boolean', default: false },
-      tls:          { type: 'boolean', default: true },
-      'no-tls':     { type: 'boolean', default: false },
-      'tls-cert':   { type: 'string' },
-      'tls-key':    { type: 'string' },
-      'tmux':       { type: 'string',  default: 'tmux' },
-      'tmux-conf':  { type: 'string' },
-      'themes-dir': { type: 'string' },
-      'theme':      { type: 'string',  short: 't' },
-      test:         { type: 'boolean', default: false },
-      debug:        { type: 'boolean', short: 'd', default: false },
-      help:         { type: 'boolean', short: 'h', default: false },
-      version:      { type: 'boolean', short: 'V', default: false },
+      listen:         { type: 'string',  short: 'l', default: `${DEFAULT_HOST}:${DEFAULT_PORT}` },
+      terminal:       { type: 'string' },
+      'allow-ip':     { type: 'string',  short: 'i', multiple: true, default: [] as string[] },
+      'allow-origin': { type: 'string',  short: 'o', multiple: true, default: [] as string[] },
+      username:       { type: 'string',  short: 'u' },
+      password:       { type: 'string',  short: 'p' },
+      'no-auth':      { type: 'boolean', default: false },
+      tls:            { type: 'boolean', default: true },
+      'no-tls':       { type: 'boolean', default: false },
+      'tls-cert':     { type: 'string' },
+      'tls-key':      { type: 'string' },
+      'tmux':         { type: 'string',  default: 'tmux' },
+      'tmux-conf':    { type: 'string' },
+      'themes-dir':   { type: 'string' },
+      'theme':        { type: 'string',  short: 't' },
+      test:           { type: 'boolean', default: false },
+      debug:          { type: 'boolean', short: 'd', default: false },
+      help:           { type: 'boolean', short: 'h', default: false },
+      version:        { type: 'boolean', short: 'V', default: false },
     },
     strict: true,
   });
@@ -81,10 +81,17 @@ export function parseConfig(argv: string[]): ConfigResult {
   const username = args.username || process.env.TMUX_WEB_USERNAME || userInfo().username;
   const password = args.password || process.env.TMUX_WEB_PASSWORD;
 
+  const rawAllowIps = args['allow-ip'] as string[];
+  const allowedIps = new Set<string>(['127.0.0.1', '::1', ...rawAllowIps]);
+
+  const rawAllowOrigins = args['allow-origin'] as string[];
+  const allowedOrigins = rawAllowOrigins.map(parseAllowOriginFlag);
+
   const config: ServerConfig = {
     host,
     port,
-    allowedIps: new Set(args['allow-ip'] as string[]),
+    allowedIps,
+    allowedOrigins,
     tls: !!args.tls && !args['no-tls'],
     tlsCert: args['tls-cert'] as string | undefined,
     tlsKey: args['tls-key'] as string | undefined,
@@ -117,7 +124,7 @@ async function startServer() {
 
 Options:
   -l, --listen <host:port>     Address to listen on (default: ${DEFAULT_HOST}:${DEFAULT_PORT})
-  -a, --allow-ip <ip>          Allow IP address (repeatable; localhost always allowed)
+  -i, --allow-ip <ip>          Allow IP address (repeatable; 127.0.0.1/::1 always allowed)
   -u, --username <name>        HTTP Basic Auth username (default: $TMUX_WEB_USERNAME or current user)
   -p, --password <pass>        HTTP Basic Auth password (default: $TMUX_WEB_PASSWORD, required)
       --no-auth                Disable HTTP Basic Auth

@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test, describe } from "bun:test";
 import { parseConfig } from "../../../src/server/index.js";
 
 test("parseConfig returns default values", () => {
@@ -42,9 +42,9 @@ test("--help short-circuits parsing with help:true", () => {
   expect(r.config).toBeNull();
 });
 
-test("short flags: -a / -u / -p / -t / -d map to their long forms", () => {
+test("short flags: -i / -u / -p / -t / -d map to their long forms", () => {
   const { config } = parseConfig([
-    "-a", "10.0.0.1",
+    "-i", "10.0.0.1",
     "-u", "alice",
     "-p", "secret",
     "-t", "Amiga",
@@ -58,8 +58,37 @@ test("short flags: -a / -u / -p / -t / -d map to their long forms", () => {
   expect(config?.debug).toBe(true);
 });
 
-test("-a is repeatable for multiple allowed IPs", () => {
-  const { config } = parseConfig(["-a", "1.2.3.4", "-a", "5.6.7.8", "--no-auth"]);
+test("-i is repeatable for multiple allowed IPs", () => {
+  const { config } = parseConfig(["-i", "1.2.3.4", "-i", "5.6.7.8", "--no-auth"]);
   expect(config?.allowedIps.has("1.2.3.4")).toBe(true);
   expect(config?.allowedIps.has("5.6.7.8")).toBe(true);
+});
+
+describe("--allow-origin / --allow-ip defaults", () => {
+  test("defaults allowedIps to loopback (127.0.0.1 and ::1)", () => {
+    const { config } = parseConfig(["--no-auth"]);
+    expect(config?.allowedIps.has("127.0.0.1")).toBe(true);
+    expect(config?.allowedIps.has("::1")).toBe(true);
+  });
+  test("defaults allowedOrigins to empty", () => {
+    const { config } = parseConfig(["--no-auth"]);
+    expect(config?.allowedOrigins).toEqual([]);
+  });
+  test("accepts -i as short alias for --allow-ip (replaces legacy -a)", () => {
+    const { config } = parseConfig(["--no-auth", "-i", "10.0.0.5"]);
+    expect(config?.allowedIps.has("10.0.0.5")).toBe(true);
+  });
+  test("accepts -o as short alias for --allow-origin", () => {
+    const { config } = parseConfig(["--no-auth", "-o", "https://tmux.example.com"]);
+    expect(config?.allowedOrigins).toEqual([
+      { scheme: "https", host: "tmux.example.com", port: 443 },
+    ]);
+  });
+  test('accepts "-o *" wildcard', () => {
+    const { config } = parseConfig(["--no-auth", "-o", "*"]);
+    expect(config?.allowedOrigins).toEqual(["*"]);
+  });
+  test("throws on malformed --allow-origin", () => {
+    expect(() => parseConfig(["--no-auth", "-o", "not-a-url"])).toThrow();
+  });
 });
