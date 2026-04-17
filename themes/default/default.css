@@ -284,17 +284,12 @@ body {
 
 #menu-wrap { position: relative; }
 
+/* Settings menu shares the .tw-dropdown-menu styling — only the
+ * right-anchor and fixed min-width are settings-specific. */
 #menu-dropdown {
-  position: absolute;
+  right: 0; left: auto;
   top: calc(100% + 4px);
-  right: 0;
-  background: #262626;
-  border: 1px solid #555;
-  border-radius: 4px;
   min-width: 270px;
-  z-index: 100;
-  padding: 4px 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
 .menu-row:hover { background: #333; }
