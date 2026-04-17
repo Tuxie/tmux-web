@@ -66,9 +66,10 @@ export function _resetInotifyProbe(): void {
 const activeWatchers = new Map<string, ChildProcess>();
 
 /** Pub/sub for drop list mutations. The WS layer subscribes and pushes
- *  a `{dropsChanged: session}` TT message to clients on the matching
- *  session — replaces any client-side polling. */
-export type DropsChangeListener = (event: { session: string }) => void;
+ *  a `dropsChanged` TT message to every connected client — drops are a
+ *  per-user pool now (not partitioned by tmux session), so any change
+ *  is relevant to anyone watching. */
+export type DropsChangeListener = () => void;
 const listeners = new Set<DropsChangeListener>();
 
 export function onDropsChange(cb: DropsChangeListener): () => void {
@@ -76,9 +77,9 @@ export function onDropsChange(cb: DropsChangeListener): () => void {
   return () => listeners.delete(cb);
 }
 
-function emitChange(session: string): void {
+function emitChange(): void {
   for (const cb of listeners) {
-    try { cb({ session }); } catch { /* isolate one bad listener */ }
+    try { cb(); } catch { /* isolate one bad listener */ }
   }
 }
 
@@ -86,12 +87,9 @@ function emitChange(session: string): void {
  *  unlink the file and rmdir the parent drop-dir. Returns immediately.
  *  If inotifywait is unavailable or spawn fails, the drop survives
  *  until the TTL sweep picks it up. */
-function armAutoUnlink(session: string, dropDir: string, filePath: string): void {
+function armAutoUnlink(dropDir: string, filePath: string): void {
   if (activeWatchers.has(dropDir)) return;
   try {
-    // -q quiet, no -m → one-shot; exits on first matching event.
-    // close_write covers RW opens (rare), close_nowrite covers the
-    // common read-only consumer path (cat, cp, image viewers, etc.).
     const child = spawn('inotifywait', [
       '-q', '-e', 'close_write,close_nowrite', filePath,
     ], { stdio: ['ignore', 'ignore', 'ignore'] });
@@ -100,7 +98,7 @@ function armAutoUnlink(session: string, dropDir: string, filePath: string): void
       activeWatchers.delete(dropDir);
       try { fs.unlinkSync(filePath); } catch { /* already gone */ }
       try { fs.rmdirSync(dropDir); } catch { /* not empty / already gone */ }
-      emitChange(session);
+      emitChange();
     };
     child.on('exit', finish);
     child.on('error', () => { activeWatchers.delete(dropDir); });
@@ -136,21 +134,15 @@ function newDropId(): string {
   return `${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
 }
 
-function sessionDir(storage: DropStorage, session: string): string {
-  const dir = path.join(storage.root, session);
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  return dir;
-}
-
-/** Sweep the session root: any drop subdir whose mtime is older than the
+/** Sweep the storage root: any drop subdir whose mtime is older than the
  *  TTL is rm-rf'd. Then if more than maxFilesPerSession drops remain,
- *  the oldest are rm-rf'd until we're under the cap. Emits once per
- *  session if anything was removed. */
-function sweepSession(storage: DropStorage, session: string, sessionRoot: string): void {
+ *  the oldest are rm-rf'd until we're under the cap. Emits once if
+ *  anything was removed. */
+function sweepRoot(storage: DropStorage): void {
   let entries: Array<{ id: string; dir: string; mtime: number }>;
   try {
-    entries = fs.readdirSync(sessionRoot).map(id => {
-      const p = path.join(sessionRoot, id);
+    entries = fs.readdirSync(storage.root).map(id => {
+      const p = path.join(storage.root, id);
       const stat = fs.statSync(p);
       return { id, dir: p, mtime: stat.mtimeMs };
     });
@@ -175,7 +167,7 @@ function sweepSession(storage: DropStorage, session: string, sessionRoot: string
       removed++;
     }
   }
-  if (removed > 0) emitChange(session);
+  if (removed > 0) emitChange();
 }
 
 function rmDrop(dropDir: string): void {
@@ -198,23 +190,22 @@ export interface WriteDropResult {
   size: number;
 }
 
-/** Persist a dropped file under `<session>/<dropId>/<originalName>`.
- *  The per-drop subdir keeps the original filename intact so commands
- *  like `cp (path) ~/Downloads/` produce a file with the user's
- *  expected name. Runs opportunistic sweep on every drop so the
- *  session root stays bounded. */
+/** Persist a dropped file under `<root>/<dropId>/<originalName>`. The
+ *  per-drop subdir keeps the original filename intact so commands like
+ *  `cp (path) ~/Downloads/` produce a file with the user's expected
+ *  name. Runs an opportunistic sweep on every drop so the root stays
+ *  bounded. */
 export function writeDrop(
   storage: DropStorage,
-  session: string,
   rawName: string,
   data: Uint8Array | Buffer,
 ): WriteDropResult {
-  const sroot = sessionDir(storage, session);
-  sweepSession(storage, session, sroot);
+  fs.mkdirSync(storage.root, { recursive: true, mode: 0o700 });
+  sweepRoot(storage);
 
   const filename = sanitiseFilename(rawName);
   const dropId = newDropId();
-  const dropDir = path.join(sroot, dropId);
+  const dropDir = path.join(storage.root, dropId);
   fs.mkdirSync(dropDir, { mode: 0o700 });
   const absolutePath = path.join(dropDir, filename);
 
@@ -226,10 +217,10 @@ export function writeDrop(
   }
 
   if (storage.autoUnlinkOnClose) {
-    armAutoUnlink(session, dropDir, absolutePath);
+    armAutoUnlink(dropDir, absolutePath);
   }
 
-  emitChange(session);
+  emitChange();
   return { dropId, absolutePath, filename, size: data.byteLength };
 }
 
@@ -241,15 +232,14 @@ export interface ListedDrop {
   mtime: string; // ISO 8601
 }
 
-/** List current drops for a session, newest-first. Each drop is a
- *  subdir containing a single file; we report the inner file's name,
- *  size, and mtime but key actions (revoke, etc.) on the subdir id. */
-export function listDrops(storage: DropStorage, session: string): ListedDrop[] {
-  const sroot = path.join(storage.root, session);
-  if (!fs.existsSync(sroot)) return [];
+/** List all current drops, newest-first. Each drop is a subdir
+ *  containing a single file; we report the inner file's name, size,
+ *  and mtime but key actions (revoke, etc.) on the subdir id. */
+export function listDrops(storage: DropStorage): ListedDrop[] {
+  if (!fs.existsSync(storage.root)) return [];
   const entries: Array<ListedDrop & { sortKey: number }> = [];
-  for (const id of fs.readdirSync(sroot)) {
-    const dir = path.join(sroot, id);
+  for (const id of fs.readdirSync(storage.root)) {
+    const dir = path.join(storage.root, id);
     let stat: fs.Stats;
     try { stat = fs.statSync(dir); } catch { continue; }
     if (!stat.isDirectory()) continue;
@@ -275,28 +265,20 @@ export function listDrops(storage: DropStorage, session: string): ListedDrop[] {
 
 /** Remove a drop by id (rm -rf its subdir). Returns true if the subdir
  *  existed. Rejects ids that contain path separators or resolve outside
- *  the session root. */
-export function deleteDrop(storage: DropStorage, session: string, dropId: string): boolean {
+ *  the storage root. */
+export function deleteDrop(storage: DropStorage, dropId: string): boolean {
   if (typeof dropId !== 'string' || dropId === '' || dropId.includes('/') || dropId.includes('\\')) {
     return false;
   }
-  const sroot = path.join(storage.root, session);
-  const target = path.join(sroot, dropId);
-  if (!target.startsWith(sroot + path.sep)) return false;
+  const target = path.join(storage.root, dropId);
+  if (!target.startsWith(storage.root + path.sep)) return false;
   if (!fs.existsSync(target)) return false;
   rmDrop(target);
-  emitChange(session);
+  emitChange();
   return true;
 }
 
-/** Remove a session's drop dir entirely (e.g. on WS disconnect). */
-export function cleanupSession(storage: DropStorage, session: string): void {
-  const dir = path.join(storage.root, session);
-  try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
-  emitChange(session);
-}
-
-/** Remove every session dir under the storage root. Call once on server
+/** Remove every drop under the storage root. Call once on server
  *  shutdown to avoid leaving drops around across restarts. Also stops
  *  any pending auto-unlink watchers. */
 export function cleanupAll(storage: DropStorage): void {

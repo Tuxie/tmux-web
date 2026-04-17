@@ -314,8 +314,8 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
       }
       // Re-resolve the drop from the store rather than trusting any path
       // on the query — guarantees we only paste paths that still exist
-      // and are inside the session's drop dir.
-      const drops = listDrops(opts.dropStorage, session);
+      // and are inside the drop store root.
+      const drops = listDrops(opts.dropStorage);
       const hit = drops.find(d => d.dropId === id);
       if (!hit) {
         res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -342,28 +342,27 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
     }
 
     if (pathname === '/api/drops') {
-      const session = sanitizeSession(url.searchParams.get('session') || 'main');
       if (req.method === 'GET') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ drops: listDrops(opts.dropStorage, session) }));
+        res.end(JSON.stringify({ drops: listDrops(opts.dropStorage) }));
         return;
       }
       if (req.method === 'DELETE') {
         const id = url.searchParams.get('id');
         if (id) {
           // Single-drop revoke. deleteDrop rejects anything with path
-          // separators or that resolves outside the session root.
-          const ok = deleteDrop(opts.dropStorage, session, id);
+          // separators or that resolves outside the storage root.
+          const ok = deleteDrop(opts.dropStorage, id);
           res.writeHead(ok ? 200 : 404, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ deleted: ok, id }));
           return;
         }
         // Purge-all: list first, then remove by id so the watcher map
         // stays consistent.
-        const before = listDrops(opts.dropStorage, session);
+        const before = listDrops(opts.dropStorage);
         let count = 0;
         for (const d of before) {
-          if (deleteDrop(opts.dropStorage, session, d.dropId)) count++;
+          if (deleteDrop(opts.dropStorage, d.dropId)) count++;
         }
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ purged: count }));
@@ -414,7 +413,7 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
       let absolutePath: string;
       let filename: string;
       try {
-        const wrote = writeDrop(opts.dropStorage, session, rawName, data);
+        const wrote = writeDrop(opts.dropStorage, rawName, data);
         absolutePath = wrote.absolutePath;
         filename = wrote.filename;
       } catch (err) {

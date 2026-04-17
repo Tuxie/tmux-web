@@ -57,22 +57,22 @@ function call(handler: any, opts: { method: string; url: string }): Promise<{ st
 }
 
 describe("/api/drops", () => {
-  test("GET returns empty list for a fresh session", async () => {
+  test("GET returns empty list when no drops", async () => {
     const h = await makeHandler();
-    const r = await call(h, { method: "GET", url: "/api/drops?session=main" });
+    const r = await call(h, { method: "GET", url: "/api/drops" });
     expect(r.status).toBe(200);
     expect(JSON.parse(r.body)).toEqual({ drops: [] });
   });
 
   test("GET lists existing drops newest-first with dropId and original filename", async () => {
-    const a = writeDrop(storage, "main", "a.txt", Buffer.from("aa"));
-    const b = writeDrop(storage, "main", "b.txt", Buffer.from("bbbb"));
+    const a = writeDrop(storage, "a.txt", Buffer.from("aa"));
+    const b = writeDrop(storage, "b.txt", Buffer.from("bbbb"));
     const now = Date.now();
     fs.utimesSync(a.absolutePath, (now - 2000) / 1000, (now - 2000) / 1000);
     fs.utimesSync(b.absolutePath, (now - 1000) / 1000, (now - 1000) / 1000);
 
     const h = await makeHandler();
-    const r = await call(h, { method: "GET", url: "/api/drops?session=main" });
+    const r = await call(h, { method: "GET", url: "/api/drops" });
     const body = JSON.parse(r.body) as {
       drops: Array<{ dropId: string; filename: string; size: number }>;
     };
@@ -84,45 +84,43 @@ describe("/api/drops", () => {
   });
 
   test("DELETE with ?id= removes one drop (whole subdir)", async () => {
-    const a = writeDrop(storage, "main", "f", Buffer.from("x"));
+    const a = writeDrop(storage, "f", Buffer.from("x"));
     const h = await makeHandler();
     const r = await call(h, {
       method: "DELETE",
-      url: `/api/drops?session=main&id=${encodeURIComponent(a.dropId)}`,
+      url: `/api/drops?id=${encodeURIComponent(a.dropId)}`,
     });
     expect(r.status).toBe(200);
     expect(JSON.parse(r.body)).toEqual({ deleted: true, id: a.dropId });
     expect(fs.existsSync(path.dirname(a.absolutePath))).toBe(false);
   });
 
-  test("DELETE with no id purges the session dir and reports count", async () => {
-    writeDrop(storage, "main", "a", Buffer.from("a"));
-    writeDrop(storage, "main", "b", Buffer.from("b"));
-    writeDrop(storage, "other", "c", Buffer.from("c"));
+  test("DELETE with no id purges all drops and reports the count", async () => {
+    writeDrop(storage, "a", Buffer.from("a"));
+    writeDrop(storage, "b", Buffer.from("b"));
 
     const h = await makeHandler();
-    const r = await call(h, { method: "DELETE", url: "/api/drops?session=main" });
+    const r = await call(h, { method: "DELETE", url: "/api/drops" });
     expect(r.status).toBe(200);
     expect(JSON.parse(r.body)).toEqual({ purged: 2 });
-    expect(fs.readdirSync(path.join(storage.root, "main"))).toHaveLength(0);
-    expect(fs.readdirSync(path.join(storage.root, "other"))).toHaveLength(1);
+    expect(fs.readdirSync(storage.root)).toHaveLength(0);
   });
 
   test("DELETE of a non-existent id returns 404 but doesn't crash", async () => {
     const h = await makeHandler();
     const r = await call(h, {
       method: "DELETE",
-      url: "/api/drops?session=main&id=nothing-here",
+      url: "/api/drops?id=nothing-here",
     });
     expect(r.status).toBe(404);
   });
 
   test("DELETE rejects an id that contains path separators (defence in depth)", async () => {
-    const victim = writeDrop(storage, "other", "victim", Buffer.from("x"));
+    const victim = writeDrop(storage, "victim", Buffer.from("x"));
     const h = await makeHandler();
     const r = await call(h, {
       method: "DELETE",
-      url: "/api/drops?session=main&id=" + encodeURIComponent("../other/" + victim.dropId),
+      url: "/api/drops?id=" + encodeURIComponent("../" + victim.dropId),
     });
     expect(r.status).toBe(404);
     expect(fs.existsSync(path.dirname(victim.absolutePath))).toBe(true);
@@ -130,14 +128,14 @@ describe("/api/drops", () => {
 
   test("unsupported methods return 405", async () => {
     const h = await makeHandler();
-    const r = await call(h, { method: "PATCH", url: "/api/drops?session=main" });
+    const r = await call(h, { method: "PATCH", url: "/api/drops" });
     expect(r.status).toBe(405);
   });
 });
 
 describe("/api/drops/paste", () => {
   test("POST with a live drop returns 200 and echoes the path", async () => {
-    const d = writeDrop(storage, "main", "foo.png", Buffer.from("x"));
+    const d = writeDrop(storage, "foo.png", Buffer.from("x"));
     const h = await makeHandler();
     const r = await call(h, {
       method: "POST",

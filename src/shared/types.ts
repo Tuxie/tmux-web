@@ -65,11 +65,11 @@ export interface ServerMessage {
    *  for current clipboard contents. Client replies with
    *  `{type:'clipboard-read-reply', ...}`. */
   clipboardReadRequest?: { reqId: string };
-  /** Fired server-side whenever the session's set of dropped files
-   *  changes (new drop, auto-unlink on close, TTL sweep, ring-buffer
-   *  trim, explicit revoke / purge). Client refreshes its drops panel
-   *  on receipt — replaces any client-side polling. */
-  dropsChanged?: { session: string };
+  /** Fired server-side whenever the set of dropped files changes (new
+   *  drop, auto-unlink on close, TTL sweep, ring-buffer trim, explicit
+   *  revoke / purge). Drops are a per-user pool (not partitioned by
+   *  tmux session), so every attached client refreshes on receipt. */
+  dropsChanged?: true;
 }
 
 /** Client-to-server resize message. */

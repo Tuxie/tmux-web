@@ -226,13 +226,12 @@ function handleConnection(
   const newReqId = (): string => `r${Date.now().toString(36)}${(nextReqId++).toString(36)}`;
 
   // Forward drop-list mutations (new drop, auto-unlink on close, TTL
-  // sweep, revoke, purge) to this client as a `dropsChanged` TT message.
-  // Filter on the connection's current session so a drop in session A
-  // doesn't refresh session B's panel. Unsubscribed on ws close below.
-  const unsubscribeDrops = onDropsChange(({ session: changed }) => {
-    if (changed !== lastSession) return;
+  // sweep, revoke, purge) to this client. Drops are a per-user pool
+  // (not partitioned by tmux session) so every attached client sees
+  // every change. Unsubscribed on ws close below.
+  const unsubscribeDrops = onDropsChange(() => {
     if (ws.readyState !== WebSocket.OPEN) return;
-    ws.send(frameTTMessage({ dropsChanged: { session: changed } }));
+    ws.send(frameTTMessage({ dropsChanged: true }));
   });
 
   /** Respond to the PTY for an OSC 52 read. Empty base64 = denied/empty

@@ -77,7 +77,7 @@ export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promis
         revoke.disabled = true;
         try {
           const res = await fetch(
-            `/api/drops?session=${encodeURIComponent(opts.getSession())}&id=${encodeURIComponent(d.dropId)}`,
+            `/api/drops?id=${encodeURIComponent(d.dropId)}`,
             { method: 'DELETE' },
           );
           if (res.ok) {
@@ -119,7 +119,7 @@ export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promis
 
   const refresh = async (): Promise<void> => {
     try {
-      const res = await fetch(`/api/drops?session=${encodeURIComponent(opts.getSession())}`);
+      const res = await fetch(`/api/drops`);
       if (!res.ok) return;
       const body = await res.json() as { drops: DropInfo[] };
       render(body.drops);
@@ -137,10 +137,7 @@ export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promis
     ev.preventDefault();
     purgeBtn.disabled = true;
     try {
-      const res = await fetch(
-        `/api/drops?session=${encodeURIComponent(opts.getSession())}`,
-        { method: 'DELETE' },
-      );
+      const res = await fetch(`/api/drops`, { method: 'DELETE' });
       if (res.ok) {
         const body = await res.json() as { purged: number };
         showToast(`Purged ${body.purged} drop${body.purged === 1 ? '' : 's'}`);
