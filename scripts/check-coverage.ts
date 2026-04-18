@@ -56,8 +56,11 @@ if (files.length === 0) {
 let totalFound = 0, totalHit = 0;
 const failures: string[] = [];
 
+const EXCLUDE_PREFIXES = ['tests/'];
+
 for (const f of files) {
   if (EXCLUDES.has(f.path)) continue;
+  if (EXCLUDE_PREFIXES.some(p => f.path.startsWith(p))) continue;
   totalFound += f.lines.found;
   totalHit += f.lines.hit;
   const l = pct(f.lines.hit, f.lines.found);
