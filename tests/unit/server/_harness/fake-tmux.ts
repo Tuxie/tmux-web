@@ -48,7 +48,10 @@ case "$1" in
     # the client WebSocket has time to finish its handshake (server-side
     # PTY onData drops data when ws.readyState != OPEN).
     if [ -f "${dir}/trigger" ]; then
-      (sleep 0.3; cat "${dir}/trigger") &
+      # Short delay so the server-side ws has reached OPEN (PTY onData drops
+      # bytes before that). 150ms is a comfortable margin on localhost —
+      # going lower occasionally loses the trigger bytes.
+      (sleep 0.15; cat "${dir}/trigger") &
     fi
     # Read stdin in background and forward to stdout (so client-sent bytes
     # round-trip, enabling OSC 52 detection in processData).
