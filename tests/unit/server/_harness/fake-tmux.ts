@@ -41,12 +41,14 @@ case "$1" in
     trap 'exit 0' TERM INT HUP
     # Put PTY into raw mode so control bytes (ESC) pass through unchanged —
     # tests for OSC 52 read depend on raw-byte round-tripping.
+    # Explicitly set raw attributes. Double up for reliability.
+    stty -icanon -echo -onlcr -icrnl -inlcr -igncr -ixon -ixoff -istrip -opost min 1 time 0 2>/dev/null || true
     stty raw -echo 2>/dev/null || true
     # If a trigger file exists, emit its contents after a short delay so
     # the client WebSocket has time to finish its handshake (server-side
     # PTY onData drops data when ws.readyState != OPEN).
     if [ -f "${dir}/trigger" ]; then
-      (sleep 0.5; cat "${dir}/trigger") &
+      (sleep 0.3; cat "${dir}/trigger") &
     fi
     # Read stdin in background and forward to stdout (so client-sent bytes
     # round-trip, enabling OSC 52 detection in processData).

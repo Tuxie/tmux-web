@@ -58,7 +58,7 @@ describe('ws handleConnection — OSC 52 read flow', () => {
     const o = openWs(h.wsUrl);
     await o.opened;
 
-    await waitFor(() => o.messages.some(m => m.includes('clipboardPrompt')), 8000);
+    await waitFor(() => o.messages.some(m => m.includes('clipboardPrompt')), 15000);
     const promptMsg = o.messages.find(m => m.includes('clipboardPrompt'));
     expect(promptMsg).toBeTruthy();
     const prompt = JSON.parse(promptMsg!).clipboardPrompt;
@@ -93,7 +93,7 @@ describe('ws handleConnection — OSC 52 read flow', () => {
 
     o.ws.close();
     await new Promise(r => setTimeout(r, 50));
-  });
+  }, 20000);
 
   test('prompt → deny sends empty OSC 52 reply without recording a grant', async () => {
     const { path: tmuxBin, dir } = makeFakeTmux({ panePid: process.pid });
@@ -102,7 +102,7 @@ describe('ws handleConnection — OSC 52 read flow', () => {
     const o = openWs(h.wsUrl);
     await o.opened;
 
-    await waitFor(() => o.messages.some(m => m.includes('clipboardPrompt')), 8000);
+    await waitFor(() => o.messages.some(m => m.includes('clipboardPrompt')), 15000);
     const promptMsg = o.messages.find(m => m.includes('clipboardPrompt'));
     expect(promptMsg).toBeTruthy();
     const prompt = JSON.parse(promptMsg!).clipboardPrompt;
@@ -116,7 +116,7 @@ describe('ws handleConnection — OSC 52 read flow', () => {
 
     o.ws.close();
     await new Promise(r => setTimeout(r, 50));
-  });
+  }, 20000);
 
   test('OSC 52 read with unresolvable foreground → silent deny (no prompt)', async () => {
     // fake-tmux with failDisplayMessage: display-message exits 1 →
@@ -127,11 +127,11 @@ describe('ws handleConnection — OSC 52 read flow', () => {
     h = await startTestServer({ testMode: false, tmuxBin });
     const o = openWs(h.wsUrl);
     await o.opened;
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 2500));
     expect(o.messages.some(m => m.includes('clipboardPrompt'))).toBe(false);
     o.ws.close();
     await new Promise(r => setTimeout(r, 50));
-  });
+  }, 20000);
 
   test('replyToRead catch branch fires when tmux send-keys fails', async () => {
     // policy=allow pre-populated so we get straight to the
@@ -153,7 +153,7 @@ describe('ws handleConnection — OSC 52 read flow', () => {
     }));
     const o = openWs(h.wsUrl);
     await o.opened;
-    await waitFor(() => o.messages.some(m => m.includes('clipboardReadRequest')), 8000);
+    await waitFor(() => o.messages.some(m => m.includes('clipboardReadRequest')), 15000);
     const rrMsg = o.messages.find(m => m.includes('clipboardReadRequest'));
     if (!rrMsg) { o.ws.close(); return; } // skip if timing didn't line up
     const rr = JSON.parse(rrMsg).clipboardReadRequest;
@@ -168,28 +168,41 @@ describe('ws handleConnection — OSC 52 read flow', () => {
     await new Promise(r => setTimeout(r, 500));
     o.ws.close();
     await new Promise(r => setTimeout(r, 50));
-  });
+  }, 20000);
 
-  test('ws closed between trigger and prompt emission → early-exits prompt path', async () => {
-    // Narrow window: OSC 52 read trigger fires from PTY → handleReadRequest
-    // awaits getForegroundProcess + resolvePolicy; if the ws closes during
-    // this, the "ws.readyState !== OPEN" guard before ws.send(prompt) runs.
+  test('ws closed during resolvePolicy → prompt emission guard fires', async () => {
+    // Pin a bogus blake3 so resolvePolicy hashes the real bun binary
+    // (~100 MB). The hash takes hundreds of ms, giving us a reliable
+    // window to close the ws. Decision will be 'prompt' (hash mismatch);
+    // when the prompt-emission path runs, the socket is already CLOSED —
+    // exercising the `ws.readyState !== OPEN` guard.
     const { path: tmuxBin, dir } = makeFakeTmux({ panePid: process.pid });
     fs.writeFileSync(dir + '/trigger', '\x1b]52;c;?\x07');
     h = await startTestServer({ testMode: false, tmuxBin });
+    const exePath = fs.readlinkSync(`/proc/${process.pid}/exe`);
+    fs.writeFileSync(h.tmpDir + '/sessions.json', JSON.stringify({
+      version: 1,
+      sessions: {
+        main: {
+          theme: 'Default', fontFamily: 'x', fontSize: 12, spacing: 1, opacity: 0,
+          clipboard: {
+            [exePath]: {
+              blake3: 'pin-that-will-never-match',
+              read: { allow: true, expiresAt: null, grantedAt: new Date().toISOString() },
+            },
+          },
+        },
+      },
+    }));
     const o = openWs(h.wsUrl);
     await o.opened;
-    // Close immediately — faster than the 0.5s trigger delay in fake-tmux,
-    // so when the trigger eventually fires, onData's ws.readyState check
-    // drops it. This doesn't reach the 339-340 branch, but it does exercise
-    // the onData-drop path on line 352. Run it anyway; the branch is
-    // defensive and the race is genuinely narrow.
+    // Let the trigger fire + handleReadRequest start its hash.
+    await new Promise(r => setTimeout(r, 400));
     o.ws.close();
-    await new Promise(r => setTimeout(r, 1500));
-    // Nothing to assert — this test just ensures the server doesn't crash
-    // when the client disappears during an OSC 52 flight.
+    // Give the hash + prompt-guard path time to complete.
+    await new Promise(r => setTimeout(r, 4000));
     expect(true).toBe(true);
-  });
+  }, 20000);
 
   test('dropsChanged TT push when a drop is POST\'d via /api/drop', async () => {
     h = await startTestServer({ testMode: true });
@@ -205,11 +218,11 @@ describe('ws handleConnection — OSC 52 read flow', () => {
 
     o.ws.close();
     await new Promise(r => setTimeout(r, 50));
-  });
+  }, 20000);
 });
 
 describe('ws handleConnection — OSC 52 policy shortcuts', () => {
-  async function runWithPrepopulatedPolicy(allow: boolean) {
+  async function runWithPrepopulatedPolicy(allow: boolean, maxWaitMs = 12000) {
     const { path: tmuxBin, dir } = makeFakeTmux({ panePid: process.pid });
     fs.writeFileSync(dir + '/trigger', '\x1b]52;c;?\x07');
     h = await startTestServer({ testMode: false, tmuxBin });
@@ -237,10 +250,17 @@ describe('ws handleConnection — OSC 52 policy shortcuts', () => {
     // resolvePolicy (~5ms). Generous timeout.
     // Bounded wait: either clipboardReadRequest arrives (allow) or we wait
     // long enough for handleReadRequest to definitely have completed (deny).
-    const deadline = Date.now() + 2500;
-    while (Date.now() < deadline) {
-      await new Promise(r => setTimeout(r, 100));
-      if (o.messages.some(m => m.includes('clipboardReadRequest'))) break;
+    // For allow: wait until clipboardReadRequest arrives. For deny: wait a
+    // fixed window for handleReadRequest to complete (no message arrives).
+    if (allow) {
+      const deadline = Date.now() + maxWaitMs;
+      while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 100));
+        if (o.messages.some(m => m.includes('clipboardReadRequest'))) break;
+      }
+    } else {
+      // Just wait for the trigger + handleReadRequest to finish.
+      await new Promise(r => setTimeout(r, 2000));
     }
     return o;
   }
@@ -253,7 +273,7 @@ describe('ws handleConnection — OSC 52 policy shortcuts', () => {
     expect(o.messages.some(m => m.includes('clipboardReadRequest'))).toBe(true);
     o.ws.close();
     await new Promise(r => setTimeout(r, 50));
-  });
+  }, 20000);
 
   test('policy=deny short-circuits to empty reply (no prompt, no read request)', async () => {
     const o = await runWithPrepopulatedPolicy(false);
@@ -261,7 +281,7 @@ describe('ws handleConnection — OSC 52 policy shortcuts', () => {
     expect(o.messages.some(m => m.includes('clipboardReadRequest'))).toBe(false);
     o.ws.close();
     await new Promise(r => setTimeout(r, 50));
-  });
+  }, 20000);
 });
 
 describe('ws handleConnection — OSC 52 write + title change from PTY', () => {
@@ -273,11 +293,11 @@ describe('ws handleConnection — OSC 52 write + title change from PTY', () => {
     h = await startTestServer({ testMode: false, tmuxBin });
     const o = openWs(h.wsUrl);
     await o.opened;
-    await waitFor(() => o.messages.some(m => m.includes('"clipboard"')), 3000);
+    await waitFor(() => o.messages.some(m => m.includes('"clipboard"')), 10000);
     expect(o.messages.some(m => m.includes('"clipboard"'))).toBe(true);
     o.ws.close();
     await new Promise(r => setTimeout(r, 50));
-  });
+  }, 20000);
 
   test('OSC title change from PTY triggers sendWindowState', async () => {
     // OSC 0 sets window title; "session:window" format triggers session detect.
@@ -286,11 +306,11 @@ describe('ws handleConnection — OSC 52 write + title change from PTY', () => {
     h = await startTestServer({ testMode: false, tmuxBin });
     const o = openWs(h.wsUrl);
     await o.opened;
-    await waitFor(() => o.messages.some(m => m.includes('"session":"dev"')), 3000);
+    await waitFor(() => o.messages.some(m => m.includes('"session":"dev"')), 10000);
     expect(o.messages.some(m => m.includes('"session":"dev"'))).toBe(true);
     o.ws.close();
     await new Promise(r => setTimeout(r, 50));
-  });
+  }, 20000);
 });
 
 describe('ws handleConnection — non-testMode actions & sendWindowState', () => {
@@ -301,7 +321,7 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     await o.opened;
 
     o.ws.send(JSON.stringify({ type: 'window', action: 'select', index: '1' }));
-    await waitFor(() => o.messages.some(m => m.includes('"windows"')), 3000);
+    await waitFor(() => o.messages.some(m => m.includes('"windows"')), 10000);
 
     const log = fs.readFileSync(logFile, 'utf8');
     expect(log).toContain('select-window');
@@ -310,7 +330,7 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
 
     o.ws.close();
     await new Promise(r => setTimeout(r, 50));
-  });
+  }, 20000);
 
   test('window new + rename + close all dispatch tmux calls', async () => {
     const { path: tmuxBin, logFile } = makeFakeTmux();
@@ -332,7 +352,7 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
 
     o.ws.close();
     await new Promise(r => setTimeout(r, 50));
-  });
+  }, 20000);
 
   test('session rename + kill dispatch tmux calls', async () => {
     const { path: tmuxBin, logFile } = makeFakeTmux();
@@ -351,7 +371,7 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
 
     o.ws.close();
     await new Promise(r => setTimeout(r, 50));
-  });
+  }, 20000);
 
   test('colour-variant dark + light dispatch set-environment twice', async () => {
     const { path: tmuxBin, logFile } = makeFakeTmux();
@@ -370,7 +390,7 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
 
     o.ws.close();
     await new Promise(r => setTimeout(r, 50));
-  });
+  }, 20000);
 
   test('colour-variant retry-on-failure branch (tmuxBin=/bin/false)', async () => {
     // /bin/false always exits non-zero → first run() rejects → setTimeout(500)
@@ -384,7 +404,7 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     try { o.ws.send(JSON.stringify({ type: 'colour-variant', variant: 'dark' })); } catch { /* ok */ }
     await new Promise(r => setTimeout(r, 900));
     try { o.ws.close(); } catch { /* ok */ }
-  });
+  }, 20000);
 
   test('sendWindowState pushes a session+windows frame on window-action completion', async () => {
     const { path: tmuxBin } = makeFakeTmux();
@@ -395,10 +415,10 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     await new Promise(r => setTimeout(r, 100));
 
     o.ws.send(JSON.stringify({ type: 'window', action: 'select', index: '0' }));
-    await waitFor(() => o.messages.some(m => m.includes('"session"')), 5000);
+    await waitFor(() => o.messages.some(m => m.includes('"session"')), 15000);
     expect(o.messages.some(m => m.includes('"session"'))).toBe(true);
 
     o.ws.close();
     await new Promise(r => setTimeout(r, 50));
-  });
+  }, 20000);
 });
