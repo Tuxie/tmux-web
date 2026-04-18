@@ -12,6 +12,8 @@
     "test": "bun test && node node_modules/.bin/playwright test",
     "test:unit": "bun test",
     "test:e2e": "node node_modules/.bin/playwright test",
+    "coverage": "bun test --coverage",
+    "coverage:check": "bun run scripts/check-coverage.ts",
     "start": "bun src/server/index.ts"
   },
   "dependencies": {
