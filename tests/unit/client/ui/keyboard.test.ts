@@ -78,4 +78,47 @@ describe('keyboard handler', () => {
     dispatch(fakeKeyEvent({ key: 'Enter', shift: true, ctrl: true }));
     expect(sent).toEqual([]);
   });
+
+  test('Cmd+R stops propagation (passthrough to browser)', () => {
+    const ev = fakeKeyEvent({ key: 'R', meta: true });
+    dispatch(ev);
+    expect((ev as any)._propagated).toBe(false);
+    expect(sent).toEqual([]);
+  });
+
+  test('Cmd+F calls toggleFullscreen and prevents default', () => {
+    let toggled = 0;
+    uninstall(); // tear down the pre-installed one
+    fired = [];
+    uninstall = installKeyboardHandler({
+      terminalElement: null as any,
+      send: (s) => sent.push(s),
+      toggleFullscreen: () => { toggled++; },
+    });
+    const ev = fakeKeyEvent({ key: 'f', meta: true });
+    dispatch(ev);
+    expect(toggled).toBe(1);
+    expect((ev as any)._prevented).toBe(true);
+    expect((ev as any)._propagated).toBe(false);
+  });
+
+  test('Ctrl+R (with Cmd too) does NOT intercept as browser shortcut', () => {
+    // branch: metaKey && ctrlKey → skip
+    const ev = fakeKeyEvent({ key: 'r', meta: true, ctrl: true });
+    dispatch(ev);
+    expect((ev as any)._propagated).toBe(true);
+  });
+
+  test('uninstall removes the listener', () => {
+    let removed = 0;
+    (document as any).removeEventListener = () => { removed++; };
+    uninstall();
+    expect(removed).toBe(1);
+    // Re-install one for afterEach tear-down
+    uninstall = installKeyboardHandler({
+      terminalElement: null as any,
+      send: (s) => sent.push(s),
+      toggleFullscreen: () => {},
+    });
+  });
 });

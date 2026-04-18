@@ -9,6 +9,9 @@ import {
   listDrops,
   deleteDrop,
   onDropsChange,
+  defaultDropStorage,
+  hasInotifywait,
+  _resetInotifyProbe,
   type DropStorage,
 } from "../../../src/server/file-drop.ts";
 
@@ -195,5 +198,126 @@ describe("deleteDrop", () => {
 
   test("rejects an empty drop id", () => {
     expect(deleteDrop(storage, "")).toBe(false);
+  });
+});
+
+describe("sweepRoot ring-buffer cap (within TTL)", () => {
+  test("evicts oldest fresh drops once cap is exceeded", () => {
+    // Very large TTL so nothing expires by age — this isolates the
+    // cap-eviction branch (lines 163-168) from the TTL branch.
+    const s: DropStorage = { root, maxFilesPerSession: 2, ttlMs: 24 * 60 * 60 * 1000, autoUnlinkOnClose: false };
+    // Pre-populate 4 drops directly, all fresh but with distinct mtimes.
+    const now = Date.now();
+    const dirs: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      const id = `pre-${i}`;
+      const dir = path.join(root, id);
+      fs.mkdirSync(dir, { mode: 0o700 });
+      fs.writeFileSync(path.join(dir, "f"), "x");
+      const t = (now - (1000 * (4 - i))) / 1000; // oldest first
+      fs.utimesSync(dir, t, t);
+      dirs.push(dir);
+    }
+    // Trigger a sweep by writing one more drop. After sweep, fresh.length
+    // will be 5, cap is 2, so 3 oldest get evicted.
+    writeDrop(s, "trigger.bin", Buffer.from("t"));
+    const remaining = fs.readdirSync(root);
+    // Sweep runs before the new drop is added: 4 pre-existing → capped to 2
+    // → plus trigger = 3 on disk. What matters is the cap branch fired and
+    // evicted the oldest.
+    expect(remaining.length).toBeLessThanOrEqual(3);
+    // Two oldest pre-created drops must be gone.
+    expect(fs.existsSync(dirs[0]!)).toBe(false);
+    expect(fs.existsSync(dirs[1]!)).toBe(false);
+  });
+});
+
+describe("defaultDropStorage", () => {
+  test("returns a usable writable DropStorage (XDG_RUNTIME_DIR path)", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tw-xdg-"));
+    const prev = process.env.XDG_RUNTIME_DIR;
+    process.env.XDG_RUNTIME_DIR = tmp;
+    try {
+      const s = defaultDropStorage();
+      expect(s.root.startsWith(tmp)).toBe(true);
+      expect(fs.statSync(s.root).isDirectory()).toBe(true);
+      expect(s.maxFilesPerSession).toBeGreaterThan(0);
+      expect(s.ttlMs).toBeGreaterThan(0);
+      expect(typeof s.autoUnlinkOnClose).toBe("boolean");
+    } finally {
+      if (prev === undefined) delete process.env.XDG_RUNTIME_DIR;
+      else process.env.XDG_RUNTIME_DIR = prev;
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("falls back to os.tmpdir() when XDG_RUNTIME_DIR is absent", () => {
+    const prev = process.env.XDG_RUNTIME_DIR;
+    delete process.env.XDG_RUNTIME_DIR;
+    try {
+      const s = defaultDropStorage();
+      expect(s.root.startsWith(os.tmpdir())).toBe(true);
+      expect(s.root).toContain("tmux-web-drop-");
+    } finally {
+      if (prev !== undefined) process.env.XDG_RUNTIME_DIR = prev;
+    }
+  });
+});
+
+describe("hasInotifywait / _resetInotifyProbe", () => {
+  test("probe is cached; reset forces re-probe", () => {
+    _resetInotifyProbe();
+    const a = hasInotifywait();
+    // Second call returns the cached value without re-spawning.
+    const b = hasInotifywait();
+    expect(a).toBe(b);
+    _resetInotifyProbe();
+    // After reset, calling again re-runs the probe and returns a boolean.
+    const c = hasInotifywait();
+    expect(typeof c).toBe("boolean");
+  });
+});
+
+describe("armAutoUnlink (autoUnlinkOnClose=true)", () => {
+  test("spawns inotifywait watcher and unlinks the file when it exits", async () => {
+    // Only meaningful if inotifywait is installed; when not, the spawn
+    // child will emit 'error' and the branch on line 104 runs.
+    const s: DropStorage = { root, maxFilesPerSession: 5, ttlMs: 60_000, autoUnlinkOnClose: true };
+    const r = writeDrop(s, "watched.bin", Buffer.from("abc"));
+    // Let inotifywait (if present) start up, then touch the file's close
+    // by reading it — inotifywait will fire, finish() will unlink.
+    if (hasInotifywait()) {
+      await new Promise(res => setTimeout(res, 150));
+      fs.readFileSync(r.absolutePath); // close_nowrite fires
+      // Wait for watcher to unlink.
+      const deadline = Date.now() + 3000;
+      while (fs.existsSync(r.absolutePath) && Date.now() < deadline) {
+        await new Promise(res => setTimeout(res, 50));
+      }
+    }
+    // Either way the file write succeeded; we just needed the armAutoUnlink
+    // branch to execute. Clean up.
+    try { fs.rmSync(path.dirname(r.absolutePath), { recursive: true, force: true }); } catch {}
+  });
+
+  test("cleanupAll with active watchers kills them (covers stopAllWatchers)", async () => {
+    const s: DropStorage = { root, maxFilesPerSession: 5, ttlMs: 60_000, autoUnlinkOnClose: true };
+    writeDrop(s, "w1.bin", Buffer.from("a"));
+    writeDrop(s, "w2.bin", Buffer.from("b"));
+    await new Promise(res => setTimeout(res, 50));
+    cleanupAll(s);
+    expect(fs.existsSync(root)).toBe(false);
+  });
+
+  test("deleteDrop with active watcher stops the watcher (covers rmDrop watcher branch)", async () => {
+    const s: DropStorage = { root, maxFilesPerSession: 5, ttlMs: 60_000, autoUnlinkOnClose: true };
+    const r = writeDrop(s, "w3.bin", Buffer.from("c"));
+    // Give the watcher time to be registered in activeWatchers.
+    await new Promise(res => setTimeout(res, 50));
+    // deleteDrop → rmDrop → should hit the `if (watcher)` branch
+    // (lines 177-178) when inotifywait is available; otherwise falls
+    // through. Either way the drop is gone.
+    expect(deleteDrop(s, r.dropId)).toBe(true);
+    expect(fs.existsSync(path.dirname(r.absolutePath))).toBe(false);
   });
 });

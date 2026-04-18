@@ -1,97 +1,157 @@
-import { describe, test, expect, beforeEach } from 'bun:test';
-import { filesFromClipboard, uploadFile } from '../../../../src/client/ui/file-drop.ts';
+import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
+import { setupDocument, el, stubFetch } from '../_dom.ts';
+import {
+  uploadFile, filesFromClipboard, installFileDropHandler,
+} from '../../../../src/client/ui/file-drop.ts';
 
-function fakeFile(name: string, body = 'x'): File {
-  // bun supports global File via undici. Fall back to a minimal shim.
-  if (typeof File !== 'undefined') return new File([body], name, { type: 'text/plain' });
-  return { name, size: body.length, type: 'text/plain' } as unknown as File;
+function makeFile(name: string, size = 4): File {
+  return { name, size, type: 'application/octet-stream' } as any;
 }
 
-describe('filesFromClipboard', () => {
-  test('returns cd.files when populated', () => {
-    const a = fakeFile('a.txt');
-    const b = fakeFile('b.txt');
-    const cd = { files: [a, b], items: [] as any[] } as unknown as DataTransfer;
-    expect(filesFromClipboard(cd)).toEqual([a, b]);
+describe('uploadFile', () => {
+  test('posts to /api/drop with X-Filename', async () => {
+    const { calls } = stubFetch(async () => ({ ok: true, json: async () => ({ filename: 'x', size: 4, path: '/tmp/x' }) }));
+    const info = await uploadFile('main', makeFile('x'));
+    expect(info.path).toBe('/tmp/x');
+    expect(calls[0]!.url).toBe('/api/drop?session=main');
+    expect(calls[0]!.init?.method).toBe('POST');
+    expect((calls[0]!.init?.headers as any)['X-Filename']).toBe(encodeURIComponent('x'));
   });
-
-  test('takes items[] when it has more files than cd.files (multi-file regression)', () => {
-    // Some browsers expose all N pasted files via items[] but only the
-    // first in cd.files. Make sure we pick the larger set.
-    const a = fakeFile('a.png');
-    const b = fakeFile('b.png');
-    const c = fakeFile('c.png');
-    const cd = {
-      files: [a],
-      items: [
-        { kind: 'file', getAsFile: () => a },
-        { kind: 'file', getAsFile: () => b },
-        { kind: 'file', getAsFile: () => c },
-      ],
-    } as unknown as DataTransfer;
-    expect(filesFromClipboard(cd)).toEqual([a, b, c]);
+  test('throws on non-ok response', async () => {
+    stubFetch(async () => ({ ok: false, status: 500, json: async () => ({}) }));
+    await expect(uploadFile('main', makeFile('x'))).rejects.toThrow(/drop upload 500/);
   });
-
-  test('falls back to items[] of kind=file when cd.files is empty', () => {
-    const f = fakeFile('img.png');
-    const cd = {
-      files: [] as any as FileList,
-      items: [
-        { kind: 'string', getAsFile: () => null },
-        { kind: 'file', getAsFile: () => f },
-      ],
-    } as unknown as DataTransfer;
-    expect(filesFromClipboard(cd)).toEqual([f]);
-  });
-
-  test('returns [] when no files and only string items', () => {
-    const cd = {
-      files: [] as any as FileList,
-      items: [{ kind: 'string', getAsFile: () => null }],
-    } as unknown as DataTransfer;
-    expect(filesFromClipboard(cd)).toEqual([]);
+  test('session name is URL-encoded', async () => {
+    const { calls } = stubFetch(async () => ({ ok: true, json: async () => ({ filename: 'y', size: 1, path: '/t/y' }) }));
+    await uploadFile('a b/c', makeFile('y'));
+    expect(calls[0]!.url).toBe('/api/drop?session=a%20b%2Fc');
   });
 });
 
-describe('uploadFile', () => {
-  let lastUrl: string;
-  let lastInit: RequestInit | undefined;
+describe('filesFromClipboard', () => {
+  test('prefers the larger of files[] vs items[]', () => {
+    const f1 = makeFile('a'), f2 = makeFile('b');
+    const cd: any = {
+      files: [f1],
+      items: [
+        { kind: 'file', getAsFile: () => f1 },
+        { kind: 'file', getAsFile: () => f2 },
+      ],
+    };
+    expect(filesFromClipboard(cd)).toEqual([f1, f2]);
+  });
+  test('dedupes when same File in both sources', () => {
+    const f = makeFile('a');
+    const cd: any = {
+      files: [f],
+      items: [{ kind: 'file', getAsFile: () => f }],
+    };
+    expect(filesFromClipboard(cd)).toEqual([f]);
+  });
+  test('ignores non-file items', () => {
+    const cd: any = { files: [], items: [{ kind: 'string', getAsFile: () => null }] };
+    expect(filesFromClipboard(cd)).toEqual([]);
+  });
+  test('handles null files and null items', () => {
+    expect(filesFromClipboard({ files: null, items: null } as any)).toEqual([]);
+  });
+});
 
-  beforeEach(() => {
-    lastUrl = ''; lastInit = undefined;
+describe('installFileDropHandler', () => {
+  let offs: Array<() => void> = [];
+  beforeEach(() => { setupDocument(); offs = []; });
+  afterEach(() => { for (const o of offs) o(); });
+  const install = (opts: any) => { const o = installFileDropHandler(opts); offs.push(o); return o; };
+
+  test('drag + drop uploads all files and calls onDropped', async () => {
+    const term = el('div');
+    const dropped: any[] = [];
+    stubFetch(async () => ({ ok: true, json: async () => ({ filename: 'x', size: 4, path: '/tmp/x' }) }));
+    install({ terminal: term as any, getSession: () => 'main', onDropped: (i: any) => dropped.push(i) });
+    const file = makeFile('a');
+    const dt: any = { types: ['Files'], files: [file], dropEffect: '' };
+    term.dispatch('dragenter', { dataTransfer: dt, preventDefault() {} });
+    term.dispatch('dragover', { dataTransfer: dt, preventDefault() {} });
+    term.dispatch('dragleave', { dataTransfer: dt, preventDefault() {} });
+    term.dispatch('drop', { dataTransfer: dt, preventDefault() {} });
+    await new Promise(r => setTimeout(r, 20));
+    expect(dropped).toHaveLength(1);
   });
 
-  test('POSTs to /api/drop with session query, X-Filename header, and file body', async () => {
-    const fakeFetch = (async (url: any, init?: RequestInit) => {
-      lastUrl = String(url); lastInit = init;
-      return {
-        ok: true,
-        json: async () => ({ filename: 'hello world.png', size: 7, path: '/run/x/hello world.png' }),
-      } as any;
-    }) as typeof fetch;
-
-    const f = fakeFile('hello world.png', 'PNGDATA');
-    const info = await uploadFile('main', f, fakeFetch);
-
-    expect(lastUrl).toBe('/api/drop?session=main');
-    expect(lastInit?.method).toBe('POST');
-    expect((lastInit?.headers as any)['X-Filename']).toBe(encodeURIComponent('hello world.png'));
-    expect(lastInit?.body).toBe(f);
-    expect(info.filename).toBe('hello world.png');
-    expect(info.size).toBe(7);
+  test('drop without Files type is a no-op', async () => {
+    const term = el('div');
+    const dropped: any[] = [];
+    stubFetch(async () => ({ ok: true, json: async () => ({}) }));
+    install({ terminal: term as any, getSession: () => 'main', onDropped: (i: any) => dropped.push(i) });
+    term.dispatch('drop', { dataTransfer: { types: [], files: [] }, preventDefault() {} });
+    await new Promise(r => setTimeout(r, 5));
+    expect(dropped).toHaveLength(0);
   });
 
-  test('URL-encodes session names with special chars', async () => {
-    const fakeFetch = (async (url: any) => {
-      lastUrl = String(url);
-      return { ok: true, json: async () => ({}) } as any;
-    }) as typeof fetch;
-    await uploadFile('weird name/with slash', fakeFile('a'), fakeFetch);
-    expect(lastUrl).toBe(`/api/drop?session=${encodeURIComponent('weird name/with slash')}`);
+  test('drop with Files but empty file list is a no-op', async () => {
+    const term = el('div');
+    const dropped: any[] = [];
+    stubFetch(async () => ({ ok: true, json: async () => ({}) }));
+    install({ terminal: term as any, getSession: () => 'main', onDropped: (i: any) => dropped.push(i) });
+    term.dispatch('drop', { dataTransfer: { types: ['Files'], files: [] }, preventDefault() {} });
+    await new Promise(r => setTimeout(r, 5));
+    expect(dropped).toHaveLength(0);
   });
 
-  test('throws on non-ok response so callers can report an error', async () => {
-    const fakeFetch = (async () => ({ ok: false, status: 413, json: async () => ({}) } as any)) as typeof fetch;
-    await expect(uploadFile('main', fakeFile('a'), fakeFetch)).rejects.toThrow(/413/);
+  test('paste with files pre-empts default and uploads', async () => {
+    const term = el('div');
+    const dropped: any[] = [];
+    stubFetch(async () => ({ ok: true, json: async () => ({ filename: 'x', size: 4, path: '/tmp/x' }) }));
+    install({ terminal: term as any, getSession: () => 'main', onDropped: (i: any) => dropped.push(i) });
+    let prevented = false;
+    (globalThis as any).document.dispatch('paste', {
+      clipboardData: {
+        files: [makeFile('x')],
+        items: [{ kind: 'file', getAsFile: () => makeFile('x') }],
+      },
+      preventDefault() { prevented = true; },
+      stopPropagation() {},
+    });
+    await new Promise(r => setTimeout(r, 20));
+    expect(prevented).toBe(true);
+    expect(dropped.length).toBeGreaterThan(0);
+  });
+
+  test('paste without files leaves default (no preventDefault)', async () => {
+    const term = el('div');
+    install({ terminal: term as any, getSession: () => 'main' });
+    let prevented = false;
+    (globalThis as any).document.dispatch('paste', {
+      clipboardData: { files: [], items: [{ kind: 'string', getAsFile: () => null }] },
+      preventDefault() { prevented = true; }, stopPropagation() {},
+    });
+    expect(prevented).toBe(false);
+  });
+
+  test('paste with no clipboardData is a no-op', () => {
+    const term = el('div');
+    install({ terminal: term as any, getSession: () => 'main' });
+    expect(() => (globalThis as any).document.dispatch('paste', { clipboardData: null, preventDefault() {}, stopPropagation() {} })).not.toThrow();
+  });
+
+  test('onError called on upload failure', async () => {
+    const term = el('div');
+    const errs: any[] = [];
+    stubFetch(async () => ({ ok: false, status: 500, json: async () => ({}) }));
+    install({ terminal: term as any, getSession: () => 'main', onError: (e: any) => errs.push(e) });
+    term.dispatch('drop', { dataTransfer: { types: ['Files'], files: [makeFile('x')] }, preventDefault() {} });
+    await new Promise(r => setTimeout(r, 20));
+    expect(errs).toHaveLength(1);
+  });
+
+  test('uninstall removes listeners and overlay', async () => {
+    const term = el('div');
+    const dropped: any[] = [];
+    stubFetch(async () => ({ ok: true, json: async () => ({ filename: 'x', size: 4, path: '/tmp/x' }) }));
+    const off = installFileDropHandler({ terminal: term as any, getSession: () => 'main', onDropped: (i) => dropped.push(i) });
+    off();
+    term.dispatch('drop', { dataTransfer: { types: ['Files'], files: [makeFile('x')] }, preventDefault() {} });
+    await new Promise(r => setTimeout(r, 10));
+    expect(dropped).toHaveLength(0);
   });
 });

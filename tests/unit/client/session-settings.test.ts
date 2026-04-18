@@ -1,59 +1,74 @@
 import { describe, test, expect, beforeEach } from "bun:test";
+import {
+  DEFAULT_SESSION_SETTINGS,
+  initSessionStore,
+  loadSessionSettings,
+  saveSessionSettings,
+  getStoredSessionNames,
+  getLiveSessionSettings,
+  setLastActiveSession,
+  applyThemeDefaults,
+  _resetSessionStore,
+} from "../../../src/client/session-settings.ts";
 
 interface FakeFetchCall { url: string; init?: RequestInit }
 
-function setupFakeFetch(initialConfig: { lastActive?: string; sessions: Record<string, any> } | null) {
+function setupFakeFetch(
+  initialConfig: { lastActive?: string; sessions: Record<string, any> } | null,
+  opts: { getOk?: boolean; getThrow?: boolean; getReturnsNonObject?: boolean } = {},
+) {
   const calls: FakeFetchCall[] = [];
   (globalThis as any).fetch = async (url: string, init?: RequestInit) => {
     calls.push({ url, init });
-    if (url === '/api/session-settings' && (!init || init.method === 'GET' || init.method === undefined)) {
-      if (!initialConfig) {
-        return { ok: false, json: async () => ({}) } as any;
-      }
-      return {
-        ok: true,
-        json: async () => ({ version: 1, ...initialConfig }),
-      } as any;
+    const isGet = url === '/api/session-settings' && (!init || init.method === 'GET' || init.method === undefined);
+    if (isGet) {
+      if (opts.getThrow) throw new Error('network');
+      if (opts.getOk === false) return { ok: false, json: async () => ({}) } as any;
+      if (opts.getReturnsNonObject) return { ok: true, json: async () => null } as any;
+      if (!initialConfig) return { ok: true, json: async () => ({ version: 1, sessions: {} }) } as any;
+      return { ok: true, json: async () => ({ version: 1, ...initialConfig }) } as any;
     }
+    // PUT
     return { ok: true, json: async () => ({}) } as any;
   };
   return calls;
 }
 
-async function fresh() {
-  return await import("../../../src/client/session-settings.ts?v=" + Math.random());
-}
-
 describe("session-settings", () => {
   beforeEach(() => {
+    _resetSessionStore();
     setupFakeFetch(null);
   });
 
   test("returns defaults when nothing stored and no live session", async () => {
-    const mod = await fresh();
-    await mod.initSessionStore();
-    const s = mod.loadSessionSettings("main", null, { defaults: mod.DEFAULT_SESSION_SETTINGS });
-    expect(s.fontSize).toBe(mod.DEFAULT_SESSION_SETTINGS.fontSize);
+    await initSessionStore();
+    const s = loadSessionSettings("main", null, { defaults: DEFAULT_SESSION_SETTINGS });
+    expect(s.fontSize).toBe(DEFAULT_SESSION_SETTINGS.fontSize);
   });
 
   test("overlays theme defaults when no stored + no live", async () => {
-    const mod = await fresh();
-    await mod.initSessionStore();
-    const s = mod.loadSessionSettings("foo", null, {
-      defaults: mod.DEFAULT_SESSION_SETTINGS,
-      themeDefaults: { colours: "Dracula", fontFamily: "X", fontSize: 14, spacing: 1.2 },
+    await initSessionStore();
+    const s = loadSessionSettings("foo", null, {
+      defaults: DEFAULT_SESSION_SETTINGS,
+      themeDefaults: { colours: "Dracula", fontFamily: "X", fontSize: 14, spacing: 1.2, opacity: 25 },
     });
     expect(s.colours).toBe("Dracula");
     expect(s.fontFamily).toBe("X");
     expect(s.fontSize).toBe(14);
     expect(s.spacing).toBe(1.2);
+    expect(s.opacity).toBe(25);
+  });
+
+  test("theme defaults overlay handles missing themeDefaults object", async () => {
+    await initSessionStore();
+    const s = loadSessionSettings("foo", null, { defaults: DEFAULT_SESSION_SETTINGS });
+    expect(s).toEqual(DEFAULT_SESSION_SETTINGS);
   });
 
   test("inherits from live session when no stored", async () => {
-    const mod = await fresh();
-    await mod.initSessionStore();
-    const live = { ...mod.DEFAULT_SESSION_SETTINGS, colours: "Nord", opacity: 40, fontSize: 20 };
-    const s = mod.loadSessionSettings("new-sess", live, { defaults: mod.DEFAULT_SESSION_SETTINGS });
+    await initSessionStore();
+    const live = { ...DEFAULT_SESSION_SETTINGS, colours: "Nord", opacity: 40, fontSize: 20 };
+    const s = loadSessionSettings("new-sess", live, { defaults: DEFAULT_SESSION_SETTINGS });
     expect(s.colours).toBe("Nord");
     expect(s.opacity).toBe(40);
     expect(s.fontSize).toBe(20);
@@ -61,14 +76,12 @@ describe("session-settings", () => {
 
   test("saves to cache and pushes PUT to server", async () => {
     const calls = setupFakeFetch({ sessions: {} });
-    const mod = await fresh();
-    await mod.initSessionStore();
-    const s = { ...mod.DEFAULT_SESSION_SETTINGS, colours: "Monokai", opacity: 50 };
-    mod.saveSessionSettings("x", s);
-    const loaded = mod.loadSessionSettings("x", null, { defaults: mod.DEFAULT_SESSION_SETTINGS });
+    await initSessionStore();
+    const s = { ...DEFAULT_SESSION_SETTINGS, colours: "Monokai", opacity: 50 };
+    saveSessionSettings("x", s);
+    const loaded = loadSessionSettings("x", null, { defaults: DEFAULT_SESSION_SETTINGS });
     expect(loaded.colours).toBe("Monokai");
     expect(loaded.opacity).toBe(50);
-    // Allow microtask queue for fire-and-forget PUT
     await new Promise(r => setTimeout(r, 0));
     const put = calls.find(c => c.init?.method === 'PUT');
     expect(put).toBeDefined();
@@ -76,14 +89,24 @@ describe("session-settings", () => {
     expect(body.sessions.x.colours).toBe("Monokai");
   });
 
+  test("getStoredSessionNames returns names from cache", async () => {
+    setupFakeFetch({
+      sessions: {
+        alpha: { theme: "T", colours: "x", fontFamily: "f", fontSize: 1, spacing: 1, opacity: 0 },
+        beta: { theme: "T", colours: "x", fontFamily: "f", fontSize: 1, spacing: 1, opacity: 0 },
+      },
+    });
+    await initSessionStore();
+    expect(getStoredSessionNames().sort()).toEqual(["alpha", "beta"]);
+  });
+
   test("loads pre-existing settings from server", async () => {
     setupFakeFetch({
       lastActive: "alpha",
       sessions: { alpha: { theme: "T", colours: "Solarized", fontFamily: "F", fontSize: 22, spacing: 1, opacity: 10 } },
     });
-    const mod = await fresh();
-    await mod.initSessionStore();
-    const s = mod.loadSessionSettings("alpha", null, { defaults: mod.DEFAULT_SESSION_SETTINGS });
+    await initSessionStore();
+    const s = loadSessionSettings("alpha", null, { defaults: DEFAULT_SESSION_SETTINGS });
     expect(s.colours).toBe("Solarized");
     expect(s.fontSize).toBe(22);
   });
@@ -93,9 +116,8 @@ describe("session-settings", () => {
       lastActive: "old",
       sessions: { old: { theme: "T", colours: "Old", fontFamily: "F", fontSize: 18, spacing: 1, opacity: 0 } },
     });
-    const mod = await fresh();
-    await mod.initSessionStore();
-    const live = mod.getLiveSessionSettings("new");
+    await initSessionStore();
+    const live = getLiveSessionSettings("new");
     expect(live).not.toBeNull();
     expect(live!.colours).toBe("Old");
   });
@@ -105,16 +127,25 @@ describe("session-settings", () => {
       lastActive: "self",
       sessions: { self: { theme: "T", colours: "X", fontFamily: "F", fontSize: 18, spacing: 1, opacity: 0 } },
     });
-    const mod = await fresh();
-    await mod.initSessionStore();
-    expect(mod.getLiveSessionSettings("self")).toBeNull();
+    await initSessionStore();
+    expect(getLiveSessionSettings("self")).toBeNull();
+  });
+
+  test("getLiveSessionSettings returns null when no lastActive", async () => {
+    await initSessionStore();
+    expect(getLiveSessionSettings("anything")).toBeNull();
+  });
+
+  test("getLiveSessionSettings returns null when lastActive session missing", async () => {
+    setupFakeFetch({ lastActive: "gone", sessions: {} });
+    await initSessionStore();
+    expect(getLiveSessionSettings("cur")).toBeNull();
   });
 
   test("setLastActiveSession PUTs lastActive patch", async () => {
     const calls = setupFakeFetch({ sessions: {} });
-    const mod = await fresh();
-    await mod.initSessionStore();
-    mod.setLastActiveSession("dev");
+    await initSessionStore();
+    setLastActiveSession("dev");
     await new Promise(r => setTimeout(r, 0));
     const put = calls.find(c => c.init?.method === 'PUT');
     expect(put).toBeDefined();
@@ -122,21 +153,70 @@ describe("session-settings", () => {
     expect(body.lastActive).toBe("dev");
   });
 
-  test("applyThemeDefaults overwrites all four fields when provided", async () => {
-    const mod = await fresh();
-    const start = { ...mod.DEFAULT_SESSION_SETTINGS, colours: "Old", fontFamily: "Old", fontSize: 10, spacing: 1.5, opacity: 30 };
-    const result = mod.applyThemeDefaults(start, { colours: "New", fontFamily: "New", fontSize: 20, spacing: 0.9 });
+  test("setLastActiveSession is a no-op when unchanged", async () => {
+    const calls = setupFakeFetch({ lastActive: "dev", sessions: {} });
+    await initSessionStore();
+    setLastActiveSession("dev");
+    await new Promise(r => setTimeout(r, 0));
+    // Only GET call, no PUT
+    expect(calls.some(c => c.init?.method === 'PUT')).toBe(false);
+  });
+
+  test("applyThemeDefaults overwrites all fields when provided", async () => {
+    const start = { ...DEFAULT_SESSION_SETTINGS, colours: "Old", fontFamily: "Old", fontSize: 10, spacing: 1.5, opacity: 30 };
+    const result = applyThemeDefaults(start, { colours: "New", fontFamily: "New", fontSize: 20, spacing: 0.9, opacity: 55 });
     expect(result.colours).toBe("New");
     expect(result.fontFamily).toBe("New");
     expect(result.fontSize).toBe(20);
     expect(result.spacing).toBe(0.9);
-    expect(result.opacity).toBe(30);
+    expect(result.opacity).toBe(55);
   });
 
   test("applyThemeDefaults leaves fields unchanged when theme has no default", async () => {
-    const mod = await fresh();
-    const start = { ...mod.DEFAULT_SESSION_SETTINGS, colours: "Keep" };
-    const result = mod.applyThemeDefaults(start, {});
+    const start = { ...DEFAULT_SESSION_SETTINGS, colours: "Keep" };
+    const result = applyThemeDefaults(start, {});
     expect(result.colours).toBe("Keep");
+  });
+
+  test("initSessionStore swallows fetch exceptions", async () => {
+    setupFakeFetch(null, { getThrow: true });
+    await initSessionStore();
+    // Still returns defaults, cache intact
+    expect(getStoredSessionNames()).toEqual([]);
+  });
+
+  test("initSessionStore ignores non-ok response", async () => {
+    setupFakeFetch(null, { getOk: false });
+    await initSessionStore();
+    expect(getStoredSessionNames()).toEqual([]);
+  });
+
+  test("initSessionStore ignores non-object body", async () => {
+    setupFakeFetch(null, { getReturnsNonObject: true });
+    await initSessionStore();
+    expect(getStoredSessionNames()).toEqual([]);
+  });
+
+  test("initSessionStore discards non-string lastActive", async () => {
+    setupFakeFetch({ lastActive: 123 as any, sessions: { a: { theme: "T", colours: "x", fontFamily: "f", fontSize: 1, spacing: 1, opacity: 0 } } });
+    await initSessionStore();
+    expect(getLiveSessionSettings("other")).toBeNull();
+  });
+
+  test("persist PUT rejection is swallowed", async () => {
+    (globalThis as any).fetch = async (url: string, init?: RequestInit) => {
+      if (init?.method === 'PUT') throw new Error('boom');
+      return { ok: true, json: async () => ({ version: 1, sessions: {} }) } as any;
+    };
+    await initSessionStore();
+    // Should not throw
+    saveSessionSettings("x", { ...DEFAULT_SESSION_SETTINGS });
+    await new Promise(r => setTimeout(r, 0));
+    expect(getStoredSessionNames()).toEqual(["x"]);
+  });
+
+  test("_resetSessionStore accepts initial state", () => {
+    _resetSessionStore({ sessions: { seeded: { ...DEFAULT_SESSION_SETTINGS } }, lastActive: "seeded" });
+    expect(getStoredSessionNames()).toEqual(["seeded"]);
   });
 });
