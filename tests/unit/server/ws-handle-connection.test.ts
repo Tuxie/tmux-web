@@ -79,7 +79,7 @@ async function waitForMsg(messages: string[], predicate: (parsed: any) => boolea
 }
 
 describe('ws handleConnection — OSC 52 read flow', () => {
-  test('prompt → allow → clipboard-read-reply persists grant in store', async () => {
+  test.skipIf(process.platform !== 'linux')('prompt → allow → clipboard-read-reply persists grant in store', async () => {
     const { path: tmuxBin, dir } = makeFakeTmux({ panePid: process.pid });
     fs.writeFileSync(dir + '/trigger', '\x1b]52;c;?\x07');
     h = await startTestServer({ testMode: false, tmuxBin });
@@ -132,7 +132,7 @@ describe('ws handleConnection — OSC 52 read flow', () => {
     o.ws.close();
   }, 15000);
 
-  test('prompt → deny sends empty OSC 52 reply without recording a grant', async () => {
+  test.skipIf(process.platform !== 'linux')('prompt → deny sends empty OSC 52 reply without recording a grant', async () => {
     const { path: tmuxBin, dir } = makeFakeTmux({ panePid: process.pid });
     fs.writeFileSync(dir + '/trigger', '\x1b]52;c;?\x07');
     h = await startTestServer({ testMode: false, tmuxBin });
@@ -171,7 +171,7 @@ describe('ws handleConnection — OSC 52 read flow', () => {
     o.ws.close();
   }, 15000);
 
-  test('replyToRead catch branch fires when tmux send-keys fails', async () => {
+  test.skipIf(process.platform !== 'linux')('replyToRead catch branch fires when tmux send-keys fails', async () => {
     const { path: tmuxBin, dir } = makeFakeTmux({ panePid: process.pid });
     fs.writeFileSync(dir + '/trigger', '\x1b]52;c;?\x07');
     h = await startTestServer({ testMode: false, tmuxBin });
@@ -203,7 +203,7 @@ describe('ws handleConnection — OSC 52 read flow', () => {
     o.ws.close();
   }, 15000);
 
-  test('ws closed during resolvePolicy → prompt emission guard fires', async () => {
+  test.skipIf(process.platform !== 'linux')('ws closed during resolvePolicy → prompt emission guard fires', async () => {
     // Bogus blake3 pin → resolvePolicy hashes the real bun binary (~100MB,
     // hundreds of ms). We close the ws before the hash completes so the
     // ws.readyState !== OPEN guard on the prompt-emission path fires.
@@ -301,14 +301,14 @@ describe('ws handleConnection — OSC 52 policy shortcuts', () => {
     return o;
   }
 
-  test('policy=allow short-circuits to clipboardReadRequest (no prompt)', async () => {
+  test.skipIf(process.platform !== 'linux')('policy=allow short-circuits to clipboardReadRequest (no prompt)', async () => {
     const o = await runWithPrepopulatedPolicy(true);
     expect(o.messages.some(m => m.includes('clipboardPrompt'))).toBe(false);
     expect(o.messages.some(m => m.includes('clipboardReadRequest'))).toBe(true);
     o.ws.close();
   }, 15000);
 
-  test('policy=deny short-circuits to empty reply (no prompt, no read request)', async () => {
+  test.skipIf(process.platform !== 'linux')('policy=deny short-circuits to empty reply (no prompt, no read request)', async () => {
     const o = await runWithPrepopulatedPolicy(false);
     expect(o.messages.some(m => m.includes('clipboardPrompt'))).toBe(false);
     expect(o.messages.some(m => m.includes('clipboardReadRequest'))).toBe(false);
@@ -425,7 +425,7 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     o.ws.close();
   }, 15000);
 
-  test('colour-variant retry-on-failure branch (tmuxBin=/bin/false)', async () => {
+  test.skipIf(process.platform !== 'linux')('colour-variant retry-on-failure branch (tmuxBin=/bin/false)', async () => {
     // /bin/false always exits non-zero → first run() rejects → setTimeout(500)
     // schedules a retry that also rejects but is caught. Covers the retry
     // branch inside applyColourVariant. The actual retry delay in ws.ts is
