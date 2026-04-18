@@ -1,26 +1,38 @@
 # Changelog
 
-## 1.6.0 — 2026-04-18
+## 1.5.0 — 2026-04-18
 
-Consolidated follow-up release after the 2026-04-17 internal code review. All ten review clusters are closed; this entry summarises the user-visible changes. Non-user-visible changes (doc drift, CSS refactors, test-suite migrations, CI supply-chain hardening) are not repeated here — see the git log.
+Consolidated release closing all ten clusters of the 2026-04-17 internal code review. Non-user-visible changes (doc drift, CSS refactors, test-suite migrations, CI supply-chain hardening) are not repeated here — see the git log.
 
 ### Added
 
+- `-i` short flag for `--allow-ip`.
+- `-o` / `--allow-origin` flag to whitelist browser Origins for HTTP and WebSocket access. Repeatable. Values are full origins (`scheme://host[:port]`) or `*`.
 - Self-signed TLS certificate and key are now persisted under `$XDG_CONFIG_HOME/tmux-web/tls/` (fallback `~/.config/tmux-web/tls/`) at mode 0o600. The cert fingerprint is stable across restarts — browsers keep their trust decision instead of prompting on every start. Regenerated on expiry (≥ 365 days) or if the files are missing.
 - End-to-end test for the file-drop upload pipeline (`POST /api/drop` → `GET /api/drops` → `DELETE /api/drops`).
 - Status-dot shape cue: stopped tmux sessions now render as a hollow outline alongside the existing colour change. Improves legibility for colour-blind users.
 - Toast notification when a clipboard paste is attempted while the WebSocket is not connected (previously the paste was silently dropped).
 
+### Security
+
+- HTTP requests and WebSocket upgrades now validate the browser `Origin` header. Origins whose host is an IP literal in `--allow-ip` are auto-allowed; hostnames must appear in `--allow-origin`. Requests without an `Origin` header (curl, scripts) are unaffected. Closes a DNS-rebinding and cross-site-WebSocket vector identified in the 2026-04-17 code review.
+- HTTP Basic Auth credential comparison now uses `crypto.timingSafeEqual` instead of plain `===`, closing a theoretical length/prefix timing oracle.
+- Third-party GitHub Actions in the release workflow are pinned to commit SHAs instead of floating tags. Build/release/homebrew-tap-bump jobs have explicit `permissions:` blocks.
+- `sanitiseSessions` filters out `__proto__`, `constructor`, and `prototype` keys, defusing a prototype-pollution path that was latent under current call sites.
+- Theme-pack file reads validate containment via `fs.realpathSync` instead of `path.resolve`, closing a symlink-escape corner case.
+- Custom dropdown triggers (session menu, settings menu, etc.) set `aria-haspopup` and toggle `aria-expanded`, making the open/closed state discoverable to screen readers.
+
 ### Changed
 
-- HTTP Basic Auth credential comparison now uses `crypto.timingSafeEqual` instead of plain `===`, closing a theoretical length/prefix timing oracle.
+- Default `--allow-ip` now explicitly lists `127.0.0.1` and `::1` rather than relying only on the inline loopback guard.
+- `--allow-ip`'s short flag is now `-i` (was `-a`). The long form is unchanged.
 - `/api/session-settings` PUT body is capped at 1 MiB and wrapped in `try/catch`; broken streams respond `400 Bad Request` instead of crashing the handler.
 - OSC 52 clipboard-write passthrough is capped at 1 MiB, matching the existing cap on the read path. Oversize payloads are dropped with a rate-limited stderr warning.
 - All tmux subprocess calls now carry a 5 s timeout (was unbounded). A hung tmux subcommand can no longer pin an HTTP or WebSocket handler open indefinitely.
 - Materialised bundled-themes directory is created with mode 0o700 (was default umask, typically world-readable).
 - `--password` on the command line now emits a stderr warning recommending `$TMUX_WEB_PASSWORD` instead, and the argv entry is scrubbed to `***` after parse. The flag still works.
 - The legacy `--terminal` compatibility alias has been removed. It was only a silent no-op shim for a two-day window during the terminal-backend refactor; no released version advertised it.
-- The `--theme` / `-t` CLI flag is now accepted silently as a no-op (it was never wired to anything in 1.5.0 and earlier either). Reserved for a future re-introduction.
+- The `--theme` / `-t` CLI flag is now accepted silently as a no-op (it was never wired to anything in 1.4.3 or earlier either). Reserved for a future re-introduction.
 
 ### Fixed
 
@@ -29,30 +41,6 @@ Consolidated follow-up release after the 2026-04-17 internal code review. All te
 - `sendWindowState` was called without `void`/`await` in one place in `ws.ts`, leaking an unhandled-promise shape if the underlying tmux subcommand rejected.
 - Duplicate `ResizeObserver` on `#terminal` (both the xterm adapter and the outer client installed one). The outer is authoritative; the inner is gone.
 - Three `MutationObserver` / `ResizeObserver` instances without teardown wiring are now connected to their existing dispose paths.
-- `sanitiseSessions` filters out `__proto__`, `constructor`, and `prototype` keys, defusing a prototype-pollution path that was latent under current call sites.
-- Theme-pack file reads validate containment via `fs.realpathSync` instead of `path.resolve`, closing a symlink-escape corner case.
-
-### Security
-
-- See *Changed* (timing-safe auth, OSC 52 cap, subprocess timeouts, file mode 0o700).
-- Third-party GitHub Actions in the release workflow are pinned to commit SHAs instead of floating tags. Build/release/homebrew-tap-bump jobs have explicit `permissions:` blocks.
-- Custom dropdown triggers (session menu, settings menu, etc.) set `aria-haspopup` and toggle `aria-expanded`, making the open/closed state discoverable to screen readers.
-
-## 1.5.0 — 2026-04-18
-
-### Added
-
-- `-i` short flag for `--allow-ip`.
-- `-o` / `--allow-origin` flag to whitelist browser Origins for HTTP and WebSocket access. Repeatable. Values are full origins (`scheme://host[:port]`) or `*`.
-
-### Security
-
-- HTTP requests and WebSocket upgrades now validate the browser `Origin` header. Origins whose host is an IP literal in `--allow-ip` are auto-allowed; hostnames must appear in `--allow-origin`. Requests without an `Origin` header (curl, scripts) are unaffected. Closes a DNS-rebinding and cross-site-WebSocket vector identified in the 2026-04-17 code review.
-
-### Changed
-
-- Default `--allow-ip` now explicitly lists `127.0.0.1` and `::1` rather than relying only on the inline loopback guard.
-- `--allow-ip`'s short flag is now `-i` (was `-a`). The long form is unchanged.
 
 ## 1.4.3 — 2026-04-17
 
