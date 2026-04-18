@@ -35,7 +35,7 @@ build-server: tmux-web
 test: typecheck test-unit test-e2e
 
 test-unit:
-	$(BUN) test
+	$(BUN) run coverage:check
 
 typecheck: src/server/assets-embedded.ts
 	$(BUN) x tsc --noEmit -p tsconfig.json
