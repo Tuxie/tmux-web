@@ -79,6 +79,11 @@ export async function startTestServer(opts: HarnessOpts = {}): Promise<Harness> 
     wsUrl: url.replace(/^http/, 'ws'),
     tmpDir,
     config,
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    close: () => new Promise<void>((resolve) => {
+      // Force-drop any keep-alive / websocket connections so close() doesn't
+      // hang waiting on pty children (inherited fds keep sockets half-open).
+      (server as any).closeAllConnections?.();
+      server.close(() => resolve());
+    }),
   };
 }
