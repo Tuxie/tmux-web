@@ -203,5 +203,9 @@ export function readPackFile(packDir: string, file: string, packs: PackInfo[]): 
     return null;
   }
   if (!realResolved.startsWith(realRoot + path.sep) && realResolved !== realRoot) return null;
-  return { fullPath: realResolved };
+  // Containment is checked against the realpath-resolved form, but the
+  // returned path is the non-realpath'd `resolved` so callers see the
+  // same string shape they passed in (e.g. /var/... on macOS instead of
+  // the /private/var/... canonical form realpathSync returns).
+  return { fullPath: resolved };
 }
