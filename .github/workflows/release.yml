@@ -65,7 +65,13 @@ jobs:
       - name: Run unit tests
         run: bun test
 
+      # Only runs on legs where the runner arch matches the compiled target
+      # (x64 runner for bun-linux-x64, arm64 runner for bun-darwin-arm64).
+      # The cross-compiled legs produce a binary the runner can't execute;
+      # the sentinel embed check is identical across archs anyway, so one
+      # pass per OS is sufficient.
       - name: Verify compiled binary embeds vendor/xterm.js
+        if: matrix.target == 'bun-linux-x64' || matrix.target == 'bun-darwin-arm64'
         run: bun scripts/verify-vendor-xterm.ts ./tmux-web
 
       - name: Package release
