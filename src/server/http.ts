@@ -187,8 +187,9 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
   const colourInfos = listColours(packs);
 
   const makeHtml = () => {
+    const clientConfig = { version: pkg.version, ...(config.testMode ? { testMode: true } : {}) };
     return opts.htmlTemplate
-      .replace('<!-- __CONFIG__ -->', `<script>window.__TMUX_WEB_CONFIG = ${JSON.stringify({ version: pkg.version })}</script>`)
+      .replace('<!-- __CONFIG__ -->', `<script>window.__TMUX_WEB_CONFIG = ${JSON.stringify(clientConfig)}</script>`)
       .replace('__BUNDLE__', `/dist/client/xterm.js`);
   };
 
