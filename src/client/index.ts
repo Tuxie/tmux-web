@@ -3,7 +3,7 @@ import type { ClientConfig } from '../shared/types.js';
 import { extractTTMessages } from './protocol.js';
 import { Connection, buildWsUrl } from './connection.js';
 import { Topbar } from './ui/topbar.js';
-import { installMouseHandler, getSgrCoords, buildSgrSequence } from './ui/mouse.js';
+import { installMouseHandler, getSgrCoords, buildSgrSequence, addModifiers } from './ui/mouse.js';
 import { installKeyboardHandler } from './ui/keyboard.js';
 import { handleClipboard } from './ui/clipboard.js';
 import { showClipboardPrompt } from './ui/clipboard-prompt.js';
@@ -292,7 +292,7 @@ async function main() {
     const canvas = document.querySelector('#terminal canvas') as HTMLElement;
     const rect = canvas?.getBoundingClientRect() || container.getBoundingClientRect();
     const coords = getSgrCoords(ev.clientX, ev.clientY, adapter.metrics, rect);
-    const btn = ev.deltaY < 0 ? 64 : 65;
+    const btn = addModifiers(ev.deltaY < 0 ? 64 : 65, ev);
     const count = Math.max(1, Math.min(Math.abs(Math.round(ev.deltaY / 33)), 5));
     for (let i = 0; i < count; i++) {
       connection.send(buildSgrSequence(btn, coords.col, coords.row, false));
