@@ -9,6 +9,7 @@ tmp/
 .codex
 .claude/
 *.swp
+coverage/
 
 fonts/**
 !fonts/*.woff2
