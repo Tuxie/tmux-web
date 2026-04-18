@@ -2,6 +2,3 @@
 root = "tests/unit"
 include = ["**/*.test.ts"]
 exclude = ["vendor/**", "**/vendor/**", "tests/e2e/**", "node_modules/**"]
-coverage = false
-coverageReporter = ["text", "lcov"]
-coverageDir = "coverage"
