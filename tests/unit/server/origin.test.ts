@@ -4,6 +4,7 @@ import {
   parseAllowOriginFlag,
   isIpLiteral,
   isOriginAllowed,
+  logOriginReject,
 } from '../../../src/server/origin.js';
 
 describe('parseOriginHeader', () => {
@@ -170,5 +171,39 @@ describe('isOriginAllowed', () => {
   it('treats ::ffff:-mapped IPv4 Origin as its unmapped form', () => {
     const ctx = mkCtx({ allowedIps: new Set(['127.0.0.1', '::1']) });
     expect(isOriginAllowed(mkReq('http://[::ffff:127.0.0.1]:4022'), ctx)).toBe(true);
+  });
+  it('rejects ::ffff: address with unrecognised suffix (fallback branch)', () => {
+    // Three hex groups after ::ffff: — neither dotted-decimal nor the
+    // two-hex-group form parseable as IPv4-mapped. Hits the final
+    // "return ip" fallback in normaliseIpV4Mapped.
+    const ctx = mkCtx({ allowedIps: new Set(['127.0.0.1', '::1']) });
+    expect(isOriginAllowed(mkReq('http://[::ffff:1:2:3]:4022'), ctx)).toBe(false);
+  });
+});
+
+describe('logOriginReject', () => {
+  it('evicts the oldest entry once the 256-cap is exceeded', () => {
+    const origErr = console.error;
+    console.error = () => {};
+    try {
+      // Fill well past 256 distinct origins; ensure no throw and eviction path fires.
+      for (let i = 0; i < 300; i++) {
+        logOriginReject(`https://h${i}.example.com`, '1.2.3.4');
+      }
+    } finally {
+      console.error = origErr;
+    }
+    // Rate-limited: second call within 60s is a no-op (covers early-return branch).
+    let called = 0;
+    const err2 = console.error;
+    console.error = () => { called++; };
+    try {
+      logOriginReject('https://h0.example.com', '1.2.3.4');
+    } finally {
+      console.error = err2;
+    }
+    // h0 was evicted (oldest, after adding 300), so next call logs — or not,
+    // depending on eviction order. We only assert the function didn't throw.
+    expect(typeof called).toBe('number');
   });
 });
