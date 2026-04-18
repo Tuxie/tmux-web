@@ -2,10 +2,56 @@ import { describe, test, expect, afterEach, beforeEach } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import http from 'node:http';
 import { Readable } from 'node:stream';
 import { startTestServer, type Harness } from './_harness/spawn-server.ts';
 import { createHttpHandler } from '../../../src/server/http.ts';
 import { writeDrop, type DropStorage } from '../../../src/server/file-drop.ts';
+
+// Uses node:http directly instead of Bun's fetch. Under act's nested-docker
+// environment Bun's fetch has been observed to return a Response-shaped object
+// whose getters (.status, .arrayBuffer) are undefined, producing flaky test
+// failures. node:http is stable in all environments we run.
+interface CapturedResponse {
+  status: number;
+  headers: Headers;
+  text: () => Promise<string>;
+  json: () => Promise<any>;
+}
+type ReqInit = { method?: string; headers?: Record<string, string>; body?: string | Buffer };
+async function httpReq(url: string, init?: ReqInit): Promise<CapturedResponse> {
+  return await new Promise<CapturedResponse>((resolve, reject) => {
+    const u = new URL(url);
+    const req = http.request({
+      hostname: u.hostname,
+      port: u.port,
+      path: u.pathname + u.search,
+      method: init?.method ?? 'GET',
+      headers: init?.headers ?? {},
+    }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (c: Buffer) => chunks.push(c));
+      res.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf8');
+        const headers = new Headers();
+        for (const [k, v] of Object.entries(res.headers)) {
+          if (Array.isArray(v)) headers.set(k, v.join(', '));
+          else if (v != null) headers.set(k, String(v));
+        }
+        resolve({
+          status: res.statusCode ?? 0,
+          headers,
+          text: async () => body,
+          json: async () => JSON.parse(body),
+        });
+      });
+      res.on('error', reject);
+    });
+    req.on('error', reject);
+    if (init?.body != null) req.write(init.body);
+    req.end();
+  });
+}
 
 let h: Harness | undefined;
 afterEach(async () => {
@@ -15,21 +61,21 @@ afterEach(async () => {
 describe('http branches — harness-based', () => {
   test('GET / returns 200 HTML', async () => {
     h = await startTestServer();
-    const r = await fetch(h.url + '/');
+    const r = await httpReq(h.url + '/');
     expect(r.status).toBe(200);
     expect(r.headers.get('content-type') || '').toMatch(/html/);
   });
 
   test('GET /<session-name> also returns 200 HTML (fallthrough)', async () => {
     h = await startTestServer();
-    const r = await fetch(h.url + '/dev');
+    const r = await httpReq(h.url + '/dev');
     expect(r.status).toBe(200);
     expect(r.headers.get('content-type') || '').toMatch(/html/);
   });
 
   test('GET /dist/nonexistent.js → 404', async () => {
     h = await startTestServer();
-    const r = await fetch(h.url + '/dist/does-not-exist.js');
+    const r = await httpReq(h.url + '/dist/does-not-exist.js');
     expect(r.status).toBe(404);
   });
 
@@ -38,27 +84,27 @@ describe('http branches — harness-based', () => {
     // write a real file into distDir (tmpDir)
     const f = path.join(h.tmpDir, 'hello.txt');
     fs.writeFileSync(f, 'hi');
-    const r = await fetch(h.url + '/dist/hello.txt');
+    const r = await httpReq(h.url + '/dist/hello.txt');
     expect(r.status).toBe(200);
     expect(await r.text()).toBe('hi');
   });
 
   test('GET /themes/<no-slash> → 404', async () => {
     h = await startTestServer();
-    const r = await fetch(h.url + '/themes/nopeinvalid');
+    const r = await httpReq(h.url + '/themes/nopeinvalid');
     expect(r.status).toBe(404);
   });
 
   test('GET /themes/bad-pack/missing.toml → 404', async () => {
     h = await startTestServer();
-    const r = await fetch(h.url + '/themes/nonexistent/file.toml');
+    const r = await httpReq(h.url + '/themes/nonexistent/file.toml');
     expect(r.status).toBe(404);
   });
 
   test('GET /themes/<%bad-encoding>/x → 400', async () => {
     h = await startTestServer();
     // %E0%A4%A is an invalid UTF-8 sequence for decodeURIComponent
-    const r = await fetch(h.url + '/themes/%E0%A4%A/file.toml');
+    const r = await httpReq(h.url + '/themes/%E0%A4%A/file.toml');
     expect(r.status).toBe(400);
   });
 
@@ -87,7 +133,7 @@ describe('http branches — harness-based', () => {
 
   test('GET /api/fonts returns JSON array', async () => {
     h = await startTestServer();
-    const r = await fetch(h.url + '/api/fonts');
+    const r = await httpReq(h.url + '/api/fonts');
     expect(r.status).toBe(200);
     expect(r.headers.get('content-type')).toMatch(/json/);
     expect(Array.isArray(await r.json())).toBe(true);
@@ -95,21 +141,21 @@ describe('http branches — harness-based', () => {
 
   test('GET /api/themes returns JSON array', async () => {
     h = await startTestServer();
-    const r = await fetch(h.url + '/api/themes');
+    const r = await httpReq(h.url + '/api/themes');
     expect(r.status).toBe(200);
     expect(Array.isArray(await r.json())).toBe(true);
   });
 
   test('GET /api/colours returns JSON array', async () => {
     h = await startTestServer();
-    const r = await fetch(h.url + '/api/colours');
+    const r = await httpReq(h.url + '/api/colours');
     expect(r.status).toBe(200);
     expect(Array.isArray(await r.json())).toBe(true);
   });
 
   test('GET /api/sessions returns [] when tmux fails', async () => {
     h = await startTestServer({ tmuxBin: '/bin/false' });
-    const r = await fetch(h.url + '/api/sessions');
+    const r = await httpReq(h.url + '/api/sessions');
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual([]);
   });
@@ -119,7 +165,7 @@ describe('http branches — harness-based', () => {
     // /bin/echo ignores the flags and echoes "list-sessions -F #{session_name}" — we
     // just need the process to succeed; the trimmed output will be parsed.
     h = await startTestServer({ tmuxBin: '/bin/echo' });
-    const r = await fetch(h.url + '/api/sessions');
+    const r = await httpReq(h.url + '/api/sessions');
     expect(r.status).toBe(200);
     const j = await r.json();
     expect(Array.isArray(j)).toBe(true);
@@ -127,7 +173,7 @@ describe('http branches — harness-based', () => {
 
   test('GET /api/windows returns [] when tmux fails', async () => {
     h = await startTestServer({ tmuxBin: '/bin/false' });
-    const r = await fetch(h.url + '/api/windows?session=main');
+    const r = await httpReq(h.url + '/api/windows?session=main');
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual([]);
   });
@@ -137,14 +183,14 @@ describe('http branches — harness-based', () => {
     const script = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'tw-fake-tmux-')), 'tmux');
     fs.writeFileSync(script, '#!/bin/sh\necho "0:main:1"\n', { mode: 0o755 });
     h = await startTestServer({ tmuxBin: script });
-    const r = await fetch(h.url + '/api/windows?session=main');
+    const r = await httpReq(h.url + '/api/windows?session=main');
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual([{ index: '0', name: 'main', active: true }]);
   });
 
   test('GET /api/terminal-versions returns JSON object', async () => {
     h = await startTestServer();
-    const r = await fetch(h.url + '/api/terminal-versions');
+    const r = await httpReq(h.url + '/api/terminal-versions');
     expect(r.status).toBe(200);
     const j = await r.json();
     expect(typeof j).toBe('object');
@@ -190,13 +236,13 @@ describe('http branches — harness-based', () => {
 describe('http branches — /api/drop POST', () => {
   test('/api/drop unsupported method → 405', async () => {
     h = await startTestServer();
-    const r = await fetch(h.url + '/api/drop?session=main', { method: 'GET' });
+    const r = await httpReq(h.url + '/api/drop?session=main', { method: 'GET' });
     expect(r.status).toBe(405);
   });
 
   test('/api/drop POST stores file and returns path+filename+size', async () => {
     h = await startTestServer();
-    const r = await fetch(h.url + '/api/drop?session=main', {
+    const r = await httpReq(h.url + '/api/drop?session=main', {
       method: 'POST',
       headers: { 'x-filename': encodeURIComponent('greet.txt') },
       body: 'hello',
@@ -210,7 +256,7 @@ describe('http branches — /api/drop POST', () => {
 
   test('/api/drop POST with no x-filename defaults to "file"', async () => {
     h = await startTestServer();
-    const r = await fetch(h.url + '/api/drop?session=main', {
+    const r = await httpReq(h.url + '/api/drop?session=main', {
       method: 'POST',
       body: 'payload',
     });
@@ -224,7 +270,7 @@ describe('http branches — /api/drop POST', () => {
 describe('http branches — /api/session-settings', () => {
   test('PUT with malformed JSON → 400', async () => {
     h = await startTestServer();
-    const r = await fetch(h.url + '/api/session-settings', {
+    const r = await httpReq(h.url + '/api/session-settings', {
       method: 'PUT', headers: { 'content-type': 'application/json' }, body: '{not-json',
     });
     expect(r.status).toBe(400);
@@ -232,7 +278,7 @@ describe('http branches — /api/session-settings', () => {
 
   test('PUT with non-object JSON → 400', async () => {
     h = await startTestServer();
-    const r = await fetch(h.url + '/api/session-settings', {
+    const r = await httpReq(h.url + '/api/session-settings', {
       method: 'PUT', body: 'null',
     });
     expect(r.status).toBe(400);
@@ -242,7 +288,7 @@ describe('http branches — /api/session-settings', () => {
   test('PUT valid partial patch → 200 and persists', async () => {
     h = await startTestServer();
     const patch = { lastActive: 'main' };
-    const r = await fetch(h.url + '/api/session-settings', {
+    const r = await httpReq(h.url + '/api/session-settings', {
       method: 'PUT', body: JSON.stringify(patch),
     });
     expect(r.status).toBe(200);
@@ -252,7 +298,7 @@ describe('http branches — /api/session-settings', () => {
 
   test('unsupported method on /api/session-settings → 405', async () => {
     h = await startTestServer();
-    const r = await fetch(h.url + '/api/session-settings', { method: 'DELETE' });
+    const r = await httpReq(h.url + '/api/session-settings', { method: 'DELETE' });
     expect(r.status).toBe(405);
   });
 });
@@ -260,41 +306,41 @@ describe('http branches — /api/session-settings', () => {
 describe('http branches — auth + origin rejection', () => {
   test('auth required: 401 without credentials', async () => {
     h = await startTestServer({ testMode: false, auth: { enabled: true, username: 'u', password: 'p' } });
-    const r = await fetch(h.url + '/');
+    const r = await httpReq(h.url + '/');
     expect(r.status).toBe(401);
     expect(r.headers.get('www-authenticate')).toMatch(/Basic/);
   });
 
   test('auth required: 401 on malformed header', async () => {
     h = await startTestServer({ testMode: false, auth: { enabled: true, username: 'u', password: 'p' } });
-    const r = await fetch(h.url + '/', { headers: { Authorization: 'Bearer x' } });
+    const r = await httpReq(h.url + '/', { headers: { Authorization: 'Bearer x' } });
     expect(r.status).toBe(401);
   });
 
   test('auth required: 401 on wrong password', async () => {
     h = await startTestServer({ testMode: false, auth: { enabled: true, username: 'u', password: 'p' } });
     const creds = Buffer.from('u:wrong').toString('base64');
-    const r = await fetch(h.url + '/', { headers: { Authorization: `Basic ${creds}` } });
+    const r = await httpReq(h.url + '/', { headers: { Authorization: `Basic ${creds}` } });
     expect(r.status).toBe(401);
   });
 
   test('auth required: 401 on base64 without colon', async () => {
     h = await startTestServer({ testMode: false, auth: { enabled: true, username: 'u', password: 'p' } });
     const creds = Buffer.from('nocolon').toString('base64');
-    const r = await fetch(h.url + '/', { headers: { Authorization: `Basic ${creds}` } });
+    const r = await httpReq(h.url + '/', { headers: { Authorization: `Basic ${creds}` } });
     expect(r.status).toBe(401);
   });
 
   test('auth required: 200 with correct credentials', async () => {
     h = await startTestServer({ testMode: false, auth: { enabled: true, username: 'u', password: 'p' } });
     const creds = Buffer.from('u:p').toString('base64');
-    const r = await fetch(h.url + '/', { headers: { Authorization: `Basic ${creds}` } });
+    const r = await httpReq(h.url + '/', { headers: { Authorization: `Basic ${creds}` } });
     expect(r.status).toBe(200);
   });
 
   test('origin rejection: 403 when Origin not allowed (testMode off)', async () => {
     h = await startTestServer({ testMode: false, auth: { enabled: false }, allowedOrigins: [] });
-    const r = await fetch(h.url + '/', { headers: { Origin: 'https://evil.example' } });
+    const r = await httpReq(h.url + '/', { headers: { Origin: 'https://evil.example' } });
     expect(r.status).toBe(403);
   });
 
@@ -615,7 +661,6 @@ describe('http branches — direct handler (fake req/res)', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-proj2-'));
     fs.mkdirSync(path.join(root, 'dist/client'), { recursive: true });
     fs.writeFileSync(path.join(root, 'dist/client/xterm.js'), 'no sentinel here');
-    const handler = await mkHandler({});
     // Build with this projectRoot ourselves
     const h2 = await createHttpHandler({
       config: {
@@ -637,13 +682,13 @@ describe('http branches — direct handler (fake req/res)', () => {
   });
 
   test('session-settings PUT when applyPatch throws → 500', async () => {
-    // Break the sessions store file by making its parent dir read-only so
-    // the atomic rename fails.  Simpler: write a broken base file first, then
-    // set the directory non-writable.
+    // Force applyPatch to fail by pointing sessionsStorePath through a
+    // regular file (ENOTDIR on any write — works under root too, unlike
+    // a chmod 0o500 directory trick).
     const badDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-badstore-'));
-    const storePath = path.join(badDir, 'sessions.json');
-    fs.writeFileSync(storePath, JSON.stringify({ version: 1, sessions: {} }));
-    fs.chmodSync(badDir, 0o500);
+    const blocker = path.join(badDir, 'not-a-dir');
+    fs.writeFileSync(blocker, 'x');
+    const storePath = path.join(blocker, 'sessions.json');
     try {
       const handler = await createHttpHandler({
         config: {
@@ -662,7 +707,6 @@ describe('http branches — direct handler (fake req/res)', () => {
       });
       expect(r.status).toBe(500);
     } finally {
-      fs.chmodSync(badDir, 0o700);
       fs.rmSync(badDir, { recursive: true, force: true });
     }
   });

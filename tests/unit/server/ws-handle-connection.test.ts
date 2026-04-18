@@ -1,8 +1,29 @@
 import { describe, test, expect, afterEach } from 'bun:test';
 import WebSocket from 'ws';
 import fs from 'node:fs';
+import http from 'node:http';
 import { startTestServer, type Harness } from './_harness/spawn-server.ts';
 import { makeFakeTmux } from './_harness/fake-tmux.ts';
+
+function postDrop(baseUrl: string, filename: string, body: Buffer): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const u = new URL(baseUrl + '/api/drop?session=main');
+    const req = http.request({
+      hostname: u.hostname,
+      port: u.port,
+      path: u.pathname + u.search,
+      method: 'POST',
+      headers: { 'x-filename': encodeURIComponent(filename), 'content-length': String(body.length) },
+    }, (res) => {
+      res.on('data', () => {});
+      res.on('end', () => resolve(res.statusCode ?? 0));
+      res.on('error', reject);
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
 
 let h: Harness | undefined;
 afterEach(async () => { if (h) { await h.close(); h = undefined; } });
@@ -235,9 +256,10 @@ describe('ws handleConnection — OSC 52 read flow', () => {
     const o = openWs(h.wsUrl);
     await o.opened;
 
-    const fd = new FormData();
-    fd.append('file', new Blob([new Uint8Array([1, 2, 3])], { type: 'application/octet-stream' }), 'd.bin');
-    await fetch(h.url + '/api/drop?session=main', { method: 'POST', body: fd });
+    // Use node:http directly instead of Bun's fetch — the latter has proven
+    // flaky under act's nested-docker environment (see http-branches.test.ts).
+    // The server reads raw body bytes + x-filename header; no multipart parsing.
+    await postDrop(h.url, 'd.bin', Buffer.from([1, 2, 3]));
 
     const got = await waitForMsg(o.messages, m => 'dropsChanged' in m, 8000);
     expect(got).toBeTruthy();

@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.5.1 — 2026-04-18
+
+### Fixed
+
+- WebGL renderer: bracketed-paste active-region highlight (shells using SGR 7 on default colours) was rendering as an invisible line. Root cause: upstream `TextureAtlas._getForegroundColor` only applies `color.opaque(result)` when `allowTransparency: true`, contradicting its own comment. Combined with tmux-web's opacity trick (`theme.background = rgba(r,g,b,0)`), INVERSE + CM_DEFAULT cells resolved to a fully-transparent fill, the glyph was never painted, and the tile classified as `NULL_RASTERIZED_GLYPH`. `bun-build.ts` now patches the vendor xterm.js to apply `color.opaque(result)` unconditionally.
+
+### Internal
+
+- Unit-test coverage raised to ≥ 98.7% lines; `make test-unit` gated on coverage thresholds via `scripts/check-coverage.ts`.
+- WebSocket, PTY, file-drop, foreground-process, origin, colours, prefs, theme, session-settings, and UI modules (clipboard, keyboard, mouse, file-drop, clipboard-prompt) now have integration + unit coverage.
+- `foreground-process` split into a pure parser + DI wrapper for testability.
+- `ws` message dispatch extracted to a pure `ws-router` module.
+- Test harness helpers added: ephemeral http+ws server startup, fake-tmux shell script, shared DOM/fetch stubs.
+- E2E test for OSC 52 clipboard-read consent modal (previously deferred).
+
 ## 1.5.0 — 2026-04-18
 
 Consolidated release closing all ten clusters of the 2026-04-17 internal code review. Non-user-visible changes (doc drift, CSS refactors, test-suite migrations, CI supply-chain hardening) are not repeated here — see the git log.

@@ -48,27 +48,68 @@ function buildVendorXterm(vendorDir: string): void {
     "src/browser/tsconfig.json",
     "src/common/tsconfig.json",
     "src/headless/tsconfig.json",
+    "addons/addon-webgl/src/TextureAtlas.ts",
   ];
   // Snapshot originals so we can restore after the build. This keeps the
   // vendor submodule's working tree clean — `git status` inside
-  // vendor/xterm.js stays empty even after `make build`. The patch itself
-  // is idempotent (skips already-patched files), so restore-then-rebuild
-  // is safe on every run.
+  // vendor/xterm.js stays empty even after `make build`. The patches are
+  // idempotent (skip already-patched files), so restore-then-rebuild is
+  // safe on every run.
   const originals = new Map<string, string>();
   for (const rel of patchTargets) {
     const p = path.join(vendorDir, rel);
     if (!fs.existsSync(p)) continue;
     const raw = fs.readFileSync(p, "utf8");
     originals.set(p, raw);
-    if (raw.includes('"experimentalDecorators"')) continue;
-    // Textual insert (not JSON.parse) because tsconfigs contain JSONC comments
-    // and path strings like "common/*" that break naive comment stripping.
-    const patched = raw.replace(
-      /"compilerOptions"\s*:\s*\{/,
-      '"compilerOptions": {\n    "experimentalDecorators": true,'
-    );
-    if (patched === raw) throw new Error(`failed to patch ${p}`);
-    fs.writeFileSync(p, patched);
+
+    // 1. tsconfig.json files — inject experimentalDecorators (see above).
+    if (rel.endsWith("tsconfig.json")) {
+      if (raw.includes('"experimentalDecorators"')) continue;
+      // Textual insert (not JSON.parse) because tsconfigs contain JSONC
+      // comments and path strings like "common/*" that break naive comment
+      // stripping.
+      const patched = raw.replace(
+        /"compilerOptions"\s*:\s*\{/,
+        '"compilerOptions": {\n    "experimentalDecorators": true,'
+      );
+      if (patched === raw) throw new Error(`failed to patch ${p}`);
+      fs.writeFileSync(p, patched);
+      continue;
+    }
+
+    // 2. WebGL TextureAtlas: force `color.opaque(result)` unconditionally in
+    //    `_getForegroundColor`. Upstream only applies it when
+    //    `allowTransparency: true`, contradicting its own comment. With
+    //    tmux-web's opacity trick (`theme.background` = `rgba(r,g,b,0)` so
+    //    the WebGL canvas clear stays transparent), cells with INVERSE +
+    //    CM_DEFAULT fg/bg resolve the glyph color to `colors.background`,
+    //    which ends up with alpha=0. The `fillStyle` becomes fully
+    //    transparent, the glyph is never painted, and `clearColor()`
+    //    classifies the whole tile as empty → NULL_RASTERIZED_GLYPH →
+    //    bash/zsh's bracketed-paste active-region highlight (SGR 7 on
+    //    default colors) renders as an invisible line.
+    if (rel.endsWith("addon-webgl/src/TextureAtlas.ts")) {
+      const needle =
+        "    // Always use an opaque color regardless of allowTransparency\n" +
+        "    if (this._config.allowTransparency) {\n" +
+        "      result = color.opaque(result);\n" +
+        "    }";
+      if (!raw.includes(needle)) {
+        if (raw.includes("// tmux-web: unconditional opaque foreground")) continue;
+        throw new Error(
+          `failed to locate TextureAtlas opaque-foreground needle — upstream likely changed; ` +
+          `re-check the patch`
+        );
+      }
+      const patched = raw.replace(
+        needle,
+        "    // Always use an opaque color regardless of allowTransparency.\n" +
+        "    // tmux-web: unconditional opaque foreground — see bun-build.ts.\n" +
+        "    result = color.opaque(result);"
+      );
+      fs.writeFileSync(p, patched);
+      continue;
+    }
   }
 
   const restoreOriginals = () => {
