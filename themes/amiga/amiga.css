@@ -1,5 +1,21 @@
 /* AmigaOS 3.1 Theme */
 
+:root {
+  /* Override the shared surface palette declared in base.css so toasts,
+   * the clipboard-prompt modal, and other surface-rendered UI pick up
+   * Workbench colours instead of the default dark tones. Kept semantic
+   * (role, not colour) so base.css rules don't need to know the theme. */
+  --tw-surface-bg: #bbb;            /* Workbench grey */
+  --tw-surface-bg-alt: #fff;        /* input-field white */
+  --tw-surface-border: #000;        /* hard black borders */
+  --tw-surface-hover: #7096ce;      /* selection blue */
+  --tw-danger-bg: #a04040;          /* muted Workbench red */
+  --tw-danger-border: #000;
+  --tw-success-bg: #4a8c4a;         /* muted Workbench green */
+  --tw-text: #000;
+  --tw-text-muted: #555;
+}
+
 body {
   background: #bbb;
   font-family: 'Topaz8 Amiga1200 Nerd Font', monospace;
