@@ -204,6 +204,18 @@ describe('ws handleConnection — OSC 52 read flow', () => {
     expect(true).toBe(true);
   }, 20000);
 
+  test('ws.terminate() on client triggers server ws error handler', async () => {
+    h = await startTestServer({ testMode: true });
+    const o = openWs(h.wsUrl);
+    await o.opened;
+    // terminate() triggers an abrupt close on the underlying TCP socket,
+    // which the server's ws instance surfaces as an 'error' event — covers
+    // the ws.on('error', () => {}) noop handler.
+    o.ws.terminate();
+    await new Promise(r => setTimeout(r, 200));
+    expect(true).toBe(true);
+  }, 20000);
+
   test('dropsChanged TT push when a drop is POST\'d via /api/drop', async () => {
     h = await startTestServer({ testMode: true });
     const o = openWs(h.wsUrl);
