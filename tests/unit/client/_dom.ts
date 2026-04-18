@@ -68,6 +68,7 @@ export interface StubDoc {
   body: StubElement;
   __byId: Record<string, StubElement>;
   createElement(t: string): StubElement;
+  createTextNode(text: string): StubElement;
   getElementById(id: string): StubElement | null;
   addEventListener(t: string, fn: any, capture?: boolean): void;
   removeEventListener(t: string, fn: any, capture?: boolean): void;
@@ -90,6 +91,11 @@ export function setupDocument(): StubDoc {
     documentElement: docEl,
     fonts: { add() {} },
     createElement: (t: string) => el(t),
+    createTextNode: (text: string) => {
+      const node = el('#text');
+      node.textContent = text;
+      return node;
+    },
     getElementById: (id: string) => byId[id] ?? null,
     addEventListener: (t: string, fn: any) => { (listeners[t] ??= []).push(fn); },
     removeEventListener: (t: string, fn: any) => { listeners[t] = (listeners[t] || []).filter(f => f !== fn); },
