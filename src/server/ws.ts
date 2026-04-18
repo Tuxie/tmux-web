@@ -14,6 +14,7 @@ import { getForegroundProcess } from './foreground-process.js';
 import { resolvePolicy, recordGrant } from './clipboard-policy.js';
 import { onDropsChange } from './file-drop.js';
 import { execFileAsync } from './exec.js';
+import { routeClientMessage, type WsAction, type PendingRead as RouterPendingRead } from './ws-router.js';
 
 export interface WsServerOptions {
   config: ServerConfig;
@@ -260,19 +261,10 @@ function handleConnection(
   let lastSession = session;
   let lastTitle = '';
 
-  /** Pending OSC 52 read requests keyed by reqId. Each entry remembers the
-   *  OSC 52 selection char ('c'/'p'/…) and the resolved exe path (if any),
-   *  so the decision reply knows where to record the grant and which
-   *  selection to echo back to the PTY. */
-  interface PendingRead {
-    selection: string;
-    exePath: string | null;
-    commandName: string | null;
-    /** Populated when the server has already decided to allow and is
-     *  awaiting the client's clipboard content for this request. */
-    awaitingContent?: boolean;
-  }
-  const pendingReads = new Map<string, PendingRead>();
+  /** Pending OSC 52 read requests keyed by reqId. See `ws-router.ts`
+   *  for the shape; shared with the pure router so the dispatcher and
+   *  the read-request path see the same Map. */
+  const pendingReads = new Map<string, RouterPendingRead>();
   let nextReqId = 0;
   const newReqId = (): string => `r${Date.now().toString(36)}${(nextReqId++).toString(36)}`;
 
@@ -377,75 +369,45 @@ function handleConnection(
     if (ws.readyState === WebSocket.OPEN) ws.close();
   });
 
+  const dispatchAction = (act: WsAction): void => {
+    switch (act.type) {
+      case 'pty-write': ptyProcess.write(act.data); return;
+      case 'pty-resize': ptyProcess.resize(act.cols, act.rows); return;
+      case 'colour-variant': void applyColourVariant(lastSession, act.variant, config); return;
+      case 'window':
+        // After the action completes, refresh the window list. tmux only
+        // emits an OSC title change when the *active* window changes, so
+        // closing/renaming a non-current window would otherwise leave the
+        // client showing a stale tab until the user switched windows.
+        void applyWindowAction(lastSession, { action: act.action, index: act.index, name: act.name }, config)
+          .then(() => sendWindowState(ws, lastSession, config));
+        return;
+      case 'session':
+        void applySessionAction(lastSession, { action: act.action, name: act.name }, config);
+        return;
+      case 'clipboard-deny':
+        void replyToRead(act.selection, '');
+        return;
+      case 'clipboard-grant-persist':
+        void recordGrant({
+          filePath: sessionsStorePath,
+          session: lastSession,
+          exePath: act.exePath,
+          action: 'read',
+          allow: act.allow,
+          expiresAt: act.expiresAt,
+          pinHash: act.pinHash,
+        }).catch(() => { /* store failure is non-fatal for this request */ });
+        return;
+      case 'clipboard-request-content': requestClipboardFromClient(act.reqId); return;
+      case 'clipboard-reply': void replyToRead(act.selection, act.base64); return;
+    }
+  };
+
   ws.on('message', (data) => {
     const msg = data.toString('utf8');
-    if (msg.startsWith('{')) {
-      try {
-        const parsed = JSON.parse(msg);
-        if (parsed.type === 'resize') {
-          ptyProcess.resize(parsed.cols, parsed.rows);
-          return;
-        }
-        if (parsed.type === 'colour-variant' && (parsed.variant === 'dark' || parsed.variant === 'light')) {
-          void applyColourVariant(lastSession, parsed.variant, config);
-          return;
-        }
-        if (parsed.type === 'window' && typeof parsed.action === 'string') {
-          // After the action completes, refresh the window list. tmux only
-          // emits an OSC title change when the *active* window changes, so
-          // closing/renaming a non-current window would otherwise leave the
-          // client showing a stale tab until the user switched windows.
-          void applyWindowAction(lastSession, parsed, config)
-            .then(() => sendWindowState(ws, lastSession, config));
-          return;
-        }
-        if (parsed.type === 'session' && typeof parsed.action === 'string') {
-          void applySessionAction(lastSession, parsed, config);
-          return;
-        }
-        if (parsed.type === 'clipboard-decision' && typeof parsed.reqId === 'string') {
-          const pending = pendingReads.get(parsed.reqId);
-          if (!pending) return; // stale / duplicate
-          const allow = !!parsed.allow;
-          const pinHash = !!parsed.pinHash;
-          const expiresAt = (typeof parsed.expiresAt === 'string' || parsed.expiresAt === null)
-            ? parsed.expiresAt : null;
-          const persist = parsed.persist === true;
-          if (persist && pending.exePath) {
-            void recordGrant({
-              filePath: sessionsStorePath,
-              session: lastSession,
-              exePath: pending.exePath,
-              action: 'read',
-              allow,
-              expiresAt,
-              pinHash,
-            }).catch(() => { /* store failure is non-fatal for this request */ });
-          }
-          if (allow) {
-            pending.awaitingContent = true;
-            requestClipboardFromClient(parsed.reqId);
-          } else {
-            pendingReads.delete(parsed.reqId);
-            void replyToRead(pending.selection, '');
-          }
-          return;
-        }
-        if (parsed.type === 'clipboard-read-reply' && typeof parsed.reqId === 'string') {
-          const pending = pendingReads.get(parsed.reqId);
-          if (!pending || !pending.awaitingContent) return;
-          pendingReads.delete(parsed.reqId);
-          const base64 = typeof parsed.base64 === 'string' ? parsed.base64 : '';
-          // Cap the payload to 1 MiB of base64 so a huge clipboard can't
-          // stall the PTY. 1 MiB base64 ≈ 768 KiB raw — plenty for sane use.
-          const MAX = 1024 * 1024;
-          const clipped = base64.length > MAX ? '' : base64;
-          void replyToRead(pending.selection, clipped);
-          return;
-        }
-      } catch { /* not JSON, pass through */ }
-    }
-    ptyProcess.write(msg);
+    const actions = routeClientMessage(msg, { currentSession: lastSession, pendingReads });
+    for (const act of actions) dispatchAction(act);
   });
 
   ws.on('close', () => {
