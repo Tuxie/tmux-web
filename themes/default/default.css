@@ -113,6 +113,15 @@ body {
 .tw-dd-session-status.running { background: #2ecc40; }
 /* stopped: hollow outline; background: transparent and border set in base.css */
 .tw-dd-session-status.stopped { color: #e74c3c; }
+.tw-dd-session-delete {
+  background: transparent;
+  border: none;
+  padding: 0 2px;
+  color: inherit;
+  font-size: 12px;
+  opacity: 0.65;
+}
+.tw-dd-session-delete:hover { opacity: 1; }
 .tw-dropdown-sep { border: none; border-top: 1px solid #444; margin: 4px 0; }
 /* Sessions dropdown menu — anchors under the session button by default (left-aligned) */
 

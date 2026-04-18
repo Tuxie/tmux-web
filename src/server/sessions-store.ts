@@ -112,3 +112,16 @@ export function applyPatch(filePath: string, patch: SessionsConfigPatch): Sessio
   saveConfig(filePath, next);
   return next;
 }
+
+export function deleteSession(filePath: string, name: string): SessionsConfig {
+  const current = loadConfig(filePath);
+  if (!(name in current.sessions)) return current;
+  const { [name]: _removed, ...rest } = current.sessions;
+  const next: SessionsConfig = {
+    version: 1,
+    lastActive: current.lastActive === name ? undefined : current.lastActive,
+    sessions: rest,
+  };
+  saveConfig(filePath, next);
+  return next;
+}

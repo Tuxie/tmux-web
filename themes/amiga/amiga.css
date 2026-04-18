@@ -308,7 +308,7 @@ body {
 }
 .tw-dropdown-item { padding: 2px 12px; cursor: pointer; white-space: nowrap; }
 .tw-dropdown-item:hover { background: #7096ce; color: #fff; }
-.tw-dropdown-item.selected { background: #99a; }
+.tw-dropdown-item.selected { background: #7096ce; color: #fff; }
 .tw-dropdown-sep { border: none; border-top: 2px solid #888; margin: 3px 4px; }
 .tw-dropdown-menu.tw-dd-sessions-menu { min-width: 160px; }
 .tw-dropdown-menu.tw-dd-context { min-width: auto; }
@@ -321,8 +321,9 @@ body {
   display: flex; align-items: center; gap: 8px;
 }
 .tw-dd-session-item.current::before {
-  content: '\2713'; position: absolute;
+  content: '\221A'; position: absolute;
   left: 10px; width: 12px;
+  font: inherit;
 }
 .tw-dd-session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tw-dd-session-status {
@@ -368,7 +369,39 @@ body {
 .menu-row:hover { background: #7096ce; }
 .menu-row-static { cursor: default; gap: 3px; }
 .menu-label { color: #000; min-width: 120px; }
-.tw-dropdown-menu input[type="checkbox"] { margin-right: 4px; }
+/* AmigaOS 3.1 GadTools-style checkbox. Raised sunken well when unchecked,
+ * sunken bevel with a filled square when checked — mirrors the look of
+ * the Workbench 3.1 installer's radio group. */
+.tw-dropdown-menu input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  margin: 0 6px 0 0;
+  padding: 0;
+  background: #aaa;
+  border: 2px solid;
+  border-color: #fff #000 #000 #fff;
+  border-radius: 0;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+}
+.tw-dropdown-menu input[type="checkbox"]:checked {
+  background: #7096ce;
+  border-color: #000 #fff #fff #000;
+}
+.tw-dropdown-menu input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  background: #000;
+  transform: translate(-50%, -50%);
+}
 
 /* Selects and number inputs — Amiga sunken bevel. */
 .menu-input-select {
@@ -412,6 +445,16 @@ body {
 /* Per-row trash uses a Nerd Font glyph (U+EA81) with a cosmetic
  * offset — the glyph has a hair of trailing whitespace baked in. */
 .drops-revoke { font-size: 18px; padding: 0 7px 0 5px; }
+
+/* Session-delete button: mirror the drops-revoke look (grey .tb-btn
+ * in a dropdown context) inside the session menu. The session menu is
+ * inserted as a child of #topbar, so the `#topbar .tb-btn` blue rule
+ * otherwise wins — scope this one to the same id to outrank it. */
+#topbar .tw-dd-sessions-menu .tb-btn {
+  background: #aaa;
+  border-color: #fff #000 #000 #fff;
+  height: 22px;
+}
 
 /* Drops list: plain black-on-grey. */
 #drops-list, #drops-list > div, #drops-list span { color: #000; }

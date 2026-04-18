@@ -9,6 +9,7 @@ import { Dropdown, showContextMenu, type DropdownItem } from './dropdown.js';
 import {
   loadSessionSettings,
   saveSessionSettings,
+  deleteSessionSettings,
   getLiveSessionSettings,
   getStoredSessionNames,
   initSessionStore,
@@ -41,6 +42,7 @@ export class Topbar {
   private lastActiveWindowIndex: string | null = null;
   private syncSettingsUi?: (s: SessionSettings) => void;
   private cachedWindows: Array<{ index: string; name: string; active: boolean }> = [];
+  private lastWinTabsKey = '';
   private menuBtn?: HTMLButtonElement;
   private menuDropdown?: HTMLElement;
   private opts: TopbarOptions;
@@ -131,6 +133,8 @@ export class Topbar {
 
         // Sessions list — current one marked with a check (CSS gutter), and
         // a coloured status dot on the right (green = running, red = not).
+        // Stopped sessions also get a trashcan that deletes the stored
+        // settings entry from sessions.json.
         for (const s of ordered) {
           const isCurrent = s === current;
           const isRunning = running.has(s);
@@ -140,6 +144,22 @@ export class Topbar {
           name.className = 'tw-dd-session-name';
           name.textContent = s;
           el.appendChild(name);
+          if (!isRunning) {
+            const del = document.createElement('button');
+            del.type = 'button';
+            // `tb-btn drops-revoke` mirror the drops-section trashcan — themes
+            // that style those classes (e.g. Amiga) pick up the same look.
+            del.className = 'tb-btn drops-revoke tw-dd-session-delete';
+            del.title = `Delete session "${s}".`;
+            del.textContent = '\uEA81';
+            del.addEventListener('click', async (ev) => {
+              ev.stopPropagation();
+              ev.preventDefault();
+              await deleteSessionSettings(s);
+              el.remove();
+            });
+            el.appendChild(del);
+          }
           const dot = document.createElement('span');
           dot.className = 'tw-dd-session-status ' + (isRunning ? 'running' : 'stopped');
           dot.title = isRunning ? 'Running' : 'Not running';
@@ -701,9 +721,18 @@ export class Topbar {
     return wrap;
   }
 
-  /** Re-render the #win-tabs contents based on the current showWindowTabs pref. */
+  /** Re-render the #win-tabs contents based on the current showWindowTabs pref.
+   *  Idempotent: when the resulting DOM would be identical (same windows,
+   *  same tabs-mode pref), we skip the re-render to avoid destroying the
+   *  compact window button mid-interaction. Without this, any tmux push
+   *  arriving while the windows menu is open would re-create the button
+   *  and strip its `.open` class, making the trigger look "released" while
+   *  the menu is still visible. */
   private renderWinTabs(): void {
     const windows = this.cachedWindows;
+    const key = JSON.stringify({ w: windows, t: getShowWindowTabs() });
+    if (key === this.lastWinTabsKey) return;
+    this.lastWinTabsKey = key;
     this.winTabs.innerHTML = '';
 
     if (getShowWindowTabs()) {

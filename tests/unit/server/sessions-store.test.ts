@@ -4,6 +4,7 @@ import os from "os";
 import path from "path";
 import {
   applyPatch,
+  deleteSession,
   emptyConfig,
   loadConfig,
   mergeConfig,
@@ -111,5 +112,32 @@ describe("sessions-store", () => {
     expect(cfg.lastActive).toBe("one");
     expect(cfg.sessions.one).toBeDefined();
     expect(cfg.sessions.two!.opacity).toBe(50);
+  });
+
+  test("deleteSession removes named entry and clears lastActive if it matched", () => {
+    const file = path.join(tmp, "sessions.json");
+    applyPatch(file, { lastActive: "one", sessions: { one: SAMPLE, two: SAMPLE } });
+    const next = deleteSession(file, "one");
+    expect(next.sessions.one).toBeUndefined();
+    expect(next.sessions.two).toBeDefined();
+    expect(next.lastActive).toBeUndefined();
+    const round = loadConfig(file);
+    expect(round.sessions.one).toBeUndefined();
+    expect(round.sessions.two).toBeDefined();
+  });
+
+  test("deleteSession keeps lastActive when it points to a different session", () => {
+    const file = path.join(tmp, "sessions.json");
+    applyPatch(file, { lastActive: "one", sessions: { one: SAMPLE, two: SAMPLE } });
+    const next = deleteSession(file, "two");
+    expect(next.lastActive).toBe("one");
+    expect(next.sessions.two).toBeUndefined();
+  });
+
+  test("deleteSession is a no-op when name is absent", () => {
+    const file = path.join(tmp, "sessions.json");
+    applyPatch(file, { sessions: { one: SAMPLE } });
+    const next = deleteSession(file, "nope");
+    expect(Object.keys(next.sessions)).toEqual(["one"]);
   });
 });

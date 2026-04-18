@@ -143,6 +143,19 @@ html, body { height: 100%; overflow: hidden; }
 .tw-dd-session-status { box-sizing: border-box; }
 .tw-dd-session-status.stopped { background: transparent; border: 1.5px solid currentColor; }
 
+/* Delete button for stopped sessions — sits left of the status dot.
+ * Layout only; look-and-feel (bevel, colours, font) lives in theme CSS. */
+.tw-dd-session-delete {
+  position: absolute;
+  right: 22px;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 0;
+  cursor: pointer;
+  line-height: 1;
+}
+.tw-dd-session-item:has(.tw-dd-session-delete) { padding-right: 40px; }
+
 /* Custom dropdown structural rules. */
 /* Keep the wrapped <select> technically in the page (so Playwright's
  * selectOption() and .value access keep working) but invisible to users. */

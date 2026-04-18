@@ -80,7 +80,7 @@ export async function mockSessionStore(
     ...(initial ?? {}),
     sessions: { ...(initial?.sessions ?? {}) },
   };
-  await page.route('**/api/session-settings', async route => {
+  await page.route('**/api/session-settings*', async route => {
     const req = route.request();
     if (req.method() === 'PUT') {
       try {
@@ -91,6 +91,16 @@ export async function mockSessionStore(
         }
       } catch { /* malformed body — ignore, like the real server */ }
       await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+      return;
+    }
+    if (req.method() === 'DELETE') {
+      const u = new URL(req.url());
+      const name = u.searchParams.get('name');
+      if (name) {
+        delete state.sessions[name];
+        if (state.lastActive === name) state.lastActive = undefined;
+      }
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state) });
       return;
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state) });

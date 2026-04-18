@@ -298,8 +298,26 @@ describe('http branches — /api/session-settings', () => {
 
   test('unsupported method on /api/session-settings → 405', async () => {
     h = await startTestServer();
-    const r = await httpReq(h.url + '/api/session-settings', { method: 'DELETE' });
+    const r = await httpReq(h.url + '/api/session-settings', { method: 'PATCH' });
     expect(r.status).toBe(405);
+  });
+
+  test('DELETE without name query parameter → 400', async () => {
+    h = await startTestServer();
+    const r = await httpReq(h.url + '/api/session-settings', { method: 'DELETE' });
+    expect(r.status).toBe(400);
+  });
+
+  test('DELETE ?name=<x> removes session from store', async () => {
+    h = await startTestServer();
+    await httpReq(h.url + '/api/session-settings', {
+      method: 'PUT',
+      body: JSON.stringify({ sessions: { gone: { theme: 'T', colours: 'x', fontFamily: 'f', fontSize: 1, spacing: 1, opacity: 0 } } }),
+    });
+    const r = await httpReq(h.url + '/api/session-settings?name=gone', { method: 'DELETE' });
+    expect(r.status).toBe(200);
+    const j = await r.json();
+    expect(j.sessions.gone).toBeUndefined();
   });
 });
 

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mockApis, injectWsSpy, waitForWsOpen } from './helpers.js';
+import { mockApis, mockSessionStore, injectWsSpy, waitForWsOpen } from './helpers.js';
 
 test('session button shows current session name', async ({ page }) => {
   await injectWsSpy(page);
@@ -171,4 +171,88 @@ test('session button has .open class while dropdown is showing', async ({ page }
   // Close by clicking outside
   await page.mouse.click(500, 500);
   await expect(btn).not.toHaveClass(/\bopen\b/);
+});
+
+test('stopped sessions show a delete button; running sessions do not', async ({ page }) => {
+  await injectWsSpy(page);
+  await page.route('**/api/sessions', route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(['main']) })
+  );
+  await page.route('**/api/windows**', route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+  );
+  await mockSessionStore(page, {
+    lastActive: 'main',
+    sessions: {
+      main: { theme: 'Default', colours: 'Gruvbox Dark', fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
+      archived: { theme: 'Default', colours: 'Gruvbox Dark', fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
+    },
+  });
+  await page.goto('/main');
+  await waitForWsOpen(page);
+  await page.click('#btn-session-menu');
+  const rows = page.locator('.tw-dropdown-menu.tw-dd-sessions-menu:not([hidden]) .tw-dd-session-item');
+  // main is running → no delete button
+  await expect(rows.nth(0).locator('.tw-dd-session-delete')).toHaveCount(0);
+  // archived is stopped → delete button present
+  await expect(rows.nth(1).locator('.tw-dd-session-delete')).toHaveCount(1);
+});
+
+test('clicking delete button removes the session via DELETE request', async ({ page }) => {
+  await injectWsSpy(page);
+  await page.route('**/api/sessions', route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(['main']) })
+  );
+  await page.route('**/api/windows**', route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+  );
+  const store = await mockSessionStore(page, {
+    lastActive: 'main',
+    sessions: {
+      main: { theme: 'Default', colours: 'Gruvbox Dark', fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
+      archived: { theme: 'Default', colours: 'Gruvbox Dark', fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
+    },
+  });
+  await page.goto('/main');
+  await waitForWsOpen(page);
+  await page.click('#btn-session-menu');
+
+  const menu = page.locator('.tw-dropdown-menu.tw-dd-sessions-menu:not([hidden])');
+  const archivedRow = menu.locator('.tw-dd-session-item', { hasText: 'archived' });
+  await expect(archivedRow).toHaveCount(1);
+
+  // Wait for the DELETE request fired by the click.
+  const [req] = await Promise.all([
+    page.waitForRequest(r => r.method() === 'DELETE' && r.url().includes('/api/session-settings')),
+    archivedRow.locator('.tw-dd-session-delete').click(),
+  ]);
+  expect(new URL(req.url()).searchParams.get('name')).toBe('archived');
+
+  // Row vanishes, server-side store no longer has the entry.
+  await expect(archivedRow).toHaveCount(0);
+  expect(store.get().sessions.archived).toBeUndefined();
+});
+
+test('delete button click does not switch to the deleted session', async ({ page }) => {
+  await injectWsSpy(page);
+  await page.route('**/api/sessions', route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(['main']) })
+  );
+  await page.route('**/api/windows**', route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+  );
+  await mockSessionStore(page, {
+    sessions: {
+      main: { theme: 'Default', colours: 'Gruvbox Dark', fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
+      archived: { theme: 'Default', colours: 'Gruvbox Dark', fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
+    },
+  });
+  await page.goto('/main');
+  await waitForWsOpen(page);
+  await page.click('#btn-session-menu');
+  const archivedRow = page.locator('.tw-dropdown-menu.tw-dd-sessions-menu:not([hidden]) .tw-dd-session-item', { hasText: 'archived' });
+  await archivedRow.locator('.tw-dd-session-delete').click();
+  // URL must stay on /main — the trashcan must not fall through to the row's
+  // click handler which would navigate to /archived.
+  expect(new URL(page.url()).pathname).toBe('/main');
 });

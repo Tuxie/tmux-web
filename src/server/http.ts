@@ -16,7 +16,7 @@ import {
   readPackFile,
   type PackInfo,
 } from './themes.js';
-import { applyPatch, loadConfig, type SessionsConfigPatch } from './sessions-store.js';
+import { applyPatch, deleteSession, loadConfig, type SessionsConfigPatch } from './sessions-store.js';
 import {
   writeDrop,
   listDrops,
@@ -519,6 +519,23 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
         } catch (err) {
           res.writeHead(500);
           res.end('Save failed');
+        }
+        return;
+      }
+      if (req.method === 'DELETE') {
+        const name = url.searchParams.get('name');
+        if (!name) {
+          res.writeHead(400);
+          res.end('Missing name');
+          return;
+        }
+        try {
+          const next = deleteSession(opts.sessionsStorePath, name);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(next));
+        } catch {
+          res.writeHead(500);
+          res.end('Delete failed');
         }
         return;
       }

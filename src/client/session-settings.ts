@@ -78,6 +78,14 @@ export function saveSessionSettings(name: string, s: SessionSettings): void {
   persist({ sessions: { [name]: { ...s } } });
 }
 
+export async function deleteSessionSettings(name: string): Promise<void> {
+  delete cache.sessions[name];
+  if (cache.lastActive === name) cache.lastActive = undefined;
+  try {
+    await fetch('/api/session-settings?name=' + encodeURIComponent(name), { method: 'DELETE' });
+  } catch {}
+}
+
 /** Returns the names of all sessions persisted in the server-side store. */
 export function getStoredSessionNames(): string[] {
   return Object.keys(cache.sessions);

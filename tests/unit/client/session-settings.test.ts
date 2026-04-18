@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach } from "bun:test";
 import {
   DEFAULT_SESSION_SETTINGS,
+  deleteSessionSettings,
   initSessionStore,
   loadSessionSettings,
   saveSessionSettings,
@@ -218,5 +219,32 @@ describe("session-settings", () => {
   test("_resetSessionStore accepts initial state", () => {
     _resetSessionStore({ sessions: { seeded: { ...DEFAULT_SESSION_SETTINGS } }, lastActive: "seeded" });
     expect(getStoredSessionNames()).toEqual(["seeded"]);
+  });
+
+  test("deleteSessionSettings removes cache entry and issues DELETE", async () => {
+    const calls = setupFakeFetch({
+      lastActive: "a",
+      sessions: {
+        a: { theme: "T", colours: "x", fontFamily: "f", fontSize: 1, spacing: 1, opacity: 0 },
+        b: { theme: "T", colours: "x", fontFamily: "f", fontSize: 1, spacing: 1, opacity: 0 },
+      },
+    });
+    await initSessionStore();
+    await deleteSessionSettings("a");
+    expect(getStoredSessionNames()).toEqual(["b"]);
+    expect(getLiveSessionSettings("anything")).toBeNull();
+    const del = calls.find(c => c.init?.method === 'DELETE');
+    expect(del).toBeDefined();
+    expect(del!.url).toBe('/api/session-settings?name=a');
+  });
+
+  test("deleteSessionSettings swallows fetch errors", async () => {
+    (globalThis as any).fetch = async (url: string, init?: RequestInit) => {
+      if (init?.method === 'DELETE') throw new Error('boom');
+      return { ok: true, json: async () => ({ version: 1, sessions: { x: { ...DEFAULT_SESSION_SETTINGS } } }) } as any;
+    };
+    await initSessionStore();
+    await deleteSessionSettings("x");
+    expect(getStoredSessionNames()).toEqual([]);
   });
 });
