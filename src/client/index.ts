@@ -28,6 +28,7 @@ declare global {
   interface Window {
     __TMUX_WEB_CONFIG: ClientConfig;
     __adapter?: TerminalAdapter;
+    __twInjectMessage?: (data: string) => void;
   }
 }
 
@@ -233,6 +234,13 @@ async function main() {
     },
   });
   connection.connect();
+
+  if (window.__TMUX_WEB_CONFIG.testMode) {
+    // Test-only backdoor: lets Playwright inject a TT message directly into
+    // the dispatch pipeline without a WS round-trip. Only attached when the
+    // server is running under --test; production HTML has no testMode field.
+    window.__twInjectMessage = (data: string) => handleMessage(data);
+  }
 
   adapter.onData((data) => connection.send(data));
   adapter.onResize(({ cols, rows }) => connection.sendResize(cols, rows));

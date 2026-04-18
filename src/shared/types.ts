@@ -99,4 +99,8 @@ export interface ServerConfig {
 /** Config injected into the HTML page for the client. */
 export interface ClientConfig {
   version: string;
+  /** Test-mode flag set by the server when --test is active. Enables the
+   *  window.__twInjectMessage backdoor used by e2e tests to drive the client
+   *  without a server round-trip. Absent in production builds. */
+  testMode?: boolean;
 }

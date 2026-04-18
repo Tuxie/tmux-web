@@ -1,26 +1,105 @@
+import { test, expect } from '@playwright/test';
+
 /**
- * E2E tests for OSC 52 clipboard-read consent flow.
+ * E2E for the OSC 52 clipboard-read consent modal.
  *
- * DEFERRED — see cluster 06 finding 6.
- *
- * The consent flow requires the server to intercept `\x1b]52;c;?\x07` on the
- * PTY→client path and emit a `clipboardPrompt` TT message. In --test mode
- * the PTY is `cat`, so the sequence must round-trip (client → WS → cat →
- * server intercept → client). Testing that end-to-end without a real browser
- * requires a raw WebSocket client with precise timing, which is brittle and
- * prone to false negatives if cat's echo is slow.
- *
- * The pure-function behaviour of the interceptor is already covered at the
- * unit level in `tests/unit/server/protocol-osc52.test.ts`. The UI modal
- * behaviour (showing the consent dialog, recording a grant) is the remaining
- * E2E gap and should be addressed once a lightweight in-process WS test
- * harness is available or via Playwright's `page.evaluate()` approach of
- * directly injecting a `clipboardPrompt` TT message through `__mockWsReceive`.
- *
- * TODO: Implement once a clean injection path exists. Port 4116 is reserved
- * in PORTS.md.
+ * Rather than drive a real OSC 52 read sequence through cat's echo (brittle
+ * timing), we inject the clipboardPrompt TT message directly via the
+ * window.__twInjectMessage backdoor that the server exposes in --test mode.
+ * This exercises the real modal code; unit tests cover the server-side
+ * decode / encode / policy flows.
  */
 
-// Placeholder: no tests in this file yet. Remove this comment block and add
-// tests when the flow can be exercised cleanly.
-export {};
+const PROMPT = {
+  reqId: 'e2e-test-1',
+  exePath: '/usr/bin/ssh',
+  commandName: 'ssh',
+};
+
+const TT = (body: unknown) => '\x00TT:' + JSON.stringify(body);
+
+async function openPrompt(page: import('@playwright/test').Page): Promise<void> {
+  await page.goto('/');
+  // Wait for the test backdoor to be installed (connection is up + config
+  // was marked testMode on the server side).
+  await page.waitForFunction(() => typeof (window as any).__twInjectMessage === 'function');
+  const payload = TT({ clipboardPrompt: PROMPT });
+  await page.evaluate((p) => (window as any).__twInjectMessage(p), payload);
+  await page.locator('.tw-clip-prompt-card').waitFor({ state: 'visible' });
+}
+
+test.describe('OSC 52 clipboard-read consent modal', () => {
+  test('renders with program name and three buttons', async ({ page }) => {
+    await openPrompt(page);
+    const card = page.locator('.tw-clip-prompt-card');
+    await expect(card.locator('.tw-clip-prompt-title')).toHaveText('Allow clipboard read?');
+    await expect(card.locator('.tw-clip-prompt-body')).toContainText('/usr/bin/ssh');
+    await expect(card.locator('.tw-clip-prompt-btn-deny')).toHaveText('Deny');
+    await expect(card.locator('.tw-clip-prompt-btn-once')).toHaveText('Allow once');
+    await expect(card.locator('.tw-clip-prompt-btn-always')).toHaveText('Allow always');
+  });
+
+  test('Escape dismisses the modal', async ({ page }) => {
+    await openPrompt(page);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.tw-clip-prompt-card')).toHaveCount(0);
+  });
+
+  test('clicking Deny sends a deny clipboard-decision message', async ({ page }) => {
+    // Spy on outbound WS messages before triggering the prompt.
+    await page.goto('/');
+    await page.waitForFunction(() => typeof (window as any).__twInjectMessage === 'function');
+    await page.evaluate(() => {
+      const out: string[] = [];
+      (window as any).__twSendSpy = out;
+      const origSend = WebSocket.prototype.send;
+      WebSocket.prototype.send = function (data: any) {
+        if (typeof data === 'string') out.push(data);
+        return origSend.apply(this, arguments as any);
+      };
+    });
+
+    await page.evaluate(
+      (p) => (window as any).__twInjectMessage(p),
+      TT({ clipboardPrompt: PROMPT }),
+    );
+    await page.locator('.tw-clip-prompt-btn-deny').click();
+    await expect(page.locator('.tw-clip-prompt-card')).toHaveCount(0);
+
+    const outbound = await page.evaluate(() => (window as any).__twSendSpy as string[]);
+    const decisions = outbound.map(s => { try { return JSON.parse(s); } catch { return null; } })
+      .filter(x => x && x.type === 'clipboard-decision');
+    expect(decisions.length).toBeGreaterThanOrEqual(1);
+    const last = decisions[decisions.length - 1];
+    expect(last.reqId).toBe(PROMPT.reqId);
+    expect(last.allow).toBe(false);
+  });
+
+  test('clicking Allow once sends an allow-once clipboard-decision', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForFunction(() => typeof (window as any).__twInjectMessage === 'function');
+    await page.evaluate(() => {
+      const out: string[] = [];
+      (window as any).__twSendSpy = out;
+      const origSend = WebSocket.prototype.send;
+      WebSocket.prototype.send = function (data: any) {
+        if (typeof data === 'string') out.push(data);
+        return origSend.apply(this, arguments as any);
+      };
+    });
+    await page.evaluate(
+      (p) => (window as any).__twInjectMessage(p),
+      TT({ clipboardPrompt: PROMPT }),
+    );
+    await page.locator('.tw-clip-prompt-btn-once').click();
+    await expect(page.locator('.tw-clip-prompt-card')).toHaveCount(0);
+
+    const outbound = await page.evaluate(() => (window as any).__twSendSpy as string[]);
+    const decisions = outbound.map(s => { try { return JSON.parse(s); } catch { return null; } })
+      .filter(x => x && x.type === 'clipboard-decision');
+    const last = decisions[decisions.length - 1];
+    expect(last.reqId).toBe(PROMPT.reqId);
+    expect(last.allow).toBe(true);
+    expect(last.persist).toBe(false);
+  });
+});
