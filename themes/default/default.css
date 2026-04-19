@@ -1,28 +1,28 @@
 :root {
   /* --tw-antialias-bg -----------------------------------------------
-   * Backdrop colour the xterm.js WebGL atlas uses when baking glyph
-   * edge-AA, so anti-aliased text doesn't fringe against the body.
+   * Backdrop the xterm.js WebGL atlas uses when baking glyph edge-AA
+   * so anti-aliased text doesn't fringe against the body.
    *
-   * Most themes can leave this unset — the client's getBodyBg()
-   * falls back to `getComputedStyle(document.body).backgroundColor`,
-   * which is the right answer for any solid-colour body (Default,
-   * AmigaOS 3.1, etc.).
-   *
-   * Themes MUST override this when the body's background is a
-   * gradient or image, because getComputedStyle can't resolve those
-   * to a single representative colour (it returns rgba(0,0,0,0)).
-   * The typical override is the gradient's midpoint expressed as an
-   * HSL triple or rgb() tuple — see themes/amiga/scene.css for the
-   * pattern, which derives it from the BG hue / saturation /
-   * brightest / darkest sliders.
-   *
-   *   --tw-antialias-bg: rgb(30, 30, 30);  -- or any CSS colour
+   * Derived from the BG sliders so any theme that drives its body
+   * background off the same variables gets a correct halo reference
+   * for free — solid bodies (brightest == darkest) reduce to a
+   * single L, gradient bodies land at the 42%-stop midpoint. Themes
+   * with image bodies should still override this manually.
    * -------------------------------------------------------------- */
-  --tw-antialias-bg: #1e1e1e;
+  --tw-antialias-bg: hsl(
+    var(--tw-background-hue, 0)
+    calc(var(--tw-background-saturation, 0) * 1%)
+    calc((var(--tw-background-brightest, 12) * 0.58
+        + var(--tw-background-darkest,  12) * 0.42) * 1%)
+  );
 }
 
 body {
-  background: #1e1e1e;
+  background: hsl(
+    var(--tw-background-hue, 0)
+    calc(var(--tw-background-saturation, 0) * 1%)
+    calc(var(--tw-background-brightest, 12) * 1%)
+  );
   /* Default font for anything attached directly to body — e.g. the
    * windows menu (showContextMenu uses position:fixed and appends to
    * body), which would otherwise fall back to the browser's serif

@@ -22,6 +22,10 @@ export type ThemeInfo = {
   defaultTuiFgOpacity?: number;
   defaultTuiSaturation?: number;
   defaultThemeHue?: number;
+  defaultBackgroundHue?: number;
+  defaultBackgroundSaturation?: number;
+  defaultBackgroundBrightest?: number;
+  defaultBackgroundDarkest?: number;
   author?: string;
   version?: string;
   source: 'user' | 'bundled';
@@ -51,6 +55,10 @@ export type PackManifest = {
   defaultTuiFgOpacity?: number;
   defaultTuiSaturation?: number;
   defaultThemeHue?: number;
+  defaultBackgroundHue?: number;
+  defaultBackgroundSaturation?: number;
+  defaultBackgroundBrightest?: number;
+  defaultBackgroundDarkest?: number;
   }[];
 };
 
@@ -101,19 +109,95 @@ export function listPacks(userDir: string | null, bundledDir: string | null): Pa
   return [...user, ...bundled];
 }
 
+/**
+ * Fields carried along the inheritance chain. Identity / location
+ * fields (name, css, pack, source, author, version) are never
+ * inherited — every theme gets its own.
+ */
+const INHERITABLE_FIELDS: Array<keyof ThemeInfo> = [
+  'defaultFont',
+  'defaultFontSize',
+  'defaultSpacing',
+  'defaultColours',
+  'defaultOpacity',
+  'defaultTuiBgOpacity',
+  'defaultTuiFgOpacity',
+  'defaultTuiSaturation',
+  'defaultThemeHue',
+  'defaultBackgroundHue',
+  'defaultBackgroundSaturation',
+  'defaultBackgroundBrightest',
+  'defaultBackgroundDarkest',
+];
+
+/**
+ * Fold `inherited` into `own` — `own` wins wherever it has a
+ * defined value, otherwise `inherited` fills in. Only the fields
+ * listed in INHERITABLE_FIELDS participate.
+ */
+function mergeInheritable(
+  inherited: Partial<ThemeInfo> | null,
+  own: Partial<ThemeInfo>,
+): Partial<ThemeInfo> {
+  const out: Partial<ThemeInfo> = { ...own };
+  if (!inherited) return out;
+  for (const key of INHERITABLE_FIELDS) {
+    if (out[key] === undefined && inherited[key] !== undefined) {
+      (out as any)[key] = inherited[key];
+    }
+  }
+  return out;
+}
+
+/**
+ * Resolve the inheritance chain:
+ *
+ *   - The first theme listed in `themes/default/theme.json` is the
+ *     root. Its explicit values are the floor for every other theme.
+ *   - Within a non-default pack, the first theme inherits from the
+ *     root; every subsequent theme inherits from the previous theme
+ *     in the same pack.
+ *   - Within the default pack itself, later themes inherit from the
+ *     previous theme in the same pack.
+ */
 export function listThemes(packs: PackInfo[]): ThemeInfo[] {
+  // Locate the "base" theme — first entry in the `default` pack —
+  // before walking the others. Its resolved form is the fallback
+  // parent for the first theme in every other pack.
+  const defaultPack = packs.find(p => p.dir === 'default');
+  const rawDefaultBase = defaultPack?.manifest.themes?.[0];
+  const defaultBase: Partial<ThemeInfo> | null = rawDefaultBase
+    ? {
+        defaultFont: rawDefaultBase.defaultFont,
+        defaultFontSize: rawDefaultBase.defaultFontSize,
+        defaultSpacing: rawDefaultBase.defaultSpacing,
+        defaultColours: rawDefaultBase.defaultColours,
+        defaultOpacity: rawDefaultBase.defaultOpacity,
+        defaultTuiBgOpacity: rawDefaultBase.defaultTuiBgOpacity,
+        defaultTuiFgOpacity: rawDefaultBase.defaultTuiFgOpacity,
+        defaultTuiSaturation: rawDefaultBase.defaultTuiSaturation,
+        defaultThemeHue: rawDefaultBase.defaultThemeHue,
+        defaultBackgroundHue: rawDefaultBase.defaultBackgroundHue,
+        defaultBackgroundSaturation: rawDefaultBase.defaultBackgroundSaturation,
+        defaultBackgroundBrightest: rawDefaultBase.defaultBackgroundBrightest,
+        defaultBackgroundDarkest: rawDefaultBase.defaultBackgroundDarkest,
+      }
+    : null;
+
   const seen = new Map<string, ThemeInfo>();
   for (const pack of packs) {
+    let prev: Partial<ThemeInfo> | null = null;
     for (const theme of pack.manifest.themes ?? []) {
       if (!theme.name || !theme.css) continue;
       if (seen.has(theme.name)) {
         console.warn(`[themes] duplicate theme name '${theme.name}' in pack '${pack.dir}' (${pack.source}); ignoring`);
         continue;
       }
-      seen.set(theme.name, {
-        name: theme.name,
-        pack: pack.dir,
-        css: theme.css,
+      // Parent for inheritance: previous theme in this pack if we've
+      // seen one; otherwise the default base (but not for the default
+      // pack's own first entry, which IS the base).
+      const parent = prev ?? (pack.dir === 'default' ? null : defaultBase);
+      const own: Partial<ThemeInfo> = {
         defaultFont: theme.defaultFont,
         defaultFontSize: theme.defaultFontSize,
         defaultSpacing: theme.defaultSpacing,
@@ -123,10 +207,23 @@ export function listThemes(packs: PackInfo[]): ThemeInfo[] {
         defaultTuiFgOpacity: theme.defaultTuiFgOpacity,
         defaultTuiSaturation: theme.defaultTuiSaturation,
         defaultThemeHue: theme.defaultThemeHue,
+        defaultBackgroundHue: theme.defaultBackgroundHue,
+        defaultBackgroundSaturation: theme.defaultBackgroundSaturation,
+        defaultBackgroundBrightest: theme.defaultBackgroundBrightest,
+        defaultBackgroundDarkest: theme.defaultBackgroundDarkest,
+      };
+      const resolved = mergeInheritable(parent, own);
+      const info: ThemeInfo = {
+        name: theme.name,
+        pack: pack.dir,
+        css: theme.css,
+        ...resolved,
         author: pack.manifest.author,
         version: pack.manifest.version,
         source: pack.source,
-      });
+      };
+      seen.set(theme.name, info);
+      prev = resolved;
     }
   }
   return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));

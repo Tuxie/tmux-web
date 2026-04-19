@@ -61,6 +61,10 @@ export interface ThemeDefaults {
   fgContrastBias?: number;
   tuiSaturation?: number;
   themeHue?: number;
+  backgroundHue?: number;
+  backgroundSaturation?: number;
+  backgroundBrightest?: number;
+  backgroundDarkest?: number;
 }
 
 export interface LoadOpts {
@@ -115,6 +119,10 @@ export function loadSessionSettings(name: string, live: SessionSettings | null, 
   if (td.fgContrastBias !== undefined) overlay.fgContrastBias = td.fgContrastBias;
   if (td.tuiSaturation !== undefined) overlay.tuiSaturation = td.tuiSaturation;
   if (td.themeHue !== undefined) overlay.themeHue = td.themeHue;
+  if (td.backgroundHue !== undefined) overlay.backgroundHue = td.backgroundHue;
+  if (td.backgroundSaturation !== undefined) overlay.backgroundSaturation = td.backgroundSaturation;
+  if (td.backgroundBrightest !== undefined) overlay.backgroundBrightest = td.backgroundBrightest;
+  if (td.backgroundDarkest !== undefined) overlay.backgroundDarkest = td.backgroundDarkest;
   return { ...opts.defaults, ...overlay };
 }
 
@@ -164,6 +172,10 @@ export function applyThemeDefaults(s: SessionSettings, td: ThemeDefaults): Sessi
     fgContrastBias: td.fgContrastBias ?? s.fgContrastBias,
     tuiSaturation: td.tuiSaturation ?? s.tuiSaturation,
     themeHue: td.themeHue ?? s.themeHue,
+    backgroundHue: td.backgroundHue ?? s.backgroundHue,
+    backgroundSaturation: td.backgroundSaturation ?? s.backgroundSaturation,
+    backgroundBrightest: td.backgroundBrightest ?? s.backgroundBrightest,
+    backgroundDarkest: td.backgroundDarkest ?? s.backgroundDarkest,
   };
 }
 

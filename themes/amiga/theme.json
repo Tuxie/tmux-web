@@ -15,7 +15,9 @@
       "defaultSpacing": 1.0,
       "defaultColours": "Gruvbox Light",
       "defaultOpacity": 0,
-      "defaultThemeHue": 216
+      "defaultThemeHue": 216,
+      "defaultBackgroundBrightest": 72,
+      "defaultBackgroundDarkest": 72
     },
     {
       "name": "Amiga Scene 2000",
@@ -25,7 +27,11 @@
       "defaultSpacing": 1.05,
       "defaultColours": "Dracula",
       "defaultOpacity": 0,
-      "defaultTuiBgOpacity": 70
+      "defaultTuiBgOpacity": 70,
+      "defaultBackgroundHue": 183,
+      "defaultBackgroundSaturation": 0,
+      "defaultBackgroundBrightest": 10,
+      "defaultBackgroundDarkest": 5
     }
   ]
 }

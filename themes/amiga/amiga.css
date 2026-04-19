@@ -18,12 +18,18 @@
    * the menu HR, and the menu footer label so they all read at the
    * same visual weight. */
   --tw-muted: #000;
-  /* Body bg is a flat Workbench grey (#b8b8b8 = hsl(0 0% 72%)). */
-  --tw-antialias-bg: hsl(0 0% 72%);
 }
 
 body {
-  background: #b8b8b8;
+  /* Slider-driven: Hue / Saturation / Brightest are set by the BG
+   * sliders (defaultBackgroundSaturation = -100 collapses to pure
+   * grey, defaultBackgroundBrightest = 72 is Workbench grey). A flat
+   * body uses Brightest only; Darkest is ignored here. */
+  background: hsl(
+    var(--tw-background-hue, 0)
+    calc(var(--tw-background-saturation, 0) * 1%)
+    calc(var(--tw-background-brightest, 72) * 1%)
+  );
   font-family: 'Topaz8 Amiga1200 Nerd Font', monospace;
 }
 

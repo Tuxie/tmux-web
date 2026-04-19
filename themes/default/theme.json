@@ -24,7 +24,11 @@
       "defaultFontSize": 15,
       "defaultSpacing": 0.9,
       "defaultColours": "Nord",
-      "defaultOpacity": 50
+      "defaultOpacity": 50,
+      "defaultBackgroundHue": 0,
+      "defaultBackgroundSaturation": -100,
+      "defaultBackgroundBrightest": 12,
+      "defaultBackgroundDarkest": 12
     }
   ]
 }

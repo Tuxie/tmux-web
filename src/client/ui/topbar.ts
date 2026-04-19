@@ -546,6 +546,10 @@ export class Topbar {
       if (theme?.defaultTuiFgOpacity !== undefined) td.tuiFgOpacity = theme.defaultTuiFgOpacity;
       if (theme?.defaultTuiSaturation !== undefined) td.tuiSaturation = theme.defaultTuiSaturation;
       if (theme?.defaultThemeHue !== undefined) td.themeHue = theme.defaultThemeHue;
+      if (theme?.defaultBackgroundHue !== undefined) td.backgroundHue = theme.defaultBackgroundHue;
+      if (theme?.defaultBackgroundSaturation !== undefined) td.backgroundSaturation = theme.defaultBackgroundSaturation;
+      if (theme?.defaultBackgroundBrightest !== undefined) td.backgroundBrightest = theme.defaultBackgroundBrightest;
+      if (theme?.defaultBackgroundDarkest !== undefined) td.backgroundDarkest = theme.defaultBackgroundDarkest;
       const current = getSettings();
       const updated = applyThemeDefaults({ ...current, theme: name }, td);
       saveSessionSettings(this.currentSession, updated);
@@ -578,16 +582,20 @@ export class Topbar {
       sldTuiFgOpacity.value = inpTuiFgOpacity.value = String(tuiFgOpacity);
       updateSliderFill(sldTuiFgOpacity);
       patch.tuiFgOpacity = tuiFgOpacity;
-      sldBackgroundHue.value = inpBackgroundHue.value = String(DEFAULT_BACKGROUND_HUE);
+      const bgHue = theme?.defaultBackgroundHue ?? DEFAULT_BACKGROUND_HUE;
+      sldBackgroundHue.value = inpBackgroundHue.value = String(bgHue);
       updateSliderFill(sldBackgroundHue);
-      patch.backgroundHue = DEFAULT_BACKGROUND_HUE;
-      sldBackgroundSaturation.value = inpBackgroundSaturation.value = String(DEFAULT_BACKGROUND_SATURATION);
+      patch.backgroundHue = bgHue;
+      const bgSat = theme?.defaultBackgroundSaturation ?? DEFAULT_BACKGROUND_SATURATION;
+      sldBackgroundSaturation.value = inpBackgroundSaturation.value = String(bgSat);
       updateSliderFill(sldBackgroundSaturation);
-      patch.backgroundSaturation = DEFAULT_BACKGROUND_SATURATION;
-      sldBackgroundBrightest.value = inpBackgroundBrightest.value = String(DEFAULT_BACKGROUND_BRIGHTEST);
+      patch.backgroundSaturation = bgSat;
+      const bgBright = theme?.defaultBackgroundBrightest ?? DEFAULT_BACKGROUND_BRIGHTEST;
+      sldBackgroundBrightest.value = inpBackgroundBrightest.value = String(bgBright);
       updateSliderFill(sldBackgroundBrightest);
-      patch.backgroundBrightest = DEFAULT_BACKGROUND_BRIGHTEST;
-      sldBackgroundDarkest.value = inpBackgroundDarkest.value = String(DEFAULT_BACKGROUND_DARKEST);
+      patch.backgroundBrightest = bgBright;
+      const bgDark = theme?.defaultBackgroundDarkest ?? DEFAULT_BACKGROUND_DARKEST;
+      sldBackgroundDarkest.value = inpBackgroundDarkest.value = String(bgDark);
       updateSliderFill(sldBackgroundDarkest);
       sldFgContrastStrength.value = inpFgContrastStrength.value = String(DEFAULT_FG_CONTRAST_STRENGTH);
       updateSliderFill(sldFgContrastStrength);
@@ -603,7 +611,7 @@ export class Topbar {
       sldThemeHue.value = inpThemeHue.value = String(themeHue);
       updateSliderFill(sldThemeHue);
       patch.themeHue = themeHue;
-      patch.backgroundDarkest = DEFAULT_BACKGROUND_DARKEST;
+      patch.backgroundDarkest = bgDark;
       if (Object.keys(patch).length) commit(patch);
     });
 
@@ -774,13 +782,13 @@ export class Topbar {
       { slider: sldThemeHue, input: inpThemeHue, key: 'themeHue',
         getDefault: () => activeTheme()?.defaultThemeHue ?? DEFAULT_THEME_HUE },
       { slider: sldBackgroundHue, input: inpBackgroundHue, key: 'backgroundHue',
-        getDefault: () => DEFAULT_BACKGROUND_HUE },
+        getDefault: () => activeTheme()?.defaultBackgroundHue ?? DEFAULT_BACKGROUND_HUE },
       { slider: sldBackgroundSaturation, input: inpBackgroundSaturation, key: 'backgroundSaturation',
-        getDefault: () => DEFAULT_BACKGROUND_SATURATION },
+        getDefault: () => activeTheme()?.defaultBackgroundSaturation ?? DEFAULT_BACKGROUND_SATURATION },
       { slider: sldBackgroundBrightest, input: inpBackgroundBrightest, key: 'backgroundBrightest',
-        getDefault: () => DEFAULT_BACKGROUND_BRIGHTEST },
+        getDefault: () => activeTheme()?.defaultBackgroundBrightest ?? DEFAULT_BACKGROUND_BRIGHTEST },
       { slider: sldBackgroundDarkest, input: inpBackgroundDarkest, key: 'backgroundDarkest',
-        getDefault: () => DEFAULT_BACKGROUND_DARKEST },
+        getDefault: () => activeTheme()?.defaultBackgroundDarkest ?? DEFAULT_BACKGROUND_DARKEST },
     ];
     for (const { slider, input, getDefault, key } of resets) {
       const reset = () => {
