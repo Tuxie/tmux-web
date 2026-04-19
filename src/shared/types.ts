@@ -41,6 +41,9 @@ export interface TerminalOptions {
   /** -50..+50. Shifts the FG Contrast repulsion midpoint up (positive)
    *  or down (negative). */
   fgContrastBias: number;
+  /** -100..+100. OKLab chroma scale applied to FG and BG colours.
+   *  -100 = greyscale, 0 = identity, +100 = doubled chroma. */
+  tuiSaturation: number;
 }
 
 /** Info about a single tmux window. */

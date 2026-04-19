@@ -9,6 +9,7 @@ import {
   DEFAULT_FG_CONTRAST_STRENGTH,
   DEFAULT_FG_CONTRAST_BIAS,
 } from './fg-contrast.js';
+import { DEFAULT_TUI_SATURATION } from './tui-saturation.js';
 
 export interface SessionSettings {
   theme: string;
@@ -25,6 +26,7 @@ export interface SessionSettings {
   backgroundDarkest: number;   // 0..100, HSL L at gradient's darkest stop
   fgContrastStrength: number;  // 0..100, OKLab-L repulsion strength
   fgContrastBias: number;      // -50..+50, repulsion midpoint offset
+  tuiSaturation: number;       // -100..+100, OKLab chroma scale for FG + BG
   themeHue: number;            // 0..360, --tw-theme-hue GUI chrome hue
 }
 
@@ -43,6 +45,7 @@ export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
   backgroundDarkest: DEFAULT_BACKGROUND_DARKEST,
   fgContrastStrength: DEFAULT_FG_CONTRAST_STRENGTH,
   fgContrastBias: DEFAULT_FG_CONTRAST_BIAS,
+  tuiSaturation: DEFAULT_TUI_SATURATION,
   themeHue: DEFAULT_THEME_HUE,
 };
 
@@ -56,6 +59,7 @@ export interface ThemeDefaults {
   tuiFgOpacity?: number;
   fgContrastStrength?: number;
   fgContrastBias?: number;
+  tuiSaturation?: number;
 }
 
 export interface LoadOpts {
@@ -108,6 +112,7 @@ export function loadSessionSettings(name: string, live: SessionSettings | null, 
   if (td.tuiFgOpacity !== undefined) overlay.tuiFgOpacity = td.tuiFgOpacity;
   if (td.fgContrastStrength !== undefined) overlay.fgContrastStrength = td.fgContrastStrength;
   if (td.fgContrastBias !== undefined) overlay.fgContrastBias = td.fgContrastBias;
+  if (td.tuiSaturation !== undefined) overlay.tuiSaturation = td.tuiSaturation;
   return { ...opts.defaults, ...overlay };
 }
 
@@ -155,6 +160,7 @@ export function applyThemeDefaults(s: SessionSettings, td: ThemeDefaults): Sessi
     tuiFgOpacity: td.tuiFgOpacity ?? s.tuiFgOpacity,
     fgContrastStrength: td.fgContrastStrength ?? s.fgContrastStrength,
     fgContrastBias: td.fgContrastBias ?? s.fgContrastBias,
+    tuiSaturation: td.tuiSaturation ?? s.tuiSaturation,
   };
 }
 

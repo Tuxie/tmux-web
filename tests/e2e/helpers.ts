@@ -77,6 +77,7 @@ export interface SessionSettingsRecord {
   opacity: number;
   tuiBgOpacity?: number;
   tuiFgOpacity?: number;
+  tuiSaturation?: number;
   backgroundHue?: number;
 }
 export interface SessionStoreState {

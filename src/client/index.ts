@@ -63,6 +63,7 @@ async function main() {
     opacity: currentTheme.defaultOpacity,
     tuiBgOpacity: currentTheme.defaultTuiBgOpacity,
     tuiFgOpacity: currentTheme.defaultTuiFgOpacity,
+    tuiSaturation: currentTheme.defaultTuiSaturation,
   } : undefined;
 
   const liveSettings = getLiveSessionSettings(sessionName);
@@ -128,6 +129,7 @@ async function main() {
     tuiFgOpacity: settings.tuiFgOpacity,
     fgContrastStrength: settings.fgContrastStrength,
     fgContrastBias: settings.fgContrastBias,
+    tuiSaturation: settings.tuiSaturation,
   });
   adapter.focus();
   window.__adapter = adapter;
@@ -193,6 +195,7 @@ async function main() {
           tuiFgOpacity: s.tuiFgOpacity,
           fgContrastStrength: s.fgContrastStrength,
           fgContrastBias: s.fgContrastBias,
+          tuiSaturation: s.tuiSaturation,
         });
       } else if (fontChanged) {
         const _dd = document.getElementById('menu-dropdown') as HTMLElement | null;

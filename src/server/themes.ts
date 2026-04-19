@@ -20,6 +20,7 @@ export type ThemeInfo = {
   defaultOpacity?: number;
   defaultTuiBgOpacity?: number;
   defaultTuiFgOpacity?: number;
+  defaultTuiSaturation?: number;
   author?: string;
   version?: string;
   source: 'user' | 'bundled';
@@ -47,6 +48,7 @@ export type PackManifest = {
     defaultOpacity?: number;
     defaultTuiBgOpacity?: number;
   defaultTuiFgOpacity?: number;
+  defaultTuiSaturation?: number;
   }[];
 };
 
@@ -117,6 +119,7 @@ export function listThemes(packs: PackInfo[]): ThemeInfo[] {
         defaultOpacity: theme.defaultOpacity,
         defaultTuiBgOpacity: theme.defaultTuiBgOpacity,
         defaultTuiFgOpacity: theme.defaultTuiFgOpacity,
+        defaultTuiSaturation: theme.defaultTuiSaturation,
         author: pack.manifest.author,
         version: pack.manifest.version,
         source: pack.source,

@@ -33,6 +33,7 @@ export interface StoredSessionSettings {
   tuiFgOpacity?: number;
   fgContrastStrength?: number;
   fgContrastBias?: number;
+  tuiSaturation?: number;
   themeHue?: number;
   backgroundHue?: number;
   backgroundSaturation?: number;

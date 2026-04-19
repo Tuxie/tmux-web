@@ -2,6 +2,7 @@ import type { TerminalAdapter } from './types.js';
 import type { CellMetrics, TerminalOptions, TerminalTheme } from '../../shared/types.js';
 import { getWebglEnabled } from '../prefs.js';
 import { pushFgLightness } from '../fg-contrast.js';
+import { adjustSaturation } from '../tui-saturation.js';
 
 const XTERM_COLOR_MODE_MASK = 0x3000000;
 const XTERM_COLOR_MODE_P16 = 0x1000000;
@@ -18,6 +19,7 @@ export class XtermAdapter implements TerminalAdapter {
   private tuiFgAlpha = 1;
   private fgContrastStrength = 0;  // -100..+100
   private fgContrastBias = 50;     // 0..100, target brightness / threshold
+  private tuiSaturation = 0;       // -100..+100, OKLab chroma scale for FG + BG
 
   constructor() {}
 
@@ -36,6 +38,7 @@ export class XtermAdapter implements TerminalAdapter {
     this._setTuiFgOpacity(options.tuiFgOpacity);
     this._setFgContrastStrength(options.fgContrastStrength);
     this._setFgContrastBias(options.fgContrastBias);
+    this._setTuiSaturation(options.tuiSaturation);
     const [
       { Terminal },
       { FitAddon },
@@ -220,6 +223,20 @@ export class XtermAdapter implements TerminalAdapter {
           offset + 7 < vertices.attributes.length &&
           shouldApplyBackgroundOpacity(this, fg, bg, startX, endX, y)
         ) {
+          const attrs = vertices.attributes;
+          // Saturation first — rect attrs are currently straight-alpha
+          // (orig wrote rgb in [0,1], alpha=1). Scaling chroma before the
+          // premultiply below means the factor applies cleanly regardless
+          // of the TUI BG Opacity setting.
+          if (adapter.tuiSaturation !== 0) {
+            const r8 = Math.round(attrs[offset + 4] * 255);
+            const g8 = Math.round(attrs[offset + 5] * 255);
+            const b8 = Math.round(attrs[offset + 6] * 255);
+            const [r, g, b] = adjustSaturation(r8, g8, b8, adapter.tuiSaturation);
+            attrs[offset + 4] = r / 255;
+            attrs[offset + 5] = g / 255;
+            attrs[offset + 6] = b / 255;
+          }
           // Premultiply: shader will output (rgb × α, α) so the canvas
           // (premultipliedAlpha:true) composites as ansi × α + page × (1-α).
           // Combined with the renderBackgrounds blend-func swap to
@@ -227,7 +244,6 @@ export class XtermAdapter implements TerminalAdapter {
           // into whatever #page + body actually shows (including gradients
           // and images that composeTheme can't see via body.backgroundColor).
           const a = adapter.tuiBgAlpha;
-          const attrs = vertices.attributes;
           attrs[offset + 4] = attrs[offset + 4] * a;
           attrs[offset + 5] = attrs[offset + 5] * a;
           attrs[offset + 6] = attrs[offset + 6] * a;
@@ -352,15 +368,24 @@ export class XtermAdapter implements TerminalAdapter {
       let fgR = (fgRgba >> 24) & 0xff;
       let fgG = (fgRgba >> 16) & 0xff;
       let fgB = (fgRgba >> 8) & 0xff;
-      const bgR = (cellBgRgb >> 16) & 0xff;
-      const bgG = (cellBgRgb >> 8) & 0xff;
-      const bgB = cellBgRgb & 0xff;
+      let bgR = (cellBgRgb >> 16) & 0xff;
+      let bgG = (cellBgRgb >> 8) & 0xff;
+      let bgB = cellBgRgb & 0xff;
       if (adapter.fgContrastStrength !== 0) {
         [fgR, fgG, fgB] = pushFgLightness(
           fgR, fgG, fgB,
           adapter.fgContrastStrength,
           adapter.fgContrastBias,
         );
+      }
+      // Saturate FG and cellBg before the alpha lerp so the glyph
+      // pre-blends against the same saturated backdrop the rect path
+      // actually rasterises — otherwise at tuiFgAlpha < 1 the atlas
+      // halo would sit at the un-saturated bg while the visible rect
+      // is saturated, and the two wouldn't meet cleanly.
+      if (adapter.tuiSaturation !== 0) {
+        [fgR, fgG, fgB] = adjustSaturation(fgR, fgG, fgB, adapter.tuiSaturation);
+        [bgR, bgG, bgB] = adjustSaturation(bgR, bgG, bgB, adapter.tuiSaturation);
       }
       const r = Math.round(fgR * α + bgR * (1 - α));
       const g = Math.round(fgG * α + bgG * (1 - α));
@@ -408,7 +433,7 @@ export class XtermAdapter implements TerminalAdapter {
       // path collapses to identity. `cellBgRgb` is what the glyph atlas
       // will visually sit on (a default-bg cell shows theme bg; an
       // explicit-bg cell shows the blended ansi colour).
-      if (adapter.tuiFgAlpha < 1 || adapter.fgContrastStrength !== 0) {
+      if (adapter.tuiFgAlpha < 1 || adapter.fgContrastStrength !== 0 || adapter.tuiSaturation !== 0) {
         const cellBgRgb = resolveCellBgRgb(fg, bg);
         if (inverse) {
           // Inverse: bg slot carries the glyph colour. Blend that toward
@@ -480,6 +505,11 @@ export class XtermAdapter implements TerminalAdapter {
   private _setFgContrastBias(pct: number | undefined): void {
     const v = Number.isFinite(pct) ? pct! : 50;
     this.fgContrastBias = Math.max(0, Math.min(100, Math.round(v)));
+  }
+
+  private _setTuiSaturation(pct: number | undefined): void {
+    const v = Number.isFinite(pct) ? pct! : 0;
+    this.tuiSaturation = Math.max(-100, Math.min(100, Math.round(v)));
   }
 
   // Force NEAREST-neighbour sampling on the glyph atlas texture. xterm's
@@ -561,11 +591,13 @@ export class XtermAdapter implements TerminalAdapter {
     if (opts.lineHeight !== undefined) this._applyLineHeight(opts.lineHeight);
     const tuiOpacityChanged = opts.tuiBgOpacity !== undefined || opts.tuiFgOpacity !== undefined;
     const fgContrastChanged = opts.fgContrastStrength !== undefined || opts.fgContrastBias !== undefined;
-    if (tuiOpacityChanged || fgContrastChanged) {
+    const tuiSaturationChanged = opts.tuiSaturation !== undefined;
+    if (tuiOpacityChanged || fgContrastChanged || tuiSaturationChanged) {
       if (opts.tuiBgOpacity !== undefined) this._setTuiBgOpacity(opts.tuiBgOpacity);
       if (opts.tuiFgOpacity !== undefined) this._setTuiFgOpacity(opts.tuiFgOpacity);
       if (opts.fgContrastStrength !== undefined) this._setFgContrastStrength(opts.fgContrastStrength);
       if (opts.fgContrastBias !== undefined) this._setFgContrastBias(opts.fgContrastBias);
+      if (opts.tuiSaturation !== undefined) this._setTuiSaturation(opts.tuiSaturation);
       // Atlas cache keys glyphs by (fg, bg) — new alpha / contrast
       // values change the pre-blended attributes we feed updateCell,
       // so drop cached glyphs and re-rasterise them on the next

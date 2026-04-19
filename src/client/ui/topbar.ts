@@ -37,6 +37,10 @@ import {
   clampFgContrastStrength,
   clampFgContrastBias,
 } from '../fg-contrast.js';
+import {
+  DEFAULT_TUI_SATURATION,
+  clampTuiSaturation,
+} from '../tui-saturation.js';
 
 export interface TopbarOptions {
   send: (data: string) => void;
@@ -368,6 +372,8 @@ export class Topbar {
     const inpFgContrastStrength = document.getElementById('inp-fg-contrast-strength') as HTMLInputElement;
     const sldFgContrastBias = document.getElementById('sld-fg-contrast-bias') as HTMLInputElement;
     const inpFgContrastBias = document.getElementById('inp-fg-contrast-bias') as HTMLInputElement;
+    const sldTuiSaturation = document.getElementById('sld-tui-saturation') as HTMLInputElement;
+    const inpTuiSaturation = document.getElementById('inp-tui-saturation') as HTMLInputElement;
 
     const [fonts, themes, colours] = await Promise.all([listFonts(), listThemes(), fetchColours()]);
 
@@ -434,6 +440,7 @@ export class Topbar {
       updateSliderFill(sldBackgroundDarkest);
       updateSliderFill(sldFgContrastStrength);
       updateSliderFill(sldFgContrastBias);
+      updateSliderFill(sldTuiSaturation);
       updateSliderFill(sldThemeHue);
     };
     sldSize.addEventListener('input', () => updateSliderFill(sldSize));
@@ -447,6 +454,7 @@ export class Topbar {
     sldBackgroundDarkest.addEventListener('input', () => updateSliderFill(sldBackgroundDarkest));
     sldFgContrastStrength.addEventListener('input', () => updateSliderFill(sldFgContrastStrength));
     sldFgContrastBias.addEventListener('input', () => updateSliderFill(sldFgContrastBias));
+    sldTuiSaturation.addEventListener('input', () => updateSliderFill(sldTuiSaturation));
     sldThemeHue.addEventListener('input', () => updateSliderFill(sldThemeHue));
 
     const syncUi = (s: SessionSettings) => {
@@ -464,6 +472,7 @@ export class Topbar {
       sldBackgroundDarkest.value = inpBackgroundDarkest.value = String(s.backgroundDarkest);
       sldFgContrastStrength.value = inpFgContrastStrength.value = String(s.fgContrastStrength);
       sldFgContrastBias.value = inpFgContrastBias.value = String(s.fgContrastBias);
+      sldTuiSaturation.value = inpTuiSaturation.value = String(s.tuiSaturation);
       sldThemeHue.value = inpThemeHue.value = String(s.themeHue);
       refreshAllSliderFills();
     };
@@ -492,6 +501,7 @@ export class Topbar {
       if (theme?.defaultOpacity !== undefined) td.opacity = theme.defaultOpacity;
       if (theme?.defaultTuiBgOpacity !== undefined) td.tuiBgOpacity = theme.defaultTuiBgOpacity;
       if (theme?.defaultTuiFgOpacity !== undefined) td.tuiFgOpacity = theme.defaultTuiFgOpacity;
+      if (theme?.defaultTuiSaturation !== undefined) td.tuiSaturation = theme.defaultTuiSaturation;
       const current = getSettings();
       const updated = applyThemeDefaults({ ...current, theme: name }, td);
       saveSessionSettings(this.currentSession, updated);
@@ -541,6 +551,10 @@ export class Topbar {
       sldFgContrastBias.value = inpFgContrastBias.value = String(DEFAULT_FG_CONTRAST_BIAS);
       updateSliderFill(sldFgContrastBias);
       patch.fgContrastBias = DEFAULT_FG_CONTRAST_BIAS;
+      const tuiSaturation = theme?.defaultTuiSaturation ?? DEFAULT_SESSION_SETTINGS.tuiSaturation;
+      sldTuiSaturation.value = inpTuiSaturation.value = String(tuiSaturation);
+      updateSliderFill(sldTuiSaturation);
+      patch.tuiSaturation = tuiSaturation;
       sldThemeHue.value = inpThemeHue.value = String(DEFAULT_THEME_HUE);
       updateSliderFill(sldThemeHue);
       patch.themeHue = DEFAULT_THEME_HUE;
@@ -660,6 +674,18 @@ export class Topbar {
       commit({ fgContrastBias: v });
     });
 
+    sldTuiSaturation.addEventListener('input', () => {
+      const v = clampTuiSaturation(parseInt(sldTuiSaturation.value, 10));
+      inpTuiSaturation.value = String(v);
+      commit({ tuiSaturation: v });
+    });
+    inpTuiSaturation.addEventListener('change', () => {
+      const v = clampTuiSaturation(parseInt(inpTuiSaturation.value, 10));
+      sldTuiSaturation.value = inpTuiSaturation.value = String(v);
+      updateSliderFill(sldTuiSaturation);
+      commit({ tuiSaturation: v });
+    });
+
     sldThemeHue.addEventListener('input', () => {
       const v = clampThemeHue(parseInt(sldThemeHue.value, 10));
       inpThemeHue.value = String(v);
@@ -698,6 +724,8 @@ export class Topbar {
         getDefault: () => DEFAULT_FG_CONTRAST_STRENGTH },
       { slider: sldFgContrastBias, input: inpFgContrastBias, key: 'fgContrastBias',
         getDefault: () => DEFAULT_FG_CONTRAST_BIAS },
+      { slider: sldTuiSaturation, input: inpTuiSaturation, key: 'tuiSaturation',
+        getDefault: () => activeTheme()?.defaultTuiSaturation ?? DEFAULT_TUI_SATURATION },
       { slider: sldThemeHue, input: inpThemeHue, key: 'themeHue',
         getDefault: () => DEFAULT_THEME_HUE },
       { slider: sldBackgroundHue, input: inpBackgroundHue, key: 'backgroundHue',

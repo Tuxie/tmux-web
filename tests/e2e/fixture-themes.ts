@@ -53,6 +53,7 @@ export function fixtureSessionSettings(overrides: Partial<{
   fontSize: number; spacing: number; opacity: number;
   tuiBgOpacity: number; tuiFgOpacity: number;
   fgContrastStrength: number; fgContrastBias: number;
+  tuiSaturation: number;
   backgroundHue: number;
   themeHue: number;
 }> = {}) {
@@ -67,6 +68,7 @@ export function fixtureSessionSettings(overrides: Partial<{
     tuiFgOpacity: 100,
     fgContrastStrength: 0,
     fgContrastBias: 50,
+    tuiSaturation: 0,
     backgroundHue: 183,
     themeHue: 222,
     ...overrides,
