@@ -257,24 +257,16 @@ export class XtermAdapter implements TerminalAdapter {
 
     const shouldApplyBackgroundOpacity = (
       rectangleRenderer: any,
-      fg: number,
-      bg: number,
+      _fg: number,
+      _bg: number,
       startX: number,
       endX: number,
       y: number,
     ): boolean => {
-      const inverse = (fg & XTERM_FG_FLAG_INVERSE) !== 0;
-      const effectiveBg = effectiveBackgroundAttr(fg, bg);
-      const colorMode = effectiveBg & XTERM_COLOR_MODE_MASK;
-      const known =
-        colorMode === XTERM_COLOR_MODE_P16 ||
-        colorMode === XTERM_COLOR_MODE_P256 ||
-        colorMode === XTERM_COLOR_MODE_RGB;
-      // Inverse + default-fg is the "boxed highlight" pattern (Codex,
-      // fzf previews, etc.): the rect renders at theme.foreground.rgba.
-      // Treat that like any other explicit bg so it fades with the
-      // slider instead of staying stuck at full theme foreground.
-      if (!known && !inverse) return false;
+      // Fade every rect the renderer emits (explicit bg, inverse,
+      // selection, decoration overrides, etc.) — if xterm bothered to
+      // draw a rect at all, the user wants it to fade with the slider.
+      // Only carve out the cursor so the focus indicator stays opaque.
       const model = rectangleRenderer.__tmuxWebBgOpacityModel ?? renderer._model;
       const cursor = model?.cursor;
       if (
@@ -324,6 +316,8 @@ export class XtermAdapter implements TerminalAdapter {
         colorMode === XTERM_COLOR_MODE_P16 ||
         colorMode === XTERM_COLOR_MODE_P256 ||
         colorMode === XTERM_COLOR_MODE_RGB;
+      // Non-inverse + CM_DEFAULT shouldn't produce a rect at all, so
+      // there's no atlas to pre-blend against — leave it alone.
       if (!known && !inverse) {
         return { fg, bg };
       }
