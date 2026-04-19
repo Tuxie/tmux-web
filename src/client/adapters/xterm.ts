@@ -203,7 +203,23 @@ export class XtermAdapter implements TerminalAdapter {
           offset + 7 < vertices.attributes.length &&
           shouldApplyBackgroundOpacity(this, fg, bg, startX, endX, y)
         ) {
-          vertices.attributes[offset + 7] = adapter.tuiBackgroundAlpha;
+          // WebGL canvas uses premultipliedAlpha:true but the rect shader
+          // writes straight (non-premultiplied) color, so feeding the slider
+          // alpha to offset+7 gives a heavily non-linear response. Instead
+          // pre-blend the rect's RGB against the default-bg visible colour
+          // (already viewport-blended with body in composeTheme) and keep
+          // alpha=1. This mirrors withBlendedEffectiveBackground in the
+          // glyph path, so rect + halo land on the same effective colour.
+          const a = adapter.tuiBackgroundAlpha;
+          const baseRgba = renderer._themeService?.colors?.background?.rgba ?? 0x000000ff;
+          const baseR = ((baseRgba >> 24) & 0xff) / 255;
+          const baseG = ((baseRgba >> 16) & 0xff) / 255;
+          const baseB = ((baseRgba >> 8) & 0xff) / 255;
+          const attrs = vertices.attributes;
+          attrs[offset + 4] = attrs[offset + 4] * a + baseR * (1 - a);
+          attrs[offset + 5] = attrs[offset + 5] * a + baseG * (1 - a);
+          attrs[offset + 6] = attrs[offset + 6] * a + baseB * (1 - a);
+          attrs[offset + 7] = 1;
         }
       };
     };
