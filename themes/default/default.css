@@ -18,6 +18,7 @@
    *
    *   --tw-antialias-bg: rgb(30, 30, 30);  -- or any CSS colour
    * -------------------------------------------------------------- */
+  --tw-antialias-bg: #1e1e1e;
 }
 
 body {

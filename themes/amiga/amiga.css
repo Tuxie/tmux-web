@@ -18,6 +18,8 @@
    * the menu HR, and the menu footer label so they all read at the
    * same visual weight. */
   --tw-muted: #000;
+  /* Body bg is a flat Workbench grey (#b8b8b8 = hsl(0 0% 72%)). */
+  --tw-antialias-bg: hsl(0 0% 72%);
 }
 
 body {
