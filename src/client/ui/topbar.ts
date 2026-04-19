@@ -599,9 +599,10 @@ export class Topbar {
       sldTuiSaturation.value = inpTuiSaturation.value = String(tuiSaturation);
       updateSliderFill(sldTuiSaturation);
       patch.tuiSaturation = tuiSaturation;
-      sldThemeHue.value = inpThemeHue.value = String(DEFAULT_THEME_HUE);
+      const themeHue = theme?.defaultThemeHue ?? DEFAULT_THEME_HUE;
+      sldThemeHue.value = inpThemeHue.value = String(themeHue);
       updateSliderFill(sldThemeHue);
-      patch.themeHue = DEFAULT_THEME_HUE;
+      patch.themeHue = themeHue;
       patch.backgroundDarkest = DEFAULT_BACKGROUND_DARKEST;
       if (Object.keys(patch).length) commit(patch);
     });
@@ -771,7 +772,7 @@ export class Topbar {
       { slider: sldTuiSaturation, input: inpTuiSaturation, key: 'tuiSaturation',
         getDefault: () => activeTheme()?.defaultTuiSaturation ?? DEFAULT_TUI_SATURATION },
       { slider: sldThemeHue, input: inpThemeHue, key: 'themeHue',
-        getDefault: () => DEFAULT_THEME_HUE },
+        getDefault: () => activeTheme()?.defaultThemeHue ?? DEFAULT_THEME_HUE },
       { slider: sldBackgroundHue, input: inpBackgroundHue, key: 'backgroundHue',
         getDefault: () => DEFAULT_BACKGROUND_HUE },
       { slider: sldBackgroundSaturation, input: inpBackgroundSaturation, key: 'backgroundSaturation',
