@@ -256,24 +256,10 @@ export class Topbar {
       }
     });
 
-    // The plus button is a visually-separate topbar button (like the
-    // windows / settings buttons) that opens the same session dropdown.
-    // Re-uses sessionDropdown rather than creating a parallel menu in
-    // the DOM so selectors like `.tw-dropdown-menu.tw-dd-sessions-menu`
-    // still resolve to exactly one element.
-    if (btnPlus) {
-      const toggle = (ev: Event) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        if (sessionDropdown.menuElement.hidden) {
-          void sessionDropdown.open();
-        } else {
-          sessionDropdown.close();
-        }
-      };
-      btnPlus.addEventListener('click', toggle);
-      btnPlus.addEventListener('contextmenu', toggle);
-    }
+    // Plus button is intentionally decoupled from the session dropdown —
+    // it's a separate topbar button and will get its own action wired up
+    // in a follow-up change.
+    void btnPlus;
   }
 
   private setupMenu(): void {

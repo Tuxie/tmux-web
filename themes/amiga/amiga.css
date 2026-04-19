@@ -109,7 +109,7 @@ body {
   border-color: #fff #000 #000 #fff;
 }
 #tb-windows #win-tabs { display: flex; gap: 0; }
-#tb-session { margin-left: 0; }
+#tb-session { margin-left: 0; gap: 0; }
 
 /* ---------------------------------------------------------------------
  * Topbar buttons — Amiga raised bevel (outer white TL, black BR).

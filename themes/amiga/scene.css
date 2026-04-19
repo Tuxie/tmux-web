@@ -149,6 +149,8 @@ body {
 #topbar.hidden > * { pointer-events: none; }
 
 #tb-session, #tb-windows, #tb-right { display: flex; align-items: stretch; gap: 2px; position: relative; }
+/* Session plus + name buttons sit flush against each other, no gap. */
+#tb-session { gap: 0; }
 #tb-title {
   flex: 1;
   font-size: 16px;
