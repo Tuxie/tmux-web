@@ -81,7 +81,7 @@ html, body { height: 100%; overflow: hidden; }
 .drops-header { display: flex; align-items: center; gap: 8px; }
 #drops-count { flex: 1; }
 #drops-list { max-height: 140px; overflow-y: auto; font-size: 13px; }
-#drops-list .drops-empty { font-style: italic; opacity: 0.55; padding: 4px 0; }
+#drops-list .drops-empty { font-style: italic; color: var(--tw-muted); padding: 4px 0; }
 #drops-list .drops-row {
   display: flex; align-items: center; gap: 6px;
   padding: 2px 0; cursor: pointer;
