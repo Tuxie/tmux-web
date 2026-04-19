@@ -93,8 +93,6 @@ export class Topbar {
     this.setupFocusHandling();
     this.show();
     await fontListReady;
-    // Populate the session-id prefix next to the topbar session name.
-    void this.refreshCachedSessions();
   }
 
   private cachedSessions: Array<{ id: string; name: string }> = [];
@@ -109,17 +107,6 @@ export class Topbar {
       ]);
       if (running) this.cachedSessions = running;
     } catch { /* keep previous cache */ }
-    this.refreshSessionIdDisplay();
-  }
-
-  /** Update the session-id span next to the session name to reflect the
-   *  current URL session's tmux id, if known from cachedSessions. */
-  private refreshSessionIdDisplay(): void {
-    const idEl = document.getElementById('tb-session-id');
-    if (!idEl) return;
-    const current = this.currentSession;
-    const found = this.cachedSessions.find((s) => s.name === current);
-    idEl.textContent = found ? found.id + ':' : '';
   }
 
   private buildMenuInputRow(opts: {
@@ -157,8 +144,8 @@ export class Topbar {
     const renderContent = (menu: HTMLElement, close: () => void): void => {
         const current = this.currentSession;
 
-        // Union of running tmux sessions + persisted ones from sessions.json.
-        // Running first (in tmux's order), then any stored-but-not-running.
+        // Union of running tmux sessions + persisted ones from sessions.json,
+        // sorted case-insensitively by name.
         const runningByName = new Map(this.cachedSessions.map(s => [s.name, s]));
         const stored = getStoredSessionNames();
         const ordered: Array<{ id: string | null; name: string }> = [
@@ -166,23 +153,18 @@ export class Topbar {
           ...stored
             .filter(n => !runningByName.has(n))
             .map(n => ({ id: null as string | null, name: n })),
-        ];
+        ].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 
-        // Sessions list — current one marked with a check (CSS gutter), and
-        // a coloured status dot on the right (green = running, red = not).
-        // Stopped sessions also get a trashcan that deletes the stored
-        // settings entry from sessions.json.
+        // Each row: [ ✓ gutter | name | tmux session id | status dot ].
+        // The id sits in muted grey to the left of the status dot so it's
+        // unobtrusive but discoverable; stored-but-stopped sessions leave
+        // that slot empty. Stopped sessions also get a trashcan that
+        // deletes the stored settings entry from sessions.json.
         for (const s of ordered) {
           const isCurrent = s.name === current;
           const isRunning = runningByName.has(s.name);
           const el = document.createElement('div');
           el.className = 'tw-dropdown-item tw-dd-session-item' + (isCurrent ? ' current' : '');
-          if (s.id !== null) {
-            const id = document.createElement('span');
-            id.className = 'tw-dd-session-id';
-            id.textContent = s.id + ':';
-            el.appendChild(id);
-          }
           const name = document.createElement('span');
           name.className = 'tw-dd-session-name';
           name.textContent = s.name;
@@ -202,6 +184,13 @@ export class Topbar {
               el.remove();
             });
             el.appendChild(del);
+          }
+          if (s.id !== null) {
+            const id = document.createElement('span');
+            id.className = 'tw-dd-session-id';
+            id.textContent = s.id;
+            id.title = 'session id: ' + s.id;
+            el.appendChild(id);
           }
           const dot = document.createElement('span');
           dot.className = 'tw-dd-session-status ' + (isRunning ? 'running' : 'stopped');
@@ -1101,10 +1090,6 @@ export class Topbar {
     }
     document.title = 'tmux-web \u2014 ' + session;
     this.sessionNameEl.textContent = session;
-    // Re-fetch the session list so the id prefix (`N:`) shown next to
-    // the name reflects the new active session's tmux id. Fire-and-forget
-    // — stale id just reads as no prefix until the fetch resolves.
-    void this.refreshCachedSessions();
 
     // When tmux changes the active session underneath us (via a tmux
     // keyboard shortcut, not the web UI), load the target session's

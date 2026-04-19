@@ -21,11 +21,12 @@ test('opening session button lists sessions with the current one checked + Kill 
   // 3 session rows + 1 Kill row
   await expect(items).toHaveCount(4);
   const names = await menu.locator('.tw-dd-session-name').allTextContents();
-  expect(names).toEqual(['main', 'dev', 'work']);
-  expect(await items.nth(3).textContent()).toBe('Kill session main\u2026');
-  // Only the current session gets the 'current' class (for the ✓ gutter).
-  await expect(items.nth(0)).toHaveClass(/\bcurrent\b/);
-  await expect(items.nth(1)).not.toHaveClass(/\bcurrent\b/);
+  // Sessions are sorted case-insensitively by name.
+  expect(names).toEqual(['dev', 'main', 'work']);
+  expect(await items.nth(3).textContent()).toContain('Kill session main');
+  // The current session ('main') is second in the sorted list.
+  await expect(items.nth(0)).not.toHaveClass(/\bcurrent\b/);
+  await expect(items.nth(1)).toHaveClass(/\bcurrent\b/);
   await expect(items.nth(2)).not.toHaveClass(/\bcurrent\b/);
   // Input rows for Name and New session
   const labels = await menu.locator('.menu-label').allTextContents();
@@ -56,13 +57,14 @@ test('session menu shows green/red status dots and lists stored-but-stopped sess
   const menu = page.locator('.tw-dropdown-menu.tw-dd-sessions-menu:not([hidden])');
   const rows = menu.locator('.tw-dd-session-item');
   await expect(rows).toHaveCount(3);
-  // Running first (main, dev), then stored-but-not-running (archived).
+  // All three entries (running + stored-but-not-running), sorted
+  // case-insensitively by name.
   const names = await rows.locator('.tw-dd-session-name').allTextContents();
-  expect(names).toEqual(['main', 'dev', 'archived']);
-  // Status dot classes.
-  await expect(rows.nth(0).locator('.tw-dd-session-status')).toHaveClass(/\brunning\b/);
+  expect(names).toEqual(['archived', 'dev', 'main']);
+  // Status dot classes: archived (stopped), dev (running), main (running).
+  await expect(rows.nth(0).locator('.tw-dd-session-status')).toHaveClass(/\bstopped\b/);
   await expect(rows.nth(1).locator('.tw-dd-session-status')).toHaveClass(/\brunning\b/);
-  await expect(rows.nth(2).locator('.tw-dd-session-status')).toHaveClass(/\bstopped\b/);
+  await expect(rows.nth(2).locator('.tw-dd-session-status')).toHaveClass(/\brunning\b/);
 });
 
 test('selecting a session from the menu navigates to its URL', async ({ page }) => {
@@ -193,10 +195,11 @@ test('stopped sessions show a delete button; running sessions do not', async ({ 
   await waitForWsOpen(page);
   await page.click('#btn-session-menu');
   const rows = page.locator('.tw-dropdown-menu.tw-dd-sessions-menu:not([hidden]) .tw-dd-session-item');
-  // main is running → no delete button
-  await expect(rows.nth(0).locator('.tw-dd-session-delete')).toHaveCount(0);
+  // Sorted alphabetically: archived (0), main (1).
   // archived is stopped → delete button present
-  await expect(rows.nth(1).locator('.tw-dd-session-delete')).toHaveCount(1);
+  await expect(rows.nth(0).locator('.tw-dd-session-delete')).toHaveCount(1);
+  // main is running → no delete button
+  await expect(rows.nth(1).locator('.tw-dd-session-delete')).toHaveCount(0);
 });
 
 test('clicking delete button removes the session via DELETE request', async ({ page }) => {

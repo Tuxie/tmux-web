@@ -386,6 +386,9 @@ body {
   font: inherit;
 }
 .tw-dd-session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Session id (tmux #{session_id}) sits just left of the status dot in
+ * muted colour — informational, not an identifier you'd read aloud. */
+.tw-dd-session-id { color: var(--tw-muted); font-variant-numeric: tabular-nums; }
 .tw-dd-session-status {
   position: absolute; right: 8px; top: 50%;
   width: 8px; height: 8px;
