@@ -970,9 +970,11 @@ export class Topbar {
     const rect = trigger.getBoundingClientRect();
     showContextMenu({
       // Right-aligned to the trigger (x = anchor's right edge, menu shifts
-      // left by its own width). Vertical: flush to the trigger's bottom so
-      // it sits at the same level as the session / settings menus.
-      x: rect.right,
+      // left by its own width). +1px so the menu's right edge lines up
+      // one device pixel inside the button's edge. Vertical: flush to
+      // the trigger's bottom so it sits at the same level as the
+      // session / settings menus.
+      x: rect.right + 1,
       y: rect.bottom,
       alignRight: true,
       className: 'tw-dd-windows',
