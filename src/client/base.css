@@ -42,6 +42,7 @@ html, body { height: 100%; overflow: hidden; }
 .menu-row { display: flex; align-items: center; gap: 8px; padding: 5px 12px; cursor: pointer; font-size: 13px; white-space: nowrap; }
 .menu-row-static { cursor: default; gap: 6px; }
 .menu-label { color: var(--tw-text-muted); min-width: 72px; }
+.menu-label-clickable { cursor: pointer; }
 .menu-input-select, .menu-input-number {
   background: var(--tw-surface-bg-alt); border: 1px solid var(--tw-surface-border); color: var(--tw-text);
   border-radius: 2px; padding: 1px 4px; font-family: inherit; font-size: 12px;

@@ -113,6 +113,14 @@ export class Topbar {
     label: string;
     defaultValue?: string;
     placeholder?: string;
+    /** Fire `onSubmit` even when the input is empty. Callers that map
+     *  empty → "use server default" (e.g. New window) opt in; rename
+     *  flows don't. */
+    allowEmpty?: boolean;
+    /** When true the label itself acts as a submit button. Used by
+     *  "New window" so the user can click the label to create one
+     *  without typing a name. */
+    submitOnLabelClick?: boolean;
     onSubmit: (value: string) => void;
   }): HTMLElement {
     const row = document.createElement('div');
@@ -127,13 +135,20 @@ export class Topbar {
     input.className = 'tw-dd-input';
     if (opts.placeholder) input.placeholder = opts.placeholder;
     if (opts.defaultValue) input.value = opts.defaultValue;
+    const submit = (): void => {
+      const value = input.value.trim();
+      if (value || opts.allowEmpty) opts.onSubmit(value);
+    };
     input.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter') {
         ev.preventDefault();
-        const value = input.value.trim();
-        if (value) opts.onSubmit(value);
+        submit();
       }
     });
+    if (opts.submitOnLabelClick) {
+      label.classList.add('menu-label-clickable');
+      label.addEventListener('click', submit);
+    }
     row.appendChild(input);
     return row;
   }
@@ -903,9 +918,12 @@ export class Topbar {
     menu.appendChild(this.buildMenuInputRow({
       label: 'New window:',
       placeholder: 'name',
+      allowEmpty: true,
+      submitOnLabelClick: true,
       onSubmit: (name) => {
         close();
-        this.sendWindowMsg({ action: 'new', name });
+        // Empty name → let tmux pick its default; non-empty → use as-is.
+        this.sendWindowMsg(name ? { action: 'new', name } : { action: 'new' });
       },
     }));
 
