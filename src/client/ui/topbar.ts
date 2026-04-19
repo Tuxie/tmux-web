@@ -671,6 +671,54 @@ export class Topbar {
       updateSliderFill(sldThemeHue);
       commit({ themeHue: v });
     });
+
+    // Double-click-to-reset wiring. Each entry maps a slider / number
+    // input pair to a function that resolves the *current* default
+    // (some defaults track the active theme, so we look them up lazily
+    // rather than capturing a value at setup time).
+    type SliderReset = {
+      slider: HTMLInputElement;
+      input: HTMLInputElement;
+      getDefault: () => number;
+      key: keyof SessionSettings;
+    };
+    const activeTheme = () => themes.find(t => t.name === getSettings().theme);
+    const resets: SliderReset[] = [
+      { slider: sldSize, input: inpSize, key: 'fontSize',
+        getDefault: () => activeTheme()?.defaultFontSize ?? DEFAULT_SESSION_SETTINGS.fontSize },
+      { slider: sldHeight, input: inpHeight, key: 'spacing',
+        getDefault: () => activeTheme()?.defaultSpacing ?? DEFAULT_SESSION_SETTINGS.spacing },
+      { slider: sldTuiBgOpacity, input: inpTuiBgOpacity, key: 'tuiBgOpacity',
+        getDefault: () => activeTheme()?.defaultTuiBgOpacity ?? DEFAULT_SESSION_SETTINGS.tuiBgOpacity },
+      { slider: sldTuiFgOpacity, input: inpTuiFgOpacity, key: 'tuiFgOpacity',
+        getDefault: () => activeTheme()?.defaultTuiFgOpacity ?? DEFAULT_SESSION_SETTINGS.tuiFgOpacity },
+      { slider: sldOpacity, input: inpOpacity, key: 'opacity',
+        getDefault: () => activeTheme()?.defaultOpacity ?? DEFAULT_SESSION_SETTINGS.opacity },
+      { slider: sldFgContrastStrength, input: inpFgContrastStrength, key: 'fgContrastStrength',
+        getDefault: () => DEFAULT_FG_CONTRAST_STRENGTH },
+      { slider: sldFgContrastBias, input: inpFgContrastBias, key: 'fgContrastBias',
+        getDefault: () => DEFAULT_FG_CONTRAST_BIAS },
+      { slider: sldThemeHue, input: inpThemeHue, key: 'themeHue',
+        getDefault: () => DEFAULT_THEME_HUE },
+      { slider: sldBackgroundHue, input: inpBackgroundHue, key: 'backgroundHue',
+        getDefault: () => DEFAULT_BACKGROUND_HUE },
+      { slider: sldBackgroundSaturation, input: inpBackgroundSaturation, key: 'backgroundSaturation',
+        getDefault: () => DEFAULT_BACKGROUND_SATURATION },
+      { slider: sldBackgroundBrightest, input: inpBackgroundBrightest, key: 'backgroundBrightest',
+        getDefault: () => DEFAULT_BACKGROUND_BRIGHTEST },
+      { slider: sldBackgroundDarkest, input: inpBackgroundDarkest, key: 'backgroundDarkest',
+        getDefault: () => DEFAULT_BACKGROUND_DARKEST },
+    ];
+    for (const { slider, input, getDefault, key } of resets) {
+      const reset = () => {
+        const def = getDefault();
+        slider.value = input.value = String(def);
+        updateSliderFill(slider);
+        commit({ [key]: def } as Partial<SessionSettings>);
+      };
+      slider.addEventListener('dblclick', reset);
+      input.addEventListener('dblclick', reset);
+    }
   }
 
   toggleFullscreen(): void {
