@@ -303,7 +303,7 @@ body {
   color: #000;
   font-family: inherit;
   font-size: 15px;
-  max-height: 60vh;
+  max-height: calc(100vh - 32px);
   overflow-y: auto;
 }
 .tw-dropdown-item { padding: 2px 12px; cursor: pointer; white-space: nowrap; }
