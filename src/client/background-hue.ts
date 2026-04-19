@@ -1,5 +1,15 @@
 export const DEFAULT_BACKGROUND_HUE = 183;
-export const DEFAULT_BACKGROUND_SATURATION = 80;
+/**
+ * BG Saturation is now a delta from the theme's baseline (same
+ * semantics as the Terminal Saturation slider): -100 = greyscale,
+ * 0 = use the theme's natural saturation, +100 = double it (clamped
+ * at 100% in HSL). The effective CSS percent is computed in
+ * `applyBackgroundSaturation` as `BASE × (1 + delta/100)`.
+ */
+export const DEFAULT_BACKGROUND_SATURATION = 0;
+/** Baseline HSL saturation percent the BG Saturation slider's delta
+ *  scales against. Matches scene.css's pre-slider fallback (80%). */
+export const BASE_BACKGROUND_SATURATION_PCT = 80;
 /** HSL lightness (%) of the gradient's brightest stop (center in scene.css). */
 export const DEFAULT_BACKGROUND_BRIGHTEST = 10;
 /** HSL lightness (%) of the gradient's darkest stop (outer edge in scene.css). */
@@ -22,7 +32,7 @@ export function clampThemeHue(value: number): number {
 
 export function clampBackgroundSaturation(value: number): number {
   if (!Number.isFinite(value)) return DEFAULT_BACKGROUND_SATURATION;
-  return Math.max(0, Math.min(100, Math.round(value)));
+  return Math.max(-100, Math.min(100, Math.round(value)));
 }
 
 export function clampBackgroundBrightest(value: number): number {
@@ -49,11 +59,20 @@ export function applyThemeHue(
   root.style.setProperty("--tw-theme-hue", String(clampThemeHue(hue)));
 }
 
+/**
+ * Scale the theme's baseline gradient saturation by `1 + delta/100`.
+ * Writes the final percent (not the raw delta) into
+ * `--tw-background-saturation` so themes can keep using
+ * `hsl(H calc(var(--tw-background-saturation) * 1%) L%)` unchanged.
+ */
 export function applyBackgroundSaturation(
-  saturation: number,
+  saturationDelta: number,
   root: HTMLElement = document.documentElement,
 ): void {
-  root.style.setProperty("--tw-background-saturation", String(clampBackgroundSaturation(saturation)));
+  const delta = clampBackgroundSaturation(saturationDelta);
+  const factor = 1 + delta / 100;
+  const effective = Math.max(0, Math.min(100, Math.round(BASE_BACKGROUND_SATURATION_PCT * factor)));
+  root.style.setProperty("--tw-background-saturation", String(effective));
 }
 
 export function applyBackgroundBrightest(

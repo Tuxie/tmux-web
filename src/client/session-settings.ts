@@ -21,7 +21,7 @@ export interface SessionSettings {
   tuiBgOpacity: number; // 0..100, TUI BG Opacity — ansi bg rect alpha
   tuiFgOpacity: number; // 0..100, TUI FG Opacity — glyph fg blended toward cell bg
   backgroundHue: number; // 0..360
-  backgroundSaturation: number; // 0..100
+  backgroundSaturation: number; // -100..+100, delta from theme base saturation
   backgroundBrightest: number; // 0..100, HSL L at gradient's brightest stop
   backgroundDarkest: number;   // 0..100, HSL L at gradient's darkest stop
   fgContrastStrength: number;  // 0..100, OKLab-L repulsion strength
