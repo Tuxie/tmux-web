@@ -332,8 +332,7 @@ body {
   color: #000;
   font-family: inherit;
   font-size: 15px;
-  max-height: calc(100vh - 32px);
-  overflow-y: auto;
+  /* max-height / overflow-y live in base.css. */
 }
 .tw-dropdown-item { padding: 2px 12px; cursor: pointer; white-space: nowrap; }
 .tw-dropdown-item:hover { background: hsl(var(--tw-theme-hue, 216) 38% 62%); color: #fff; }

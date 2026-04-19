@@ -373,10 +373,7 @@ body {
   color: #fff;
   font-family: inherit;
   font-size: 15px;
-  /* Grow up to the full remaining viewport (topbar is 28px, leave a
-   * small breather) before the scrollbar kicks in. */
-  max-height: calc(100vh - 32px);
-  overflow-y: auto;
+  /* max-height / overflow-y live in base.css. */
 }
 .tw-dropdown-item { padding: 2px 12px; cursor: pointer; white-space: nowrap; }
 .tw-dropdown-item:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }

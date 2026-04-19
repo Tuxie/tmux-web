@@ -197,7 +197,13 @@ html, body { height: 100%; overflow: hidden; }
 .menu-footer-link:hover { text-decoration: underline; }
 
 /* Context dropdown menu (positioned imperatively via top/left). */
-.tw-dropdown-menu { position: fixed; }
+.tw-dropdown-menu {
+  position: fixed;
+  /* Cap at the remaining viewport below the 28px topbar with a tiny
+   * breather, so long menus scroll instead of overflowing the page. */
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
 
 /* Scrollbar for overflowing dropdown menus: transparent track so the
  * menu's own background shows through, thumb is a 20% white overlay
