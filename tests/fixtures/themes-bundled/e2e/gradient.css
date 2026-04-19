@@ -1,11 +1,11 @@
 /* E2E Gradient Body — fixture for the glyph-halo AA bug regression test.
  * Uses a radial-gradient body (so `getComputedStyle(body).backgroundColor`
- * is `rgba(0, 0, 0, 0)`) combined with a `--tw-halo-bg` CSS variable that
+ * is `rgba(0, 0, 0, 0)`) combined with a `--tw-antialias-bg` CSS variable that
  * names a representative dark colour the glyph atlas should pre-blend
  * halos against. Without the fix, `composeTheme` falls back to the light
  * colour-scheme bg and glyphs get a bright halo over the dark gradient. */
 :root {
-  --tw-halo-bg: rgb(20, 40, 20);
+  --tw-antialias-bg: rgb(20, 40, 20);
 }
 body {
   background: radial-gradient(circle at center, #203020 0%, #101810 100%);

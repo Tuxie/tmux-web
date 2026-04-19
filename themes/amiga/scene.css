@@ -46,7 +46,7 @@
    * would blend against a pure colour-scheme bg. With a light scheme
    * (Tomorrow, etc.) that produces a bright outline around every
    * character over the dark gradient. */
-  --tw-halo-bg: hsl(
+  --tw-antialias-bg: hsl(
     var(--tw-background-hue, 183)
     calc(var(--tw-background-saturation, 80) * 1%)
     calc((var(--tw-background-brightest, 10) * 0.58 + var(--tw-background-darkest, 5) * 0.42) * 1%)

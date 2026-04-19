@@ -99,14 +99,14 @@ async function main() {
   // themes `getComputedStyle(body).backgroundColor` is correct, but for
   // gradient/image bodies it returns `rgba(0,0,0,0)` and composeTheme
   // falls through to pure scheme bg. Let themes declare a
-  // `--tw-halo-bg: <css-colour>` on :root so they can name the colour
+  // `--tw-antialias-bg: <css-colour>` on :root so they can name the colour
   // the AA should blend against; when absent, fall back to the body
   // computed bg. The value can be any CSS colour syntax (hsl(), rgb(),
   // hex, named, var() chains) — we resolve it via a detached probe so
   // `composeTheme`'s `rgba()` parser always gets canonical form.
   const getBodyBg = (): string => {
     const haloRaw = getComputedStyle(document.documentElement)
-      .getPropertyValue('--tw-halo-bg').trim();
+      .getPropertyValue('--tw-antialias-bg').trim();
     if (haloRaw && haloRaw !== 'transparent') {
       const probe = document.createElement('span');
       probe.style.display = 'none';

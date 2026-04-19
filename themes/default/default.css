@@ -1,3 +1,25 @@
+:root {
+  /* --tw-antialias-bg -----------------------------------------------
+   * Backdrop colour the xterm.js WebGL atlas uses when baking glyph
+   * edge-AA, so anti-aliased text doesn't fringe against the body.
+   *
+   * Most themes can leave this unset — the client's getBodyBg()
+   * falls back to `getComputedStyle(document.body).backgroundColor`,
+   * which is the right answer for any solid-colour body (Default,
+   * AmigaOS 3.1, etc.).
+   *
+   * Themes MUST override this when the body's background is a
+   * gradient or image, because getComputedStyle can't resolve those
+   * to a single representative colour (it returns rgba(0,0,0,0)).
+   * The typical override is the gradient's midpoint expressed as an
+   * HSL triple or rgb() tuple — see themes/amiga/scene.css for the
+   * pattern, which derives it from the BG hue / saturation /
+   * brightest / darkest sliders.
+   *
+   *   --tw-antialias-bg: rgb(30, 30, 30);  -- or any CSS colour
+   * -------------------------------------------------------------- */
+}
+
 body {
   background: #1e1e1e;
   /* Default font for anything attached directly to body — e.g. the

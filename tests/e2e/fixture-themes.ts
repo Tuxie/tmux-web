@@ -23,12 +23,12 @@ export const FX = {
     /**
      * Third fixture theme: a gradient-body theme (body.css is
      * `radial-gradient(...)` so `getComputedStyle(body).backgroundColor`
-     * returns `rgba(0,0,0,0)`). Its CSS also sets `--tw-halo-bg` on
+     * returns `rgba(0,0,0,0)`). Its CSS also sets `--tw-antialias-bg` on
      * :root so the client can pick it up for glyph-halo AA.
      */
     gradient: 'E2E Gradient Body',
     gradientCss: '/themes/e2e/gradient.css',
-    gradientHaloBgRgb: [20, 40, 20] as const, // must match --tw-halo-bg in gradient.css
+    gradientHaloBgRgb: [20, 40, 20] as const, // must match --tw-antialias-bg in gradient.css
   },
   colours: {
     a: 'E2E Red',

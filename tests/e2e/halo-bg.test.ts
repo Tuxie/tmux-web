@@ -12,7 +12,7 @@
  * gradient.
  *
  * The fix is to let themes declare a CSS custom property
- * `--tw-halo-bg: <rgb>` on `:root` (or any ancestor). When present and
+ * `--tw-antialias-bg: <rgb>` on `:root` (or any ancestor). When present and
  * non-transparent, `composeTheme` uses that colour as the halo-blend
  * reference instead of the body's computed bg. Themes with solid body
  * backgrounds need no change — they keep using `document.body`'s colour.
@@ -21,13 +21,13 @@
  *   - src/client/colours.ts    — `composeTheme(theme, opacity, bodyBg)`
  *                                receives the already-resolved halo ref.
  *   - src/client/index.ts      — the `getBodyBg()` helper should first
- *                                check `--tw-halo-bg` on
+ *                                check `--tw-antialias-bg` on
  *                                `document.documentElement`, then fall
  *                                back to `getComputedStyle(body).bg`.
  *
  * The fixture theme `E2E Gradient Body` (see
  * `tests/fixtures/themes-bundled/e2e/gradient.css`) declares
- * `--tw-halo-bg: rgb(20, 40, 20)` on `:root` and a dark radial-gradient
+ * `--tw-antialias-bg: rgb(20, 40, 20)` on `:root` and a dark radial-gradient
  * body. `FX.themes.gradientHaloBgRgb` in `tests/e2e/fixture-themes.ts`
  * mirrors that value so the test can compare against it without parsing
  * CSS at runtime.
@@ -54,7 +54,7 @@ test.describe('glyph halo AA reference colour', () => {
   // low BG opacity. At opacity=0, composeTheme returns a colour whose
   // RGB should match the halo-bg (dark green from the fixture), NOT
   // the colour scheme's light-green bg.
-  test('gradient-body theme: composeTheme uses --tw-halo-bg, not the light scheme bg', async ({ page }) => {
+  test('gradient-body theme: composeTheme uses --tw-antialias-bg, not the light scheme bg', async ({ page }) => {
     await mockSessionStore(page, {
       sessions: {
         main: fixtureSessionSettings({
@@ -89,14 +89,14 @@ test.describe('glyph halo AA reference colour', () => {
 
     if (haloDist > 10) {
       throw new Error(
-        `composeTheme output (${r}, ${g}, ${b}) isn't close to the --tw-halo-bg ` +
+        `composeTheme output (${r}, ${g}, ${b}) isn't close to the --tw-antialias-bg ` +
         `declared in the fixture (${haloR}, ${haloG}, ${haloB}).\n` +
         `  sum |Δ| to halo-bg = ${haloDist} (should be ≤ 10 for opacity=0)\n` +
         `  sum |Δ| to light colour-scheme bg = ${lightDist}\n` +
         (lightDist < haloDist
           ? '  The output is closer to the light scheme bg than the halo-bg — the fix is missing.\n' +
             '  Check `getBodyBg()` in src/client/index.ts: it should prefer\n' +
-            '  `getComputedStyle(document.documentElement).getPropertyValue("--tw-halo-bg")`\n' +
+            '  `getComputedStyle(document.documentElement).getPropertyValue("--tw-antialias-bg")`\n' +
             '  over `getComputedStyle(document.body).backgroundColor`.'
           : '  The fix runs but the halo-bg value isn\'t being used. Verify `composeTheme` ' +
             'receives the resolved halo color as its `bodyBg` argument.')
@@ -107,7 +107,7 @@ test.describe('glyph halo AA reference colour', () => {
   // Mid-opacity sanity check — at 50%, the composeTheme output should
   // land halfway between halo-bg and the light scheme's bg. Without the
   // fix it stays pinned to the light scheme's bg.
-  test('gradient-body theme at opacity=50 blends halfway toward --tw-halo-bg', async ({ page }) => {
+  test('gradient-body theme at opacity=50 blends halfway toward --tw-antialias-bg', async ({ page }) => {
     await mockSessionStore(page, {
       sessions: {
         main: fixtureSessionSettings({
@@ -145,9 +145,9 @@ test.describe('glyph halo AA reference colour', () => {
   });
 
   // Non-gradient themes with a solid body background must keep working
-  // as before — the `--tw-halo-bg` lookup should only override when the
+  // as before — the `--tw-antialias-bg` lookup should only override when the
   // variable is *actually set*. This guards against the fix spraying
-  // `--tw-halo-bg` inheritance where it isn't wanted.
+  // `--tw-antialias-bg` inheritance where it isn't wanted.
   test('solid-body theme: composeTheme keeps using the body backgroundColor', async ({ page }) => {
     await mockSessionStore(page, {
       sessions: {
@@ -181,7 +181,7 @@ test.describe('glyph halo AA reference colour', () => {
         `  body bg        = (${br}, ${bg}, ${bb})\n` +
         `  theme.background = (${r}, ${g}, ${b})\n` +
         `  sum |Δ| = ${dist} (tolerance: 6)\n` +
-        `  This suggests the --tw-halo-bg lookup triggered even though the theme didn't set it.\n` +
+        `  This suggests the --tw-antialias-bg lookup triggered even though the theme didn't set it.\n` +
         `  Re-check that the lookup only treats non-empty, parseable values as overrides.`
       );
     }
