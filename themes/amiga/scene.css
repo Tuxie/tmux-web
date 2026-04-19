@@ -313,7 +313,9 @@ body {
   position: relative;
   flex-shrink: 0;
 }
-/* Back window — grey fill, offset to top-left. */
+/* Back window — grey fill, offset to top-left. The extra `-1px` on
+ * both pseudo-elements' `top` matches the 1px-up nudge applied to
+ * every other topbar glyph (see the topbar padding rule above). */
 #btn-menu::before {
   content: '';
   position: absolute;
@@ -321,7 +323,7 @@ body {
   height: 9px;
   background: #888;
   border: 2px solid var(--tw-bevel-dark);
-  top: calc(50% - 8px);
+  top: calc(50% - 9px);
   left: calc(50% - 10px);
   box-sizing: content-box;
 }
@@ -333,7 +335,7 @@ body {
   height: 9px;
   background: #fff;
   border: 2px solid var(--tw-bevel-dark);
-  top: calc(50% - 2px);
+  top: calc(50% - 3px);
   left: calc(50% - 4px);
   box-sizing: content-box;
 }
