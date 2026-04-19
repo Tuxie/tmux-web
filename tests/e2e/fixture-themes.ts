@@ -31,7 +31,8 @@ export const FX = {
     secondary: 'E2E Secondary Font',
   },
   /** Fixture-default `defaultTuiOpacity` on the alt theme. */
-  altDefaultTuiOpacity: 70,
+  altDefaultTuiBgOpacity: 70,
+  altDefaultTuiFgOpacity: 80,
   altDefaultOpacity: 50,
   altDefaultFontSize: 18,
   altDefaultSpacing: 0.9,
@@ -40,7 +41,9 @@ export const FX = {
 /** Canonical `SessionSettings` with fixture values, used in mocked storage. */
 export function fixtureSessionSettings(overrides: Partial<{
   theme: string; colours: string; fontFamily: string;
-  fontSize: number; spacing: number; opacity: number; tuiOpacity: number; backgroundHue: number;
+  fontSize: number; spacing: number; opacity: number;
+  tuiBgOpacity: number; tuiFgOpacity: number;
+  backgroundHue: number;
 }> = {}) {
   return {
     theme: FX.themes.primary,
@@ -49,7 +52,8 @@ export function fixtureSessionSettings(overrides: Partial<{
     fontSize: 18,
     spacing: 0.85,
     opacity: 0,
-    tuiOpacity: 100,
+    tuiBgOpacity: 100,
+    tuiFgOpacity: 100,
     backgroundHue: 183,
     ...overrides,
   };

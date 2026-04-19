@@ -13,7 +13,8 @@ export class XtermAdapter implements TerminalAdapter {
   private term!: any;
   private fitAddon!: any;
   private webglAddon: any | null = null;
-  private tuiBackgroundAlpha = 1;
+  private tuiBgAlpha = 1;
+  private tuiFgAlpha = 1;
 
   constructor() {}
 
@@ -28,7 +29,8 @@ export class XtermAdapter implements TerminalAdapter {
   }
 
   async init(container: HTMLElement, options: TerminalOptions): Promise<void> {
-    this._setTuiOpacity(options.tuiOpacity);
+    this._setTuiBgOpacity(options.tuiBgOpacity);
+    this._setTuiFgOpacity(options.tuiFgOpacity);
     const [
       { Terminal },
       { FitAddon },
@@ -219,7 +221,7 @@ export class XtermAdapter implements TerminalAdapter {
           // ONE × ONE_MINUS_SRC_ALPHA below, this produces a linear fade
           // into whatever #page + body actually shows (including gradients
           // and images that composeTheme can't see via body.backgroundColor).
-          const a = adapter.tuiBackgroundAlpha;
+          const a = adapter.tuiBgAlpha;
           const attrs = vertices.attributes;
           attrs[offset + 4] = attrs[offset + 4] * a;
           attrs[offset + 5] = attrs[offset + 5] * a;
@@ -298,40 +300,108 @@ export class XtermAdapter implements TerminalAdapter {
 
     const blendRgbaOverDefaultBackground = (rgba: number): number => {
       const base = renderer._themeService?.colors?.background?.rgba ?? 0x000000ff;
-      const a = adapter.tuiBackgroundAlpha;
+      const a = adapter.tuiBgAlpha;
       const r = Math.round(((rgba >> 24) & 0xff) * a + ((base >> 24) & 0xff) * (1 - a));
       const g = Math.round(((rgba >> 16) & 0xff) * a + ((base >> 16) & 0xff) * (1 - a));
       const b = Math.round(((rgba >> 8) & 0xff) * a + ((base >> 8) & 0xff) * (1 - a));
       return (r << 16) | (g << 8) | b;
     };
 
-    const withBlendedEffectiveBackground = (fg: number, bg: number): { fg: number; bg: number } => {
+    /** Resolve the RGB bytes (no alpha) for what the cell's effective bg
+     *  visually ends up at, after our BG-opacity pre-blend. For default-bg
+     *  cells that's just the theme bg (already composeTheme-blended with
+     *  body). For explicit-bg cells it's ansi × tuiBgα + theme × (1-tuiBgα)
+     *  — same colour the rect rasterises to. */
+    const resolveCellBgRgb = (fg: number, bg: number): number => {
       const inverse = (fg & XTERM_FG_FLAG_INVERSE) !== 0;
-      const defaultRgba = inverse
-        ? (renderer._themeService?.colors?.foreground?.rgba ?? 0xffffffff)
-        : (renderer._themeService?.colors?.background?.rgba ?? 0x000000ff);
       const effectiveBg = effectiveBackgroundAttr(fg, bg);
       const colorMode = effectiveBg & XTERM_COLOR_MODE_MASK;
       const known =
         colorMode === XTERM_COLOR_MODE_P16 ||
         colorMode === XTERM_COLOR_MODE_P256 ||
         colorMode === XTERM_COLOR_MODE_RGB;
-      // Non-inverse + CM_DEFAULT shouldn't produce a rect at all, so
-      // there's no atlas to pre-blend against — leave it alone.
       if (!known && !inverse) {
-        return { fg, bg };
+        const base = renderer._themeService?.colors?.background?.rgba ?? 0x000000ff;
+        return ((base >> 8) & 0xffffff);
       }
-      const blendedRgb = blendRgbaOverDefaultBackground(resolveAttrRgba(effectiveBg, defaultRgba));
-      if (inverse) {
-        return {
-          fg: (fg & ~(XTERM_RGB_MASK | XTERM_COLOR_MODE_MASK)) | XTERM_COLOR_MODE_RGB | blendedRgb,
-          bg,
-        };
+      const defaultRgba = inverse
+        ? (renderer._themeService?.colors?.foreground?.rgba ?? 0xffffffff)
+        : (renderer._themeService?.colors?.background?.rgba ?? 0x000000ff);
+      return blendRgbaOverDefaultBackground(resolveAttrRgba(effectiveBg, defaultRgba));
+    };
+
+    /** Blend the "visible fg" colour toward the "visible bg" colour at
+     *  `tuiFgα`, and return an attribute word (CM_RGB | blended) suitable
+     *  for either the fg slot (non-inverse) or the bg slot (inverse, where
+     *  bg carries the fg colour xterm renders). At α=1 this is identity
+     *  (original fg colour); at α=0 it equals the cell bg, so the glyph
+     *  atlas rasterises an invisible glyph. */
+    const blendFgTowardCellBg = (origFgAttr: number, cellBgRgb: number, fgDefaultRgba: number): number => {
+      const a = adapter.tuiFgAlpha;
+      const fgRgba = resolveAttrRgba(origFgAttr, fgDefaultRgba);
+      const fgR = (fgRgba >> 24) & 0xff;
+      const fgG = (fgRgba >> 16) & 0xff;
+      const fgB = (fgRgba >> 8) & 0xff;
+      const bgR = (cellBgRgb >> 16) & 0xff;
+      const bgG = (cellBgRgb >> 8) & 0xff;
+      const bgB = cellBgRgb & 0xff;
+      const r = Math.round(fgR * a + bgR * (1 - a));
+      const g = Math.round(fgG * a + bgG * (1 - a));
+      const b = Math.round(fgB * a + bgB * (1 - a));
+      return (r << 16) | (g << 8) | b;
+    };
+
+    /** Compute the (fg, bg) attribute pair to hand to the atlas,
+     *  applying both:
+     *    - TUI BG Opacity: bg (or fg, when inverse) pre-blended against
+     *      theme.background so the rect's alpha-faded colour matches
+     *      the atlas's halo backdrop.
+     *    - TUI FG Opacity: the glyph colour (fg non-inverse, bg inverse)
+     *      pre-blended toward the cell's effective bg so at α=0 the
+     *      glyph collapses to bg (invisible) and at α=1 stays at its
+     *      original fg.
+     *  Inverse cells use the swapped role assignment per xterm
+     *  convention: the fg attribute carries the visible bg colour. */
+    const withBlendedEffectiveBackground = (fg: number, bg: number): { fg: number; bg: number } => {
+      const inverse = (fg & XTERM_FG_FLAG_INVERSE) !== 0;
+      const bgDefaultRgba = renderer._themeService?.colors?.background?.rgba ?? 0x000000ff;
+      const fgDefaultRgba = renderer._themeService?.colors?.foreground?.rgba ?? 0xffffffff;
+      const effectiveBg = effectiveBackgroundAttr(fg, bg);
+      const colorMode = effectiveBg & XTERM_COLOR_MODE_MASK;
+      const known =
+        colorMode === XTERM_COLOR_MODE_P16 ||
+        colorMode === XTERM_COLOR_MODE_P256 ||
+        colorMode === XTERM_COLOR_MODE_RGB;
+      // BG pre-blend. For non-inverse + CM_DEFAULT there's no rect to
+      // rasterise against; leave bg as-is and only do the FG blend path.
+      let outFg = fg;
+      let outBg = bg;
+      if (known || inverse) {
+        const blendedBgRgb = blendRgbaOverDefaultBackground(
+          resolveAttrRgba(effectiveBg, inverse ? fgDefaultRgba : bgDefaultRgba),
+        );
+        if (inverse) {
+          outFg = (fg & ~(XTERM_RGB_MASK | XTERM_COLOR_MODE_MASK)) | XTERM_COLOR_MODE_RGB | blendedBgRgb;
+        } else {
+          outBg = (bg & ~(XTERM_RGB_MASK | XTERM_COLOR_MODE_MASK)) | XTERM_COLOR_MODE_RGB | blendedBgRgb;
+        }
       }
-      return {
-        fg,
-        bg: (bg & ~(XTERM_RGB_MASK | XTERM_COLOR_MODE_MASK)) | XTERM_COLOR_MODE_RGB | blendedRgb,
-      };
+      // FG pre-blend. Skip at α=1 — identity. `cellBgRgb` is what the
+      // glyph atlas will visually sit on (a default-bg cell shows theme
+      // bg; an explicit-bg cell shows the blended ansi colour).
+      if (adapter.tuiFgAlpha < 1) {
+        const cellBgRgb = resolveCellBgRgb(fg, bg);
+        if (inverse) {
+          // Inverse: bg slot carries the glyph colour. Blend that toward
+          // the rect's visible colour (which is already in outFg here).
+          const blendedFgRgb = blendFgTowardCellBg(bg, cellBgRgb, bgDefaultRgba);
+          outBg = (bg & ~(XTERM_RGB_MASK | XTERM_COLOR_MODE_MASK)) | XTERM_COLOR_MODE_RGB | blendedFgRgb;
+        } else {
+          const blendedFgRgb = blendFgTowardCellBg(fg, cellBgRgb, fgDefaultRgba);
+          outFg = (fg & ~(XTERM_RGB_MASK | XTERM_COLOR_MODE_MASK)) | XTERM_COLOR_MODE_RGB | blendedFgRgb;
+        }
+      }
+      return { fg: outFg, bg: outBg };
     };
 
     const patchGlyphRenderer = (glyphRenderer: any): void => {
@@ -373,9 +443,14 @@ export class XtermAdapter implements TerminalAdapter {
     };
   }
 
-  private _setTuiOpacity(opacityPct: number | undefined): void {
+  private _setTuiBgOpacity(opacityPct: number | undefined): void {
     const pct = Number.isFinite(opacityPct) ? opacityPct! : 100;
-    this.tuiBackgroundAlpha = Math.max(0, Math.min(100, pct)) / 100;
+    this.tuiBgAlpha = Math.max(0, Math.min(100, pct)) / 100;
+  }
+
+  private _setTuiFgOpacity(opacityPct: number | undefined): void {
+    const pct = Number.isFinite(opacityPct) ? opacityPct! : 100;
+    this.tuiFgAlpha = Math.max(0, Math.min(100, pct)) / 100;
   }
 
   // Force NEAREST-neighbour sampling on the glyph atlas texture. xterm's
@@ -455,8 +530,12 @@ export class XtermAdapter implements TerminalAdapter {
     if (opts.fontFamily !== undefined) this.term.options.fontFamily = opts.fontFamily;
     if (opts.fontSize !== undefined) this.term.options.fontSize = opts.fontSize;
     if (opts.lineHeight !== undefined) this._applyLineHeight(opts.lineHeight);
-    if (opts.tuiOpacity !== undefined) {
-      this._setTuiOpacity(opts.tuiOpacity);
+    if (opts.tuiBgOpacity !== undefined || opts.tuiFgOpacity !== undefined) {
+      if (opts.tuiBgOpacity !== undefined) this._setTuiBgOpacity(opts.tuiBgOpacity);
+      if (opts.tuiFgOpacity !== undefined) this._setTuiFgOpacity(opts.tuiFgOpacity);
+      // Atlas cache keys glyphs by (fg, bg) — new alpha changes the
+      // pre-blended attributes we feed updateCell, so drop cached
+      // glyphs and re-rasterise them on the next refresh.
       this.webglAddon?.clearTextureAtlas?.();
       this.term.refresh?.(0, Math.max(0, (this.term.rows ?? 1) - 1));
     }

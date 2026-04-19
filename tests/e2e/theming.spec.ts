@@ -20,7 +20,7 @@ const ALT_THEME = FX.themes.alt;
 const FONT = FX.fonts.primary;
 const COLOUR_B = FX.colours.b;
 const ALT_DEFAULT_BG_HUE = 183;
-const ALT_DEFAULT_TUI_OPACITY = FX.altDefaultTuiOpacity;
+const ALT_DEFAULT_TUI_BG_OPACITY = FX.altDefaultTuiBgOpacity;
 
 test.describe('theming', () => {
   async function waitForThemeAndFontLists(page: import('@playwright/test').Page): Promise<void> {
@@ -107,9 +107,9 @@ test.describe('theming', () => {
     await page.fill('#inp-background-hue', '240');
     await page.locator('#inp-background-hue').dispatchEvent('change');
     await waitForStored(store, 'main', s => s.backgroundHue === 240);
-    await page.fill('#inp-tui-opacity', '30');
-    await page.locator('#inp-tui-opacity').dispatchEvent('change');
-    await waitForStored(store, 'main', s => s.tuiOpacity === 30);
+    await page.fill('#inp-tui-bg-opacity', '30');
+    await page.locator('#inp-tui-bg-opacity').dispatchEvent('change');
+    await waitForStored(store, 'main', s => s.tuiBgOpacity === 30);
 
     // Long sequence of waitForStored calls gives the topbar autohide
     // timer (~1s, mouse-idleness-based) time to hide the menu. Reopen
@@ -121,9 +121,9 @@ test.describe('theming', () => {
     await page.click('#btn-reset-colours');
 
     await expect(page.locator('#inp-background-hue')).toHaveValue(String(ALT_DEFAULT_BG_HUE));
-    await expect(page.locator('#inp-tui-opacity')).toHaveValue(String(ALT_DEFAULT_TUI_OPACITY));
+    await expect(page.locator('#inp-tui-bg-opacity')).toHaveValue(String(ALT_DEFAULT_TUI_BG_OPACITY));
     await waitForStored(store, 'main', s =>
-      s.backgroundHue === ALT_DEFAULT_BG_HUE && s.tuiOpacity === ALT_DEFAULT_TUI_OPACITY);
+      s.backgroundHue === ALT_DEFAULT_BG_HUE && s.tuiBgOpacity === ALT_DEFAULT_TUI_BG_OPACITY);
   });
 
   test('font picker is populated from the fixture', async ({ page }) => {

@@ -31,7 +31,10 @@ export interface TerminalOptions {
   /** 0..100. The actual alpha blending lives on #page. */
   opacity: number;
   /** 0..100. Alpha for explicit TUI cell background rectangles. */
-  tuiOpacity: number;
+  tuiBgOpacity: number;
+  /** 0..100. Glyph fg blended toward the cell's effective bg; 0 = text
+   *  invisible (matches bg), 100 = text fully opaque at theme fg. */
+  tuiFgOpacity: number;
 }
 
 /** Info about a single tmux window. */

@@ -11,8 +11,9 @@ export interface SessionSettings {
   fontFamily: string;
   fontSize: number;
   spacing: number;
-  opacity: number; // 0..100
-  tuiOpacity: number; // 0..100
+  opacity: number;      // 0..100, BG Opacity of #page
+  tuiBgOpacity: number; // 0..100, TUI BG Opacity — ansi bg rect alpha
+  tuiFgOpacity: number; // 0..100, TUI FG Opacity — glyph fg blended toward cell bg
   backgroundHue: number; // 0..360
   backgroundSaturation: number; // 0..100
   backgroundBrightest: number; // 0..100, HSL L at gradient's brightest stop
@@ -26,7 +27,8 @@ export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
   fontSize: 18,
   spacing: 0.85,
   opacity: 0,
-  tuiOpacity: 100,
+  tuiBgOpacity: 100,
+  tuiFgOpacity: 100,
   backgroundHue: DEFAULT_BACKGROUND_HUE,
   backgroundSaturation: DEFAULT_BACKGROUND_SATURATION,
   backgroundBrightest: DEFAULT_BACKGROUND_BRIGHTEST,
@@ -39,7 +41,8 @@ export interface ThemeDefaults {
   fontSize?: number;
   spacing?: number;
   opacity?: number;
-  tuiOpacity?: number;
+  tuiBgOpacity?: number;
+  tuiFgOpacity?: number;
 }
 
 export interface LoadOpts {
@@ -88,7 +91,8 @@ export function loadSessionSettings(name: string, live: SessionSettings | null, 
   if (td.fontSize !== undefined) overlay.fontSize = td.fontSize;
   if (td.spacing !== undefined) overlay.spacing = td.spacing;
   if (td.opacity !== undefined) overlay.opacity = td.opacity;
-  if (td.tuiOpacity !== undefined) overlay.tuiOpacity = td.tuiOpacity;
+  if (td.tuiBgOpacity !== undefined) overlay.tuiBgOpacity = td.tuiBgOpacity;
+  if (td.tuiFgOpacity !== undefined) overlay.tuiFgOpacity = td.tuiFgOpacity;
   return { ...opts.defaults, ...overlay };
 }
 
@@ -132,7 +136,8 @@ export function applyThemeDefaults(s: SessionSettings, td: ThemeDefaults): Sessi
     fontSize: td.fontSize ?? s.fontSize,
     spacing: td.spacing ?? s.spacing,
     opacity: td.opacity ?? s.opacity,
-    tuiOpacity: td.tuiOpacity ?? s.tuiOpacity,
+    tuiBgOpacity: td.tuiBgOpacity ?? s.tuiBgOpacity,
+    tuiFgOpacity: td.tuiFgOpacity ?? s.tuiFgOpacity,
   };
 }
 

@@ -19,7 +19,8 @@
       "defaultSpacing": 1,
       "defaultColours": "E2E Red",
       "defaultOpacity": 100,
-      "defaultTuiOpacity": 100
+      "defaultTuiBgOpacity": 100,
+      "defaultTuiFgOpacity": 100
     },
     {
       "name": "E2E Alt Theme",
@@ -29,7 +30,8 @@
       "defaultSpacing": 0.9,
       "defaultColours": "E2E Green",
       "defaultOpacity": 50,
-      "defaultTuiOpacity": 70
+      "defaultTuiBgOpacity": 70,
+      "defaultTuiFgOpacity": 80
     }
   ]
 }

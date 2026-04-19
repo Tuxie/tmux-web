@@ -46,21 +46,21 @@ describe("session-settings", () => {
     const s = loadSessionSettings("main", null, { defaults: DEFAULT_SESSION_SETTINGS });
     expect(s.fontSize).toBe(DEFAULT_SESSION_SETTINGS.fontSize);
     expect(s.backgroundHue).toBe(DEFAULT_SESSION_SETTINGS.backgroundHue);
-    expect(s.tuiOpacity).toBe(100);
+    expect(s.tuiBgOpacity).toBe(100);
   });
 
   test("overlays theme defaults when no stored + no live", async () => {
     await initSessionStore();
     const s = loadSessionSettings("foo", null, {
       defaults: DEFAULT_SESSION_SETTINGS,
-      themeDefaults: { colours: "Dracula", fontFamily: "X", fontSize: 14, spacing: 1.2, opacity: 25, tuiOpacity: 70 },
+      themeDefaults: { colours: "Dracula", fontFamily: "X", fontSize: 14, spacing: 1.2, opacity: 25, tuiBgOpacity: 70 },
     });
     expect(s.colours).toBe("Dracula");
     expect(s.fontFamily).toBe("X");
     expect(s.fontSize).toBe(14);
     expect(s.spacing).toBe(1.2);
     expect(s.opacity).toBe(25);
-    expect(s.tuiOpacity).toBe(70);
+    expect(s.tuiBgOpacity).toBe(70);
   });
 
   test("theme defaults overlay handles missing themeDefaults object", async () => {
@@ -83,25 +83,25 @@ describe("session-settings", () => {
     const live = { theme: "Default", colours: "Nord", fontFamily: "F", fontSize: 20, spacing: 1, opacity: 40 } as any;
     const s = loadSessionSettings("new-sess", live, { defaults: DEFAULT_SESSION_SETTINGS });
     expect(s.backgroundHue).toBe(DEFAULT_SESSION_SETTINGS.backgroundHue);
-    expect(s.tuiOpacity).toBe(100);
+    expect(s.tuiBgOpacity).toBe(100);
   });
 
   test("saves to cache and pushes PUT to server", async () => {
     const calls = setupFakeFetch({ sessions: {} });
     await initSessionStore();
-    const s = { ...DEFAULT_SESSION_SETTINGS, colours: "Monokai", opacity: 50, tuiOpacity: 65, backgroundHue: 210 };
+    const s = { ...DEFAULT_SESSION_SETTINGS, colours: "Monokai", opacity: 50, tuiBgOpacity: 65, backgroundHue: 210 };
     saveSessionSettings("x", s);
     const loaded = loadSessionSettings("x", null, { defaults: DEFAULT_SESSION_SETTINGS });
     expect(loaded.colours).toBe("Monokai");
     expect(loaded.opacity).toBe(50);
-    expect(loaded.tuiOpacity).toBe(65);
+    expect(loaded.tuiBgOpacity).toBe(65);
     expect(loaded.backgroundHue).toBe(210);
     await new Promise(r => setTimeout(r, 0));
     const put = calls.find(c => c.init?.method === 'PUT');
     expect(put).toBeDefined();
     const body = JSON.parse(put!.init!.body as string);
     expect(body.sessions.x.colours).toBe("Monokai");
-    expect(body.sessions.x.tuiOpacity).toBe(65);
+    expect(body.sessions.x.tuiBgOpacity).toBe(65);
     expect(body.sessions.x.backgroundHue).toBe(210);
   });
 
@@ -179,14 +179,14 @@ describe("session-settings", () => {
   });
 
   test("applyThemeDefaults overwrites all fields when provided", async () => {
-    const start = { ...DEFAULT_SESSION_SETTINGS, colours: "Old", fontFamily: "Old", fontSize: 10, spacing: 1.5, opacity: 30, tuiOpacity: 80 };
-    const result = applyThemeDefaults(start, { colours: "New", fontFamily: "New", fontSize: 20, spacing: 0.9, opacity: 55, tuiOpacity: 70 });
+    const start = { ...DEFAULT_SESSION_SETTINGS, colours: "Old", fontFamily: "Old", fontSize: 10, spacing: 1.5, opacity: 30, tuiBgOpacity: 80 };
+    const result = applyThemeDefaults(start, { colours: "New", fontFamily: "New", fontSize: 20, spacing: 0.9, opacity: 55, tuiBgOpacity: 70 });
     expect(result.colours).toBe("New");
     expect(result.fontFamily).toBe("New");
     expect(result.fontSize).toBe(20);
     expect(result.spacing).toBe(0.9);
     expect(result.opacity).toBe(55);
-    expect(result.tuiOpacity).toBe(70);
+    expect(result.tuiBgOpacity).toBe(70);
   });
 
   test("applyThemeDefaults leaves fields unchanged when theme has no default", async () => {

@@ -73,7 +73,7 @@ const OPACITY_TOLERANCE = 3;
 
 async function openMenu(page: Page): Promise<void> {
   await page.click('#btn-menu');
-  await page.waitForSelector('#sld-tui-opacity', { state: 'visible' });
+  await page.waitForSelector('#sld-tui-bg-opacity', { state: 'visible' });
 }
 
 async function closeMenu(page: Page): Promise<void> {
@@ -83,8 +83,8 @@ async function closeMenu(page: Page): Promise<void> {
 
 async function setTuiOpacity(page: Page, pct: number): Promise<void> {
   await openMenu(page);
-  await page.fill('#inp-tui-opacity', String(pct));
-  await page.dispatchEvent('#inp-tui-opacity', 'change');
+  await page.fill('#inp-tui-bg-opacity', String(pct));
+  await page.dispatchEvent('#inp-tui-bg-opacity', 'change');
   // Give the adapter a frame to rebuild rect attrs + re-render.
   await page.waitForTimeout(400);
   await closeMenu(page);

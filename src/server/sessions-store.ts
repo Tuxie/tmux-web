@@ -29,7 +29,8 @@ export interface StoredSessionSettings {
   fontSize: number;
   spacing: number;
   opacity: number;
-  tuiOpacity?: number;
+  tuiBgOpacity?: number;
+  tuiFgOpacity?: number;
   backgroundHue?: number;
   backgroundSaturation?: number;
   backgroundBrightest?: number;

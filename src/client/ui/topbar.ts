@@ -340,8 +340,10 @@ export class Topbar {
     const inpSize = document.getElementById('inp-fontsize') as HTMLInputElement;
     const sldHeight = document.getElementById('sld-spacing') as HTMLInputElement;
     const inpHeight = document.getElementById('inp-spacing') as HTMLInputElement;
-    const sldTuiOpacity = document.getElementById('sld-tui-opacity') as HTMLInputElement;
-    const inpTuiOpacity = document.getElementById('inp-tui-opacity') as HTMLInputElement;
+    const sldTuiBgOpacity = document.getElementById('sld-tui-bg-opacity') as HTMLInputElement;
+    const inpTuiBgOpacity = document.getElementById('inp-tui-bg-opacity') as HTMLInputElement;
+    const sldTuiFgOpacity = document.getElementById('sld-tui-fg-opacity') as HTMLInputElement;
+    const inpTuiFgOpacity = document.getElementById('inp-tui-fg-opacity') as HTMLInputElement;
     const sldOpacity = document.getElementById('sld-opacity') as HTMLInputElement;
     const inpOpacity = document.getElementById('inp-opacity') as HTMLInputElement;
     const sldBackgroundHue = document.getElementById('sld-background-hue') as HTMLInputElement;
@@ -409,7 +411,8 @@ export class Topbar {
     const refreshAllSliderFills = (): void => {
       updateSliderFill(sldSize);
       updateSliderFill(sldHeight);
-      updateSliderFill(sldTuiOpacity);
+      updateSliderFill(sldTuiBgOpacity);
+      updateSliderFill(sldTuiFgOpacity);
       updateSliderFill(sldOpacity);
       updateSliderFill(sldBackgroundHue);
       updateSliderFill(sldBackgroundSaturation);
@@ -418,7 +421,8 @@ export class Topbar {
     };
     sldSize.addEventListener('input', () => updateSliderFill(sldSize));
     sldHeight.addEventListener('input', () => updateSliderFill(sldHeight));
-    sldTuiOpacity.addEventListener('input', () => updateSliderFill(sldTuiOpacity));
+    sldTuiBgOpacity.addEventListener('input', () => updateSliderFill(sldTuiBgOpacity));
+    sldTuiFgOpacity.addEventListener('input', () => updateSliderFill(sldTuiFgOpacity));
     sldOpacity.addEventListener('input', () => updateSliderFill(sldOpacity));
     sldBackgroundHue.addEventListener('input', () => updateSliderFill(sldBackgroundHue));
     sldBackgroundSaturation.addEventListener('input', () => updateSliderFill(sldBackgroundSaturation));
@@ -431,7 +435,8 @@ export class Topbar {
       ddFont.setValue(s.fontFamily);
       sldSize.value = inpSize.value = String(s.fontSize);
       sldHeight.value = inpHeight.value = String(s.spacing);
-      sldTuiOpacity.value = inpTuiOpacity.value = String(s.tuiOpacity);
+      sldTuiBgOpacity.value = inpTuiBgOpacity.value = String(s.tuiBgOpacity);
+      sldTuiFgOpacity.value = inpTuiFgOpacity.value = String(s.tuiFgOpacity);
       sldOpacity.value = inpOpacity.value = String(s.opacity);
       sldBackgroundHue.value = inpBackgroundHue.value = String(s.backgroundHue);
       sldBackgroundSaturation.value = inpBackgroundSaturation.value = String(s.backgroundSaturation);
@@ -462,7 +467,8 @@ export class Topbar {
       if (theme?.defaultFontSize !== undefined) td.fontSize = theme.defaultFontSize;
       if (theme?.defaultSpacing !== undefined) td.spacing = theme.defaultSpacing;
       if (theme?.defaultOpacity !== undefined) td.opacity = theme.defaultOpacity;
-      if (theme?.defaultTuiOpacity !== undefined) td.tuiOpacity = theme.defaultTuiOpacity;
+      if (theme?.defaultTuiBgOpacity !== undefined) td.tuiBgOpacity = theme.defaultTuiBgOpacity;
+      if (theme?.defaultTuiFgOpacity !== undefined) td.tuiFgOpacity = theme.defaultTuiFgOpacity;
       const current = getSettings();
       const updated = applyThemeDefaults({ ...current, theme: name }, td);
       saveSessionSettings(this.currentSession, updated);
@@ -487,10 +493,14 @@ export class Topbar {
         updateSliderFill(sldOpacity);
         patch.opacity = theme.defaultOpacity;
       }
-      const tuiOpacity = theme?.defaultTuiOpacity ?? DEFAULT_SESSION_SETTINGS.tuiOpacity;
-      sldTuiOpacity.value = inpTuiOpacity.value = String(tuiOpacity);
-      updateSliderFill(sldTuiOpacity);
-      patch.tuiOpacity = tuiOpacity;
+      const tuiBgOpacity = theme?.defaultTuiBgOpacity ?? DEFAULT_SESSION_SETTINGS.tuiBgOpacity;
+      sldTuiBgOpacity.value = inpTuiBgOpacity.value = String(tuiBgOpacity);
+      updateSliderFill(sldTuiBgOpacity);
+      patch.tuiBgOpacity = tuiBgOpacity;
+      const tuiFgOpacity = theme?.defaultTuiFgOpacity ?? DEFAULT_SESSION_SETTINGS.tuiFgOpacity;
+      sldTuiFgOpacity.value = inpTuiFgOpacity.value = String(tuiFgOpacity);
+      updateSliderFill(sldTuiFgOpacity);
+      patch.tuiFgOpacity = tuiFgOpacity;
       sldBackgroundHue.value = inpBackgroundHue.value = String(DEFAULT_BACKGROUND_HUE);
       updateSliderFill(sldBackgroundHue);
       patch.backgroundHue = DEFAULT_BACKGROUND_HUE;
@@ -537,8 +547,11 @@ export class Topbar {
     sldHeight.addEventListener('input', () => { inpHeight.value = sldHeight.value; commit({ spacing: parseFloat(sldHeight.value) }); });
     inpHeight.addEventListener('change', () => { sldHeight.value = inpHeight.value; updateSliderFill(sldHeight); commit({ spacing: parseFloat(inpHeight.value) }); });
 
-    sldTuiOpacity.addEventListener('input', () => { inpTuiOpacity.value = sldTuiOpacity.value; commit({ tuiOpacity: parseInt(sldTuiOpacity.value, 10) }); });
-    inpTuiOpacity.addEventListener('change', () => { sldTuiOpacity.value = inpTuiOpacity.value; updateSliderFill(sldTuiOpacity); commit({ tuiOpacity: parseInt(inpTuiOpacity.value, 10) }); });
+    sldTuiBgOpacity.addEventListener('input', () => { inpTuiBgOpacity.value = sldTuiBgOpacity.value; commit({ tuiBgOpacity: parseInt(sldTuiBgOpacity.value, 10) }); });
+    inpTuiBgOpacity.addEventListener('change', () => { sldTuiBgOpacity.value = inpTuiBgOpacity.value; updateSliderFill(sldTuiBgOpacity); commit({ tuiBgOpacity: parseInt(inpTuiBgOpacity.value, 10) }); });
+
+    sldTuiFgOpacity.addEventListener('input', () => { inpTuiFgOpacity.value = sldTuiFgOpacity.value; commit({ tuiFgOpacity: parseInt(sldTuiFgOpacity.value, 10) }); });
+    inpTuiFgOpacity.addEventListener('change', () => { sldTuiFgOpacity.value = inpTuiFgOpacity.value; updateSliderFill(sldTuiFgOpacity); commit({ tuiFgOpacity: parseInt(inpTuiFgOpacity.value, 10) }); });
 
     sldOpacity.addEventListener('input', () => { inpOpacity.value = sldOpacity.value; commit({ opacity: parseInt(sldOpacity.value, 10) }); });
     inpOpacity.addEventListener('change', () => { sldOpacity.value = inpOpacity.value; updateSliderFill(sldOpacity); commit({ opacity: parseInt(inpOpacity.value, 10) }); });

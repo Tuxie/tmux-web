@@ -24,7 +24,7 @@
       "defaultSpacing": 1.05,
       "defaultColours": "Dracula",
       "defaultOpacity": 0,
-      "defaultTuiOpacity": 70
+      "defaultTuiBgOpacity": 70
     }
   ]
 }

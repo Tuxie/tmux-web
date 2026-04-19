@@ -60,7 +60,8 @@ async function main() {
     fontSize: currentTheme.defaultFontSize,
     spacing: currentTheme.defaultSpacing,
     opacity: currentTheme.defaultOpacity,
-    tuiOpacity: currentTheme.defaultTuiOpacity,
+    tuiBgOpacity: currentTheme.defaultTuiBgOpacity,
+    tuiFgOpacity: currentTheme.defaultTuiFgOpacity,
   } : undefined;
 
   const liveSettings = getLiveSessionSettings(sessionName);
@@ -98,7 +99,8 @@ async function main() {
     lineHeight: settings.spacing,
     theme: composeTheme(coloursOrDefault(settings.colours), settings.opacity, getBodyBg()),
     opacity: settings.opacity,
-    tuiOpacity: settings.tuiOpacity,
+    tuiBgOpacity: settings.tuiBgOpacity,
+    tuiFgOpacity: settings.tuiFgOpacity,
   });
   adapter.focus();
   window.__adapter = adapter;
@@ -159,7 +161,8 @@ async function main() {
           fontSize: s.fontSize,
           lineHeight: s.spacing,
           opacity: s.opacity,
-          tuiOpacity: s.tuiOpacity,
+          tuiBgOpacity: s.tuiBgOpacity,
+          tuiFgOpacity: s.tuiFgOpacity,
         });
       } else if (fontChanged) {
         const _dd = document.getElementById('menu-dropdown') as HTMLElement | null;
