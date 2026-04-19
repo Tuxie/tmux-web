@@ -14,6 +14,10 @@
   --tw-success-bg: #4a8c4a;         /* muted Workbench green */
   --tw-text: #000;
   --tw-text-muted: #555;
+  /* Muted text + delimiter-line tint. Used by inactive window tabs,
+   * the menu HR, and the menu footer label so they all read at the
+   * same visual weight. */
+  --tw-muted: #000;
 }
 
 body {
@@ -209,7 +213,7 @@ body {
 /* Window tabs in #tb-windows. */
 #topbar .win-tab {
   background: transparent;
-  color: #000;
+  color: var(--tw-muted);
   padding: 0 6px;
   margin: 0;
   cursor: pointer;
@@ -461,7 +465,7 @@ body {
 #drops-list, #drops-list > div, #drops-list span { color: #000; }
 #drops-list .meta-size { color: #555; }
 
-.menu-hr { border: none; border-top: 2px solid #fff; margin: 4px 0; }
+.menu-hr { border: none; border-top: 2px solid var(--tw-muted); margin: 4px 0; }
 
 /* Section headers: match the HR — bright Workbench bevel for label
  * text and the flanking rules. */
@@ -475,7 +479,7 @@ body {
   gap: 12px;
   padding: 5px 12px;
   font-size: 12px;
-  color: #fff;
+  color: var(--tw-muted);
   white-space: nowrap;
 }
 #menu-footer:hover { background: none; }

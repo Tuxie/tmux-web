@@ -34,6 +34,10 @@
   --tw-bevel-light: hsl(var(--tw-theme-hue, 222) 32% 34%);
   --tw-menu-bevel-light: hsl(var(--tw-theme-hue, 222) 32% 27%);
   --tw-bevel-dark: hsl(var(--tw-theme-hue, 222) 36% 10%);
+  /* Muted text + delimiter-line tint. Used by inactive window tabs,
+   * the menu HR, and the menu footer label so they all read at the
+   * same visual weight. */
+  --tw-muted: rgba(255, 255, 255, 0.3);
 
   /* Halo AA reference: the gradient's 42% midpoint (same HSL triple
    * scene.css draws there). Without this, composeTheme can't see the
@@ -263,7 +267,7 @@ body {
 /* Window tabs in #tb-windows. */
 #topbar .win-tab {
   background: transparent;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--tw-muted);
   padding: 0 6px;
   margin: 0;
   cursor: pointer;
@@ -522,7 +526,7 @@ body {
 #drops-list, #drops-list > div, #drops-list span { color: #fff; }
 #drops-list .meta-size { color: rgba(255, 255, 255, 0.72); }
 
-.menu-hr { border: none; border-top: 2px solid var(--tw-bevel-light); margin: 4px 0; }
+.menu-hr { border: none; border-top: 2px solid var(--tw-muted); margin: 4px 0; }
 
 /* Section headers: match the HR — same bright bevel for label text and
  * the flanking rules. */
@@ -536,7 +540,7 @@ body {
   gap: 12px;
   padding: 5px 12px;
   font-size: 12px;
-  color: var(--tw-bevel-light);
+  color: var(--tw-muted);
   white-space: nowrap;
 }
 #menu-footer:hover { background: none; }
