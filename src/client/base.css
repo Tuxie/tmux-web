@@ -12,7 +12,11 @@ html, body { height: 100%; overflow: hidden; }
   --tw-danger-border: #a05555;
   --tw-success-bg: #2a6a2a;
   --tw-text: #e0e0e0;
-  --tw-text-muted: #999;
+  /* Derived: 40%-transparent main text. Composites against whatever
+   * bg sits behind the element, which matches how a theme author
+   * thinks about "muted" — same hue / family as the primary text,
+   * just quieter. Themes can still override explicitly. */
+  --tw-text-muted: color-mix(in srgb, var(--tw-text), transparent 40%);
 }
 
 #frame-bg, #frame-top, #frame-right, #frame-bottom, #frame-left,

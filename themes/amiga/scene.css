@@ -20,7 +20,8 @@
   --tw-danger-border: hsl(var(--tw-theme-hue, 222) 36% 5%);
   --tw-success-bg: #4a8c4a;         /* muted Workbench green — kept fixed */
   --tw-text: #000;
-  --tw-text-muted: #555;
+  /* --tw-text-muted inherits the base.css derivation (40% transparent
+   * --tw-text). */
   --tw-toolbar-bg: linear-gradient(to bottom,
     hsl(var(--tw-theme-hue, 222) 36% 30%) 0%,
     hsl(var(--tw-theme-hue, 222) 37% 24%) 100%);

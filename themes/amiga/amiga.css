@@ -13,7 +13,8 @@
   --tw-danger-border: #000;
   --tw-success-bg: #4a8c4a;         /* muted Workbench green */
   --tw-text: #000;
-  --tw-text-muted: #555;
+  /* --tw-text-muted inherits the base.css derivation (40% transparent
+   * --tw-text) so overriding --tw-text above is enough. */
   /* Muted text + delimiter-line tint. Used by inactive window tabs,
    * the menu HR, and the menu footer label so they all read at the
    * same visual weight. */
