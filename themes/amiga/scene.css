@@ -613,7 +613,7 @@ input { accent-color: rgb(49, 66, 105); }
   -webkit-appearance: none;
   appearance: none;
   width: 10px; height: 18px;
-  background: hsl(var(--tw-theme-hue, 222) 55% 58%);
+  background: var(--tw-muted);
   border: 2px solid;
   border-color: var(--tw-menu-bevel-light) var(--tw-bevel-dark) var(--tw-bevel-dark) var(--tw-bevel-light);
   box-sizing: border-box;
@@ -621,18 +621,18 @@ input { accent-color: rgb(49, 66, 105); }
 }
 #menu-dropdown input[type="range"]::-moz-range-thumb {
   width: 10px; height: 18px;
-  background: hsl(var(--tw-theme-hue, 222) 55% 58%);
+  background: var(--tw-muted);
   border: 2px solid;
   border-color: var(--tw-menu-bevel-light) var(--tw-bevel-dark) var(--tw-bevel-dark) var(--tw-bevel-light);
   box-sizing: border-box;
 }
 #menu-dropdown input[type="range"]:active::-webkit-slider-thumb {
   border-color: var(--tw-bevel-dark) var(--tw-menu-bevel-light) var(--tw-menu-bevel-light) var(--tw-bevel-dark);
-  background: hsl(var(--tw-theme-hue, 222) 55% 68%);
+  background: var(--tw-muted);
 }
 #menu-dropdown input[type="range"]:active::-moz-range-thumb {
   border-color: var(--tw-bevel-dark) var(--tw-menu-bevel-light) var(--tw-menu-bevel-light) var(--tw-bevel-dark);
-  background: hsl(var(--tw-theme-hue, 222) 55% 68%);
+  background: var(--tw-muted);
 }
 
 /* ---------------------------------------------------------------------
