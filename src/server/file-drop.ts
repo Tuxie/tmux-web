@@ -19,13 +19,21 @@ export interface DropStorage {
 
 /** Build a default per-user drop storage under $XDG_RUNTIME_DIR when set
  *  (Linux: /run/user/<uid>/tmux-web/drop), otherwise under os.tmpdir()
- *  scoped by uid to keep multi-user hosts from colliding. Mode 0700. */
+ *  scoped by uid to keep multi-user hosts from colliding. Mode 0700.
+ *
+ *  TMUX_WEB_DROP_ROOT hard-overrides the computed base; tests set this
+ *  so uploads never land in the developer's real XDG_RUNTIME_DIR
+ *  (where the running dev server would pick them up on its next drop
+ *  refresh). */
 export function defaultDropStorage(): DropStorage {
   const uid = typeof process.getuid === 'function' ? process.getuid() : 0;
+  const override = process.env.TMUX_WEB_DROP_ROOT;
   const xdg = process.env.XDG_RUNTIME_DIR;
-  const base = xdg && fs.existsSync(xdg)
-    ? path.join(xdg, 'tmux-web', 'drop')
-    : path.join(os.tmpdir(), `tmux-web-drop-${uid}`);
+  const base = override
+    ? override
+    : (xdg && fs.existsSync(xdg)
+      ? path.join(xdg, 'tmux-web', 'drop')
+      : path.join(os.tmpdir(), `tmux-web-drop-${uid}`));
   fs.mkdirSync(base, { recursive: true, mode: 0o700 });
   return {
     root: base,

@@ -11,6 +11,11 @@ import { fileURLToPath } from 'node:url';
 const sessionsStoreDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-e2e-store-'));
 const sessionsStoreFile = path.join(sessionsStoreDir, 'sessions.json');
 
+// Isolate file-drop uploads too. Without this, file-drop tests POST
+// into $XDG_RUNTIME_DIR/tmux-web/drop which the developer's running
+// tmux-web instance watches and surfaces in its drops panel.
+const dropsRootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-e2e-drops-'));
+
 // Point the test server at a stable fixture theme pack instead of the
 // real bundled themes in `./themes`. Tests reference `E2E Primary Theme`
 // / `E2E Alt Theme` / `E2E Red` / etc., so renaming a real bundled
@@ -31,6 +36,7 @@ export default defineConfig({
     env: {
       TMUX_WEB_SESSIONS_FILE: sessionsStoreFile,
       TMUX_WEB_BUNDLED_THEMES_DIR: bundledThemesFixtureDir,
+      TMUX_WEB_DROP_ROOT: dropsRootDir,
     },
     url: 'http://127.0.0.1:4023',
     reuseExistingServer: false,

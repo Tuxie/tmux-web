@@ -234,33 +234,60 @@ describe("sweepRoot ring-buffer cap (within TTL)", () => {
 });
 
 describe("defaultDropStorage", () => {
+  // These tests manipulate the storage-path env vars; snapshot + restore
+  // both TMUX_WEB_DROP_ROOT (the hard override) and XDG_RUNTIME_DIR so a
+  // developer who happens to have either set in their shell doesn't
+  // poison the asserts.
+  function withEnv<T>(vars: Record<string, string | undefined>, fn: () => T): T {
+    const prev: Record<string, string | undefined> = {};
+    for (const k of Object.keys(vars)) prev[k] = process.env[k];
+    for (const [k, v] of Object.entries(vars)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    try { return fn(); }
+    finally {
+      for (const [k, v] of Object.entries(prev)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  }
+
   test("returns a usable writable DropStorage (XDG_RUNTIME_DIR path)", () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tw-xdg-"));
-    const prev = process.env.XDG_RUNTIME_DIR;
-    process.env.XDG_RUNTIME_DIR = tmp;
     try {
-      const s = defaultDropStorage();
-      expect(s.root.startsWith(tmp)).toBe(true);
-      expect(fs.statSync(s.root).isDirectory()).toBe(true);
-      expect(s.maxFilesPerSession).toBeGreaterThan(0);
-      expect(s.ttlMs).toBeGreaterThan(0);
-      expect(typeof s.autoUnlinkOnClose).toBe("boolean");
+      withEnv({ TMUX_WEB_DROP_ROOT: undefined, XDG_RUNTIME_DIR: tmp }, () => {
+        const s = defaultDropStorage();
+        expect(s.root.startsWith(tmp)).toBe(true);
+        expect(fs.statSync(s.root).isDirectory()).toBe(true);
+        expect(s.maxFilesPerSession).toBeGreaterThan(0);
+        expect(s.ttlMs).toBeGreaterThan(0);
+        expect(typeof s.autoUnlinkOnClose).toBe("boolean");
+      });
     } finally {
-      if (prev === undefined) delete process.env.XDG_RUNTIME_DIR;
-      else process.env.XDG_RUNTIME_DIR = prev;
       fs.rmSync(tmp, { recursive: true, force: true });
     }
   });
 
   test("falls back to os.tmpdir() when XDG_RUNTIME_DIR is absent", () => {
-    const prev = process.env.XDG_RUNTIME_DIR;
-    delete process.env.XDG_RUNTIME_DIR;
-    try {
+    withEnv({ TMUX_WEB_DROP_ROOT: undefined, XDG_RUNTIME_DIR: undefined }, () => {
       const s = defaultDropStorage();
       expect(s.root.startsWith(os.tmpdir())).toBe(true);
       expect(s.root).toContain("tmux-web-drop-");
+    });
+  });
+
+  test("TMUX_WEB_DROP_ROOT overrides both XDG_RUNTIME_DIR and tmpdir", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tw-drop-override-"));
+    try {
+      withEnv({ TMUX_WEB_DROP_ROOT: tmp, XDG_RUNTIME_DIR: '/nonexistent/nope' }, () => {
+        const s = defaultDropStorage();
+        expect(s.root).toBe(tmp);
+        expect(fs.statSync(s.root).isDirectory()).toBe(true);
+      });
     } finally {
-      if (prev !== undefined) process.env.XDG_RUNTIME_DIR = prev;
+      fs.rmSync(tmp, { recursive: true, force: true });
     }
   });
 });
