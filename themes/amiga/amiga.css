@@ -5,7 +5,7 @@
    * the clipboard-prompt modal, and other surface-rendered UI pick up
    * Workbench colours instead of the default dark tones. Kept semantic
    * (role, not colour) so base.css rules don't need to know the theme. */
-  --tw-surface-bg: #bbb;            /* Workbench grey */
+  --tw-surface-bg: #b8b8b8;            /* Workbench grey */
   --tw-surface-bg-alt: #fff;        /* input-field white */
   --tw-surface-border: #000;        /* hard black borders */
   --tw-surface-hover: hsl(var(--tw-theme-hue, 216) 38% 62%);      /* selection blue */
@@ -21,7 +21,7 @@
 }
 
 body {
-  background: #bbb;
+  background: #b8b8b8;
   font-family: 'Topaz8 Amiga1200 Nerd Font', monospace;
 }
 
@@ -316,7 +316,7 @@ body {
   top: 100%;
   left: 0;
   min-width: 100%;
-  background: #bbb;
+  background: #b8b8b8;
   border: 2px solid;
   border-color: #fff #000 #000 #fff;
   z-index: 200;
