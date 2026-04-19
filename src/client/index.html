@@ -60,7 +60,7 @@
           <label class="menu-row"><input type="checkbox" id="chk-autohide" checked> Autohide toolbar</label>
           <label class="menu-row"><input type="checkbox" id="chk-fullscreen"> Fullscreen</label>
           <label class="menu-row" title="Hardware-accelerated rendering. Reload required after change."><input type="checkbox" id="chk-webgl"> WebGL renderer</label>
-          <hr class="menu-hr">
+          <div class="menu-section">GUI</div>
           <div class="menu-row menu-row-static">
             <span class="menu-label">Theme</span>
             <select id="inp-theme" class="menu-input-select"></select>
@@ -70,57 +70,59 @@
             <input type="range" id="sld-theme-hue" min="0" max="360" step="1">
             <input type="number" id="inp-theme-hue" min="0" max="360" step="1" class="menu-input-number">
           </div>
+          <div class="menu-section">Background</div>
           <div class="menu-row menu-row-static">
-            <span class="menu-label">Colours</span>
-            <select id="inp-colours" class="menu-input-select"></select>
-            <button class="tb-btn" id="btn-reset-colours" title="Reset colours to theme default">↺</button>
-          </div>
-          <div class="menu-row menu-row-static">
-            <span class="menu-label">TUI BG Opacity</span>
-            <input type="range" id="sld-tui-bg-opacity" min="0" max="100" step="1">
-            <input type="number" id="inp-tui-bg-opacity" min="0" max="100" step="1" class="menu-input-number">
-          </div>
-          <div class="menu-row menu-row-static">
-            <span class="menu-label">TUI FG Opacity</span>
-            <input type="range" id="sld-tui-fg-opacity" min="0" max="100" step="1">
-            <input type="number" id="inp-tui-fg-opacity" min="0" max="100" step="1" class="menu-input-number">
-          </div>
-          <div class="menu-row menu-row-static">
-            <span class="menu-label">FG Contrast</span>
-            <input type="range" id="sld-fg-contrast-strength" min="0" max="100" step="1">
-            <input type="number" id="inp-fg-contrast-strength" min="0" max="100" step="1" class="menu-input-number">
-          </div>
-          <div class="menu-row menu-row-static">
-            <span class="menu-label">FG Contrast Bias</span>
-            <input type="range" id="sld-fg-contrast-bias" min="-50" max="50" step="1">
-            <input type="number" id="inp-fg-contrast-bias" min="-50" max="50" step="1" class="menu-input-number">
-          </div>
-          <div class="menu-row menu-row-static">
-            <span class="menu-label">BG Opacity</span>
+            <span class="menu-label">Opacity</span>
             <input type="range" id="sld-opacity" min="0" max="100" step="1">
             <input type="number" id="inp-opacity" min="0" max="100" step="1" class="menu-input-number">
           </div>
           <div class="menu-row menu-row-static">
-            <span class="menu-label">BG Hue</span>
+            <span class="menu-label">Hue</span>
             <input type="range" id="sld-background-hue" min="0" max="360" step="1">
             <input type="number" id="inp-background-hue" min="0" max="360" step="1" class="menu-input-number">
           </div>
           <div class="menu-row menu-row-static">
-            <span class="menu-label">BG Saturation</span>
+            <span class="menu-label">Saturation</span>
             <input type="range" id="sld-background-saturation" min="0" max="100" step="1">
             <input type="number" id="inp-background-saturation" min="0" max="100" step="1" class="menu-input-number">
           </div>
           <div class="menu-row menu-row-static">
-            <span class="menu-label">BG Brightest</span>
+            <span class="menu-label">Brightest</span>
             <input type="range" id="sld-background-brightest" min="0" max="100" step="1">
             <input type="number" id="inp-background-brightest" min="0" max="100" step="1" class="menu-input-number">
           </div>
           <div class="menu-row menu-row-static">
-            <span class="menu-label">BG Darkest</span>
+            <span class="menu-label">Darkest</span>
             <input type="range" id="sld-background-darkest" min="0" max="100" step="1">
             <input type="number" id="inp-background-darkest" min="0" max="100" step="1" class="menu-input-number">
           </div>
-          <hr class="menu-hr">
+          <div class="menu-section">Terminal</div>
+          <div class="menu-row menu-row-static">
+            <span class="menu-label">Colour Scheme</span>
+            <select id="inp-colours" class="menu-input-select"></select>
+            <button class="tb-btn" id="btn-reset-colours" title="Reset colours to theme default">↺</button>
+          </div>
+          <div class="menu-row menu-row-static">
+            <span class="menu-label">BG Opacity</span>
+            <input type="range" id="sld-tui-bg-opacity" min="0" max="100" step="1">
+            <input type="number" id="inp-tui-bg-opacity" min="0" max="100" step="1" class="menu-input-number">
+          </div>
+          <div class="menu-row menu-row-static">
+            <span class="menu-label">FG Opacity</span>
+            <input type="range" id="sld-tui-fg-opacity" min="0" max="100" step="1">
+            <input type="number" id="inp-tui-fg-opacity" min="0" max="100" step="1" class="menu-input-number">
+          </div>
+          <div class="menu-row menu-row-static">
+            <span class="menu-label">Contrast</span>
+            <input type="range" id="sld-fg-contrast-strength" min="0" max="100" step="1">
+            <input type="number" id="inp-fg-contrast-strength" min="0" max="100" step="1" class="menu-input-number">
+          </div>
+          <div class="menu-row menu-row-static">
+            <span class="menu-label">Contrast Bias</span>
+            <input type="range" id="sld-fg-contrast-bias" min="-50" max="50" step="1">
+            <input type="number" id="inp-fg-contrast-bias" min="-50" max="50" step="1" class="menu-input-number">
+          </div>
+          <div class="menu-section">Text</div>
           <div class="menu-row menu-row-static">
             <span class="menu-label">Font</span>
             <select id="inp-font-bundled" class="menu-input-select"></select>
@@ -132,7 +134,7 @@
             <input type="number" id="inp-fontsize" min="8" max="30" step="0.5" class="menu-input-number">
           </div>
           <div class="menu-row menu-row-static">
-            <span class="menu-label">Spacing</span>
+            <span class="menu-label">Line Spacing</span>
             <input type="range" id="sld-spacing" min="0.5" max="2" step="0.05">
             <input type="number" id="inp-spacing" min="0.5" max="2" step="0.05" class="menu-input-number">
           </div>

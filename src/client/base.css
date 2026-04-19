@@ -49,6 +49,28 @@ html, body { height: 100%; overflow: hidden; }
 .menu-input-number { width: 46px; }
 .menu-hr { border: none; border-top: 1px solid #444; margin: 4px 0; }
 
+/* Labelled section divider: rule — label — rule, in the same colour
+ * as the plain .menu-hr. Themes can override font / tint by targeting
+ * .menu-section directly; the line colour flows through `currentColor`
+ * via the pseudo-elements' border-top. */
+.menu-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 6px 12px 2px;
+  user-select: none;
+}
+.menu-section::before,
+.menu-section::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid #444;
+}
+
 /* Menu footer: left and right side labels. */
 #menu-footer { justify-content: space-between; color: #888; font-size: 11px; }
 
