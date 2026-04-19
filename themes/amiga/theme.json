@@ -17,13 +17,14 @@
       "defaultOpacity": 0
     },
     {
-      "name": "Amiga Scene Modern",
+      "name": "Scene",
       "css": "scene.css",
       "defaultFont": "mOsOul Nerd Font",
       "defaultFontSize": 17.5,
       "defaultSpacing": 1.05,
       "defaultColours": "Dracula",
-      "defaultOpacity": 0
+      "defaultOpacity": 0,
+      "defaultTuiOpacity": 70
     }
   ]
 }

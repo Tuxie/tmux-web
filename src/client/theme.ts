@@ -7,6 +7,7 @@ export type ThemeInfo = {
   defaultSpacing?: number;
   defaultColours?: string;
   defaultOpacity?: number;
+  defaultTuiOpacity?: number;
   author?: string;
   version?: string;
   source: 'user' | 'bundled';

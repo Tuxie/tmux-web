@@ -54,6 +54,8 @@ async function main() {
     fontFamily: currentTheme.defaultFont,
     fontSize: currentTheme.defaultFontSize,
     spacing: currentTheme.defaultSpacing,
+    opacity: currentTheme.defaultOpacity,
+    tuiOpacity: currentTheme.defaultTuiOpacity,
   } : undefined;
 
   const liveSettings = getLiveSessionSettings(sessionName);
@@ -88,6 +90,7 @@ async function main() {
     lineHeight: settings.spacing,
     theme: composeTheme(coloursOrDefault(settings.colours), settings.opacity, getBodyBg()),
     opacity: settings.opacity,
+    tuiOpacity: settings.tuiOpacity,
   });
   adapter.focus();
   window.__adapter = adapter;
@@ -145,6 +148,7 @@ async function main() {
           fontSize: s.fontSize,
           lineHeight: s.spacing,
           opacity: s.opacity,
+          tuiOpacity: s.tuiOpacity,
         });
       } else if (fontChanged) {
         const _dd = document.getElementById('menu-dropdown') as HTMLElement | null;

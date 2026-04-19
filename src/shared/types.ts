@@ -30,6 +30,8 @@ export interface TerminalOptions {
   theme: TerminalTheme;
   /** 0..100. The actual alpha blending lives on #page. */
   opacity: number;
+  /** 0..100. Alpha for explicit TUI cell background rectangles. */
+  tuiOpacity: number;
 }
 
 /** Info about a single tmux window. */

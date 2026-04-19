@@ -15,6 +15,7 @@ describe("bundled themes", () => {
     expect(scene!.css).toBe("scene.css");
     expect(scene!.defaultColours).toBe("Dracula");
     expect(scene!.defaultFont).toBe("mOsOul Nerd Font");
+    expect(scene!.defaultTuiOpacity).toBe(70);
 
     const fonts = listFonts(packs);
     expect(fonts).toContainEqual({

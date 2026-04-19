@@ -62,20 +62,27 @@ test.describe('theming', () => {
     await expect(page.locator('#inp-colours')).toHaveValue('Dracula');
   });
 
-  test('reset colours resets background hue', async ({ page }) => {
+  test('reset colours resets background hue and TUI opacity', async ({ page }) => {
     const store = await mockSessionStore(page);
     await page.goto('/main');
     await waitForThemeAndFontLists(page);
     await page.click('#btn-menu');
 
+    await page.selectOption('#inp-theme', 'Scene');
+    await waitForStored(store, 'main', s => s.theme === 'Scene');
+
     await page.fill('#inp-background-hue', '240');
     await page.locator('#inp-background-hue').dispatchEvent('change');
     await waitForStored(store, 'main', s => s.backgroundHue === 240);
+    await page.fill('#inp-tui-opacity', '30');
+    await page.locator('#inp-tui-opacity').dispatchEvent('change');
+    await waitForStored(store, 'main', s => s.tuiOpacity === 30);
 
     await page.click('#btn-reset-colours');
 
     await expect(page.locator('#inp-background-hue')).toHaveValue('183');
-    await waitForStored(store, 'main', s => s.backgroundHue === 183);
+    await expect(page.locator('#inp-tui-opacity')).toHaveValue('70');
+    await waitForStored(store, 'main', s => s.backgroundHue === 183 && s.tuiOpacity === 70);
   });
 
   test('font picker is populated', async ({ page }) => {

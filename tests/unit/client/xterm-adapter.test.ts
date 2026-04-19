@@ -83,6 +83,7 @@ describe('XtermAdapter', () => {
         foreground: '#ffffff',
       },
       opacity: 100,
+      tuiOpacity: 100,
     });
 
     // allowTransparency is intentionally false so xterm's WebGL atlas uses
@@ -93,6 +94,7 @@ describe('XtermAdapter', () => {
   test('patches WebGL explicit background rectangles to be translucent', async () => {
     const { XtermAdapter } = await import('../../../src/client/adapters/xterm.ts');
     const adapter = new XtermAdapter();
+    (adapter as any).tuiBackgroundAlpha = 0.7;
     const vertices = { attributes: new Float32Array(16) };
     const updateRectangle = mock((vertices: { attributes: Float32Array }, offset: number) => {
       vertices.attributes[offset + 7] = 1;
@@ -136,6 +138,7 @@ describe('XtermAdapter', () => {
   test('keeps WebGL cursor rectangles opaque and makes other highlighted backgrounds translucent', async () => {
     const { XtermAdapter } = await import('../../../src/client/adapters/xterm.ts');
     const adapter = new XtermAdapter();
+    (adapter as any).tuiBackgroundAlpha = 0.7;
     const vertices = { attributes: new Float32Array(16) };
     const rectangleRenderer = {
       _terminal: { cols: 2, buffer: { active: { viewportY: 0 } } },
@@ -183,6 +186,7 @@ describe('XtermAdapter', () => {
   test('makes WebGL RGB and text-bearing app background rectangles translucent and rasterizes glyphs against the blended background', async () => {
     const { XtermAdapter } = await import('../../../src/client/adapters/xterm.ts');
     const adapter = new XtermAdapter();
+    (adapter as any).tuiBackgroundAlpha = 0.7;
     const vertices = { attributes: new Float32Array(16) };
     const glyphUpdateCell = mock(() => {});
     const rectangleRenderer = {
@@ -250,5 +254,70 @@ describe('XtermAdapter', () => {
 
     renderer._glyphRenderer.value.updateCell(0, 0, 'A'.charCodeAt(0), xtermP16Background, 0, 0, 'A', 1, xtermP16PreviousBackground);
     expect(glyphUpdateCell.mock.calls.at(-1)?.[3]).toBe(xtermRgbBlendedRedBackground);
+  });
+
+  test('uses configured TUI opacity for WebGL explicit background rectangles and glyph blending', async () => {
+    const { XtermAdapter } = await import('../../../src/client/adapters/xterm.ts');
+    const adapter = new XtermAdapter();
+    (adapter as any).tuiBackgroundAlpha = 0.25;
+    const vertices = { attributes: new Float32Array(16) };
+    const glyphUpdateCell = mock(() => {});
+    const rectangleRenderer = {
+      _updateRectangle(v: { attributes: Float32Array }, offset: number) {
+        v.attributes[offset + 7] = 1;
+      },
+    };
+    const renderer = {
+      _rectangleRenderer: { value: rectangleRenderer },
+      _glyphRenderer: { value: { updateCell: glyphUpdateCell } },
+      _themeService: {
+        colors: {
+          background: { rgba: 0x000000ff },
+          foreground: { rgba: 0xffffffff },
+          ansi: [
+            { rgba: 0x000000ff },
+            { rgba: 0x640000ff },
+          ],
+        },
+      },
+      _initializeWebGLState: mock(() => [rectangleRenderer, {}]),
+    };
+    (adapter as any).term = {
+      _core: {
+        _renderService: {
+          _renderer: { value: renderer },
+        },
+      },
+    };
+
+    (adapter as any)._patchWebglExplicitBackgroundOpacity();
+
+    rectangleRenderer._updateRectangle(vertices, 0, 0, xtermP16Background, 0, 1, 0);
+    expect(vertices.attributes[7]).toBeCloseTo(0.25, 5);
+
+    renderer._glyphRenderer.value.updateCell(0, 0, 'A'.charCodeAt(0), xtermP16Background, 0, 0, 'A', 1, xtermP16PreviousBackground);
+    expect(glyphUpdateCell.mock.calls.at(-1)?.[3]).toBe(0x3000000 | 0x190000);
+  });
+
+  test('updates TUI opacity without recreating the terminal', async () => {
+    const { XtermAdapter } = await import('../../../src/client/adapters/xterm.ts');
+    const adapter = new XtermAdapter();
+    const refresh = mock(() => {});
+    const clearTextureAtlas = mock(() => {});
+    const fit = mock(() => {});
+    (adapter as any).term = {
+      options: {},
+      rows: 24,
+      refresh,
+    };
+    (adapter as any).webglAddon = { clearTextureAtlas };
+    (adapter as any).fitAddon = { fit };
+
+    adapter.updateOptions({ tuiOpacity: 35 });
+
+    expect((adapter as any).tuiBackgroundAlpha).toBeCloseTo(0.35, 5);
+    expect(clearTextureAtlas).toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalledWith(0, 23);
+    expect(fit).toHaveBeenCalled();
   });
 });

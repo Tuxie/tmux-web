@@ -2,7 +2,6 @@ import type { TerminalAdapter } from './types.js';
 import type { CellMetrics, TerminalOptions, TerminalTheme } from '../../shared/types.js';
 import { getWebglEnabled } from '../prefs.js';
 
-const EXPLICIT_CELL_BACKGROUND_ALPHA = 0.7;
 const XTERM_COLOR_MODE_MASK = 0x3000000;
 const XTERM_COLOR_MODE_P16 = 0x1000000;
 const XTERM_COLOR_MODE_P256 = 0x2000000;
@@ -14,6 +13,7 @@ export class XtermAdapter implements TerminalAdapter {
   private term!: any;
   private fitAddon!: any;
   private webglAddon: any | null = null;
+  private tuiBackgroundAlpha = 1;
 
   constructor() {}
 
@@ -28,6 +28,7 @@ export class XtermAdapter implements TerminalAdapter {
   }
 
   async init(container: HTMLElement, options: TerminalOptions): Promise<void> {
+    this._setTuiOpacity(options.tuiOpacity);
     const [
       { Terminal },
       { FitAddon },
@@ -169,6 +170,7 @@ export class XtermAdapter implements TerminalAdapter {
   private _patchWebglExplicitBackgroundOpacity(): void {
     const renderer: any = this.term?._core?._renderService?._renderer?.value;
     if (!renderer) return;
+    const adapter = this;
 
     const patchRectangleRenderer = (rectangleRenderer: any): void => {
       if (!rectangleRenderer || rectangleRenderer.__tmuxWebBgOpacityPatched) return;
@@ -201,7 +203,7 @@ export class XtermAdapter implements TerminalAdapter {
           offset + 7 < vertices.attributes.length &&
           shouldApplyBackgroundOpacity(this, fg, bg, startX, endX, y)
         ) {
-          vertices.attributes[offset + 7] = EXPLICIT_CELL_BACKGROUND_ALPHA;
+          vertices.attributes[offset + 7] = adapter.tuiBackgroundAlpha;
         }
       };
     };
@@ -254,7 +256,7 @@ export class XtermAdapter implements TerminalAdapter {
 
     const blendRgbaOverDefaultBackground = (rgba: number): number => {
       const base = renderer._themeService?.colors?.background?.rgba ?? 0x000000ff;
-      const a = EXPLICIT_CELL_BACKGROUND_ALPHA;
+      const a = adapter.tuiBackgroundAlpha;
       const r = Math.round(((rgba >> 24) & 0xff) * a + ((base >> 24) & 0xff) * (1 - a));
       const g = Math.round(((rgba >> 16) & 0xff) * a + ((base >> 16) & 0xff) * (1 - a));
       const b = Math.round(((rgba >> 8) & 0xff) * a + ((base >> 8) & 0xff) * (1 - a));
@@ -324,6 +326,11 @@ export class XtermAdapter implements TerminalAdapter {
       patchGlyphRenderer(renderer._glyphRenderer?.value);
       return result;
     };
+  }
+
+  private _setTuiOpacity(opacityPct: number | undefined): void {
+    const pct = Number.isFinite(opacityPct) ? opacityPct! : 100;
+    this.tuiBackgroundAlpha = Math.max(0, Math.min(100, pct)) / 100;
   }
 
   // Force NEAREST-neighbour sampling on the glyph atlas texture. xterm's
@@ -403,6 +410,11 @@ export class XtermAdapter implements TerminalAdapter {
     if (opts.fontFamily !== undefined) this.term.options.fontFamily = opts.fontFamily;
     if (opts.fontSize !== undefined) this.term.options.fontSize = opts.fontSize;
     if (opts.lineHeight !== undefined) this._applyLineHeight(opts.lineHeight);
+    if (opts.tuiOpacity !== undefined) {
+      this._setTuiOpacity(opts.tuiOpacity);
+      this.webglAddon?.clearTextureAtlas?.();
+      this.term.refresh?.(0, Math.max(0, (this.term.rows ?? 1) - 1));
+    }
     // opacity lives in theme.background (pre-blended against body); no
     // allowTransparency toggle here.
     this.fitAddon.fit();

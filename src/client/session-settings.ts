@@ -7,6 +7,7 @@ export interface SessionSettings {
   fontSize: number;
   spacing: number;
   opacity: number; // 0..100
+  tuiOpacity: number; // 0..100
   backgroundHue: number; // 0..360
 }
 
@@ -17,6 +18,7 @@ export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
   fontSize: 18,
   spacing: 0.85,
   opacity: 0,
+  tuiOpacity: 100,
   backgroundHue: DEFAULT_BACKGROUND_HUE,
 };
 
@@ -26,6 +28,7 @@ export interface ThemeDefaults {
   fontSize?: number;
   spacing?: number;
   opacity?: number;
+  tuiOpacity?: number;
 }
 
 export interface LoadOpts {
@@ -74,6 +77,7 @@ export function loadSessionSettings(name: string, live: SessionSettings | null, 
   if (td.fontSize !== undefined) overlay.fontSize = td.fontSize;
   if (td.spacing !== undefined) overlay.spacing = td.spacing;
   if (td.opacity !== undefined) overlay.opacity = td.opacity;
+  if (td.tuiOpacity !== undefined) overlay.tuiOpacity = td.tuiOpacity;
   return { ...opts.defaults, ...overlay };
 }
 
@@ -117,6 +121,7 @@ export function applyThemeDefaults(s: SessionSettings, td: ThemeDefaults): Sessi
     fontSize: td.fontSize ?? s.fontSize,
     spacing: td.spacing ?? s.spacing,
     opacity: td.opacity ?? s.opacity,
+    tuiOpacity: td.tuiOpacity ?? s.tuiOpacity,
   };
 }
 

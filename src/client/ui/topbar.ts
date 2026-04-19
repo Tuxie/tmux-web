@@ -331,6 +331,8 @@ export class Topbar {
     const inpSize = document.getElementById('inp-fontsize') as HTMLInputElement;
     const sldHeight = document.getElementById('sld-spacing') as HTMLInputElement;
     const inpHeight = document.getElementById('inp-spacing') as HTMLInputElement;
+    const sldTuiOpacity = document.getElementById('sld-tui-opacity') as HTMLInputElement;
+    const inpTuiOpacity = document.getElementById('inp-tui-opacity') as HTMLInputElement;
     const sldOpacity = document.getElementById('sld-opacity') as HTMLInputElement;
     const inpOpacity = document.getElementById('inp-opacity') as HTMLInputElement;
     const sldBackgroundHue = document.getElementById('sld-background-hue') as HTMLInputElement;
@@ -392,11 +394,13 @@ export class Topbar {
     const refreshAllSliderFills = (): void => {
       updateSliderFill(sldSize);
       updateSliderFill(sldHeight);
+      updateSliderFill(sldTuiOpacity);
       updateSliderFill(sldOpacity);
       updateSliderFill(sldBackgroundHue);
     };
     sldSize.addEventListener('input', () => updateSliderFill(sldSize));
     sldHeight.addEventListener('input', () => updateSliderFill(sldHeight));
+    sldTuiOpacity.addEventListener('input', () => updateSliderFill(sldTuiOpacity));
     sldOpacity.addEventListener('input', () => updateSliderFill(sldOpacity));
     sldBackgroundHue.addEventListener('input', () => updateSliderFill(sldBackgroundHue));
 
@@ -406,6 +410,7 @@ export class Topbar {
       ddFont.setValue(s.fontFamily);
       sldSize.value = inpSize.value = String(s.fontSize);
       sldHeight.value = inpHeight.value = String(s.spacing);
+      sldTuiOpacity.value = inpTuiOpacity.value = String(s.tuiOpacity);
       sldOpacity.value = inpOpacity.value = String(s.opacity);
       sldBackgroundHue.value = inpBackgroundHue.value = String(s.backgroundHue);
       refreshAllSliderFills();
@@ -433,6 +438,7 @@ export class Topbar {
       if (theme?.defaultFontSize !== undefined) td.fontSize = theme.defaultFontSize;
       if (theme?.defaultSpacing !== undefined) td.spacing = theme.defaultSpacing;
       if (theme?.defaultOpacity !== undefined) td.opacity = theme.defaultOpacity;
+      if (theme?.defaultTuiOpacity !== undefined) td.tuiOpacity = theme.defaultTuiOpacity;
       const current = getSettings();
       const updated = applyThemeDefaults({ ...current, theme: name }, td);
       saveSessionSettings(this.currentSession, updated);
@@ -457,6 +463,10 @@ export class Topbar {
         updateSliderFill(sldOpacity);
         patch.opacity = theme.defaultOpacity;
       }
+      const tuiOpacity = theme?.defaultTuiOpacity ?? DEFAULT_SESSION_SETTINGS.tuiOpacity;
+      sldTuiOpacity.value = inpTuiOpacity.value = String(tuiOpacity);
+      updateSliderFill(sldTuiOpacity);
+      patch.tuiOpacity = tuiOpacity;
       sldBackgroundHue.value = inpBackgroundHue.value = String(DEFAULT_BACKGROUND_HUE);
       updateSliderFill(sldBackgroundHue);
       patch.backgroundHue = DEFAULT_BACKGROUND_HUE;
@@ -493,6 +503,9 @@ export class Topbar {
 
     sldHeight.addEventListener('input', () => { inpHeight.value = sldHeight.value; commit({ spacing: parseFloat(sldHeight.value) }); });
     inpHeight.addEventListener('change', () => { sldHeight.value = inpHeight.value; updateSliderFill(sldHeight); commit({ spacing: parseFloat(inpHeight.value) }); });
+
+    sldTuiOpacity.addEventListener('input', () => { inpTuiOpacity.value = sldTuiOpacity.value; commit({ tuiOpacity: parseInt(sldTuiOpacity.value, 10) }); });
+    inpTuiOpacity.addEventListener('change', () => { sldTuiOpacity.value = inpTuiOpacity.value; updateSliderFill(sldTuiOpacity); commit({ tuiOpacity: parseInt(inpTuiOpacity.value, 10) }); });
 
     sldOpacity.addEventListener('input', () => { inpOpacity.value = sldOpacity.value; commit({ opacity: parseInt(sldOpacity.value, 10) }); });
     inpOpacity.addEventListener('change', () => { sldOpacity.value = inpOpacity.value; updateSliderFill(sldOpacity); commit({ opacity: parseInt(inpOpacity.value, 10) }); });

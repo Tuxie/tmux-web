@@ -18,6 +18,7 @@ export type ThemeInfo = {
   defaultSpacing?: number;
   defaultColours?: string;
   defaultOpacity?: number;
+  defaultTuiOpacity?: number;
   author?: string;
   version?: string;
   source: 'user' | 'bundled';
@@ -43,6 +44,7 @@ export type PackManifest = {
     defaultSpacing?: number;
     defaultColours?: string;
     defaultOpacity?: number;
+    defaultTuiOpacity?: number;
   }[];
 };
 
@@ -111,6 +113,7 @@ export function listThemes(packs: PackInfo[]): ThemeInfo[] {
         defaultSpacing: theme.defaultSpacing,
         defaultColours: theme.defaultColours,
         defaultOpacity: theme.defaultOpacity,
+        defaultTuiOpacity: theme.defaultTuiOpacity,
         author: pack.manifest.author,
         version: pack.manifest.version,
         source: pack.source,
