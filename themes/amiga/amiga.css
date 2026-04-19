@@ -8,7 +8,7 @@
   --tw-surface-bg: #bbb;            /* Workbench grey */
   --tw-surface-bg-alt: #fff;        /* input-field white */
   --tw-surface-border: #000;        /* hard black borders */
-  --tw-surface-hover: hsl(var(--tw-theme-hue, 216) 49% 62%);      /* selection blue */
+  --tw-surface-hover: hsl(var(--tw-theme-hue, 216) 38% 62%);      /* selection blue */
   --tw-danger-bg: #a04040;          /* muted Workbench red */
   --tw-danger-border: #000;
   --tw-success-bg: #4a8c4a;         /* muted Workbench green */
@@ -35,7 +35,7 @@ body {
  * ------------------------------------------------------------------- */
 #frame-top, #frame-bottom, #frame-left, #frame-right,
 #frame-tl, #frame-tr, #frame-bl, #frame-br {
-  background: hsl(var(--tw-theme-hue, 216) 49% 62%);
+  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
   box-sizing: border-box;
 }
 #frame-top, #frame-bottom {
@@ -78,7 +78,7 @@ body {
   display: flex;
   align-items: stretch;
   height: 28px;
-  background: hsl(var(--tw-theme-hue, 216) 49% 62%);
+  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
   color: #000;
   font-family: 'Topaz8 Amiga1200 Nerd Font', monospace;
   font-size: 19px;
@@ -104,7 +104,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: hsl(var(--tw-theme-hue, 216) 49% 62%);
+  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
   border: 2px solid;
   border-color: #fff #000 #000 #fff;
 }
@@ -116,7 +116,7 @@ body {
  * Pressed / .open state flips all four borders to black.
  * ------------------------------------------------------------------- */
 #topbar .tb-btn {
-  background: hsl(var(--tw-theme-hue, 216) 49% 62%);
+  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
   border: 2px solid;
   border-color: #fff #000 #000 #fff;
   color: #000;
@@ -132,7 +132,7 @@ body {
 }
 #topbar .tb-btn:active {
   border-color: #000 #fff #fff #000;
-  background: hsl(var(--tw-theme-hue, 216) 49% 62%);
+  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
 }
 
 /* Session button [ + | name ] — two-segment, no left border so it butts
@@ -142,7 +142,7 @@ body {
 #topbar .tb-btn-session-plus {
   width: 28px;
   padding: 0;
-  background: hsl(var(--tw-theme-hue, 216) 49% 62%);
+  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
 }
 #topbar .tb-btn-session-plus .tb-session-plus {
   display: block;
@@ -161,14 +161,14 @@ body {
 #topbar .win-tab.open,
 #btn-menu.open {
   border-color: #000 #000 #000 #000;
-  background: hsl(var(--tw-theme-hue, 216) 49% 62%);
+  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
 }
 
 /* Compact window button [ name | + ] — mirror of the session button. */
 #topbar .tb-btn-window-compact {
   justify-content: flex-start;
   padding: 0;
-  background: hsl(var(--tw-theme-hue, 216) 49% 62%);
+  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
   font-size: 16px;
   align-items: stretch;
 }
@@ -185,7 +185,7 @@ body {
 #topbar .tb-btn-window-compact .tb-window-compact-plus {
   display: flex; align-items: center; justify-content: center;
   width: 32px;
-  background: hsl(var(--tw-theme-hue, 216) 49% 62%);
+  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
   border-left: 2px solid #fff;
   flex-shrink: 0;
   position: relative;
@@ -224,8 +224,8 @@ body {
   border: 2px solid;
   border-color: #fff #000 #000 #fff;
 }
-#topbar .win-tab:hover { background: hsl(var(--tw-theme-hue, 216) 49% 47%); }
-#topbar .win-tab.active { background: hsl(var(--tw-theme-hue, 216) 49% 62%); color: #fff; }
+#topbar .win-tab:hover { background: hsl(var(--tw-theme-hue, 216) 38% 47%); }
+#topbar .win-tab.active { background: hsl(var(--tw-theme-hue, 216) 38% 62%); color: #fff; }
 #tb-windows .tb-btn {
   color: #fff;
   text-shadow: -1px 0 black, 0 1px black, 1px 0 black, 0 -1px black;
@@ -250,7 +250,7 @@ body {
  * (grey) and one in front (white). */
 #menu-wrap { display: flex; align-items: stretch; width: auto; }
 #btn-menu {
-  background: hsl(var(--tw-theme-hue, 216) 49% 62%);
+  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
   color: transparent;        /* hide the ☰ fallback glyph */
   text-shadow: none;
   font-size: 0;
@@ -328,8 +328,8 @@ body {
   overflow-y: auto;
 }
 .tw-dropdown-item { padding: 2px 12px; cursor: pointer; white-space: nowrap; }
-.tw-dropdown-item:hover { background: hsl(var(--tw-theme-hue, 216) 49% 62%); color: #fff; }
-.tw-dropdown-item.selected { background: hsl(var(--tw-theme-hue, 216) 49% 62%); color: #fff; }
+.tw-dropdown-item:hover { background: hsl(var(--tw-theme-hue, 216) 38% 62%); color: #fff; }
+.tw-dropdown-item.selected { background: hsl(var(--tw-theme-hue, 216) 38% 62%); color: #fff; }
 .tw-dropdown-sep { border: none; border-top: 2px solid #888; margin: 3px 4px; }
 .tw-dropdown-menu.tw-dd-sessions-menu { min-width: 160px; }
 .tw-dropdown-menu.tw-dd-context { min-width: auto; }
@@ -390,7 +390,7 @@ body {
 }
 .menu-row { display: flex; align-items: center; gap: 3px; padding: 2px 12px;
             cursor: pointer; white-space: nowrap; font-size: 15px; }
-.menu-row:hover { background: hsl(var(--tw-theme-hue, 216) 49% 62%); }
+.menu-row:hover { background: hsl(var(--tw-theme-hue, 216) 38% 62%); }
 .menu-row-static { cursor: default; gap: 3px; }
 .menu-label { color: #000; min-width: 120px; }
 /* AmigaOS 3.1 GadTools-style checkbox. Raised sunken well when unchecked,
@@ -413,7 +413,7 @@ body {
   flex-shrink: 0;
 }
 .tw-dropdown-menu input[type="checkbox"]:checked {
-  background: hsl(var(--tw-theme-hue, 216) 49% 62%);
+  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
   border-color: #000 #fff #fff #000;
 }
 .tw-dropdown-menu input[type="checkbox"]:checked::after {
@@ -506,7 +506,7 @@ body {
 }
 #menu-footer:hover { background: none; }
 
-input { accent-color: hsl(var(--tw-theme-hue, 216) 49% 62%); }
+input { accent-color: hsl(var(--tw-theme-hue, 216) 38% 62%); }
 
 /* ---------------------------------------------------------------------
  * Range sliders (settings menu).
@@ -527,7 +527,7 @@ input { accent-color: hsl(var(--tw-theme-hue, 216) 49% 62%); }
   height: 6px;
   background:
     linear-gradient(to right,
-      hsl(var(--tw-theme-hue, 216) 49% 62%) 0, hsl(var(--tw-theme-hue, 216) 49% 62%) var(--tw-slider-val, 0%),
+      hsl(var(--tw-theme-hue, 216) 38% 62%) 0, hsl(var(--tw-theme-hue, 216) 38% 62%) var(--tw-slider-val, 0%),
       #aaa var(--tw-slider-val, 0%), #aaa 100%);
   border: 2px solid;
   border-color: #000 #fff #fff #000;
@@ -541,7 +541,7 @@ input { accent-color: hsl(var(--tw-theme-hue, 216) 49% 62%); }
 }
 #menu-dropdown input[type="range"]::-moz-range-progress {
   height: 6px;
-  background: hsl(var(--tw-theme-hue, 216) 49% 62%);
+  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
 }
 #menu-dropdown input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
