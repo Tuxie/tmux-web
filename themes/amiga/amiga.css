@@ -465,7 +465,10 @@ body {
 #drops-list, #drops-list > div, #drops-list span { color: #000; }
 #drops-list .meta-size { color: #555; }
 
-.menu-hr { border: none; border-top: 2px solid var(--tw-muted); margin: 4px 0; }
+/* Plain HR: section header without the title. Same 1px muted line,
+ * same 12px horizontal inset so the ruler length matches the
+ * flanking-rule length of a section header. */
+.menu-hr { border: none; border-top: 1px solid var(--tw-muted); margin: 6px 12px 2px; }
 
 /* Section headers: muted label + flanking rules, all at the same
  * visual weight as the plain .menu-hr. */
