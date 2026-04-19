@@ -13,6 +13,7 @@ import { installDropsPanel } from './ui/drops-panel.js';
 import { getTopbarAutohide } from './prefs.js';
 import { applyTheme, loadAllFonts, listThemes } from './theme.js';
 import { fetchColours, composeBgColor, composeTheme, type ITheme } from './colours.js';
+import { applyBackgroundHue } from './background-hue.js';
 import {
   loadSessionSettings,
   saveSessionSettings,
@@ -64,6 +65,7 @@ async function main() {
   saveSessionSettings(sessionName, settings);
 
   await applyTheme(settings.theme);
+  applyBackgroundHue(settings.backgroundHue);
 
   const colourByName = new Map(colours.map(c => [c.name, c.theme]));
   const coloursOrDefault = (name: string): ITheme =>
@@ -124,6 +126,7 @@ async function main() {
       if (themeChanged) {
         await applyTheme(s.theme);
       }
+      applyBackgroundHue(s.backgroundHue);
 
       page.style.backgroundColor = composeBgColor(coloursOrDefault(s.colours), s.opacity);
       adapter.setTheme(composeTheme(coloursOrDefault(s.colours), s.opacity, getBodyBg()));

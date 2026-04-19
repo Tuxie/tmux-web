@@ -15,6 +15,15 @@
       "defaultSpacing": 1.0,
       "defaultColours": "Gruvbox Light",
       "defaultOpacity": 0
+    },
+    {
+      "name": "Amiga Scene Modern",
+      "css": "scene.css",
+      "defaultFont": "mOsOul Nerd Font",
+      "defaultFontSize": 17.5,
+      "defaultSpacing": 1.05,
+      "defaultColours": "Dracula",
+      "defaultOpacity": 0
     }
   ]
 }

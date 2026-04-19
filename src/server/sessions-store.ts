@@ -29,6 +29,7 @@ export interface StoredSessionSettings {
   fontSize: number;
   spacing: number;
   opacity: number;
+  backgroundHue?: number;
   /** OSC 52 per-binary policy. Keyed by absolute exe path. */
   clipboard?: Record<string, ClipboardPolicyEntry>;
 }

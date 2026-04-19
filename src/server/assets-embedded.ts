@@ -21,9 +21,10 @@ import asset17 from "../../themes/amiga/theme.json" with { type: "file" };
 import asset18 from "../../themes/amiga/amiga.css" with { type: "file" };
 import asset19 from "../../themes/amiga/MicroKnight Nerd Font.woff2" with { type: "file" };
 import asset20 from "../../themes/amiga/Topaz8 Amiga1200 Nerd Font.woff2" with { type: "file" };
-import asset21 from "../../themes/amiga/mOsOul Nerd Font.woff2" with { type: "file" };
-import asset22 from "../../tmux.conf" with { type: "file" };
-import asset23 from "../../src/client/index.html" with { type: "file" };
+import asset21 from "../../themes/amiga/scene.css" with { type: "file" };
+import asset22 from "../../themes/amiga/mOsOul Nerd Font.woff2" with { type: "file" };
+import asset23 from "../../tmux.conf" with { type: "file" };
+import asset24 from "../../src/client/index.html" with { type: "file" };
 
 export const embeddedAssets: Record<string, string> = {
   "dist/client/xterm.css": asset0,
@@ -47,7 +48,8 @@ export const embeddedAssets: Record<string, string> = {
   "themes/amiga/amiga.css": asset18,
   "themes/amiga/MicroKnight Nerd Font.woff2": asset19,
   "themes/amiga/Topaz8 Amiga1200 Nerd Font.woff2": asset20,
-  "themes/amiga/mOsOul Nerd Font.woff2": asset21,
-  "tmux.conf": asset22,
-  "src/client/index.html": asset23,
+  "themes/amiga/scene.css": asset21,
+  "themes/amiga/mOsOul Nerd Font.woff2": asset22,
+  "tmux.conf": asset23,
+  "src/client/index.html": asset24,
 };

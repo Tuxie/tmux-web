@@ -38,7 +38,7 @@ function parseRgbString(s: string): { r: number; g: number; b: number; a: number
  *
  *  With allowTransparency: false the atlas fills the tmpCanvas with this
  *  opaque colour, canvas-2d subpixel AA kicks in, and clearColor strips
- *  the bg pixels back to alpha 0 — the halo pixels that remain are
+ *  the bg pixels back to alpha 0. The halo pixels that remain are
  *  pre-blended against the correct backdrop, so no coloured fringing
  *  appears over body-colour regions (opacity < 100).
  *
@@ -46,7 +46,7 @@ function parseRgbString(s: string): { r: number; g: number; b: number; a: number
  *  opacity slider on #page keeps its single-layer alpha for the terminal
  *  area while cells with explicit SGR backgrounds still render opaque at
  *  their own colours. The alpha we write on the returned rgba string is
- *  always 0 — xterm forces it back to 1 for the atlas (via
+ *  always 0. xterm forces it back to 1 for the atlas (via
  *  `color.opaque`) but uses only the RGB, which is what we want. */
 export function composeTheme(
   theme: ITheme,

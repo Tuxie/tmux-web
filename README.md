@@ -22,9 +22,9 @@ It is intentionally small: a Bun server, a static client bundle, and a thin adap
 - **Modern keyboard support** — Kitty keyboard protocol via xterm's `vtExtensions` for modified special keys (Ctrl+Enter, Shift+Tab, etc.).
 - **Two-way OSC 52 clipboard** — `tmux` copy actions land in the browser clipboard automatically; clipboard reads from inside the pane (e.g. vim `+` register) work too, gated by a per-binary consent prompt.
 - **Drag-and-drop and paste files into the terminal** — files are staged under a per-user tmp dir and their absolute path is pasted into the focused pane as a bracketed paste (shell-quoted for shells, raw for Claude / TUIs). Auto-cleaned via inotify close-watch plus a TTL sweep.
-- **Theme packs** — colour scheme, font, spacing, opacity; two built-in themes ("Default" and an AmigaOS 3.1 workbench look).
+- **Theme packs** — colour scheme, font, spacing, opacity, background hue; two built-in themes ("Default" and an AmigaOS 3.1 workbench look).
 - **Session and window switcher** — auto-hiding toolbar with a session dropdown, per-window tabs, a "new session" button, and a fullscreen toggle.
-- **Server-side session settings** — per-session colours/font/opacity/etc. persist in `~/.config/tmux-web/sessions.json` (atomic writes) and follow you across browsers.
+- **Server-side session settings** — per-session colours/font/opacity/background hue/etc. persist in `~/.config/tmux-web/sessions.json` (atomic writes) and follow you across browsers.
 - **URL-as-session** — the path (`/dev`, `/work`) maps to a tmux session name; bookmarkable.
 - **Reconnect-safe** — WebSocket reconnect resyncs the terminal size automatically.
 - **HTTP Basic Auth** — on by default.

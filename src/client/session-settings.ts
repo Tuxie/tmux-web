@@ -1,3 +1,5 @@
+import { DEFAULT_BACKGROUND_HUE } from './background-hue.js';
+
 export interface SessionSettings {
   theme: string;
   colours: string;
@@ -5,6 +7,7 @@ export interface SessionSettings {
   fontSize: number;
   spacing: number;
   opacity: number; // 0..100
+  backgroundHue: number; // 0..360
 }
 
 export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
@@ -14,6 +17,7 @@ export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
   fontSize: 18,
   spacing: 0.85,
   opacity: 0,
+  backgroundHue: DEFAULT_BACKGROUND_HUE,
 };
 
 export interface ThemeDefaults {
@@ -62,7 +66,7 @@ function persist(patch: { lastActive?: string; sessions?: Record<string, Session
 export function loadSessionSettings(name: string, live: SessionSettings | null, opts: LoadOpts): SessionSettings {
   const stored = cache.sessions[name];
   if (stored) return { ...opts.defaults, ...stored };
-  if (live) return { ...live };
+  if (live) return { ...opts.defaults, ...live };
   const overlay: Partial<SessionSettings> = {};
   const td = opts.themeDefaults ?? {};
   if (td.colours) overlay.colours = td.colours;

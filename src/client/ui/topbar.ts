@@ -19,6 +19,7 @@ import {
   type SessionSettings,
   type ThemeDefaults,
 } from '../session-settings.js';
+import { DEFAULT_BACKGROUND_HUE, clampBackgroundHue } from '../background-hue.js';
 
 export interface TopbarOptions {
   send: (data: string) => void;
@@ -332,6 +333,8 @@ export class Topbar {
     const inpHeight = document.getElementById('inp-spacing') as HTMLInputElement;
     const sldOpacity = document.getElementById('sld-opacity') as HTMLInputElement;
     const inpOpacity = document.getElementById('inp-opacity') as HTMLInputElement;
+    const sldBackgroundHue = document.getElementById('sld-background-hue') as HTMLInputElement;
+    const inpBackgroundHue = document.getElementById('inp-background-hue') as HTMLInputElement;
 
     const [fonts, themes, colours] = await Promise.all([listFonts(), listThemes(), fetchColours()]);
 
@@ -390,10 +393,12 @@ export class Topbar {
       updateSliderFill(sldSize);
       updateSliderFill(sldHeight);
       updateSliderFill(sldOpacity);
+      updateSliderFill(sldBackgroundHue);
     };
     sldSize.addEventListener('input', () => updateSliderFill(sldSize));
     sldHeight.addEventListener('input', () => updateSliderFill(sldHeight));
     sldOpacity.addEventListener('input', () => updateSliderFill(sldOpacity));
+    sldBackgroundHue.addEventListener('input', () => updateSliderFill(sldBackgroundHue));
 
     const syncUi = (s: SessionSettings) => {
       ddTheme.setValue(s.theme);
@@ -402,6 +407,7 @@ export class Topbar {
       sldSize.value = inpSize.value = String(s.fontSize);
       sldHeight.value = inpHeight.value = String(s.spacing);
       sldOpacity.value = inpOpacity.value = String(s.opacity);
+      sldBackgroundHue.value = inpBackgroundHue.value = String(s.backgroundHue);
       refreshAllSliderFills();
     };
     // Expose so updateSession() can refresh the visible controls when tmux
@@ -451,6 +457,9 @@ export class Topbar {
         updateSliderFill(sldOpacity);
         patch.opacity = theme.defaultOpacity;
       }
+      sldBackgroundHue.value = inpBackgroundHue.value = String(DEFAULT_BACKGROUND_HUE);
+      updateSliderFill(sldBackgroundHue);
+      patch.backgroundHue = DEFAULT_BACKGROUND_HUE;
       if (Object.keys(patch).length) commit(patch);
     });
 
@@ -487,6 +496,18 @@ export class Topbar {
 
     sldOpacity.addEventListener('input', () => { inpOpacity.value = sldOpacity.value; commit({ opacity: parseInt(sldOpacity.value, 10) }); });
     inpOpacity.addEventListener('change', () => { sldOpacity.value = inpOpacity.value; updateSliderFill(sldOpacity); commit({ opacity: parseInt(inpOpacity.value, 10) }); });
+
+    sldBackgroundHue.addEventListener('input', () => {
+      const hue = clampBackgroundHue(parseInt(sldBackgroundHue.value, 10));
+      inpBackgroundHue.value = String(hue);
+      commit({ backgroundHue: hue });
+    });
+    inpBackgroundHue.addEventListener('change', () => {
+      const hue = clampBackgroundHue(parseInt(inpBackgroundHue.value, 10));
+      sldBackgroundHue.value = inpBackgroundHue.value = String(hue);
+      updateSliderFill(sldBackgroundHue);
+      commit({ backgroundHue: hue });
+    });
   }
 
   toggleFullscreen(): void {

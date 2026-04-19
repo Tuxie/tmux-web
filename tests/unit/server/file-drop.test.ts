@@ -12,6 +12,7 @@ import {
   defaultDropStorage,
   hasInotifywait,
   _resetInotifyProbe,
+  AUTO_UNLINK_GRACE_MS,
   type DropStorage,
 } from "../../../src/server/file-drop.ts";
 
@@ -279,21 +280,26 @@ describe("hasInotifywait / _resetInotifyProbe", () => {
 });
 
 describe("armAutoUnlink (autoUnlinkOnClose=true)", () => {
-  test("spawns inotifywait watcher and unlinks the file when it exits", async () => {
+  test("spawns inotifywait watcher and unlinks the file after the grace delay", async () => {
     // Only meaningful if inotifywait is installed; when not, the spawn
-    // child will emit 'error' and the branch on line 104 runs.
+    // child will emit 'error'.
     const s: DropStorage = { root, maxFilesPerSession: 5, ttlMs: 60_000, autoUnlinkOnClose: true };
     const r = writeDrop(s, "watched.bin", Buffer.from("abc"));
     // Let inotifywait (if present) start up, then touch the file's close
-    // by reading it — inotifywait will fire, finish() will unlink.
+    // by reading it. The first close event should schedule deletion, not
+    // immediately unlink the file.
     if (hasInotifywait()) {
       await new Promise(res => setTimeout(res, 150));
       fs.readFileSync(r.absolutePath); // close_nowrite fires
-      // Wait for watcher to unlink.
-      const deadline = Date.now() + 3000;
+
+      await new Promise(res => setTimeout(res, 250));
+      expect(fs.existsSync(r.absolutePath)).toBe(true);
+
+      const deadline = Date.now() + AUTO_UNLINK_GRACE_MS + 2500;
       while (fs.existsSync(r.absolutePath) && Date.now() < deadline) {
         await new Promise(res => setTimeout(res, 50));
       }
+      expect(fs.existsSync(r.absolutePath)).toBe(false);
     }
     // Either way the file write succeeded; we just needed the armAutoUnlink
     // branch to execute. Clean up.
@@ -315,8 +321,8 @@ describe("armAutoUnlink (autoUnlinkOnClose=true)", () => {
     // Give the watcher time to be registered in activeWatchers.
     await new Promise(res => setTimeout(res, 50));
     // deleteDrop → rmDrop → should hit the `if (watcher)` branch
-    // (lines 177-178) when inotifywait is available; otherwise falls
-    // through. Either way the drop is gone.
+    // when inotifywait is available; otherwise falls through. Either
+    // way the drop is gone.
     expect(deleteDrop(s, r.dropId)).toBe(true);
     expect(fs.existsSync(path.dirname(r.absolutePath))).toBe(false);
   });

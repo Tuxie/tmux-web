@@ -2,6 +2,14 @@ import type { TerminalAdapter } from './types.js';
 import type { CellMetrics, TerminalOptions, TerminalTheme } from '../../shared/types.js';
 import { getWebglEnabled } from '../prefs.js';
 
+const EXPLICIT_CELL_BACKGROUND_ALPHA = 0.7;
+const XTERM_COLOR_MODE_MASK = 0x3000000;
+const XTERM_COLOR_MODE_P16 = 0x1000000;
+const XTERM_COLOR_MODE_P256 = 0x2000000;
+const XTERM_COLOR_MODE_RGB = 0x3000000;
+const XTERM_FG_FLAG_INVERSE = 0x4000000;
+const XTERM_RGB_MASK = 0xffffff;
+
 export class XtermAdapter implements TerminalAdapter {
   private term!: any;
   private fitAddon!: any;
@@ -40,7 +48,7 @@ export class XtermAdapter implements TerminalAdapter {
     // (opaque tmpCanvas + clearColor). composeTheme feeds xterm a
     // theme.background pre-blended with the body backdrop at the current
     // opacity, so glyph halos come out of the atlas already matching
-    // what's behind the terminal — no coloured fringing at any opacity.
+    // what's behind the terminal: no coloured fringing at any opacity.
     // RectangleRenderer skips default-bg cells, so the #page alpha slider
     // keeps driving the visible transparency.
     this.term = new Terminal({
@@ -88,6 +96,7 @@ export class XtermAdapter implements TerminalAdapter {
         this.term.loadAddon(addon);
         this.webglAddon = addon;
         this._patchWebglLineHeightOverflow();
+        this._patchWebglExplicitBackgroundOpacity();
       } catch (err) {
         console.warn('WebGL renderer unavailable, falling back to DOM:', err);
       }
@@ -151,6 +160,170 @@ export class XtermAdapter implements TerminalAdapter {
     };
     renderer.handleResize(this.term.cols, this.term.rows);
     this._patchWebglAtlasFilter(renderer);
+  }
+
+  // WebGL draws non-default SGR backgrounds as rectangle runs, separately
+  // from glyphs and the default viewport background. Lower only those
+  // rectangle alphas so app highlights can show some of the terminal/page
+  // backdrop through while keeping allowTransparency=false for glyph quality.
+  private _patchWebglExplicitBackgroundOpacity(): void {
+    const renderer: any = this.term?._core?._renderService?._renderer?.value;
+    if (!renderer) return;
+
+    const patchRectangleRenderer = (rectangleRenderer: any): void => {
+      if (!rectangleRenderer || rectangleRenderer.__tmuxWebBgOpacityPatched) return;
+      if (typeof rectangleRenderer._updateRectangle !== 'function') return;
+      rectangleRenderer.__tmuxWebBgOpacityPatched = true;
+      if (typeof rectangleRenderer.updateBackgrounds === 'function') {
+        const origUpdateBackgrounds = rectangleRenderer.updateBackgrounds.bind(rectangleRenderer);
+        rectangleRenderer.updateBackgrounds = function (model: unknown) {
+          this.__tmuxWebBgOpacityModel = model;
+          try {
+            return origUpdateBackgrounds(model);
+          } finally {
+            this.__tmuxWebBgOpacityModel = undefined;
+          }
+        };
+      }
+      const orig = rectangleRenderer._updateRectangle.bind(rectangleRenderer);
+      rectangleRenderer._updateRectangle = function (
+        vertices: { attributes?: Float32Array },
+        offset: number,
+        fg: number,
+        bg: number,
+        startX: number,
+        endX: number,
+        y: number,
+      ) {
+        orig(vertices, offset, fg, bg, startX, endX, y);
+        if (
+          vertices.attributes &&
+          offset + 7 < vertices.attributes.length &&
+          shouldApplyBackgroundOpacity(this, fg, bg, startX, endX, y)
+        ) {
+          vertices.attributes[offset + 7] = EXPLICIT_CELL_BACKGROUND_ALPHA;
+        }
+      };
+    };
+
+    const shouldApplyBackgroundOpacity = (
+      rectangleRenderer: any,
+      fg: number,
+      bg: number,
+      startX: number,
+      endX: number,
+      y: number,
+    ): boolean => {
+      const effectiveBg = effectiveBackgroundAttr(fg, bg);
+      const colorMode = effectiveBg & XTERM_COLOR_MODE_MASK;
+      if (
+        colorMode !== XTERM_COLOR_MODE_P16 &&
+        colorMode !== XTERM_COLOR_MODE_P256 &&
+        colorMode !== XTERM_COLOR_MODE_RGB
+      ) {
+        return false;
+      }
+      const model = rectangleRenderer.__tmuxWebBgOpacityModel ?? renderer._model;
+      const cursor = model?.cursor;
+      if (
+        cursor &&
+        y === cursor.y &&
+        startX < cursor.x + cursor.width &&
+        endX > cursor.x
+      ) {
+        return false;
+      }
+      return true;
+    };
+
+    const effectiveBackgroundAttr = (fg: number, bg: number): number => {
+      return (fg & XTERM_FG_FLAG_INVERSE) ? fg : bg;
+    };
+
+    const resolveAttrRgba = (attr: number, defaultRgba: number): number => {
+      switch (attr & XTERM_COLOR_MODE_MASK) {
+        case XTERM_COLOR_MODE_P16:
+        case XTERM_COLOR_MODE_P256:
+          return renderer._themeService?.colors?.ansi?.[attr & 0xff]?.rgba ?? defaultRgba;
+        case XTERM_COLOR_MODE_RGB:
+          return ((attr & XTERM_RGB_MASK) << 8) | 0xff;
+        default:
+          return defaultRgba;
+      }
+    };
+
+    const blendRgbaOverDefaultBackground = (rgba: number): number => {
+      const base = renderer._themeService?.colors?.background?.rgba ?? 0x000000ff;
+      const a = EXPLICIT_CELL_BACKGROUND_ALPHA;
+      const r = Math.round(((rgba >> 24) & 0xff) * a + ((base >> 24) & 0xff) * (1 - a));
+      const g = Math.round(((rgba >> 16) & 0xff) * a + ((base >> 16) & 0xff) * (1 - a));
+      const b = Math.round(((rgba >> 8) & 0xff) * a + ((base >> 8) & 0xff) * (1 - a));
+      return (r << 16) | (g << 8) | b;
+    };
+
+    const withBlendedEffectiveBackground = (fg: number, bg: number): { fg: number; bg: number } => {
+      const defaultRgba = (fg & XTERM_FG_FLAG_INVERSE)
+        ? (renderer._themeService?.colors?.foreground?.rgba ?? 0xffffffff)
+        : (renderer._themeService?.colors?.background?.rgba ?? 0x000000ff);
+      const effectiveBg = effectiveBackgroundAttr(fg, bg);
+      const colorMode = effectiveBg & XTERM_COLOR_MODE_MASK;
+      if (
+        colorMode !== XTERM_COLOR_MODE_P16 &&
+        colorMode !== XTERM_COLOR_MODE_P256 &&
+        colorMode !== XTERM_COLOR_MODE_RGB
+      ) {
+        return { fg, bg };
+      }
+      const blendedRgb = blendRgbaOverDefaultBackground(resolveAttrRgba(effectiveBg, defaultRgba));
+      if (fg & XTERM_FG_FLAG_INVERSE) {
+        return {
+          fg: (fg & ~(XTERM_RGB_MASK | XTERM_COLOR_MODE_MASK)) | XTERM_COLOR_MODE_RGB | blendedRgb,
+          bg,
+        };
+      }
+      return {
+        fg,
+        bg: (bg & ~(XTERM_RGB_MASK | XTERM_COLOR_MODE_MASK)) | XTERM_COLOR_MODE_RGB | blendedRgb,
+      };
+    };
+
+    const patchGlyphRenderer = (glyphRenderer: any): void => {
+      if (!glyphRenderer || glyphRenderer.__tmuxWebBgOpacityPatched) return;
+      if (typeof glyphRenderer.updateCell !== 'function') return;
+      glyphRenderer.__tmuxWebBgOpacityPatched = true;
+      const orig = glyphRenderer.updateCell.bind(glyphRenderer);
+      glyphRenderer.updateCell = function (
+        x: number,
+        y: number,
+        code: number,
+        bg: number,
+        fg: number,
+        ext: number,
+        chars: string,
+        width: number,
+        lastBg: number,
+      ) {
+        if (shouldApplyBackgroundOpacity(this, fg, bg, x, x + Math.max(width || 1, 1), y)) {
+          const current = withBlendedEffectiveBackground(fg, bg);
+          const previous = withBlendedEffectiveBackground(fg, lastBg);
+          return orig(x, y, code, current.bg, current.fg, ext, chars, width, previous.bg);
+        }
+        return orig(x, y, code, bg, fg, ext, chars, width, lastBg);
+      };
+    };
+
+    patchRectangleRenderer(renderer._rectangleRenderer?.value);
+    patchGlyphRenderer(renderer._glyphRenderer?.value);
+
+    if (renderer.__tmuxWebBgOpacityInitPatched || typeof renderer._initializeWebGLState !== 'function') return;
+    renderer.__tmuxWebBgOpacityInitPatched = true;
+    const origInit = renderer._initializeWebGLState.bind(renderer);
+    renderer._initializeWebGLState = () => {
+      const result = origInit();
+      patchRectangleRenderer(renderer._rectangleRenderer?.value);
+      patchGlyphRenderer(renderer._glyphRenderer?.value);
+      return result;
+    };
   }
 
   // Force NEAREST-neighbour sampling on the glyph atlas texture. xterm's

@@ -59,6 +59,7 @@ export interface SessionSettingsRecord {
   fontSize: number;
   spacing: number;
   opacity: number;
+  backgroundHue?: number;
 }
 export interface SessionStoreState {
   version: 1;

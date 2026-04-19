@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { mockSessionStore } from './helpers.js';
+import { mockSessionStore, type SessionStoreMock } from './helpers.js';
 
 test.describe('theming', () => {
   async function waitForThemeAndFontLists(page: import('@playwright/test').Page): Promise<void> {
@@ -9,6 +9,15 @@ test.describe('theming', () => {
         (document.getElementById('inp-font-bundled') as HTMLSelectElement | null)?.options.length > 0,
       { timeout: 5000 }
     );
+  }
+
+  async function waitForStored(store: SessionStoreMock, name: string, predicate: (s: any) => boolean): Promise<void> {
+    for (let i = 0; i < 50; i++) {
+      const s = store.get().sessions[name];
+      if (s && predicate(s)) return;
+      await new Promise(r => setTimeout(r, 50));
+    }
+    throw new Error(`session '${name}' never matched predicate; current state: ${JSON.stringify(store.get().sessions[name])}`);
   }
 
   test('default theme loads, terminal renders', async ({ page }) => {
@@ -51,6 +60,22 @@ test.describe('theming', () => {
     // be stale unless the dropdown refreshes it explicitly).
     await expect(page.locator('#inp-colours-btn .tw-dropdown-value')).toHaveText('Dracula');
     await expect(page.locator('#inp-colours')).toHaveValue('Dracula');
+  });
+
+  test('reset colours resets background hue', async ({ page }) => {
+    const store = await mockSessionStore(page);
+    await page.goto('/main');
+    await waitForThemeAndFontLists(page);
+    await page.click('#btn-menu');
+
+    await page.fill('#inp-background-hue', '240');
+    await page.locator('#inp-background-hue').dispatchEvent('change');
+    await waitForStored(store, 'main', s => s.backgroundHue === 240);
+
+    await page.click('#btn-reset-colours');
+
+    await expect(page.locator('#inp-background-hue')).toHaveValue('183');
+    await waitForStored(store, 'main', s => s.backgroundHue === 183);
   });
 
   test('font picker is populated', async ({ page }) => {

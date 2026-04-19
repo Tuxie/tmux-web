@@ -11,9 +11,9 @@ export interface DropStorage {
   maxFilesPerSession: number;
   /** Drops older than this (ms) are opportunistically unlinked on each write. */
   ttlMs: number;
-  /** If true, spawn `inotifywait` per drop to unlink the file the moment
-   *  its first reader closes it. Falls back to TTL-only when the binary
-   *  is missing. */
+  /** If true, spawn `inotifywait` per drop to unlink the file shortly
+   *  after its first reader closes it. Falls back to TTL-only when the
+   *  binary is missing. */
   autoUnlinkOnClose: boolean;
 }
 
@@ -64,6 +64,9 @@ export function _resetInotifyProbe(): void {
 /** Active auto-unlink watchers keyed by the drop's subdir so purge and
  *  server-exit can kill them. */
 const activeWatchers = new Map<string, ChildProcess>();
+const pendingAutoUnlinks = new Map<string, ReturnType<typeof setTimeout>>();
+
+export const AUTO_UNLINK_GRACE_MS = 2000;
 
 /** Pub/sub for drop list mutations. The WS layer subscribes and pushes
  *  a `dropsChanged` TT message to every connected client — drops are a
@@ -83,8 +86,27 @@ function emitChange(): void {
   }
 }
 
+function clearPendingAutoUnlink(dropDir: string): void {
+  const pending = pendingAutoUnlinks.get(dropDir);
+  if (!pending) return;
+  pendingAutoUnlinks.delete(dropDir);
+  clearTimeout(pending);
+}
+
+function scheduleAutoUnlink(dropDir: string, filePath: string): void {
+  if (pendingAutoUnlinks.has(dropDir)) return;
+  const timer = setTimeout(() => {
+    pendingAutoUnlinks.delete(dropDir);
+    try { fs.unlinkSync(filePath); } catch { /* already gone */ }
+    try { fs.rmdirSync(dropDir); } catch { /* not empty / already gone */ }
+    emitChange();
+  }, AUTO_UNLINK_GRACE_MS);
+  pendingAutoUnlinks.set(dropDir, timer);
+}
+
 /** Spawn `inotifywait` on the drop's file; when any close event fires,
- *  unlink the file and rmdir the parent drop-dir. Returns immediately.
+ *  wait briefly before unlinking the file and rmdir-ing the parent drop-dir.
+ *  Returns immediately.
  *  If inotifywait is unavailable or spawn fails, the drop survives
  *  until the TTL sweep picks it up. */
 function armAutoUnlink(dropDir: string, filePath: string): void {
@@ -95,21 +117,26 @@ function armAutoUnlink(dropDir: string, filePath: string): void {
     ], { stdio: ['ignore', 'ignore', 'ignore'] });
     activeWatchers.set(dropDir, child);
     const finish = () => {
+      if (activeWatchers.get(dropDir) !== child) return;
       activeWatchers.delete(dropDir);
-      try { fs.unlinkSync(filePath); } catch { /* already gone */ }
-      try { fs.rmdirSync(dropDir); } catch { /* not empty / already gone */ }
-      emitChange();
+      scheduleAutoUnlink(dropDir, filePath);
     };
     child.on('exit', finish);
-    child.on('error', () => { activeWatchers.delete(dropDir); });
+    child.on('error', () => {
+      if (activeWatchers.get(dropDir) === child) activeWatchers.delete(dropDir);
+    });
   } catch {
     /* spawn threw synchronously — TTL handles it */
   }
 }
 
 function stopAllWatchers(): void {
-  for (const [, child] of activeWatchers) {
+  for (const [dropDir, child] of activeWatchers) {
+    activeWatchers.delete(dropDir);
     try { child.kill('SIGTERM'); } catch { /* best-effort */ }
+  }
+  for (const dropDir of Array.from(pendingAutoUnlinks.keys())) {
+    clearPendingAutoUnlink(dropDir);
   }
 }
 
@@ -171,6 +198,7 @@ function sweepRoot(storage: DropStorage): void {
 }
 
 function rmDrop(dropDir: string): void {
+  clearPendingAutoUnlink(dropDir);
   try { fs.rmSync(dropDir, { recursive: true, force: true }); } catch { /* ignore */ }
   const watcher = activeWatchers.get(dropDir);
   if (watcher) {

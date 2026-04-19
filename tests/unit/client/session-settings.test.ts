@@ -45,6 +45,7 @@ describe("session-settings", () => {
     await initSessionStore();
     const s = loadSessionSettings("main", null, { defaults: DEFAULT_SESSION_SETTINGS });
     expect(s.fontSize).toBe(DEFAULT_SESSION_SETTINGS.fontSize);
+    expect(s.backgroundHue).toBe(DEFAULT_SESSION_SETTINGS.backgroundHue);
   });
 
   test("overlays theme defaults when no stored + no live", async () => {
@@ -75,19 +76,28 @@ describe("session-settings", () => {
     expect(s.fontSize).toBe(20);
   });
 
+  test("fills new defaults when inheriting legacy live session", async () => {
+    await initSessionStore();
+    const live = { theme: "Default", colours: "Nord", fontFamily: "F", fontSize: 20, spacing: 1, opacity: 40 } as any;
+    const s = loadSessionSettings("new-sess", live, { defaults: DEFAULT_SESSION_SETTINGS });
+    expect(s.backgroundHue).toBe(DEFAULT_SESSION_SETTINGS.backgroundHue);
+  });
+
   test("saves to cache and pushes PUT to server", async () => {
     const calls = setupFakeFetch({ sessions: {} });
     await initSessionStore();
-    const s = { ...DEFAULT_SESSION_SETTINGS, colours: "Monokai", opacity: 50 };
+    const s = { ...DEFAULT_SESSION_SETTINGS, colours: "Monokai", opacity: 50, backgroundHue: 210 };
     saveSessionSettings("x", s);
     const loaded = loadSessionSettings("x", null, { defaults: DEFAULT_SESSION_SETTINGS });
     expect(loaded.colours).toBe("Monokai");
     expect(loaded.opacity).toBe(50);
+    expect(loaded.backgroundHue).toBe(210);
     await new Promise(r => setTimeout(r, 0));
     const put = calls.find(c => c.init?.method === 'PUT');
     expect(put).toBeDefined();
     const body = JSON.parse(put!.init!.body as string);
     expect(body.sessions.x.colours).toBe("Monokai");
+    expect(body.sessions.x.backgroundHue).toBe(210);
   });
 
   test("getStoredSessionNames returns names from cache", async () => {
