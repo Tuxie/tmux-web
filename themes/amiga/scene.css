@@ -293,7 +293,8 @@ body {
 #topbar .tb-btn-session-plus,
 #topbar .tb-btn-window-compact .tb-window-compact-label,
 #topbar .tb-btn-window-compact .tb-window-compact-plus,
-#topbar .win-tab {
+#topbar .win-tab,
+#tb-title {
   padding-bottom: 2px;
   padding-top: 0;
 }
