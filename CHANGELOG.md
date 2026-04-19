@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- TUI Opacity slider now fades ANSI / palette / RGB background cells linearly. The old patch set the rectangle's vertex alpha, but the WebGL canvas uses `premultipliedAlpha: true` with a non-premultiplied shader — alpha 0.5 rendered as roughly 0.88 opaque. The rect RGB is now pre-blended against the viewport bg (matching the glyph-path `withBlendedEffectiveBackground`) and the alpha stays at 1, giving a clean linear response.
+- TUI Opacity slider now fades ANSI / palette / RGB background cells linearly all the way through to the real page + body backdrop — including `<body>` gradients and images that `getComputedStyle(body).backgroundColor` returns as transparent (Scene theme, etc.). The old patch fed the slider value to the rectangle's vertex alpha, but the WebGL canvas uses `premultipliedAlpha: true` with a non-premultiplied shader and its framebuffer accumulates across in-task draws — so alpha 0.5 rendered as roughly 0.88 opaque and grey palette colours looked like they never faded at all. The RectangleRenderer now: clears the framebuffer per frame, uses `ONE × ONE_MINUS_SRC_ALPHA` for the bg pass, premultiplies rect RGB by `tuiα`, and neuters the viewport rect so default-bg cells stay transparent. Visible result is now exactly `ansi × tuiα + page_visible × (1-tuiα)`, regardless of what's behind #page.
 
 ## 1.5.1 — 2026-04-18
 

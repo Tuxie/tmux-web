@@ -181,7 +181,17 @@ export class XtermAdapter implements TerminalAdapter {
         rectangleRenderer.updateBackgrounds = function (model: unknown) {
           this.__tmuxWebBgOpacityModel = model;
           try {
-            return origUpdateBackgrounds(model);
+            const result = origUpdateBackgrounds(model);
+            // The viewport rect sits at offset 0 with RGB = theme.bg and
+            // alpha = 0; under premultiplied compositing that would add
+            // theme.bg on top of the page. Zero its colour so default-bg
+            // areas leave the canvas transparent and CSS can composite
+            // #page + body (solid, gradient, or image) unaltered.
+            const attrs = this._vertices?.attributes;
+            if (attrs && attrs.length >= 8) {
+              attrs[4] = 0; attrs[5] = 0; attrs[6] = 0; attrs[7] = 0;
+            }
+            return result;
           } finally {
             this.__tmuxWebBgOpacityModel = undefined;
           }
@@ -203,25 +213,46 @@ export class XtermAdapter implements TerminalAdapter {
           offset + 7 < vertices.attributes.length &&
           shouldApplyBackgroundOpacity(this, fg, bg, startX, endX, y)
         ) {
-          // WebGL canvas uses premultipliedAlpha:true but the rect shader
-          // writes straight (non-premultiplied) color, so feeding the slider
-          // alpha to offset+7 gives a heavily non-linear response. Instead
-          // pre-blend the rect's RGB against the default-bg visible colour
-          // (already viewport-blended with body in composeTheme) and keep
-          // alpha=1. This mirrors withBlendedEffectiveBackground in the
-          // glyph path, so rect + halo land on the same effective colour.
+          // Premultiply: shader will output (rgb × α, α) so the canvas
+          // (premultipliedAlpha:true) composites as ansi × α + page × (1-α).
+          // Combined with the renderBackgrounds blend-func swap to
+          // ONE × ONE_MINUS_SRC_ALPHA below, this produces a linear fade
+          // into whatever #page + body actually shows (including gradients
+          // and images that composeTheme can't see via body.backgroundColor).
           const a = adapter.tuiBackgroundAlpha;
-          const baseRgba = renderer._themeService?.colors?.background?.rgba ?? 0x000000ff;
-          const baseR = ((baseRgba >> 24) & 0xff) / 255;
-          const baseG = ((baseRgba >> 16) & 0xff) / 255;
-          const baseB = ((baseRgba >> 8) & 0xff) / 255;
           const attrs = vertices.attributes;
-          attrs[offset + 4] = attrs[offset + 4] * a + baseR * (1 - a);
-          attrs[offset + 5] = attrs[offset + 5] * a + baseG * (1 - a);
-          attrs[offset + 6] = attrs[offset + 6] * a + baseB * (1 - a);
-          attrs[offset + 7] = 1;
+          attrs[offset + 4] = attrs[offset + 4] * a;
+          attrs[offset + 5] = attrs[offset + 5] * a;
+          attrs[offset + 6] = attrs[offset + 6] * a;
+          attrs[offset + 7] = a;
         }
       };
+
+      if (typeof rectangleRenderer.renderBackgrounds === 'function') {
+        const origRenderBackgrounds = rectangleRenderer.renderBackgrounds.bind(rectangleRenderer);
+        rectangleRenderer.renderBackgrounds = function () {
+          const gl = rectangleRenderer._gl ?? renderer._gl;
+          if (!gl) return origRenderBackgrounds();
+          // Rect attributes are premultiplied below; the framebuffer must
+          // start empty each frame or successive renderBackgrounds calls
+          // (cursor blink, slider drag, etc.) accumulate into it — with
+          // preserveDrawingBuffer:false the spec only guarantees a clear
+          // *after compositor read*, not between in-task draws. Clearing
+          // explicitly here keeps the per-frame math linear.
+          gl.clearColor(0, 0, 0, 0);
+          gl.clear(gl.COLOR_BUFFER_BIT);
+          // Switch blend factors to ONE × (1-srcA) so premultiplied src
+          // writes the intended (rgb × α, α) tuple. Restore SRC_ALPHA ×
+          // (1-srcA) after so the glyph pass blends straight-alpha texture
+          // samples normally.
+          gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+          try {
+            origRenderBackgrounds();
+          } finally {
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+          }
+        };
+      }
     };
 
     const shouldApplyBackgroundOpacity = (

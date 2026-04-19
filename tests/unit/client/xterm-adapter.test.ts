@@ -125,11 +125,11 @@ describe('XtermAdapter', () => {
     (adapter as any)._patchWebglExplicitBackgroundOpacity();
 
     rectangleRenderer._updateRectangle(vertices, 0, 0, xtermP16Background, 0, 1, 0);
-    // RGB pre-blended against default bg (black) at alpha 0.7: r=1*0.7=0.7, g=b=0; alpha=1
+    // Premultiplied: rgb*=α, alpha=α. rgb=(1,0,0) × 0.7 = (0.7,0,0); alpha=0.7
     expect(vertices.attributes[4]).toBeCloseTo(0.7, 5);
     expect(vertices.attributes[5]).toBeCloseTo(0, 5);
     expect(vertices.attributes[6]).toBeCloseTo(0, 5);
-    expect(vertices.attributes[7]).toBe(1);
+    expect(vertices.attributes[7]).toBeCloseTo(0.7, 5);
 
     const nextRectangleRenderer = {
       _updateRectangle: mock((v: { attributes: Float32Array }, offset: number) => {
@@ -141,7 +141,7 @@ describe('XtermAdapter', () => {
     const nextVertices = { attributes: new Float32Array(16) };
     nextRectangleRenderer._updateRectangle(nextVertices, 0, 0, xtermP16Background, 0, 1, 0);
     expect(nextVertices.attributes[4]).toBeCloseTo(0.7, 5);
-    expect(nextVertices.attributes[7]).toBe(1);
+    expect(nextVertices.attributes[7]).toBeCloseTo(0.7, 5);
   });
 
   test('keeps WebGL cursor rectangles opaque and makes other highlighted backgrounds translucent', async () => {
@@ -154,11 +154,14 @@ describe('XtermAdapter', () => {
     };
     const rectangleRenderer = {
       _terminal: { cols: 2, buffer: { active: { viewportY: 0 } } },
+      _vertices: vertices,
       _updateRectangle(v: { attributes: Float32Array }, offset: number) {
         writeRgb(v.attributes, offset);
       },
       updateBackgrounds(model: any) {
-        this._updateRectangle(vertices, 0, 0, xtermP16Background, 0, 2, 0);
+        // Simulate the production pattern: rect 0 is viewport (set up
+        // separately) and bg rects start at offset 8.
+        this._updateRectangle(vertices, 8, 0, xtermP16Background, 0, 2, 0);
       },
     };
     const renderer = {
@@ -182,24 +185,28 @@ describe('XtermAdapter', () => {
         isCellSelected: (_terminal: unknown, x: number, y: number) => x === 1 && y === 0,
       },
     });
-    // Highlighted (non-cursor) cells: RGB blended (0.7 of ansi red), alpha=1
-    expect(vertices.attributes[4]).toBeCloseTo(0.7, 5);
-    expect(vertices.attributes[7]).toBe(1);
+    // Non-cursor highlighted cells are premultiplied: rgb*=α, alpha=α.
+    // Viewport rect (offset 0) is zeroed so default cells stay transparent.
+    expect(vertices.attributes[4]).toBe(0);
+    expect(vertices.attributes[7]).toBe(0);
+    // And the rect rect's premul tuple is at offset 8 (rect index 1).
+    expect(vertices.attributes[12]).toBeCloseTo(0.7, 5);
+    expect(vertices.attributes[15]).toBeCloseTo(0.7, 5);
 
-    vertices.attributes[4] = 1; vertices.attributes[7] = 0;
+    vertices.attributes.fill(0);
     rectangleRenderer.updateBackgrounds({
       cursor: { x: 1, y: 0, width: 1 },
       selection: { hasSelection: false },
     });
-    // Cursor-overlapping rect stays at the raw rgb the mock wrote (unblended) and alpha=1
-    expect(vertices.attributes[4]).toBe(1);
-    expect(vertices.attributes[7]).toBe(1);
+    // Cursor-overlapping rect stays opaque at ansi colour (no premul)
+    expect(vertices.attributes[12]).toBe(1);
+    expect(vertices.attributes[15]).toBe(1);
 
-    vertices.attributes[4] = 1; vertices.attributes[7] = 0;
+    vertices.attributes.fill(0);
     rectangleRenderer._updateRectangle(vertices, 0, xtermInverseForeground, xtermP16Background, 0, 2, 0);
     // Inverse fg path still goes through the blend
     expect(vertices.attributes[4]).toBeCloseTo(0.7, 5);
-    expect(vertices.attributes[7]).toBe(1);
+    expect(vertices.attributes[7]).toBeCloseTo(0.7, 5);
   });
 
   test('makes WebGL RGB and text-bearing app background rectangles translucent and rasterizes glyphs against the blended background', async () => {
@@ -213,11 +220,12 @@ describe('XtermAdapter', () => {
     };
     const rectangleRenderer = {
       _terminal: { cols: 2, buffer: { active: { viewportY: 0 } } },
+      _vertices: vertices,
       _updateRectangle(v: { attributes: Float32Array }, offset: number) {
         writeRgb(v.attributes, offset);
       },
       updateBackgrounds(model: any) {
-        this._updateRectangle(vertices, 0, 0, xtermP16Background, 0, 2, 0);
+        this._updateRectangle(vertices, 8, 0, xtermP16Background, 0, 2, 0);
       },
     };
     const renderer = {
@@ -253,9 +261,9 @@ describe('XtermAdapter', () => {
 
     rectangleRenderer._updateRectangle(vertices, 0, 0, xtermRgbBackground, 0, 2, 0);
     expect(vertices.attributes[4]).toBeCloseTo(0.7, 5);
-    expect(vertices.attributes[7]).toBe(1);
+    expect(vertices.attributes[7]).toBeCloseTo(0.7, 5);
 
-    vertices.attributes[4] = 1; vertices.attributes[7] = 0;
+    vertices.attributes.fill(0);
     rectangleRenderer.updateBackgrounds({
       cells: new Uint32Array([
         32, 0, 0, 0,
@@ -263,10 +271,14 @@ describe('XtermAdapter', () => {
       ]),
       selection: { hasSelection: false },
     });
-    expect(vertices.attributes[4]).toBeCloseTo(0.7, 5);
-    expect(vertices.attributes[7]).toBe(1);
+    // Viewport rect at offset 0 is zeroed out, and ansi rect at offset 8
+    // gets premultiplied.
+    expect(vertices.attributes[4]).toBe(0);
+    expect(vertices.attributes[7]).toBe(0);
+    expect(vertices.attributes[12]).toBeCloseTo(0.7, 5);
+    expect(vertices.attributes[15]).toBeCloseTo(0.7, 5);
 
-    vertices.attributes[4] = 1; vertices.attributes[7] = 0;
+    vertices.attributes.fill(0);
     rectangleRenderer.updateBackgrounds({
       cells: new Uint32Array([
         32, 0, 0, 0,
@@ -274,8 +286,8 @@ describe('XtermAdapter', () => {
       ]),
       selection: { hasSelection: false },
     });
-    expect(vertices.attributes[4]).toBeCloseTo(0.7, 5);
-    expect(vertices.attributes[7]).toBe(1);
+    expect(vertices.attributes[12]).toBeCloseTo(0.7, 5);
+    expect(vertices.attributes[15]).toBeCloseTo(0.7, 5);
 
     renderer._glyphRenderer.value.updateCell(0, 0, 'A'.charCodeAt(0), xtermP16Background, 0, 0, 'A', 1, xtermP16PreviousBackground);
     expect(glyphUpdateCell.mock.calls.at(-1)?.[3]).toBe(xtermRgbBlendedRedBackground);
@@ -319,9 +331,9 @@ describe('XtermAdapter', () => {
     (adapter as any)._patchWebglExplicitBackgroundOpacity();
 
     rectangleRenderer._updateRectangle(vertices, 0, 0, xtermP16Background, 0, 1, 0);
-    // Ansi red (0x64=100/255≈0.392) blended at 0.25 against black base → 0.098 on R
+    // Premultiplied: rgb=(1,0,0) × 0.25 = (0.25,0,0); alpha=0.25
     expect(vertices.attributes[4]).toBeCloseTo(0.25, 5);
-    expect(vertices.attributes[7]).toBe(1);
+    expect(vertices.attributes[7]).toBeCloseTo(0.25, 5);
 
     renderer._glyphRenderer.value.updateCell(0, 0, 'A'.charCodeAt(0), xtermP16Background, 0, 0, 'A', 1, xtermP16PreviousBackground);
     expect(glyphUpdateCell.mock.calls.at(-1)?.[3]).toBe(0x3000000 | 0x190000);
