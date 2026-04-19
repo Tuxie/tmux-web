@@ -191,6 +191,11 @@ html, body { height: 100%; overflow: hidden; }
   pointer-events: none;
 }
 
+/* Nudge every topbar child (buttons, tabs, labels) up by 1 device px
+ * without changing the topbar's own height — makes glyphs sit a hair
+ * higher inside each 28px-tall cell. */
+#topbar > * { transform: translateY(-1px); }
+
 /* Context dropdown menu (positioned imperatively via top/left). */
 .tw-dropdown-menu { position: fixed; }
 
