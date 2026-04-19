@@ -19,7 +19,14 @@ import {
   type SessionSettings,
   type ThemeDefaults,
 } from '../session-settings.js';
-import { DEFAULT_BACKGROUND_HUE, clampBackgroundHue } from '../background-hue.js';
+import {
+  DEFAULT_BACKGROUND_HUE,
+  DEFAULT_BACKGROUND_SATURATION,
+  DEFAULT_BACKGROUND_BRIGHTNESS,
+  clampBackgroundHue,
+  clampBackgroundSaturation,
+  clampBackgroundBrightness,
+} from '../background-hue.js';
 
 export interface TopbarOptions {
   send: (data: string) => void;
@@ -337,6 +344,10 @@ export class Topbar {
     const inpOpacity = document.getElementById('inp-opacity') as HTMLInputElement;
     const sldBackgroundHue = document.getElementById('sld-background-hue') as HTMLInputElement;
     const inpBackgroundHue = document.getElementById('inp-background-hue') as HTMLInputElement;
+    const sldBackgroundSaturation = document.getElementById('sld-background-saturation') as HTMLInputElement;
+    const inpBackgroundSaturation = document.getElementById('inp-background-saturation') as HTMLInputElement;
+    const sldBackgroundBrightness = document.getElementById('sld-background-brightness') as HTMLInputElement;
+    const inpBackgroundBrightness = document.getElementById('inp-background-brightness') as HTMLInputElement;
 
     const [fonts, themes, colours] = await Promise.all([listFonts(), listThemes(), fetchColours()]);
 
@@ -397,12 +408,16 @@ export class Topbar {
       updateSliderFill(sldTuiOpacity);
       updateSliderFill(sldOpacity);
       updateSliderFill(sldBackgroundHue);
+      updateSliderFill(sldBackgroundSaturation);
+      updateSliderFill(sldBackgroundBrightness);
     };
     sldSize.addEventListener('input', () => updateSliderFill(sldSize));
     sldHeight.addEventListener('input', () => updateSliderFill(sldHeight));
     sldTuiOpacity.addEventListener('input', () => updateSliderFill(sldTuiOpacity));
     sldOpacity.addEventListener('input', () => updateSliderFill(sldOpacity));
     sldBackgroundHue.addEventListener('input', () => updateSliderFill(sldBackgroundHue));
+    sldBackgroundSaturation.addEventListener('input', () => updateSliderFill(sldBackgroundSaturation));
+    sldBackgroundBrightness.addEventListener('input', () => updateSliderFill(sldBackgroundBrightness));
 
     const syncUi = (s: SessionSettings) => {
       ddTheme.setValue(s.theme);
@@ -413,6 +428,8 @@ export class Topbar {
       sldTuiOpacity.value = inpTuiOpacity.value = String(s.tuiOpacity);
       sldOpacity.value = inpOpacity.value = String(s.opacity);
       sldBackgroundHue.value = inpBackgroundHue.value = String(s.backgroundHue);
+      sldBackgroundSaturation.value = inpBackgroundSaturation.value = String(s.backgroundSaturation);
+      sldBackgroundBrightness.value = inpBackgroundBrightness.value = String(s.backgroundBrightness);
       refreshAllSliderFills();
     };
     // Expose so updateSession() can refresh the visible controls when tmux
@@ -470,6 +487,12 @@ export class Topbar {
       sldBackgroundHue.value = inpBackgroundHue.value = String(DEFAULT_BACKGROUND_HUE);
       updateSliderFill(sldBackgroundHue);
       patch.backgroundHue = DEFAULT_BACKGROUND_HUE;
+      sldBackgroundSaturation.value = inpBackgroundSaturation.value = String(DEFAULT_BACKGROUND_SATURATION);
+      updateSliderFill(sldBackgroundSaturation);
+      patch.backgroundSaturation = DEFAULT_BACKGROUND_SATURATION;
+      sldBackgroundBrightness.value = inpBackgroundBrightness.value = String(DEFAULT_BACKGROUND_BRIGHTNESS);
+      updateSliderFill(sldBackgroundBrightness);
+      patch.backgroundBrightness = DEFAULT_BACKGROUND_BRIGHTNESS;
       if (Object.keys(patch).length) commit(patch);
     });
 
@@ -520,6 +543,30 @@ export class Topbar {
       sldBackgroundHue.value = inpBackgroundHue.value = String(hue);
       updateSliderFill(sldBackgroundHue);
       commit({ backgroundHue: hue });
+    });
+
+    sldBackgroundSaturation.addEventListener('input', () => {
+      const v = clampBackgroundSaturation(parseInt(sldBackgroundSaturation.value, 10));
+      inpBackgroundSaturation.value = String(v);
+      commit({ backgroundSaturation: v });
+    });
+    inpBackgroundSaturation.addEventListener('change', () => {
+      const v = clampBackgroundSaturation(parseInt(inpBackgroundSaturation.value, 10));
+      sldBackgroundSaturation.value = inpBackgroundSaturation.value = String(v);
+      updateSliderFill(sldBackgroundSaturation);
+      commit({ backgroundSaturation: v });
+    });
+
+    sldBackgroundBrightness.addEventListener('input', () => {
+      const v = clampBackgroundBrightness(parseInt(sldBackgroundBrightness.value, 10));
+      inpBackgroundBrightness.value = String(v);
+      commit({ backgroundBrightness: v });
+    });
+    inpBackgroundBrightness.addEventListener('change', () => {
+      const v = clampBackgroundBrightness(parseInt(inpBackgroundBrightness.value, 10));
+      sldBackgroundBrightness.value = inpBackgroundBrightness.value = String(v);
+      updateSliderFill(sldBackgroundBrightness);
+      commit({ backgroundBrightness: v });
     });
   }
 

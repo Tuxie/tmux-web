@@ -24,10 +24,28 @@
 }
 
 body {
+  /* Hue / saturation / midpoint brightness are all driven by the
+   * "BG Hue" / "BG Saturation" / "BG Brightness" sliders. The gradient
+   * keeps its original shape (outer rim +2%L, inner core -3%L) so the
+   * radial falloff stays recognisable; the slider shifts the midpoint
+   * which carries the rim and core along. Values outside [0,100] are
+   * fine — HSL clamps lightness so the gradient just flattens. */
   background: radial-gradient(circle at center,
-    hsl(var(--tw-background-hue, 183) 80% 10%) 0%,
-    hsl(var(--tw-background-hue, 183) 80% 8%) 42%,
-    hsl(var(--tw-background-hue, 183) 80% 5%) 100%);
+    hsl(
+      var(--tw-background-hue, 183)
+      calc(var(--tw-background-saturation, 80) * 1%)
+      calc((var(--tw-background-brightness, 8) + 2) * 1%)
+    ) 0%,
+    hsl(
+      var(--tw-background-hue, 183)
+      calc(var(--tw-background-saturation, 80) * 1%)
+      calc(var(--tw-background-brightness, 8) * 1%)
+    ) 42%,
+    hsl(
+      var(--tw-background-hue, 183)
+      calc(var(--tw-background-saturation, 80) * 1%)
+      calc((var(--tw-background-brightness, 8) - 3) * 1%)
+    ) 100%);
   font-family: 'mOsOul Nerd Font', monospace;
 }
 

@@ -31,6 +31,8 @@ export interface StoredSessionSettings {
   opacity: number;
   tuiOpacity?: number;
   backgroundHue?: number;
+  backgroundSaturation?: number;
+  backgroundBrightness?: number;
   /** OSC 52 per-binary policy. Keyed by absolute exe path. */
   clipboard?: Record<string, ClipboardPolicyEntry>;
 }

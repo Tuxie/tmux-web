@@ -1,4 +1,8 @@
-import { DEFAULT_BACKGROUND_HUE } from './background-hue.js';
+import {
+  DEFAULT_BACKGROUND_HUE,
+  DEFAULT_BACKGROUND_SATURATION,
+  DEFAULT_BACKGROUND_BRIGHTNESS,
+} from './background-hue.js';
 
 export interface SessionSettings {
   theme: string;
@@ -9,6 +13,8 @@ export interface SessionSettings {
   opacity: number; // 0..100
   tuiOpacity: number; // 0..100
   backgroundHue: number; // 0..360
+  backgroundSaturation: number; // 0..100
+  backgroundBrightness: number; // 0..100
 }
 
 export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
@@ -20,6 +26,8 @@ export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
   opacity: 0,
   tuiOpacity: 100,
   backgroundHue: DEFAULT_BACKGROUND_HUE,
+  backgroundSaturation: DEFAULT_BACKGROUND_SATURATION,
+  backgroundBrightness: DEFAULT_BACKGROUND_BRIGHTNESS,
 };
 
 export interface ThemeDefaults {
