@@ -284,6 +284,20 @@ body {
   font-weight: bold;
 }
 
+/* Nudge every topbar button's inner content up by 1 device px without
+ * moving the button box — 2px padding-bottom vs 0 padding-top shifts
+ * the flex-centred centreline up by 1px. The outer button border
+ * stays flush with the topbar's bottom so no backdrop shows through. */
+#topbar .tb-btn,
+#topbar .tb-btn-session,
+#topbar .tb-btn-session-plus,
+#topbar .tb-btn-window-compact .tb-window-compact-label,
+#topbar .tb-btn-window-compact .tb-window-compact-plus,
+#topbar .win-tab {
+  padding-bottom: 2px;
+  padding-top: 0;
+}
+
 /* Settings button — modelled on the AmigaOS 3.1 depth-gadget at the
  * right of a window's titlebar: two overlapping windows, one behind
  * (grey) and one in front (white). */
