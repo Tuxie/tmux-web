@@ -132,7 +132,7 @@ body {
 }
 #topbar .tb-btn:active {
   border-color: #000 #fff #fff #000;
-  background: #999;
+  background: #7096ce;
 }
 
 /* Session button [ + | name ] — two-segment, no left border so it butts
@@ -152,12 +152,16 @@ body {
 
 /* Session-name button — regular topbar button, just taller text. */
 #topbar .tb-btn-session { font-size: 16px; padding: 0 10px; }
-/* Pressed look while any topbar menu is open — flip all borders black. */
+/* Pressed look while any topbar menu is open — flip all borders black
+ * and swap to the active-tab Workbench blue. */
 #topbar .tb-btn-session.open,
 #topbar .tb-btn-session-plus.open,
 #topbar .tb-btn-window-compact.open,
 #topbar .win-tab.open,
-#btn-menu.open { border-color: #000 #000 #000 #000; }
+#btn-menu.open {
+  border-color: #000 #000 #000 #000;
+  background: #7096ce;
+}
 
 /* Compact window button [ name | + ] — mirror of the session button. */
 #topbar .tb-btn-window-compact {

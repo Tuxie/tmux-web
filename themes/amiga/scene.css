@@ -188,7 +188,7 @@ body {
 }
 #topbar .tb-btn:active {
   border-color: var(--tw-bevel-dark) var(--tw-bevel-light) var(--tw-bevel-dark) var(--tw-bevel-dark);
-  background: rgb(39, 53, 84);
+  background: var(--tw-toolbar-bg-reversed);
 }
 
 /* Session plus button — standalone topbar button carrying the
@@ -205,12 +205,16 @@ body {
 
 /* Session-name button — regular topbar button, just taller text. */
 #topbar .tb-btn-session { font-size: 16px; padding: 0 10px; }
-/* Pressed look while any topbar menu is open — flip all borders black. */
+/* Pressed look while any topbar menu is open — flip all borders black
+ * and reverse the toolbar gradient, matching the active-tab treatment. */
 #topbar .tb-btn-session.open,
 #topbar .tb-btn-session-plus.open,
 #topbar .tb-btn-window-compact.open,
 #topbar .win-tab.open,
-#btn-menu.open { border-color: var(--tw-bevel-dark) var(--tw-bevel-dark) var(--tw-bevel-dark) var(--tw-bevel-dark); }
+#btn-menu.open {
+  border-color: var(--tw-bevel-dark) var(--tw-bevel-dark) var(--tw-bevel-dark) var(--tw-bevel-dark);
+  background: var(--tw-toolbar-bg-reversed);
+}
 
 /* Compact window button [ name | + ] — mirror of the session button. */
 #topbar .tb-btn-window-compact {
