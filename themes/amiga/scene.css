@@ -199,7 +199,7 @@ body {
 }
 #topbar .tb-btn-session-plus .tb-session-plus {
   display: block;
-  width: 7px; height: 10px;
+  width: 8px; height: 12px;
   background: #fff; border: 2px solid var(--tw-bevel-dark);
 }
 
