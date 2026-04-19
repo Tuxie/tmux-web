@@ -166,31 +166,16 @@ body {
 #topbar .tb-btn:hover { background: #333; }
 #topbar .tb-btn:active { background: #444; }
 
-/* Session menu button: [ + | name ] — single button, opens the sessions dropdown */
-#topbar .tb-btn-session {
-  display: inline-flex;
-  align-items: stretch;
-  padding: 0;
-  gap: 0;
-}
-#topbar .tb-btn-session .tb-session-plus {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  border-right: 1px solid #555;
-}
-#topbar .tb-btn-session .tb-session-plus::before {
-  content: '';
+/* Session buttons — plus (icon) + name (label), both standalone */
+#topbar .tb-btn-session-plus { width: 18px; padding: 0; }
+#topbar .tb-btn-session-plus .tb-session-plus {
   display: block;
-  width: 8px;
-  height: 8px;
+  width: 8px; height: 8px;
   background: #d4d4d4;
 }
-#topbar .tb-btn-session .tb-session-name {
-  padding: 2px 8px;
-}
-#topbar .tb-btn-session.open { background: #444; }
+#topbar .tb-btn-session { padding: 2px 8px; }
+#topbar .tb-btn-session.open,
+#topbar .tb-btn-session-plus.open { background: #444; }
 
 #topbar select {
   background: #1e1e1e;
