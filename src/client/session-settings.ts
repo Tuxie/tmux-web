@@ -1,7 +1,8 @@
 import {
   DEFAULT_BACKGROUND_HUE,
   DEFAULT_BACKGROUND_SATURATION,
-  DEFAULT_BACKGROUND_BRIGHTNESS,
+  DEFAULT_BACKGROUND_BRIGHTEST,
+  DEFAULT_BACKGROUND_DARKEST,
 } from './background-hue.js';
 
 export interface SessionSettings {
@@ -14,7 +15,8 @@ export interface SessionSettings {
   tuiOpacity: number; // 0..100
   backgroundHue: number; // 0..360
   backgroundSaturation: number; // 0..100
-  backgroundBrightness: number; // 0..100
+  backgroundBrightest: number; // 0..100, HSL L at gradient's brightest stop
+  backgroundDarkest: number;   // 0..100, HSL L at gradient's darkest stop
 }
 
 export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
@@ -27,7 +29,8 @@ export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
   tuiOpacity: 100,
   backgroundHue: DEFAULT_BACKGROUND_HUE,
   backgroundSaturation: DEFAULT_BACKGROUND_SATURATION,
-  backgroundBrightness: DEFAULT_BACKGROUND_BRIGHTNESS,
+  backgroundBrightest: DEFAULT_BACKGROUND_BRIGHTEST,
+  backgroundDarkest: DEFAULT_BACKGROUND_DARKEST,
 };
 
 export interface ThemeDefaults {

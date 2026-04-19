@@ -22,10 +22,12 @@ import {
 import {
   DEFAULT_BACKGROUND_HUE,
   DEFAULT_BACKGROUND_SATURATION,
-  DEFAULT_BACKGROUND_BRIGHTNESS,
+  DEFAULT_BACKGROUND_BRIGHTEST,
+  DEFAULT_BACKGROUND_DARKEST,
   clampBackgroundHue,
   clampBackgroundSaturation,
-  clampBackgroundBrightness,
+  clampBackgroundBrightest,
+  clampBackgroundDarkest,
 } from '../background-hue.js';
 
 export interface TopbarOptions {
@@ -346,8 +348,10 @@ export class Topbar {
     const inpBackgroundHue = document.getElementById('inp-background-hue') as HTMLInputElement;
     const sldBackgroundSaturation = document.getElementById('sld-background-saturation') as HTMLInputElement;
     const inpBackgroundSaturation = document.getElementById('inp-background-saturation') as HTMLInputElement;
-    const sldBackgroundBrightness = document.getElementById('sld-background-brightness') as HTMLInputElement;
-    const inpBackgroundBrightness = document.getElementById('inp-background-brightness') as HTMLInputElement;
+    const sldBackgroundBrightest = document.getElementById('sld-background-brightest') as HTMLInputElement;
+    const inpBackgroundBrightest = document.getElementById('inp-background-brightest') as HTMLInputElement;
+    const sldBackgroundDarkest = document.getElementById('sld-background-darkest') as HTMLInputElement;
+    const inpBackgroundDarkest = document.getElementById('inp-background-darkest') as HTMLInputElement;
 
     const [fonts, themes, colours] = await Promise.all([listFonts(), listThemes(), fetchColours()]);
 
@@ -409,7 +413,8 @@ export class Topbar {
       updateSliderFill(sldOpacity);
       updateSliderFill(sldBackgroundHue);
       updateSliderFill(sldBackgroundSaturation);
-      updateSliderFill(sldBackgroundBrightness);
+      updateSliderFill(sldBackgroundBrightest);
+      updateSliderFill(sldBackgroundDarkest);
     };
     sldSize.addEventListener('input', () => updateSliderFill(sldSize));
     sldHeight.addEventListener('input', () => updateSliderFill(sldHeight));
@@ -417,7 +422,8 @@ export class Topbar {
     sldOpacity.addEventListener('input', () => updateSliderFill(sldOpacity));
     sldBackgroundHue.addEventListener('input', () => updateSliderFill(sldBackgroundHue));
     sldBackgroundSaturation.addEventListener('input', () => updateSliderFill(sldBackgroundSaturation));
-    sldBackgroundBrightness.addEventListener('input', () => updateSliderFill(sldBackgroundBrightness));
+    sldBackgroundBrightest.addEventListener('input', () => updateSliderFill(sldBackgroundBrightest));
+    sldBackgroundDarkest.addEventListener('input', () => updateSliderFill(sldBackgroundDarkest));
 
     const syncUi = (s: SessionSettings) => {
       ddTheme.setValue(s.theme);
@@ -429,7 +435,8 @@ export class Topbar {
       sldOpacity.value = inpOpacity.value = String(s.opacity);
       sldBackgroundHue.value = inpBackgroundHue.value = String(s.backgroundHue);
       sldBackgroundSaturation.value = inpBackgroundSaturation.value = String(s.backgroundSaturation);
-      sldBackgroundBrightness.value = inpBackgroundBrightness.value = String(s.backgroundBrightness);
+      sldBackgroundBrightest.value = inpBackgroundBrightest.value = String(s.backgroundBrightest);
+      sldBackgroundDarkest.value = inpBackgroundDarkest.value = String(s.backgroundDarkest);
       refreshAllSliderFills();
     };
     // Expose so updateSession() can refresh the visible controls when tmux
@@ -490,9 +497,12 @@ export class Topbar {
       sldBackgroundSaturation.value = inpBackgroundSaturation.value = String(DEFAULT_BACKGROUND_SATURATION);
       updateSliderFill(sldBackgroundSaturation);
       patch.backgroundSaturation = DEFAULT_BACKGROUND_SATURATION;
-      sldBackgroundBrightness.value = inpBackgroundBrightness.value = String(DEFAULT_BACKGROUND_BRIGHTNESS);
-      updateSliderFill(sldBackgroundBrightness);
-      patch.backgroundBrightness = DEFAULT_BACKGROUND_BRIGHTNESS;
+      sldBackgroundBrightest.value = inpBackgroundBrightest.value = String(DEFAULT_BACKGROUND_BRIGHTEST);
+      updateSliderFill(sldBackgroundBrightest);
+      patch.backgroundBrightest = DEFAULT_BACKGROUND_BRIGHTEST;
+      sldBackgroundDarkest.value = inpBackgroundDarkest.value = String(DEFAULT_BACKGROUND_DARKEST);
+      updateSliderFill(sldBackgroundDarkest);
+      patch.backgroundDarkest = DEFAULT_BACKGROUND_DARKEST;
       if (Object.keys(patch).length) commit(patch);
     });
 
@@ -557,16 +567,28 @@ export class Topbar {
       commit({ backgroundSaturation: v });
     });
 
-    sldBackgroundBrightness.addEventListener('input', () => {
-      const v = clampBackgroundBrightness(parseInt(sldBackgroundBrightness.value, 10));
-      inpBackgroundBrightness.value = String(v);
-      commit({ backgroundBrightness: v });
+    sldBackgroundBrightest.addEventListener('input', () => {
+      const v = clampBackgroundBrightest(parseInt(sldBackgroundBrightest.value, 10));
+      inpBackgroundBrightest.value = String(v);
+      commit({ backgroundBrightest: v });
     });
-    inpBackgroundBrightness.addEventListener('change', () => {
-      const v = clampBackgroundBrightness(parseInt(inpBackgroundBrightness.value, 10));
-      sldBackgroundBrightness.value = inpBackgroundBrightness.value = String(v);
-      updateSliderFill(sldBackgroundBrightness);
-      commit({ backgroundBrightness: v });
+    inpBackgroundBrightest.addEventListener('change', () => {
+      const v = clampBackgroundBrightest(parseInt(inpBackgroundBrightest.value, 10));
+      sldBackgroundBrightest.value = inpBackgroundBrightest.value = String(v);
+      updateSliderFill(sldBackgroundBrightest);
+      commit({ backgroundBrightest: v });
+    });
+
+    sldBackgroundDarkest.addEventListener('input', () => {
+      const v = clampBackgroundDarkest(parseInt(sldBackgroundDarkest.value, 10));
+      inpBackgroundDarkest.value = String(v);
+      commit({ backgroundDarkest: v });
+    });
+    inpBackgroundDarkest.addEventListener('change', () => {
+      const v = clampBackgroundDarkest(parseInt(inpBackgroundDarkest.value, 10));
+      sldBackgroundDarkest.value = inpBackgroundDarkest.value = String(v);
+      updateSliderFill(sldBackgroundDarkest);
+      commit({ backgroundDarkest: v });
     });
   }
 
