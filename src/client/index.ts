@@ -90,8 +90,31 @@ async function main() {
   };
 
   const page = document.getElementById('page')!;
-  const getBodyBg = (): string =>
-    getComputedStyle(document.body).backgroundColor;
+  // The atlas needs a representative colour of whatever sits behind the
+  // terminal so glyph-edge AA doesn't fringe against the scheme bg when
+  // the scheme is light and the actual body is dark. For solid-body
+  // themes `getComputedStyle(body).backgroundColor` is correct, but for
+  // gradient/image bodies it returns `rgba(0,0,0,0)` and composeTheme
+  // falls through to pure scheme bg. Let themes declare a
+  // `--tw-halo-bg: <css-colour>` on :root so they can name the colour
+  // the AA should blend against; when absent, fall back to the body
+  // computed bg. The value can be any CSS colour syntax (hsl(), rgb(),
+  // hex, named, var() chains) — we resolve it via a detached probe so
+  // `composeTheme`'s `rgba()` parser always gets canonical form.
+  const getBodyBg = (): string => {
+    const haloRaw = getComputedStyle(document.documentElement)
+      .getPropertyValue('--tw-halo-bg').trim();
+    if (haloRaw && haloRaw !== 'transparent') {
+      const probe = document.createElement('span');
+      probe.style.display = 'none';
+      probe.style.color = haloRaw;
+      document.body.appendChild(probe);
+      const resolved = getComputedStyle(probe).color;
+      probe.remove();
+      if (resolved && resolved !== 'rgba(0, 0, 0, 0)') return resolved;
+    }
+    return getComputedStyle(document.body).backgroundColor;
+  };
   page.style.backgroundColor = composeBgColor(coloursOrDefault(settings.colours), settings.opacity);
   await adapter.init(container, {
     fontFamily: `"${settings.fontFamily}", monospace`,

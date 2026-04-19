@@ -20,6 +20,15 @@ export const FX = {
     primaryCss: '/themes/e2e/primary.css',
     alt: 'E2E Alt Theme',
     altCss: '/themes/e2e/alt.css',
+    /**
+     * Third fixture theme: a gradient-body theme (body.css is
+     * `radial-gradient(...)` so `getComputedStyle(body).backgroundColor`
+     * returns `rgba(0,0,0,0)`). Its CSS also sets `--tw-halo-bg` on
+     * :root so the client can pick it up for glyph-halo AA.
+     */
+    gradient: 'E2E Gradient Body',
+    gradientCss: '/themes/e2e/gradient.css',
+    gradientHaloBgRgb: [20, 40, 20] as const, // must match --tw-halo-bg in gradient.css
   },
   colours: {
     a: 'E2E Red',

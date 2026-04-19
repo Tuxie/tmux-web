@@ -1,0 +1,315 @@
+/* E2E Gradient Body — fixture for the glyph-halo AA bug regression test.
+ * Uses a radial-gradient body (so `getComputedStyle(body).backgroundColor`
+ * is `rgba(0, 0, 0, 0)`) combined with a `--tw-halo-bg` CSS variable that
+ * names a representative dark colour the glyph atlas should pre-blend
+ * halos against. Without the fix, `composeTheme` falls back to the light
+ * colour-scheme bg and glyphs get a bright halo over the dark gradient. */
+:root {
+  --tw-halo-bg: rgb(20, 40, 20);
+}
+body {
+  background: radial-gradient(circle at center, #203020 0%, #101810 100%);
+  font-family: 'Iosevka Nerd Font Mono', 'MOsOul Nerd Font', 'ZedMono Nerd Font', 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: #d4d4d4;
+}
+
+#topbar {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  background: #262626;
+  padding: 0 6px;
+  gap: 4px;
+  font-family: 'Iosevka Nerd Font Mono', 'MOsOul Nerd Font', 'ZedMono Nerd Font', 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: #d4d4d4;
+  user-select: none;
+  -webkit-user-select: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  transition: transform 0.3s ease;
+  pointer-events: none;
+}
+
+#topbar > * { pointer-events: auto; }
+#topbar.hidden { transform: translateY(-100%); }
+#topbar.hidden > * { pointer-events: none; }
+
+#tb-session, #tb-windows, #tb-right { display: flex; align-items: center; gap: 4px; position: relative; }
+#tb-title { flex: 1; text-align: center;}
+#tb-windows #win-tabs { display: flex; gap: 2px; }
+
+/* --- Custom dropdown (themable, replaces native <select>) --- */
+.tw-dropdown { position: relative; display: inline-flex; align-items: center; }
+.tw-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  background: #1e1e1e;
+  border: 1px solid #555;
+  color: #d4d4d4;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  min-width: 0;
+  width: 100%;
+}
+.tw-dropdown-trigger:hover { background: #333; }
+.tw-dropdown-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tw-dropdown-arrow { opacity: 0.7; font-size: 10px; }
+.tw-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  min-width: 100%;
+  background: #262626;
+  border: 1px solid #555;
+  border-radius: 4px;
+  z-index: 200;
+  padding: 4px 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.tw-dropdown-item {
+  padding: 4px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  color: #d4d4d4;
+  font-family: inherit;
+  font-size: 13px;
+}
+.tw-dropdown-item:hover { background: #333; }
+.tw-dropdown-item.selected { background: #3a3a3a; }
+/* Session menu items have a fixed-width gutter so the name column stays
+ * aligned whether the row has a check mark or not. */
+.tw-dd-session-item {
+  padding-left: 26px;
+  padding-right: 22px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tw-dd-session-item.current::before {
+  content: '\2713';
+  position: absolute;
+  left: 10px;
+  width: 12px;
+}
+.tw-dd-session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tw-dd-session-status {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transform: translateY(-50%);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4) inset;
+}
+.tw-dd-session-status.running { background: #2ecc40; }
+/* stopped: hollow outline; background: transparent and border set in base.css */
+.tw-dd-session-status.stopped { color: #e74c3c; }
+.tw-dd-session-delete {
+  background: transparent;
+  border: none;
+  padding: 0 2px;
+  color: inherit;
+  font-size: 12px;
+  opacity: 0.65;
+}
+.tw-dd-session-delete:hover { opacity: 1; }
+.tw-dropdown-sep { border: none; border-top: 1px solid #444; margin: 4px 0; }
+/* Sessions dropdown menu — anchors under the session button by default (left-aligned) */
+
+/* Context menu is position:fixed at the cursor — `min-width: 100%` would
+ * otherwise resolve to the viewport width. Let the content size it. */
+.tw-dropdown-menu.tw-dd-context { min-width: auto; }
+.tw-dd-input {
+  background: #1e1e1e;
+  border: 1px solid #555;
+  color: #d4d4d4;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  flex: 1;
+  min-width: 140px;
+}
+/* Shared label width so input fields align across rows in a menu. */
+.menu-label { min-width: 110px; display: inline-block; }
+/* Window-tab context menu is a single-row editor; keep it compact. */
+.tw-dd-context-win .menu-label { min-width: auto; padding-right: 6px; }
+.tw-dd-context-win .tw-dd-input { min-width: 120px; }
+
+#topbar .tb-btn {
+  background: none;
+  border: none;
+  color: #d4d4d4;
+  border-radius: 3px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+#topbar .tb-btn:hover { background: #333; }
+#topbar .tb-btn:active { background: #444; }
+
+/* Session menu button: [ + | name ] — single button, opens the sessions dropdown */
+#topbar .tb-btn-session {
+  display: inline-flex;
+  align-items: stretch;
+  padding: 0;
+  gap: 0;
+}
+#topbar .tb-btn-session .tb-session-plus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  border-right: 1px solid #555;
+}
+#topbar .tb-btn-session .tb-session-plus::before {
+  content: '';
+  display: block;
+  width: 8px;
+  height: 8px;
+  background: #d4d4d4;
+}
+#topbar .tb-btn-session .tb-session-name {
+  padding: 2px 8px;
+}
+#topbar .tb-btn-session.open { background: #444; }
+
+#topbar select {
+  background: #1e1e1e;
+  border: 1px solid #555;
+  color: #d4d4d4;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+#topbar select:hover { background: #333; }
+#topbar .tb-sep { width: 12px; }
+
+#topbar .win-tab {
+  background: none;
+  border: 1px solid transparent;
+  color: #888;
+  border-radius: 3px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+#topbar .win-tab:hover { background: #333; color: #d4d4d4; }
+#topbar .win-tab.active { color: #d4d4d4; border-color: #555; }
+
+/* New-window button appended to #win-tabs */
+#topbar .tb-btn-new-window { margin-left: 2px; font-weight: bold; }
+
+/* Compact window button: [3: name | +] — mirror of the session button */
+#topbar .tb-btn-window-compact {
+  display: inline-flex;
+  align-items: stretch;
+  padding: 0;
+  gap: 0;
+}
+#topbar .tb-btn-window-compact .tb-window-compact-label {
+  padding: 2px 8px;
+  border-right: 1px solid #555;
+}
+/* In tabs mode the button next to the tab strip only shows the gadget. */
+#topbar .tb-btn-window-compact.tabs-shown .tb-window-compact-label { display: none; }
+/* Match the ☰ button's visual footprint so the topbar's right-side
+ * controls read as a pair of equally-sized click targets. */
+#topbar .tb-btn-window-compact.tabs-shown {
+  width: 28px;
+  height: 28px;
+  justify-content: center;
+}
+#topbar .tb-btn-window-compact .tb-window-compact-plus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  position: relative;
+}
+/* Outer square — thin line, transparent interior. */
+#topbar .tb-btn-window-compact .tb-window-compact-plus::before {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 8px;
+  border: 1px solid #d4d4d4;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  box-sizing: content-box;
+}
+/* Inner top-left mini-window — contrasting fill + thin border, nested in
+ * the outer square's top-left corner (window-on-top-of-windows icon). */
+#topbar .tb-btn-window-compact .tb-window-compact-plus::after {
+  content: '';
+  position: absolute;
+  width: 4px;
+  height: 2px;
+  background: #d4d4d4;
+  border: 1px solid #262626;
+  top: calc(50% - 4px);
+  left: calc(50% - 5px);
+  box-sizing: content-box;
+}
+
+#topbar #btn-menu {
+  width: 28px; height: 28px;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#menu-wrap { position: relative; }
+
+/* Settings menu shares the .tw-dropdown-menu styling — only the
+ * right-anchor and fixed min-width are settings-specific. */
+#menu-dropdown {
+  right: 0; left: auto;
+  top: calc(100% + 4px);
+  min-width: 270px;
+}
+
+.menu-row:hover { background: #333; }
+
+#menu-dropdown input[type="range"] { accent-color: #aaa; }
+
+#menu-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 12px;
+  font-size: 11px;
+  color: #888;
+  white-space: nowrap;
+}
+
+#terminal { position: absolute; left: 3px; right: 3px; bottom: 3px; top: 3px; }
+body.topbar-pinned #terminal { top: 31px; }

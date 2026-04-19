@@ -32,6 +32,17 @@
       "defaultOpacity": 50,
       "defaultTuiBgOpacity": 70,
       "defaultTuiFgOpacity": 80
+    },
+    {
+      "name": "E2E Gradient Body",
+      "css": "gradient.css",
+      "defaultFont": "E2E Primary Font",
+      "defaultFontSize": 15,
+      "defaultSpacing": 1,
+      "defaultColours": "E2E Green",
+      "defaultOpacity": 0,
+      "defaultTuiBgOpacity": 100,
+      "defaultTuiFgOpacity": 100
     }
   ]
 }

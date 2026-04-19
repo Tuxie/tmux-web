@@ -21,6 +21,19 @@
   --tw-bevel-light: rgb(59, 76, 115);
   --tw-menu-bevel-light: rgb(47, 61, 92);
   --tw-bevel-dark: hsl(222 36% 10%);
+
+  /* Halo AA reference: the gradient's 42% midpoint (same HSL triple
+   * scene.css draws there). Without this, composeTheme can't see the
+   * gradient — `getComputedStyle(document.body).backgroundColor` is
+   * `rgba(0,0,0,0)` for gradient-background bodies — so glyph AA
+   * would blend against a pure colour-scheme bg. With a light scheme
+   * (Tomorrow, etc.) that produces a bright outline around every
+   * character over the dark gradient. */
+  --tw-halo-bg: hsl(
+    var(--tw-background-hue, 183)
+    calc(var(--tw-background-saturation, 80) * 1%)
+    calc((var(--tw-background-brightest, 10) * 0.58 + var(--tw-background-darkest, 5) * 0.42) * 1%)
+  );
 }
 
 body {
