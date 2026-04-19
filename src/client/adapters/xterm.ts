@@ -16,8 +16,8 @@ export class XtermAdapter implements TerminalAdapter {
   private webglAddon: any | null = null;
   private tuiBgAlpha = 1;
   private tuiFgAlpha = 1;
-  private fgContrastStrength = 0; // 0..100
-  private fgContrastBias = 0;     // -50..+50
+  private fgContrastStrength = 0;  // -100..+100
+  private fgContrastBias = 50;     // 0..100, target brightness / threshold
 
   constructor() {}
 
@@ -355,10 +355,9 @@ export class XtermAdapter implements TerminalAdapter {
       const bgR = (cellBgRgb >> 16) & 0xff;
       const bgG = (cellBgRgb >> 8) & 0xff;
       const bgB = cellBgRgb & 0xff;
-      if (adapter.fgContrastStrength > 0) {
+      if (adapter.fgContrastStrength !== 0) {
         [fgR, fgG, fgB] = pushFgLightness(
           fgR, fgG, fgB,
-          bgR, bgG, bgB,
           adapter.fgContrastStrength,
           adapter.fgContrastBias,
         );
@@ -409,7 +408,7 @@ export class XtermAdapter implements TerminalAdapter {
       // path collapses to identity. `cellBgRgb` is what the glyph atlas
       // will visually sit on (a default-bg cell shows theme bg; an
       // explicit-bg cell shows the blended ansi colour).
-      if (adapter.tuiFgAlpha < 1 || adapter.fgContrastStrength > 0) {
+      if (adapter.tuiFgAlpha < 1 || adapter.fgContrastStrength !== 0) {
         const cellBgRgb = resolveCellBgRgb(fg, bg);
         if (inverse) {
           // Inverse: bg slot carries the glyph colour. Blend that toward
@@ -475,12 +474,12 @@ export class XtermAdapter implements TerminalAdapter {
 
   private _setFgContrastStrength(pct: number | undefined): void {
     const v = Number.isFinite(pct) ? pct! : 0;
-    this.fgContrastStrength = Math.max(0, Math.min(100, Math.round(v)));
+    this.fgContrastStrength = Math.max(-100, Math.min(100, Math.round(v)));
   }
 
   private _setFgContrastBias(pct: number | undefined): void {
-    const v = Number.isFinite(pct) ? pct! : 0;
-    this.fgContrastBias = Math.max(-50, Math.min(50, Math.round(v)));
+    const v = Number.isFinite(pct) ? pct! : 50;
+    this.fgContrastBias = Math.max(0, Math.min(100, Math.round(v)));
   }
 
   // Force NEAREST-neighbour sampling on the glyph atlas texture. xterm's

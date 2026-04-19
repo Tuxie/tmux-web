@@ -1,45 +1,45 @@
 /**
  * FG Contrast transform.
  *
- * Pushes a foreground colour's OKLab lightness *away* from a reference
- * lightness (the cell's visible bg L, optionally shifted by a bias) so
- * TUI text that sits on a background of similar brightness doesn't
- * disappear. Runs on every fg colour the atlas sees — P16, P256, and
- * truecolor alike — via the glyph-renderer hook in
+ * Reshapes every foreground colour's OKLab lightness around a
+ * user-chosen bias, from "collapse everything to bias" at -100 through
+ * "identity" at 0 to "hard black/white threshold at bias" at +100.
+ * Hue and chroma (OKLab a, b) always pass through untouched.
+ *
+ * Piecewise by `t = strength / 100 ∈ [-1, +1]` and `B = bias / 100 ∈ [0, 1]`:
+ *
+ *   t < 0  → linear lerp toward bias:
+ *            L' = L × (1+t) + B × (-t)
+ *            (t=-1 collapses every L to B; t=0 is identity.)
+ *
+ *   t = 0  → identity; bias is ignored.
+ *
+ *   t > 0  → "gap" around the bias. Half-widths scale with the bias's
+ *            distance to each extreme so the gap always covers [0,1]
+ *            at t=1 even for off-centre biases:
+ *              lower = B × (1 - t)
+ *              upper = B + t × (1 - B)
+ *            Colours inside the gap snap to the nearest edge; colours
+ *            outside stay put. At t=1 everything collapses to 0 or 1
+ *            with B as the hard threshold — matching the user's
+ *            "maximum brightness or minimum brightness" description.
+ *
+ * Runs on every fg colour the atlas sees (P16, P256, truecolor,
+ * inverse — all of them) via the glyph-renderer hook in
  * `src/client/adapters/xterm.ts`.
- *
- * Curve:
- *
- *   d    = fgL - (bgL + bias)
- *   push = k × d × exp(-d² / σ²)
- *   fgL' = clamp(fgL + push, 0, 1)
- *
- * - `k` grows with the user's strength slider (0..100 → 0..2).
- * - `σ` is fixed at 0.3 — wide enough that mid-tones move, pure
- *   black/white stay put.
- * - `bias` is the user's bias slider (-50..+50 → -0.5..+0.5), shifting
- *   the repulsion midpoint so the user can prefer darker or brighter
- *   fg colours in ambiguous regions.
- *
- * The hue/chroma components of OKLab (a, b) pass through untouched —
- * only lightness moves. Colours far from the reference (pure black on
- * light bg, pure white on dark bg, etc.) get a near-zero push thanks
- * to the Gaussian decay, so extremes stay extreme.
  */
 
-export const DEFAULT_FG_CONTRAST_STRENGTH = 0;   // 0..100
-export const DEFAULT_FG_CONTRAST_BIAS = 0;       // -50..+50
-const SIGMA = 0.3;
-const MAX_K = 2;
+export const DEFAULT_FG_CONTRAST_STRENGTH = 0;   // -100..+100
+export const DEFAULT_FG_CONTRAST_BIAS = 50;      // 0..100 (50 = middle)
 
 export function clampFgContrastStrength(v: number): number {
   if (!Number.isFinite(v)) return DEFAULT_FG_CONTRAST_STRENGTH;
-  return Math.max(0, Math.min(100, Math.round(v)));
+  return Math.max(-100, Math.min(100, Math.round(v)));
 }
 
 export function clampFgContrastBias(v: number): number {
   if (!Number.isFinite(v)) return DEFAULT_FG_CONTRAST_BIAS;
-  return Math.max(-50, Math.min(50, Math.round(v)));
+  return Math.max(0, Math.min(100, Math.round(v)));
 }
 
 function srgbToLinear(c: number): number {
@@ -49,17 +49,6 @@ function srgbToLinear(c: number): number {
 function linearToSrgb(c: number): number {
   const x = Math.max(0, Math.min(1, c));
   return x <= 0.0031308 ? x * 12.92 : 1.055 * Math.pow(x, 1 / 2.4) - 0.055;
-}
-
-/** OKLab L component only — cheaper when we don't need chroma. */
-function srgbByteLightness(r: number, g: number, b: number): number {
-  const rL = srgbToLinear(r / 255);
-  const gL = srgbToLinear(g / 255);
-  const bL = srgbToLinear(b / 255);
-  const l = 0.4122214708 * rL + 0.5363325363 * gL + 0.0514459929 * bL;
-  const m = 0.2119034982 * rL + 0.6806995451 * gL + 0.1073969566 * bL;
-  const s = 0.0883024619 * rL + 0.2817188376 * gL + 0.6299787005 * bL;
-  return 0.2104542553 * Math.cbrt(l) + 0.7936177850 * Math.cbrt(m) - 0.0040720468 * Math.cbrt(s);
 }
 
 function srgbByteToOklab(r: number, g: number, b: number): [number, number, number] {
@@ -97,29 +86,49 @@ function oklabToSrgbByte(L: number, a: number, b: number): [number, number, numb
 }
 
 /**
- * Repel `(fgR, fgG, fgB)` away from the reference lightness defined by
- * `(bgR, bgG, bgB)` + `biasPct/100`. At `strengthPct=0` this is the
- * identity; higher strength pushes harder. Hue/chroma are preserved.
+ * Reshape `(fgR, fgG, fgB)` per the strength/bias curve. See the
+ * module-level comment for the piecewise formula. Identity at
+ * `strengthPct === 0`; at ±100 the output either collapses to the
+ * bias lightness (negative) or snaps each colour to the nearest of
+ * black or white with the bias as threshold (positive).
  *
- * `strengthPct` is the user-facing 0..100 slider value.
- * `biasPct` is the user-facing -50..+50 slider value.
+ * `strengthPct` is the -100..+100 slider value.
+ * `biasPct` is the 0..100 slider value (50 = middle grey).
  *
  * Returns new `[r, g, b]` bytes in 0..255.
  */
 export function pushFgLightness(
   fgR: number, fgG: number, fgB: number,
-  bgR: number, bgG: number, bgB: number,
   strengthPct: number,
   biasPct: number,
 ): [number, number, number] {
-  if (strengthPct <= 0) return [fgR, fgG, fgB];
-  const k = (strengthPct / 100) * MAX_K;
-  const bias = biasPct / 100;
+  if (strengthPct === 0) return [fgR, fgG, fgB];
+  const t = Math.max(-1, Math.min(1, strengthPct / 100));
+  const B = Math.max(0, Math.min(1, biasPct / 100));
   const [fgL, fa, fb] = srgbByteToOklab(fgR, fgG, fgB);
-  const bgL = srgbByteLightness(bgR, bgG, bgB);
-  const refL = Math.max(0, Math.min(1, bgL + bias));
-  const d = fgL - refL;
-  const push = k * d * Math.exp(-(d * d) / (SIGMA * SIGMA));
-  const newL = Math.max(0, Math.min(1, fgL + push));
+
+  let newL: number;
+  if (t < 0) {
+    const mag = -t;
+    newL = fgL * (1 - mag) + B * mag;
+  } else {
+    // Gap half-widths scale so at t=1 the dead zone covers the whole
+    // [0, 1] range regardless of where B sits. Below bias, width is
+    // B·t (so it reaches 0 at t=1); above bias, width is (1-B)·t
+    // (so it reaches 1 at t=1).
+    const lower = B * (1 - t);
+    const upper = B + t * (1 - B);
+    if (fgL < lower) {
+      newL = fgL;                              // below the gap — stays
+    } else if (fgL < B) {
+      newL = lower;                            // in the gap, below bias — snap to lower edge
+    } else if (fgL <= upper) {
+      newL = upper;                            // in the gap, above bias — snap to upper edge
+    } else {
+      newL = fgL;                              // above the gap — stays
+    }
+  }
+
+  newL = Math.max(0, Math.min(1, newL));
   return oklabToSrgbByte(newL, fa, fb);
 }

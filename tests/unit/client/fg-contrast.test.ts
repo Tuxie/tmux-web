@@ -1,96 +1,131 @@
 /**
- * FG Contrast transform unit tests
- * =================================
+ * FG Contrast transform unit tests.
  *
- * `pushFgLightness` applies a per-pixel OKLab-lightness repulsion
- * around a reference L (the cell bg's lightness, optionally shifted by
- * the "bias" slider). At strength=0 the function is identity; higher
- * strength pushes L away from the reference, keeping chroma/hue.
+ * Semantics (OKLab-L space):
  *
- * The curve:
- *   d = fgL - (bgL + bias)
- *   push = k × d × exp(-d² / σ²)
- *   fgL' = clamp(fgL + push, 0, 1)
+ *   strength ∈ [-100, +100]  (user-facing slider)
+ *   bias     ∈ [0, 100]      (user-facing slider, 50 = middle-grey target)
  *
- * k is derived from the user-facing 0..100 strength; bias is in
- * [-50, +50] and shifts the repulsion's midpoint.
+ *   strength = 0    → identity (bias ignored).
+ *   strength < 0    → linear pull toward bias:
+ *                     L' = L × (1+t) + B × (-t),  t = strength/100 (−ve)
+ *                     At -100, every L collapses to B.
+ *   strength > 0    → "gap" around bias; colours inside snap to the
+ *                     nearest gap edge, outside the gap stay put.
+ *                     Gap half-widths scale with bias's distance to
+ *                     each extreme so at t=1 the gap covers [0,1]
+ *                     regardless of B:
+ *                       lower = B * (1 - t)
+ *                       upper = B + t * (1 - B)
+ *                     At t=1 this degenerates to a hard cutoff at B —
+ *                     below B → 0, above B → 1 — matching the user's
+ *                     "maximum or minimum brightness" description.
+ *
+ * Chroma/hue (OKLab a, b) are always preserved; only L moves.
  */
 
 import { describe, test, expect } from 'bun:test';
 
 describe('pushFgLightness', () => {
-  test('strength=0 returns identity regardless of bg/bias', async () => {
+  test('strength=0 returns identity regardless of bias', async () => {
     const { pushFgLightness } = await import('../../../src/client/fg-contrast.js');
-    const [r, g, b] = pushFgLightness(120, 130, 140, 128, 128, 128, 0, 0);
-    expect(r).toBe(120);
-    expect(g).toBe(130);
-    expect(b).toBe(140);
-    // Non-zero bias with strength=0 is still identity.
-    const [r2, g2, b2] = pushFgLightness(120, 130, 140, 128, 128, 128, 0, 50);
-    expect([r2, g2, b2]).toEqual([120, 130, 140]);
+    expect(pushFgLightness(120, 130, 140, 0, 0)).toEqual([120, 130, 140]);
+    expect(pushFgLightness(120, 130, 140, 0, 50)).toEqual([120, 130, 140]);
+    expect(pushFgLightness(120, 130, 140, 0, 100)).toEqual([120, 130, 140]);
   });
 
-  test('fg brighter than bg → pushed even brighter', async () => {
+  test('strength=-100 collapses every colour to the bias lightness', async () => {
     const { pushFgLightness } = await import('../../../src/client/fg-contrast.js');
-    // bg mid-grey, fg slightly brighter.
-    const [r] = pushFgLightness(150, 150, 150, 128, 128, 128, 100, 0);
-    expect(r).toBeGreaterThan(150);
+    // With bias=50 we target OKLab L≈0.5. All three inputs — near-black,
+    // mid-grey, near-white — should come out near the same byte.
+    const [rDark] = pushFgLightness(30, 30, 30, -100, 50);
+    const [rMid] = pushFgLightness(130, 130, 130, -100, 50);
+    const [rBright] = pushFgLightness(220, 220, 220, -100, 50);
+    // Outputs must agree within 2 bytes (Oklab round-trip rounding).
+    expect(Math.abs(rDark - rMid)).toBeLessThanOrEqual(2);
+    expect(Math.abs(rDark - rBright)).toBeLessThanOrEqual(2);
+    // And they must actually move — not just sit at the input.
+    expect(Math.abs(rDark - 30)).toBeGreaterThan(50);
+    expect(Math.abs(rBright - 220)).toBeGreaterThan(50);
   });
 
-  test('fg darker than bg → pushed even darker', async () => {
+  test('strength=-100 with bias=0 collapses to black', async () => {
     const { pushFgLightness } = await import('../../../src/client/fg-contrast.js');
-    const [r] = pushFgLightness(100, 100, 100, 128, 128, 128, 100, 0);
-    expect(r).toBeLessThan(100);
+    const [r, g, b] = pushFgLightness(200, 200, 200, -100, 0);
+    expect(r).toBeLessThanOrEqual(2);
+    expect(g).toBeLessThanOrEqual(2);
+    expect(b).toBeLessThanOrEqual(2);
   });
 
-  test('fg lightness exactly at refL → unchanged (d=0 → push=0)', async () => {
+  test('strength=-100 with bias=100 collapses to white', async () => {
     const { pushFgLightness } = await import('../../../src/client/fg-contrast.js');
-    const [r, g, b] = pushFgLightness(128, 128, 128, 128, 128, 128, 100, 0);
-    // Round-trip through Oklab introduces < 1 byte error; exact equality is not
-    // expected — but the output must be within sRGB rounding of the input.
-    expect(Math.abs(r - 128)).toBeLessThanOrEqual(1);
-    expect(Math.abs(g - 128)).toBeLessThanOrEqual(1);
-    expect(Math.abs(b - 128)).toBeLessThanOrEqual(1);
+    const [r, g, b] = pushFgLightness(30, 30, 30, -100, 100);
+    expect(r).toBeGreaterThanOrEqual(253);
+    expect(g).toBeGreaterThanOrEqual(253);
+    expect(b).toBeGreaterThanOrEqual(253);
   });
 
-  test('positive bias shifts the repulsion midpoint upward', async () => {
+  test('strength=+100 with bias=50 produces a hard black/white threshold', async () => {
     const { pushFgLightness } = await import('../../../src/client/fg-contrast.js');
-    // bg mid-grey L≈0.6. With bias=+30 the ref L ≈ 0.9. fg at L≈0.6 is now
-    // *below* refL by a lot, so it gets pushed darker, not untouched.
-    const [rNoBias] = pushFgLightness(128, 128, 128, 128, 128, 128, 100, 0);
-    const [rBiased] = pushFgLightness(128, 128, 128, 128, 128, 128, 100, 30);
-    // No-bias: d=0 → barely changed. Biased: d<<0 → meaningful push down.
-    expect(rNoBias).toBeGreaterThan(rBiased);
-    expect(rBiased).toBeLessThan(125); // noticeably darker
+    // A clearly-darker-than-50% grey → black.
+    const [rDark] = pushFgLightness(80, 80, 80, 100, 50);
+    expect(rDark).toBeLessThanOrEqual(2);
+    // A clearly-brighter-than-50% grey → white.
+    const [rBright] = pushFgLightness(200, 200, 200, 100, 50);
+    expect(rBright).toBeGreaterThanOrEqual(253);
   });
 
-  test('negative bias shifts the repulsion midpoint downward', async () => {
+  test('strength=+100 with non-centred bias still produces a binary cutoff at bias', async () => {
     const { pushFgLightness } = await import('../../../src/client/fg-contrast.js');
-    const [rNoBias] = pushFgLightness(128, 128, 128, 128, 128, 128, 100, 0);
-    const [rBiased] = pushFgLightness(128, 128, 128, 128, 128, 128, 100, -30);
-    // Negative bias puts the ref below fg, so fg gets pushed brighter.
-    expect(rBiased).toBeGreaterThan(rNoBias);
-    expect(rBiased).toBeGreaterThan(130);
+    // bias=25 (OKLab L ≈ 0.25). Any colour with L > 0.25 should go
+    // white; anything with L < 0.25 should go black. A mid-grey at
+    // L ≈ 0.5 is above bias → white.
+    const [rMidGrey] = pushFgLightness(128, 128, 128, 100, 25);
+    expect(rMidGrey).toBeGreaterThanOrEqual(253);
+    // A deep shadow should fall below L=0.25 and go to black.
+    const [rShadow] = pushFgLightness(20, 20, 20, 100, 25);
+    expect(rShadow).toBeLessThanOrEqual(2);
   });
 
-  test('colour hue is preserved (chroma ratio stays consistent, only L moves)', async () => {
+  test('strength=+50 with bias=50 introduces a 25%-each-side gap', async () => {
     const { pushFgLightness } = await import('../../../src/client/fg-contrast.js');
-    // A reddish fg close to grey bg should stay reddish after the push.
-    const [r, g, b] = pushFgLightness(150, 120, 120, 128, 128, 128, 100, 0);
-    expect(r).toBeGreaterThan(g);
-    expect(r).toBeGreaterThan(b);
+    // At t=0.5 the gap half-widths are B*(1-t)=0.25 below and
+    // t*(1-B)=0.25 above — i.e. [0.25, 0.75] in OKLab L.
+    //
+    // An L just below 0.5 (inside the gap) must snap to 0.25 (OKLab).
+    // An L just above 0.5 (inside the gap) must snap to 0.75 (OKLab).
+    // An L well below 0.25 or well above 0.75 must stay put.
+    //
+    // Instead of asserting exact OKLab values we compare output vs
+    // identity — colours inside the gap should move; colours far
+    // outside should not.
+
+    // Byte 80 → OKLab L ≈ 0.43 (inside gap below B) → should snap DARKER.
+    const [rInsideBelow] = pushFgLightness(80, 80, 80, 50, 50);
+    expect(rInsideBelow).toBeLessThan(80 - 5);
+
+    // Byte 160 → OKLab L ≈ 0.69 (inside gap above B, bias 50) → snaps
+    // to upper edge L=0.75 which is byte ≈ 174 — a clear brightening.
+    const [rInsideAbove] = pushFgLightness(160, 160, 160, 50, 50);
+    expect(rInsideAbove).toBeGreaterThan(160 + 5);
+
+    // L≈0.17 (very dark): well below the gap's lower edge → stays.
+    const [rFarBelow] = pushFgLightness(20, 20, 20, 50, 50);
+    expect(Math.abs(rFarBelow - 20)).toBeLessThanOrEqual(2);
+
+    // L≈0.95 (near-white): well above the gap's upper edge → stays.
+    const [rFarAbove] = pushFgLightness(240, 240, 240, 50, 50);
+    expect(Math.abs(rFarAbove - 240)).toBeLessThanOrEqual(2);
   });
 
-  test('colours far from refL are barely affected (Gaussian decay)', async () => {
+  test('hue and chroma are preserved — only L changes', async () => {
     const { pushFgLightness } = await import('../../../src/client/fg-contrast.js');
-    // Pure black and pure white are far from mid-grey; push should be small.
-    const [rBlack, gBlack, bBlack] = pushFgLightness(0, 0, 0, 128, 128, 128, 100, 0);
-    expect(rBlack).toBeLessThanOrEqual(5);
-    expect(gBlack).toBeLessThanOrEqual(5);
-    expect(bBlack).toBeLessThanOrEqual(5);
-    const [rWhite, gWhite, bWhite] = pushFgLightness(255, 255, 255, 128, 128, 128, 100, 0);
-    expect(rWhite).toBeGreaterThanOrEqual(250);
-    expect(gWhite).toBeGreaterThanOrEqual(250);
-    expect(bWhite).toBeGreaterThanOrEqual(250);
+    // A pinkish fg: r > g ≈ b.
+    const [r, g, b] = pushFgLightness(180, 120, 120, 100, 50);
+    // At strength=+100 / bias=50 this mid-pink has L > 0.5 → goes
+    // "white" (or near-white) — but the red channel must still be ≥
+    // the others so the hue bias is preserved.
+    expect(r).toBeGreaterThanOrEqual(g);
+    expect(r).toBeGreaterThanOrEqual(b);
   });
 });
