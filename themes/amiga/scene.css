@@ -528,11 +528,11 @@ body {
 
 .menu-hr { border: none; border-top: 2px solid var(--tw-muted); margin: 4px 0; }
 
-/* Section headers: match the HR — same bright bevel for label text and
- * the flanking rules. */
+/* Section headers: bright bevel label, muted flanking rules so they
+ * sit at the same visual weight as the plain .menu-hr. */
 .menu-section { color: var(--tw-bevel-light); }
 .menu-section::before,
-.menu-section::after { border-top-color: var(--tw-bevel-light); }
+.menu-section::after { border-top-color: var(--tw-muted); }
 
 #menu-footer {
   display: flex;
