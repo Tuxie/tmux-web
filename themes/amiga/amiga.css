@@ -360,7 +360,8 @@ body {
  * differ, so the overrides below are tiny.
  * ------------------------------------------------------------------- */
 #menu-dropdown {
-  right: -6px; left: auto;
+  /* right: 0 so the overflow scrollbar stays inside the viewport. */
+  right: 0; left: auto;
   min-width: 270px;
   padding: 4px 0;
 }

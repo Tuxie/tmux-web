@@ -414,7 +414,11 @@ body {
  * differ, so the overrides below are tiny.
  * ------------------------------------------------------------------- */
 #menu-dropdown {
-  right: -6px; left: auto;
+  /* right: 0 (not a negative overhang) so the scrollbar — rendered at
+   * the menu's right edge when the contents overflow — stays within
+   * the viewport. A -6px overhang pushed most of the scrollbar track
+   * off-screen. */
+  right: 0; left: auto;
   min-width: 270px;
   padding: 4px 0;
 }
