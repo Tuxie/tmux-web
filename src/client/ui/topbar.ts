@@ -299,7 +299,15 @@ export class Topbar {
     const footerRight = document.getElementById('menu-footer-right');
     if (footerLeft && footerRight) {
       const version = (window as any).__TMUX_WEB_CONFIG?.version ?? '';
-      footerLeft.textContent = `tmux-web v${version}`;
+      // Anchor to the project repo. .menu-footer-link inherits colour /
+      // text-decoration from #menu-footer so appearance is unchanged.
+      const link = document.createElement('a');
+      link.href = 'https://github.com/tuxie/tmux-web';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.className = 'menu-footer-link';
+      link.textContent = `tmux-web v${version}`;
+      footerLeft.replaceChildren(link);
       footerRight.textContent = '© Per Wigren <per@wigren.eu>';
     }
 
