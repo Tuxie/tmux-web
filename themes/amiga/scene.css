@@ -201,6 +201,10 @@ body {
   display: block;
   width: 8px; height: 12px;
   background: #fff; border: 2px solid var(--tw-bevel-dark);
+  /* Shift the glyph 1px back down relative to the button's
+   * up-nudge — the close-gadget rectangle reads better slightly
+   * below the optical centreline. */
+  transform: translateY(1px);
 }
 
 /* Session-name button — regular topbar button, just taller text. */

@@ -148,6 +148,7 @@ body {
   display: block;
   width: 8px; height: 12px;
   background: #fff; border: 2px solid #000;
+  transform: translateY(1px);
 }
 
 /* Session-name button — regular topbar button, just taller text. */
