@@ -4,6 +4,10 @@ import {
   DEFAULT_BACKGROUND_BRIGHTEST,
   DEFAULT_BACKGROUND_DARKEST,
 } from './background-hue.js';
+import {
+  DEFAULT_FG_CONTRAST_STRENGTH,
+  DEFAULT_FG_CONTRAST_BIAS,
+} from './fg-contrast.js';
 
 export interface SessionSettings {
   theme: string;
@@ -18,6 +22,8 @@ export interface SessionSettings {
   backgroundSaturation: number; // 0..100
   backgroundBrightest: number; // 0..100, HSL L at gradient's brightest stop
   backgroundDarkest: number;   // 0..100, HSL L at gradient's darkest stop
+  fgContrastStrength: number;  // 0..100, OKLab-L repulsion strength
+  fgContrastBias: number;      // -50..+50, repulsion midpoint offset
 }
 
 export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
@@ -33,6 +39,8 @@ export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
   backgroundSaturation: DEFAULT_BACKGROUND_SATURATION,
   backgroundBrightest: DEFAULT_BACKGROUND_BRIGHTEST,
   backgroundDarkest: DEFAULT_BACKGROUND_DARKEST,
+  fgContrastStrength: DEFAULT_FG_CONTRAST_STRENGTH,
+  fgContrastBias: DEFAULT_FG_CONTRAST_BIAS,
 };
 
 export interface ThemeDefaults {
@@ -43,6 +51,8 @@ export interface ThemeDefaults {
   opacity?: number;
   tuiBgOpacity?: number;
   tuiFgOpacity?: number;
+  fgContrastStrength?: number;
+  fgContrastBias?: number;
 }
 
 export interface LoadOpts {
@@ -93,6 +103,8 @@ export function loadSessionSettings(name: string, live: SessionSettings | null, 
   if (td.opacity !== undefined) overlay.opacity = td.opacity;
   if (td.tuiBgOpacity !== undefined) overlay.tuiBgOpacity = td.tuiBgOpacity;
   if (td.tuiFgOpacity !== undefined) overlay.tuiFgOpacity = td.tuiFgOpacity;
+  if (td.fgContrastStrength !== undefined) overlay.fgContrastStrength = td.fgContrastStrength;
+  if (td.fgContrastBias !== undefined) overlay.fgContrastBias = td.fgContrastBias;
   return { ...opts.defaults, ...overlay };
 }
 
@@ -138,6 +150,8 @@ export function applyThemeDefaults(s: SessionSettings, td: ThemeDefaults): Sessi
     opacity: td.opacity ?? s.opacity,
     tuiBgOpacity: td.tuiBgOpacity ?? s.tuiBgOpacity,
     tuiFgOpacity: td.tuiFgOpacity ?? s.tuiFgOpacity,
+    fgContrastStrength: td.fgContrastStrength ?? s.fgContrastStrength,
+    fgContrastBias: td.fgContrastBias ?? s.fgContrastBias,
   };
 }
 

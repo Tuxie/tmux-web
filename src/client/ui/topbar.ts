@@ -29,6 +29,12 @@ import {
   clampBackgroundBrightest,
   clampBackgroundDarkest,
 } from '../background-hue.js';
+import {
+  DEFAULT_FG_CONTRAST_STRENGTH,
+  DEFAULT_FG_CONTRAST_BIAS,
+  clampFgContrastStrength,
+  clampFgContrastBias,
+} from '../fg-contrast.js';
 
 export interface TopbarOptions {
   send: (data: string) => void;
@@ -354,6 +360,10 @@ export class Topbar {
     const inpBackgroundBrightest = document.getElementById('inp-background-brightest') as HTMLInputElement;
     const sldBackgroundDarkest = document.getElementById('sld-background-darkest') as HTMLInputElement;
     const inpBackgroundDarkest = document.getElementById('inp-background-darkest') as HTMLInputElement;
+    const sldFgContrastStrength = document.getElementById('sld-fg-contrast-strength') as HTMLInputElement;
+    const inpFgContrastStrength = document.getElementById('inp-fg-contrast-strength') as HTMLInputElement;
+    const sldFgContrastBias = document.getElementById('sld-fg-contrast-bias') as HTMLInputElement;
+    const inpFgContrastBias = document.getElementById('inp-fg-contrast-bias') as HTMLInputElement;
 
     const [fonts, themes, colours] = await Promise.all([listFonts(), listThemes(), fetchColours()]);
 
@@ -418,6 +428,8 @@ export class Topbar {
       updateSliderFill(sldBackgroundSaturation);
       updateSliderFill(sldBackgroundBrightest);
       updateSliderFill(sldBackgroundDarkest);
+      updateSliderFill(sldFgContrastStrength);
+      updateSliderFill(sldFgContrastBias);
     };
     sldSize.addEventListener('input', () => updateSliderFill(sldSize));
     sldHeight.addEventListener('input', () => updateSliderFill(sldHeight));
@@ -428,6 +440,8 @@ export class Topbar {
     sldBackgroundSaturation.addEventListener('input', () => updateSliderFill(sldBackgroundSaturation));
     sldBackgroundBrightest.addEventListener('input', () => updateSliderFill(sldBackgroundBrightest));
     sldBackgroundDarkest.addEventListener('input', () => updateSliderFill(sldBackgroundDarkest));
+    sldFgContrastStrength.addEventListener('input', () => updateSliderFill(sldFgContrastStrength));
+    sldFgContrastBias.addEventListener('input', () => updateSliderFill(sldFgContrastBias));
 
     const syncUi = (s: SessionSettings) => {
       ddTheme.setValue(s.theme);
@@ -442,6 +456,8 @@ export class Topbar {
       sldBackgroundSaturation.value = inpBackgroundSaturation.value = String(s.backgroundSaturation);
       sldBackgroundBrightest.value = inpBackgroundBrightest.value = String(s.backgroundBrightest);
       sldBackgroundDarkest.value = inpBackgroundDarkest.value = String(s.backgroundDarkest);
+      sldFgContrastStrength.value = inpFgContrastStrength.value = String(s.fgContrastStrength);
+      sldFgContrastBias.value = inpFgContrastBias.value = String(s.fgContrastBias);
       refreshAllSliderFills();
     };
     // Expose so updateSession() can refresh the visible controls when tmux
@@ -512,6 +528,12 @@ export class Topbar {
       patch.backgroundBrightest = DEFAULT_BACKGROUND_BRIGHTEST;
       sldBackgroundDarkest.value = inpBackgroundDarkest.value = String(DEFAULT_BACKGROUND_DARKEST);
       updateSliderFill(sldBackgroundDarkest);
+      sldFgContrastStrength.value = inpFgContrastStrength.value = String(DEFAULT_FG_CONTRAST_STRENGTH);
+      updateSliderFill(sldFgContrastStrength);
+      patch.fgContrastStrength = DEFAULT_FG_CONTRAST_STRENGTH;
+      sldFgContrastBias.value = inpFgContrastBias.value = String(DEFAULT_FG_CONTRAST_BIAS);
+      updateSliderFill(sldFgContrastBias);
+      patch.fgContrastBias = DEFAULT_FG_CONTRAST_BIAS;
       patch.backgroundDarkest = DEFAULT_BACKGROUND_DARKEST;
       if (Object.keys(patch).length) commit(patch);
     });
@@ -602,6 +624,30 @@ export class Topbar {
       sldBackgroundDarkest.value = inpBackgroundDarkest.value = String(v);
       updateSliderFill(sldBackgroundDarkest);
       commit({ backgroundDarkest: v });
+    });
+
+    sldFgContrastStrength.addEventListener('input', () => {
+      const v = clampFgContrastStrength(parseInt(sldFgContrastStrength.value, 10));
+      inpFgContrastStrength.value = String(v);
+      commit({ fgContrastStrength: v });
+    });
+    inpFgContrastStrength.addEventListener('change', () => {
+      const v = clampFgContrastStrength(parseInt(inpFgContrastStrength.value, 10));
+      sldFgContrastStrength.value = inpFgContrastStrength.value = String(v);
+      updateSliderFill(sldFgContrastStrength);
+      commit({ fgContrastStrength: v });
+    });
+
+    sldFgContrastBias.addEventListener('input', () => {
+      const v = clampFgContrastBias(parseInt(sldFgContrastBias.value, 10));
+      inpFgContrastBias.value = String(v);
+      commit({ fgContrastBias: v });
+    });
+    inpFgContrastBias.addEventListener('change', () => {
+      const v = clampFgContrastBias(parseInt(inpFgContrastBias.value, 10));
+      sldFgContrastBias.value = inpFgContrastBias.value = String(v);
+      updateSliderFill(sldFgContrastBias);
+      commit({ fgContrastBias: v });
     });
   }
 

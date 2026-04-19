@@ -1,6 +1,7 @@
 import type { TerminalAdapter } from './types.js';
 import type { CellMetrics, TerminalOptions, TerminalTheme } from '../../shared/types.js';
 import { getWebglEnabled } from '../prefs.js';
+import { pushFgLightness } from '../fg-contrast.js';
 
 const XTERM_COLOR_MODE_MASK = 0x3000000;
 const XTERM_COLOR_MODE_P16 = 0x1000000;
@@ -15,6 +16,8 @@ export class XtermAdapter implements TerminalAdapter {
   private webglAddon: any | null = null;
   private tuiBgAlpha = 1;
   private tuiFgAlpha = 1;
+  private fgContrastStrength = 0; // 0..100
+  private fgContrastBias = 0;     // -50..+50
 
   constructor() {}
 
@@ -31,6 +34,8 @@ export class XtermAdapter implements TerminalAdapter {
   async init(container: HTMLElement, options: TerminalOptions): Promise<void> {
     this._setTuiBgOpacity(options.tuiBgOpacity);
     this._setTuiFgOpacity(options.tuiFgOpacity);
+    this._setFgContrastStrength(options.fgContrastStrength);
+    this._setFgContrastBias(options.fgContrastBias);
     const [
       { Terminal },
       { FitAddon },
@@ -330,24 +335,37 @@ export class XtermAdapter implements TerminalAdapter {
       return blendRgbaOverDefaultBackground(resolveAttrRgba(effectiveBg, defaultRgba));
     };
 
-    /** Blend the "visible fg" colour toward the "visible bg" colour at
-     *  `tuiFgα`, and return an attribute word (CM_RGB | blended) suitable
-     *  for either the fg slot (non-inverse) or the bg slot (inverse, where
-     *  bg carries the fg colour xterm renders). At α=1 this is identity
-     *  (original fg colour); at α=0 it equals the cell bg, so the glyph
-     *  atlas rasterises an invisible glyph. */
+    /** Transform and blend the "visible fg" colour:
+     *
+     *    fg_transformed = pushFgLightness(fg, cellBg, strength, bias)
+     *    fg_final       = fg_transformed × α + cellBg × (1-α)
+     *
+     *  Returns an attribute word (CM_RGB | blended) suitable for either
+     *  the fg slot (non-inverse) or the bg slot (inverse, where bg
+     *  carries the fg colour xterm renders). The FG Contrast transform
+     *  always runs first so the user's "push text away from bg" reshape
+     *  happens before TUI FG Opacity fades it; at strength=0 the
+     *  transform is identity. */
     const blendFgTowardCellBg = (origFgAttr: number, cellBgRgb: number, fgDefaultRgba: number): number => {
-      const a = adapter.tuiFgAlpha;
+      const α = adapter.tuiFgAlpha;
       const fgRgba = resolveAttrRgba(origFgAttr, fgDefaultRgba);
-      const fgR = (fgRgba >> 24) & 0xff;
-      const fgG = (fgRgba >> 16) & 0xff;
-      const fgB = (fgRgba >> 8) & 0xff;
+      let fgR = (fgRgba >> 24) & 0xff;
+      let fgG = (fgRgba >> 16) & 0xff;
+      let fgB = (fgRgba >> 8) & 0xff;
       const bgR = (cellBgRgb >> 16) & 0xff;
       const bgG = (cellBgRgb >> 8) & 0xff;
       const bgB = cellBgRgb & 0xff;
-      const r = Math.round(fgR * a + bgR * (1 - a));
-      const g = Math.round(fgG * a + bgG * (1 - a));
-      const b = Math.round(fgB * a + bgB * (1 - a));
+      if (adapter.fgContrastStrength > 0) {
+        [fgR, fgG, fgB] = pushFgLightness(
+          fgR, fgG, fgB,
+          bgR, bgG, bgB,
+          adapter.fgContrastStrength,
+          adapter.fgContrastBias,
+        );
+      }
+      const r = Math.round(fgR * α + bgR * (1 - α));
+      const g = Math.round(fgG * α + bgG * (1 - α));
+      const b = Math.round(fgB * α + bgB * (1 - α));
       return (r << 16) | (g << 8) | b;
     };
 
@@ -386,10 +404,12 @@ export class XtermAdapter implements TerminalAdapter {
           outBg = (bg & ~(XTERM_RGB_MASK | XTERM_COLOR_MODE_MASK)) | XTERM_COLOR_MODE_RGB | blendedBgRgb;
         }
       }
-      // FG pre-blend. Skip at α=1 — identity. `cellBgRgb` is what the
-      // glyph atlas will visually sit on (a default-bg cell shows theme
-      // bg; an explicit-bg cell shows the blended ansi colour).
-      if (adapter.tuiFgAlpha < 1) {
+      // FG pre-blend. Skip only when neither TUI FG Opacity nor FG
+      // Contrast is doing anything — at α=1 with strength=0 the whole
+      // path collapses to identity. `cellBgRgb` is what the glyph atlas
+      // will visually sit on (a default-bg cell shows theme bg; an
+      // explicit-bg cell shows the blended ansi colour).
+      if (adapter.tuiFgAlpha < 1 || adapter.fgContrastStrength > 0) {
         const cellBgRgb = resolveCellBgRgb(fg, bg);
         if (inverse) {
           // Inverse: bg slot carries the glyph colour. Blend that toward
@@ -451,6 +471,16 @@ export class XtermAdapter implements TerminalAdapter {
   private _setTuiFgOpacity(opacityPct: number | undefined): void {
     const pct = Number.isFinite(opacityPct) ? opacityPct! : 100;
     this.tuiFgAlpha = Math.max(0, Math.min(100, pct)) / 100;
+  }
+
+  private _setFgContrastStrength(pct: number | undefined): void {
+    const v = Number.isFinite(pct) ? pct! : 0;
+    this.fgContrastStrength = Math.max(0, Math.min(100, Math.round(v)));
+  }
+
+  private _setFgContrastBias(pct: number | undefined): void {
+    const v = Number.isFinite(pct) ? pct! : 0;
+    this.fgContrastBias = Math.max(-50, Math.min(50, Math.round(v)));
   }
 
   // Force NEAREST-neighbour sampling on the glyph atlas texture. xterm's
@@ -530,12 +560,17 @@ export class XtermAdapter implements TerminalAdapter {
     if (opts.fontFamily !== undefined) this.term.options.fontFamily = opts.fontFamily;
     if (opts.fontSize !== undefined) this.term.options.fontSize = opts.fontSize;
     if (opts.lineHeight !== undefined) this._applyLineHeight(opts.lineHeight);
-    if (opts.tuiBgOpacity !== undefined || opts.tuiFgOpacity !== undefined) {
+    const tuiOpacityChanged = opts.tuiBgOpacity !== undefined || opts.tuiFgOpacity !== undefined;
+    const fgContrastChanged = opts.fgContrastStrength !== undefined || opts.fgContrastBias !== undefined;
+    if (tuiOpacityChanged || fgContrastChanged) {
       if (opts.tuiBgOpacity !== undefined) this._setTuiBgOpacity(opts.tuiBgOpacity);
       if (opts.tuiFgOpacity !== undefined) this._setTuiFgOpacity(opts.tuiFgOpacity);
-      // Atlas cache keys glyphs by (fg, bg) — new alpha changes the
-      // pre-blended attributes we feed updateCell, so drop cached
-      // glyphs and re-rasterise them on the next refresh.
+      if (opts.fgContrastStrength !== undefined) this._setFgContrastStrength(opts.fgContrastStrength);
+      if (opts.fgContrastBias !== undefined) this._setFgContrastBias(opts.fgContrastBias);
+      // Atlas cache keys glyphs by (fg, bg) — new alpha / contrast
+      // values change the pre-blended attributes we feed updateCell,
+      // so drop cached glyphs and re-rasterise them on the next
+      // refresh.
       this.webglAddon?.clearTextureAtlas?.();
       this.term.refresh?.(0, Math.max(0, (this.term.rows ?? 1) - 1));
     }

@@ -124,6 +124,8 @@ async function main() {
     opacity: settings.opacity,
     tuiBgOpacity: settings.tuiBgOpacity,
     tuiFgOpacity: settings.tuiFgOpacity,
+    fgContrastStrength: settings.fgContrastStrength,
+    fgContrastBias: settings.fgContrastBias,
   });
   adapter.focus();
   window.__adapter = adapter;
@@ -186,6 +188,8 @@ async function main() {
           opacity: s.opacity,
           tuiBgOpacity: s.tuiBgOpacity,
           tuiFgOpacity: s.tuiFgOpacity,
+          fgContrastStrength: s.fgContrastStrength,
+          fgContrastBias: s.fgContrastBias,
         });
       } else if (fontChanged) {
         const _dd = document.getElementById('menu-dropdown') as HTMLElement | null;

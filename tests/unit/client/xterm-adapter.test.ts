@@ -85,6 +85,8 @@ describe('XtermAdapter', () => {
       opacity: 100,
       tuiBgOpacity: 100,
       tuiFgOpacity: 100,
+      fgContrastStrength: 0,
+      fgContrastBias: 0,
     });
 
     // allowTransparency is intentionally false so xterm's WebGL atlas uses

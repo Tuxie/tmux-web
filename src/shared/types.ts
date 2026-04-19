@@ -35,6 +35,12 @@ export interface TerminalOptions {
   /** 0..100. Glyph fg blended toward the cell's effective bg; 0 = text
    *  invisible (matches bg), 100 = text fully opaque at theme fg. */
   tuiFgOpacity: number;
+  /** 0..100. OKLab-lightness repulsion applied to glyph fg colours so
+   *  text doesn't disappear into near-identical-brightness bgs. */
+  fgContrastStrength: number;
+  /** -50..+50. Shifts the FG Contrast repulsion midpoint up (positive)
+   *  or down (negative). */
+  fgContrastBias: number;
 }
 
 /** Info about a single tmux window. */
