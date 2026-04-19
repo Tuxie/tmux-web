@@ -461,7 +461,13 @@ body {
 #drops-list, #drops-list > div, #drops-list span { color: #000; }
 #drops-list .meta-size { color: #555; }
 
-.menu-hr { border: none; border-top: 2px solid #aaa; margin: 4px 0; }
+.menu-hr { border: none; border-top: 2px solid #fff; margin: 4px 0; }
+
+/* Section headers: match the HR — bright Workbench bevel for label
+ * text and the flanking rules. */
+.menu-section { color: #fff; }
+.menu-section::before,
+.menu-section::after { border-top-color: #fff; }
 
 #menu-footer {
   display: flex;
@@ -469,7 +475,7 @@ body {
   gap: 12px;
   padding: 5px 12px;
   font-size: 12px;
-  color: #777;
+  color: #fff;
   white-space: nowrap;
 }
 #menu-footer:hover { background: none; }
