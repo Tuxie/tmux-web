@@ -613,9 +613,7 @@ input { accent-color: rgb(49, 66, 105); }
   -webkit-appearance: none;
   appearance: none;
   width: 10px; height: 18px;
-  /* Opaque equivalent of the input-field bg (rgba(255,255,255,0.12)
-   * composited against the menu gradient midpoint hsl(hue 37% 21.5%)). */
-  background: hsl(var(--tw-theme-hue, 222) 28% 31%);
+  background: hsl(var(--tw-theme-hue, 222) 28% 42%);
   border: 2px solid;
   border-color: var(--tw-menu-bevel-light) var(--tw-bevel-dark) var(--tw-bevel-dark) var(--tw-bevel-light);
   box-sizing: border-box;
@@ -623,20 +621,18 @@ input { accent-color: rgb(49, 66, 105); }
 }
 #menu-dropdown input[type="range"]::-moz-range-thumb {
   width: 10px; height: 18px;
-  /* Opaque equivalent of the input-field bg (rgba(255,255,255,0.12)
-   * composited against the menu gradient midpoint hsl(hue 37% 21.5%)). */
-  background: hsl(var(--tw-theme-hue, 222) 28% 31%);
+  background: hsl(var(--tw-theme-hue, 222) 28% 42%);
   border: 2px solid;
   border-color: var(--tw-menu-bevel-light) var(--tw-bevel-dark) var(--tw-bevel-dark) var(--tw-bevel-light);
   box-sizing: border-box;
 }
 #menu-dropdown input[type="range"]:active::-webkit-slider-thumb {
   border-color: var(--tw-bevel-dark) var(--tw-menu-bevel-light) var(--tw-menu-bevel-light) var(--tw-bevel-dark);
-  background: hsl(var(--tw-theme-hue, 222) 28% 38%);
+  background: hsl(var(--tw-theme-hue, 222) 28% 52%);
 }
 #menu-dropdown input[type="range"]:active::-moz-range-thumb {
   border-color: var(--tw-bevel-dark) var(--tw-menu-bevel-light) var(--tw-menu-bevel-light) var(--tw-bevel-dark);
-  background: hsl(var(--tw-theme-hue, 222) 28% 38%);
+  background: hsl(var(--tw-theme-hue, 222) 28% 52%);
 }
 
 /* ---------------------------------------------------------------------
