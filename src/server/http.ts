@@ -289,8 +289,15 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
 
     if (pathname === '/api/sessions') {
       try {
-        const { stdout } = await execFileAsync(config.tmuxBin, ['list-sessions', '-F', '#{session_name}']);
-        const sessions = stdout.trim().split('\n').filter(Boolean);
+        // tmux's #{session_id} is the `$N` internal id — monotonic
+        // across the tmux server's lifetime, not 1-indexed per list.
+        // Strip the `$` so the client can render it like window ids.
+        const { stdout } = await execFileAsync(config.tmuxBin, ['list-sessions', '-F', '#{session_id}:#{session_name}']);
+        const sessions = stdout.trim().split('\n').filter(Boolean).map((line) => {
+          const [rawId, ...rest] = line.split(':');
+          const name = rest.join(':');
+          return { id: rawId.replace(/^\$/, ''), name };
+        });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(sessions));
       } catch {

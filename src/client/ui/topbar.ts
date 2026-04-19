@@ -93,18 +93,33 @@ export class Topbar {
     this.setupFocusHandling();
     this.show();
     await fontListReady;
+    // Populate the session-id prefix next to the topbar session name.
+    void this.refreshCachedSessions();
   }
 
-  private cachedSessions: string[] = [];
+  private cachedSessions: Array<{ id: string; name: string }> = [];
 
   private async refreshCachedSessions(): Promise<void> {
     try {
       const [running] = await Promise.all([
-        fetch('/api/sessions').then(r => r.ok ? r.json() as Promise<string[]> : null),
+        fetch('/api/sessions').then(r =>
+          r.ok ? r.json() as Promise<Array<{ id: string; name: string }>> : null
+        ),
         initSessionStore(),
       ]);
       if (running) this.cachedSessions = running;
     } catch { /* keep previous cache */ }
+    this.refreshSessionIdDisplay();
+  }
+
+  /** Update the session-id span next to the session name to reflect the
+   *  current URL session's tmux id, if known from cachedSessions. */
+  private refreshSessionIdDisplay(): void {
+    const idEl = document.getElementById('tb-session-id');
+    if (!idEl) return;
+    const current = this.currentSession;
+    const found = this.cachedSessions.find((s) => s.name === current);
+    idEl.textContent = found ? found.id + ':' : '';
   }
 
   private buildMenuInputRow(opts: {
@@ -144,11 +159,13 @@ export class Topbar {
 
         // Union of running tmux sessions + persisted ones from sessions.json.
         // Running first (in tmux's order), then any stored-but-not-running.
-        const running = new Set(this.cachedSessions);
+        const runningByName = new Map(this.cachedSessions.map(s => [s.name, s]));
         const stored = getStoredSessionNames();
-        const ordered = [
-          ...this.cachedSessions,
-          ...stored.filter(n => !running.has(n)),
+        const ordered: Array<{ id: string | null; name: string }> = [
+          ...this.cachedSessions.map(s => ({ id: s.id, name: s.name })),
+          ...stored
+            .filter(n => !runningByName.has(n))
+            .map(n => ({ id: null as string | null, name: n })),
         ];
 
         // Sessions list — current one marked with a check (CSS gutter), and
@@ -156,13 +173,19 @@ export class Topbar {
         // Stopped sessions also get a trashcan that deletes the stored
         // settings entry from sessions.json.
         for (const s of ordered) {
-          const isCurrent = s === current;
-          const isRunning = running.has(s);
+          const isCurrent = s.name === current;
+          const isRunning = runningByName.has(s.name);
           const el = document.createElement('div');
           el.className = 'tw-dropdown-item tw-dd-session-item' + (isCurrent ? ' current' : '');
+          if (s.id !== null) {
+            const id = document.createElement('span');
+            id.className = 'tw-dd-session-id';
+            id.textContent = s.id + ':';
+            el.appendChild(id);
+          }
           const name = document.createElement('span');
           name.className = 'tw-dd-session-name';
-          name.textContent = s;
+          name.textContent = s.name;
           el.appendChild(name);
           if (!isRunning) {
             const del = document.createElement('button');
@@ -170,12 +193,12 @@ export class Topbar {
             // `tb-btn drops-revoke` mirror the drops-section trashcan — themes
             // that style those classes (e.g. Amiga) pick up the same look.
             del.className = 'tb-btn drops-revoke tw-dd-session-delete';
-            del.title = `Delete session "${s}".`;
+            del.title = `Delete session "${s.name}".`;
             del.textContent = '\uEA81';
             del.addEventListener('click', async (ev) => {
               ev.stopPropagation();
               ev.preventDefault();
-              await deleteSessionSettings(s);
+              await deleteSessionSettings(s.name);
               el.remove();
             });
             el.appendChild(del);
@@ -187,7 +210,7 @@ export class Topbar {
           el.addEventListener('click', (ev) => {
             ev.stopPropagation();
             close();
-            if (!isCurrent) this.opts.onSwitchSession?.(s);
+            if (!isCurrent) this.opts.onSwitchSession?.(s.name);
           });
           menu.appendChild(el);
         }
@@ -1078,6 +1101,10 @@ export class Topbar {
     }
     document.title = 'tmux-web \u2014 ' + session;
     this.sessionNameEl.textContent = session;
+    // Re-fetch the session list so the id prefix (`N:`) shown next to
+    // the name reflects the new active session's tmux id. Fire-and-forget
+    // — stale id just reads as no prefix until the fetch resolves.
+    void this.refreshCachedSessions();
 
     // When tmux changes the active session underneath us (via a tmux
     // keyboard shortcut, not the web UI), load the target session's

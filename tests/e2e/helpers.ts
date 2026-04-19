@@ -142,8 +142,11 @@ export async function mockSessionStore(
  * call mockSessionStore() directly to capture the returned handle.
  */
 export async function mockApis(page: Page, sessions: string[], windows: object[]): Promise<void> {
+  // Server format is `[{id, name}]`; synthesise positional ids from the
+  // input-order string array so tests can keep passing names.
+  const sessionPayload = sessions.map((name, i) => ({ id: String(i), name }));
   await page.route('**/api/sessions', route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(sessions) })
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(sessionPayload) })
   );
   await page.route('**/api/windows**', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(windows) })

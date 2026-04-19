@@ -48,7 +48,8 @@ test('server-driven session switch applies the target session\'s stored settings
   // mockSessionStore so the seeded route (registered later) wins.
   // Order matters: most recently registered Playwright route fires first.
   await page.route('**/api/sessions', route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(['main', 'other']) })
+    route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify([{ id: '0', name: 'main' }, { id: '1', name: 'other' }]) })
   );
   await page.route('**/api/windows**', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })

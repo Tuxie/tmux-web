@@ -177,7 +177,7 @@ test('session button has .open class while dropdown is showing', async ({ page }
 test('stopped sessions show a delete button; running sessions do not', async ({ page }) => {
   await injectWsSpy(page);
   await page.route('**/api/sessions', route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(['main']) })
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ id: '0', name: 'main' }]) })
   );
   await page.route('**/api/windows**', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
@@ -202,7 +202,7 @@ test('stopped sessions show a delete button; running sessions do not', async ({ 
 test('clicking delete button removes the session via DELETE request', async ({ page }) => {
   await injectWsSpy(page);
   await page.route('**/api/sessions', route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(['main']) })
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ id: '0', name: 'main' }]) })
   );
   await page.route('**/api/windows**', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
@@ -237,7 +237,7 @@ test('clicking delete button removes the session via DELETE request', async ({ p
 test('delete button click does not switch to the deleted session', async ({ page }) => {
   await injectWsSpy(page);
   await page.route('**/api/sessions', route =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(['main']) })
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ id: '0', name: 'main' }]) })
   );
   await page.route('**/api/windows**', route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })

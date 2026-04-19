@@ -40,7 +40,7 @@ test.describe('font and spacing memory', () => {
     await injectWsSpy(page);
     store = await mockSessionStore(page);
     await page.route('**/api/sessions', route =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(['main']) }));
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ id: '0', name: 'main' }]) }));
     await page.route('**/api/windows**', route =>
       route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
     await page.goto('/main');
