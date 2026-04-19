@@ -4,9 +4,19 @@ export const DEFAULT_BACKGROUND_SATURATION = 80;
 export const DEFAULT_BACKGROUND_BRIGHTEST = 10;
 /** HSL lightness (%) of the gradient's darkest stop (outer edge in scene.css). */
 export const DEFAULT_BACKGROUND_DARKEST = 5;
+/** Hue used by themes for GUI chrome (toolbars, menus, bevels, borders)
+ *  via `hsl(var(--tw-theme-hue) S% L%)`. 222 matches Amiga Scene 2000's
+ *  existing Workbench blue so the slider's default renders identically
+ *  to the pre-feature theme. */
+export const DEFAULT_THEME_HUE = 222;
 
 export function clampBackgroundHue(value: number): number {
   if (!Number.isFinite(value)) return DEFAULT_BACKGROUND_HUE;
+  return Math.max(0, Math.min(360, Math.round(value)));
+}
+
+export function clampThemeHue(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_THEME_HUE;
   return Math.max(0, Math.min(360, Math.round(value)));
 }
 
@@ -30,6 +40,13 @@ export function applyBackgroundHue(
   root: HTMLElement = document.documentElement,
 ): void {
   root.style.setProperty("--tw-background-hue", String(clampBackgroundHue(hue)));
+}
+
+export function applyThemeHue(
+  hue: number,
+  root: HTMLElement = document.documentElement,
+): void {
+  root.style.setProperty("--tw-theme-hue", String(clampThemeHue(hue)));
 }
 
 export function applyBackgroundSaturation(

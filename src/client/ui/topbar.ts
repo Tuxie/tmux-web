@@ -24,10 +24,12 @@ import {
   DEFAULT_BACKGROUND_SATURATION,
   DEFAULT_BACKGROUND_BRIGHTEST,
   DEFAULT_BACKGROUND_DARKEST,
+  DEFAULT_THEME_HUE,
   clampBackgroundHue,
   clampBackgroundSaturation,
   clampBackgroundBrightest,
   clampBackgroundDarkest,
+  clampThemeHue,
 } from '../background-hue.js';
 import {
   DEFAULT_FG_CONTRAST_STRENGTH,
@@ -352,6 +354,8 @@ export class Topbar {
     const inpTuiFgOpacity = document.getElementById('inp-tui-fg-opacity') as HTMLInputElement;
     const sldOpacity = document.getElementById('sld-opacity') as HTMLInputElement;
     const inpOpacity = document.getElementById('inp-opacity') as HTMLInputElement;
+    const sldThemeHue = document.getElementById('sld-theme-hue') as HTMLInputElement;
+    const inpThemeHue = document.getElementById('inp-theme-hue') as HTMLInputElement;
     const sldBackgroundHue = document.getElementById('sld-background-hue') as HTMLInputElement;
     const inpBackgroundHue = document.getElementById('inp-background-hue') as HTMLInputElement;
     const sldBackgroundSaturation = document.getElementById('sld-background-saturation') as HTMLInputElement;
@@ -430,6 +434,7 @@ export class Topbar {
       updateSliderFill(sldBackgroundDarkest);
       updateSliderFill(sldFgContrastStrength);
       updateSliderFill(sldFgContrastBias);
+      updateSliderFill(sldThemeHue);
     };
     sldSize.addEventListener('input', () => updateSliderFill(sldSize));
     sldHeight.addEventListener('input', () => updateSliderFill(sldHeight));
@@ -442,6 +447,7 @@ export class Topbar {
     sldBackgroundDarkest.addEventListener('input', () => updateSliderFill(sldBackgroundDarkest));
     sldFgContrastStrength.addEventListener('input', () => updateSliderFill(sldFgContrastStrength));
     sldFgContrastBias.addEventListener('input', () => updateSliderFill(sldFgContrastBias));
+    sldThemeHue.addEventListener('input', () => updateSliderFill(sldThemeHue));
 
     const syncUi = (s: SessionSettings) => {
       ddTheme.setValue(s.theme);
@@ -458,6 +464,7 @@ export class Topbar {
       sldBackgroundDarkest.value = inpBackgroundDarkest.value = String(s.backgroundDarkest);
       sldFgContrastStrength.value = inpFgContrastStrength.value = String(s.fgContrastStrength);
       sldFgContrastBias.value = inpFgContrastBias.value = String(s.fgContrastBias);
+      sldThemeHue.value = inpThemeHue.value = String(s.themeHue);
       refreshAllSliderFills();
     };
     // Expose so updateSession() can refresh the visible controls when tmux
@@ -534,6 +541,9 @@ export class Topbar {
       sldFgContrastBias.value = inpFgContrastBias.value = String(DEFAULT_FG_CONTRAST_BIAS);
       updateSliderFill(sldFgContrastBias);
       patch.fgContrastBias = DEFAULT_FG_CONTRAST_BIAS;
+      sldThemeHue.value = inpThemeHue.value = String(DEFAULT_THEME_HUE);
+      updateSliderFill(sldThemeHue);
+      patch.themeHue = DEFAULT_THEME_HUE;
       patch.backgroundDarkest = DEFAULT_BACKGROUND_DARKEST;
       if (Object.keys(patch).length) commit(patch);
     });
@@ -648,6 +658,18 @@ export class Topbar {
       sldFgContrastBias.value = inpFgContrastBias.value = String(v);
       updateSliderFill(sldFgContrastBias);
       commit({ fgContrastBias: v });
+    });
+
+    sldThemeHue.addEventListener('input', () => {
+      const v = clampThemeHue(parseInt(sldThemeHue.value, 10));
+      inpThemeHue.value = String(v);
+      commit({ themeHue: v });
+    });
+    inpThemeHue.addEventListener('change', () => {
+      const v = clampThemeHue(parseInt(inpThemeHue.value, 10));
+      sldThemeHue.value = inpThemeHue.value = String(v);
+      updateSliderFill(sldThemeHue);
+      commit({ themeHue: v });
     });
   }
 

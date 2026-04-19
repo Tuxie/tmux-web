@@ -18,6 +18,7 @@ import {
   applyBackgroundSaturation,
   applyBackgroundBrightest,
   applyBackgroundDarkest,
+  applyThemeHue,
 } from './background-hue.js';
 import {
   loadSessionSettings,
@@ -77,6 +78,7 @@ async function main() {
   applyBackgroundSaturation(settings.backgroundSaturation);
   applyBackgroundBrightest(settings.backgroundBrightest);
   applyBackgroundDarkest(settings.backgroundDarkest);
+  applyThemeHue(settings.themeHue);
 
   const colourByName = new Map(colours.map(c => [c.name, c.theme]));
   const coloursOrDefault = (name: string): ITheme =>
@@ -168,6 +170,7 @@ async function main() {
       applyBackgroundSaturation(s.backgroundSaturation);
       applyBackgroundBrightest(s.backgroundBrightest);
       applyBackgroundDarkest(s.backgroundDarkest);
+      applyThemeHue(s.themeHue);
 
       page.style.backgroundColor = composeBgColor(coloursOrDefault(s.colours), s.opacity);
       adapter.setTheme(composeTheme(coloursOrDefault(s.colours), s.opacity, getBodyBg()));

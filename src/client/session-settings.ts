@@ -3,6 +3,7 @@ import {
   DEFAULT_BACKGROUND_SATURATION,
   DEFAULT_BACKGROUND_BRIGHTEST,
   DEFAULT_BACKGROUND_DARKEST,
+  DEFAULT_THEME_HUE,
 } from './background-hue.js';
 import {
   DEFAULT_FG_CONTRAST_STRENGTH,
@@ -24,6 +25,7 @@ export interface SessionSettings {
   backgroundDarkest: number;   // 0..100, HSL L at gradient's darkest stop
   fgContrastStrength: number;  // 0..100, OKLab-L repulsion strength
   fgContrastBias: number;      // -50..+50, repulsion midpoint offset
+  themeHue: number;            // 0..360, --tw-theme-hue GUI chrome hue
 }
 
 export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
@@ -41,6 +43,7 @@ export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
   backgroundDarkest: DEFAULT_BACKGROUND_DARKEST,
   fgContrastStrength: DEFAULT_FG_CONTRAST_STRENGTH,
   fgContrastBias: DEFAULT_FG_CONTRAST_BIAS,
+  themeHue: DEFAULT_THEME_HUE,
 };
 
 export interface ThemeDefaults {

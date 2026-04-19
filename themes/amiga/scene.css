@@ -1,26 +1,39 @@
 /* Scene Theme */
 
 :root {
-  /* Override the shared surface palette declared in base.css so toasts,
-   * the clipboard-prompt modal, and other surface-rendered UI pick up
-   * Workbench colours instead of the default dark tones. Kept semantic
-   * (role, not colour) so base.css rules don't need to know the theme. */
-  --tw-surface-bg: #bbb;            /* Workbench grey */
-  --tw-surface-bg-alt: #fff;        /* input-field white */
-  --tw-surface-border: hsl(222 36% 5%);        /* dark blue borders */
-  --tw-surface-hover: #052c2e;      /* petrol selection */
-  --tw-danger-bg: #a04040;          /* muted Workbench red */
-  --tw-danger-border: hsl(222 36% 5%);
-  --tw-success-bg: #4a8c4a;         /* muted Workbench green */
+  /* GUI-chrome hue: `--tw-theme-hue` (default 222, Amiga Workbench
+   * blue) lets the Theme Hue slider rotate every toolbar / menu /
+   * bevel / border colour below without touching the terminal, body
+   * gradient, or accents. At hue 222 the chrome renders within ±1
+   * sRGB byte of the pre-slider palette.
+   *
+   * Override the shared surface palette declared in base.css so
+   * toasts, the clipboard-prompt modal, and other surface-rendered
+   * UI pick up Workbench colours instead of the default dark tones.
+   * Kept semantic (role, not colour) so base.css rules don't need to
+   * know the theme. */
+  --tw-surface-bg: #bbb;            /* Workbench grey — not hue-rotated */
+  --tw-surface-bg-alt: #fff;        /* input-field white — not hue-rotated */
+  --tw-surface-border: hsl(var(--tw-theme-hue, 222) 36% 5%);
+  --tw-surface-hover: #052c2e;      /* petrol selection accent — kept fixed */
+  --tw-danger-bg: #a04040;          /* muted Workbench red — kept fixed */
+  --tw-danger-border: hsl(var(--tw-theme-hue, 222) 36% 5%);
+  --tw-success-bg: #4a8c4a;         /* muted Workbench green — kept fixed */
   --tw-text: #000;
   --tw-text-muted: #555;
-  --tw-toolbar-bg: linear-gradient(to bottom, rgb(49, 66, 105) 0%, rgb(39, 53, 84) 100%);
-  --tw-toolbar-bg-reversed: linear-gradient(to bottom, rgb(39, 53, 84) 0%, rgb(49, 66, 105) 100%);
-  --tw-toolbar-dark: rgb(39, 53, 84);
-  --tw-menu-bg: linear-gradient(to bottom, rgb(39, 53, 84) 0%, rgb(31, 42, 67) 100%);
-  --tw-bevel-light: rgb(59, 76, 115);
-  --tw-menu-bevel-light: rgb(47, 61, 92);
-  --tw-bevel-dark: hsl(222 36% 10%);
+  --tw-toolbar-bg: linear-gradient(to bottom,
+    hsl(var(--tw-theme-hue, 222) 36% 30%) 0%,
+    hsl(var(--tw-theme-hue, 222) 37% 24%) 100%);
+  --tw-toolbar-bg-reversed: linear-gradient(to bottom,
+    hsl(var(--tw-theme-hue, 222) 37% 24%) 0%,
+    hsl(var(--tw-theme-hue, 222) 36% 30%) 100%);
+  --tw-toolbar-dark: hsl(var(--tw-theme-hue, 222) 37% 24%);
+  --tw-menu-bg: linear-gradient(to bottom,
+    hsl(var(--tw-theme-hue, 222) 37% 24%) 0%,
+    hsl(var(--tw-theme-hue, 222) 37% 19%) 100%);
+  --tw-bevel-light: hsl(var(--tw-theme-hue, 222) 32% 34%);
+  --tw-menu-bevel-light: hsl(var(--tw-theme-hue, 222) 32% 27%);
+  --tw-bevel-dark: hsl(var(--tw-theme-hue, 222) 36% 10%);
 
   /* Halo AA reference: the gradient's 42% midpoint (same HSL triple
    * scene.css draws there). Without this, composeTheme can't see the

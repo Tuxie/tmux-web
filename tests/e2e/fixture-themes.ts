@@ -54,6 +54,7 @@ export function fixtureSessionSettings(overrides: Partial<{
   tuiBgOpacity: number; tuiFgOpacity: number;
   fgContrastStrength: number; fgContrastBias: number;
   backgroundHue: number;
+  themeHue: number;
 }> = {}) {
   return {
     theme: FX.themes.primary,
@@ -67,6 +68,7 @@ export function fixtureSessionSettings(overrides: Partial<{
     fgContrastStrength: 0,
     fgContrastBias: 0,
     backgroundHue: 183,
+    themeHue: 222,
     ...overrides,
   };
 }
