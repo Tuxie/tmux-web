@@ -263,15 +263,18 @@ export class XtermAdapter implements TerminalAdapter {
       endX: number,
       y: number,
     ): boolean => {
+      const inverse = (fg & XTERM_FG_FLAG_INVERSE) !== 0;
       const effectiveBg = effectiveBackgroundAttr(fg, bg);
       const colorMode = effectiveBg & XTERM_COLOR_MODE_MASK;
-      if (
-        colorMode !== XTERM_COLOR_MODE_P16 &&
-        colorMode !== XTERM_COLOR_MODE_P256 &&
-        colorMode !== XTERM_COLOR_MODE_RGB
-      ) {
-        return false;
-      }
+      const known =
+        colorMode === XTERM_COLOR_MODE_P16 ||
+        colorMode === XTERM_COLOR_MODE_P256 ||
+        colorMode === XTERM_COLOR_MODE_RGB;
+      // Inverse + default-fg is the "boxed highlight" pattern (Codex,
+      // fzf previews, etc.): the rect renders at theme.foreground.rgba.
+      // Treat that like any other explicit bg so it fades with the
+      // slider instead of staying stuck at full theme foreground.
+      if (!known && !inverse) return false;
       const model = rectangleRenderer.__tmuxWebBgOpacityModel ?? renderer._model;
       const cursor = model?.cursor;
       if (
@@ -311,20 +314,21 @@ export class XtermAdapter implements TerminalAdapter {
     };
 
     const withBlendedEffectiveBackground = (fg: number, bg: number): { fg: number; bg: number } => {
-      const defaultRgba = (fg & XTERM_FG_FLAG_INVERSE)
+      const inverse = (fg & XTERM_FG_FLAG_INVERSE) !== 0;
+      const defaultRgba = inverse
         ? (renderer._themeService?.colors?.foreground?.rgba ?? 0xffffffff)
         : (renderer._themeService?.colors?.background?.rgba ?? 0x000000ff);
       const effectiveBg = effectiveBackgroundAttr(fg, bg);
       const colorMode = effectiveBg & XTERM_COLOR_MODE_MASK;
-      if (
-        colorMode !== XTERM_COLOR_MODE_P16 &&
-        colorMode !== XTERM_COLOR_MODE_P256 &&
-        colorMode !== XTERM_COLOR_MODE_RGB
-      ) {
+      const known =
+        colorMode === XTERM_COLOR_MODE_P16 ||
+        colorMode === XTERM_COLOR_MODE_P256 ||
+        colorMode === XTERM_COLOR_MODE_RGB;
+      if (!known && !inverse) {
         return { fg, bg };
       }
       const blendedRgb = blendRgbaOverDefaultBackground(resolveAttrRgba(effectiveBg, defaultRgba));
-      if (fg & XTERM_FG_FLAG_INVERSE) {
+      if (inverse) {
         return {
           fg: (fg & ~(XTERM_RGB_MASK | XTERM_COLOR_MODE_MASK)) | XTERM_COLOR_MODE_RGB | blendedRgb,
           bg,
