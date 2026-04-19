@@ -8,6 +8,7 @@
 import { test, expect } from '@playwright/test';
 import { type ChildProcess } from 'child_process';
 import { mockApis, injectWsSpy, waitForWsOpen, startServer, killServer } from './helpers.js';
+import { FX } from './fixture-themes.js';
 
 const PORT_XTERM = 4060;
 
@@ -83,10 +84,10 @@ test.describe('menu stays open during settings changes: xterm', () => {
       () => (document.getElementById('inp-font-bundled') as HTMLSelectElement)?.options.length > 1,
       { timeout: 5000 },
     );
-    const otherFont = await page.evaluate(() => {
+    const otherFont = await page.evaluate((primary) => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('Iosevka Nerd Font Mono'))?.value ?? '';
-    });
+      return Array.from(sel.options).find(o => !o.value.includes(primary))?.value ?? '';
+    }, FX.fonts.primary);
     await page.selectOption('#inp-font-bundled', otherFont);
     await expect(page.locator('#menu-dropdown')).toBeVisible();
   });

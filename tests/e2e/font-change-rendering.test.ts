@@ -9,6 +9,7 @@
 import { test, expect } from '@playwright/test';
 import { type ChildProcess } from 'child_process';
 import { mockApis, mockSessionStore, injectWsSpy, waitForWsOpen, startServer, killServer, type SessionStoreMock } from './helpers.js';
+import { FX, fixtureSessionSettings } from './fixture-themes.js';
 
 const PORT_XTERM = 4071;
 
@@ -32,14 +33,14 @@ async function getAdapterMetrics(page: import('@playwright/test').Page): Promise
 }
 
 function readSessionSettings(store: SessionStoreMock, session = 'main'): Record<string, unknown> {
-  return store.get().sessions[session] ?? {};
+  return (store.get().sessions[session] ?? {}) as unknown as Record<string, unknown>;
 }
 
 async function getOtherBundledFont(page: import('@playwright/test').Page): Promise<string> {
-  return page.evaluate(() => {
+  return page.evaluate((primary) => {
     const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-    return Array.from(sel.options).find(o => !o.value.includes('Iosevka Nerd Font Mono'))?.value ?? '';
-  });
+    return Array.from(sel.options).find(o => !o.value.includes(primary))?.value ?? '';
+  }, FX.fonts.primary);
 }
 
 async function openMenuAndChangeFont(
@@ -93,14 +94,7 @@ test.describe('font change rendering: xterm', () => {
     await injectWsSpy(page);
     store = await mockSessionStore(page, {
       sessions: {
-        main: {
-          theme: 'Default',
-          colours: 'Gruvbox Dark',
-          fontFamily: 'Iosevka Nerd Font Mono',
-          fontSize: 18,
-          spacing: 1.125,
-          opacity: 0,
-        },
+        main: fixtureSessionSettings({ spacing: 1.125 }),
       },
     });
     await page.route('**/api/sessions', route =>

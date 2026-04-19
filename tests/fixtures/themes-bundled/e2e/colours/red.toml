@@ -1,0 +1,32 @@
+# E2E Red colour scheme — test fixture, do not edit to depend on real palettes.
+[colors.primary]
+background = "#400000"
+foreground = "#ffe0e0"
+
+[colors.cursor]
+text   = "#400000"
+cursor = "#ffe0e0"
+
+[colors.selection]
+background = "#661010"
+text       = "#ffffff"
+
+[colors.normal]
+black   = "#200000"
+red     = "#c00000"
+green   = "#008000"
+yellow  = "#808000"
+blue    = "#000080"
+magenta = "#800080"
+cyan    = "#008080"
+white   = "#c0c0c0"
+
+[colors.bright]
+black   = "#404040"
+red     = "#ff0000"
+green   = "#00ff00"
+yellow  = "#ffff00"
+blue    = "#0000ff"
+magenta = "#ff00ff"
+cyan    = "#00ffff"
+white   = "#ffffff"

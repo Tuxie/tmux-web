@@ -1,0 +1,32 @@
+# E2E Green colour scheme — test fixture.
+[colors.primary]
+background = "#e0ffe0"
+foreground = "#003000"
+
+[colors.cursor]
+text   = "#e0ffe0"
+cursor = "#003000"
+
+[colors.selection]
+background = "#c0e0c0"
+text       = "#003000"
+
+[colors.normal]
+black   = "#000000"
+red     = "#c00000"
+green   = "#006000"
+yellow  = "#808000"
+blue    = "#000080"
+magenta = "#800080"
+cyan    = "#008080"
+white   = "#c0c0c0"
+
+[colors.bright]
+black   = "#404040"
+red     = "#ff0000"
+green   = "#00ff00"
+yellow  = "#ffff00"
+blue    = "#0000ff"
+magenta = "#ff00ff"
+cyan    = "#00ffff"
+white   = "#ffffff"

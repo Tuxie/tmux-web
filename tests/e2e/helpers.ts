@@ -3,6 +3,10 @@ import { spawn, type ChildProcess } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { fileURLToPath } from 'node:url';
+
+const helpersDir = path.dirname(fileURLToPath(import.meta.url));
+const bundledThemesFixtureDir = path.resolve(helpersDir, '../fixtures/themes-bundled');
 
 /**
  * Start a server process and resolve when it reports "listening".
@@ -16,7 +20,14 @@ import path from 'path';
 export function startServer(cmd: string, args: string[], timeoutMs = 20_000): Promise<ChildProcess> {
   return new Promise((resolve, reject) => {
     const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-e2e-store-'));
-    const env = { ...process.env, TMUX_WEB_SESSIONS_FILE: path.join(storeDir, 'sessions.json') };
+    const env = {
+      ...process.env,
+      TMUX_WEB_SESSIONS_FILE: path.join(storeDir, 'sessions.json'),
+      // Match playwright.config.ts: isolate tests from the real bundled
+      // theme pack so renaming a real theme doesn't break tests that
+      // just happen to boot the server.
+      TMUX_WEB_BUNDLED_THEMES_DIR: bundledThemesFixtureDir,
+    };
     const proc = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], detached: true, env });
     const onData = (chunk: Buffer) => {
       if (chunk.toString().includes('listening')) {

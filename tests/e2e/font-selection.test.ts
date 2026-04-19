@@ -11,6 +11,7 @@
 import { test, expect } from '@playwright/test';
 import { type ChildProcess } from 'child_process';
 import { mockApis, injectWsSpy, waitForWsOpen, startServer, killServer } from './helpers.js';
+import { FX } from './fixture-themes.js';
 
 // Ports chosen to avoid conflicts with default (4023) and terminal-backends (4040-4042)
 const PORTS = { xterm: 4050 };
@@ -59,15 +60,15 @@ test.describe('font selection: xterm', () => {
 
   test.beforeEach(async ({ page, context }) => {
     await context.clearCookies();
-    await page.addInitScript(() => {
+    await page.addInitScript((primaryFont) => {
       const settings = {
-        fontFamily: 'Iosevka Nerd Font Mono',
+        fontFamily: primaryFont,
         fontSize: 18,
         spacing: 1.125
       };
       document.cookie = `tmux-web-settings=${encodeURIComponent(JSON.stringify(settings))}; path=/;`;
       localStorage.clear();
-    });
+    }, FX.fonts.primary);
     await injectWsSpy(page);
     await mockApis(page, ['main'], []);
     await page.goto(`${base}/main`);
@@ -77,25 +78,26 @@ test.describe('font selection: xterm', () => {
 
   test('default load: browser successfully loads the font file', async ({ page }) => {
     await page.waitForFunction(
-      () => document.fonts.check('18px "Iosevka Nerd Font Mono"'),
+      (name) => document.fonts.check(`18px "${name}"`),
+      FX.fonts.primary,
       { timeout: 5000 },
     );
-    expect(await isFontLoaded(page, 'Iosevka Nerd Font Mono')).toBe(true);
+    expect(await isFontLoaded(page, FX.fonts.primary)).toBe(true);
   });
 
-  test('default load: xterm receives Iosevka Nerd Font Mono as fontFamily', async ({ page }) => {
+  test('default load: xterm receives the primary fixture font as fontFamily', async ({ page }) => {
     const fontFamily = await getXtermFontFamily(page);
-    expect(fontFamily).toContain('Iosevka Nerd Font Mono');
+    expect(fontFamily).toContain(FX.fonts.primary);
   });
 
   test('switching bundled font updates @font-face and xterm options', async ({ page }) => {
     await openMenu(page);
 
-    // Pick the first font in the list that isn't the default
-    const otherFont = await page.evaluate(() => {
+    // Pick the first font in the list that isn't the primary one.
+    const otherFont = await page.evaluate((primary) => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('Iosevka Nerd Font Mono'))?.value ?? '';
-    });
+      return Array.from(sel.options).find(o => !o.value.includes(primary))?.value ?? '';
+    }, FX.fonts.primary);
     expect(otherFont).toBeTruthy();
 
     await page.selectOption('#inp-font-bundled', otherFont);

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { mockApis, mockSessionStore, injectWsSpy, waitForWsOpen } from './helpers.js';
+import { fixtureSessionSettings } from './fixture-themes.js';
 
 test('session button shows current session name', async ({ page }) => {
   await injectWsSpy(page);
@@ -43,8 +44,8 @@ test('session menu shows green/red status dots and lists stored-but-stopped sess
         version: 1,
         lastActive: 'main',
         sessions: {
-          main: { theme: 'Default', colours: 'Gruvbox Dark', fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
-          archived: { theme: 'Default', colours: 'Gruvbox Dark', fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
+          main: fixtureSessionSettings(),
+          archived: fixtureSessionSettings(),
         },
       }),
     })
@@ -184,8 +185,8 @@ test('stopped sessions show a delete button; running sessions do not', async ({ 
   await mockSessionStore(page, {
     lastActive: 'main',
     sessions: {
-      main: { theme: 'Default', colours: 'Gruvbox Dark', fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
-      archived: { theme: 'Default', colours: 'Gruvbox Dark', fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
+      main: fixtureSessionSettings(),
+      archived: fixtureSessionSettings(),
     },
   });
   await page.goto('/main');
@@ -209,8 +210,8 @@ test('clicking delete button removes the session via DELETE request', async ({ p
   const store = await mockSessionStore(page, {
     lastActive: 'main',
     sessions: {
-      main: { theme: 'Default', colours: 'Gruvbox Dark', fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
-      archived: { theme: 'Default', colours: 'Gruvbox Dark', fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
+      main: fixtureSessionSettings(),
+      archived: fixtureSessionSettings(),
     },
   });
   await page.goto('/main');
@@ -243,8 +244,8 @@ test('delete button click does not switch to the deleted session', async ({ page
   );
   await mockSessionStore(page, {
     sessions: {
-      main: { theme: 'Default', colours: 'Gruvbox Dark', fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
-      archived: { theme: 'Default', colours: 'Gruvbox Dark', fontFamily: 'Iosevka Nerd Font Mono', fontSize: 18, spacing: 0.85, opacity: 0 },
+      main: fixtureSessionSettings(),
+      archived: fixtureSessionSettings(),
     },
   });
   await page.goto('/main');

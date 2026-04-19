@@ -64,10 +64,15 @@ export async function applyTheme(name: string): Promise<void> {
   const themes = await listThemes();
   let theme = themes.find(candidate => candidate.name === name);
   if (!theme) {
-    console.error(`[theme] theme "${name}" not found, falling back to Default`);
-    theme = themes.find(candidate => candidate.name === 'Default');
+    // First try the baseline "Default" theme (bundled themes always ship
+    // one); if even that is missing — e.g. a user-only deployment or an
+    // isolated test pack with its own theme names — fall through to the
+    // first available theme so the page still renders instead of
+    // silently returning.
+    theme = themes.find(candidate => candidate.name === 'Default') ?? themes[0];
     if (!theme) return;
-    name = 'Default';
+    console.error(`[theme] theme "${name}" not found, falling back to "${theme.name}"`);
+    name = theme.name;
   }
 
   const old = document.getElementById('theme-css') as { remove(): void } | null;

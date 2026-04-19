@@ -5,6 +5,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { mockSessionStore, injectWsSpy, waitForWsOpen, type SessionStoreMock } from './helpers.js';
+import { FX } from './fixture-themes.js';
 
 async function openMenu(page: import('@playwright/test').Page): Promise<void> {
   // Reveal topbar
@@ -59,10 +60,10 @@ test.describe('font and spacing memory', () => {
   });
 
   test('font and spacing persist across page reload', async ({ page }) => {
-    const otherFont = await page.evaluate(() => {
+    const otherFont = await page.evaluate((primary) => {
       const sel = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-      return Array.from(sel.options).find(o => !o.value.includes('Iosevka Nerd Font Mono'))?.value ?? '';
-    });
+      return Array.from(sel.options).find(o => !o.value.includes(primary))?.value ?? '';
+    }, FX.fonts.primary);
     expect(otherFont).toBeTruthy();
 
     // Open menu, select a bundled font and set spacing

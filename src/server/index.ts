@@ -224,7 +224,12 @@ Options:
   const tmuxConfPath = path.join(projectRoot, 'tmux.conf');
   const htmlTemplatePath = path.join(projectRoot, 'src/client/index.html');
   const distDir = path.join(projectRoot, 'dist');
-  const themesBundledDir = path.join(projectRoot, 'themes');
+  // Hard override for tests: TMUX_WEB_BUNDLED_THEMES_DIR lets the e2e
+  // suite swap the real bundled themes for a stable fixture pack so
+  // renaming a real theme doesn't cascade failures through every test
+  // that happened to mention "Default" / "Gruvbox Dark" / "Nord" etc.
+  const themesBundledDir = process.env.TMUX_WEB_BUNDLED_THEMES_DIR
+    ?? path.join(projectRoot, 'themes');
 
   let htmlTemplate: string;
   const embeddedHtmlPath = embeddedAssets['src/client/index.html'];

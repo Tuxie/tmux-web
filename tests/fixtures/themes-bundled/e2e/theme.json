@@ -1,0 +1,35 @@
+{
+  "author": "tmux-web e2e fixture",
+  "version": "1",
+  "fonts": [
+    { "file": "PrimaryFont.woff2", "family": "E2E Primary Font" },
+    { "file": "SecondaryFont.woff2", "family": "E2E Secondary Font" }
+  ],
+  "colours": [
+    { "file": "colours/red.toml", "name": "E2E Red", "variant": "dark" },
+    { "file": "colours/blue.toml", "name": "E2E Blue", "variant": "dark" },
+    { "file": "colours/green.toml", "name": "E2E Green", "variant": "light" }
+  ],
+  "themes": [
+    {
+      "name": "Default",
+      "css": "primary.css",
+      "defaultFont": "E2E Primary Font",
+      "defaultFontSize": 15,
+      "defaultSpacing": 1,
+      "defaultColours": "E2E Red",
+      "defaultOpacity": 100,
+      "defaultTuiOpacity": 100
+    },
+    {
+      "name": "E2E Alt Theme",
+      "css": "alt.css",
+      "defaultFont": "E2E Secondary Font",
+      "defaultFontSize": 18,
+      "defaultSpacing": 0.9,
+      "defaultColours": "E2E Green",
+      "defaultOpacity": 50,
+      "defaultTuiOpacity": 70
+    }
+  ]
+}

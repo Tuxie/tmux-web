@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { injectWsSpy, waitForWsOpen } from './helpers.js';
+import { FX } from './fixture-themes.js';
 
 async function waitForMenuInputs(page: import('@playwright/test').Page): Promise<void> {
   await page.waitForFunction(
@@ -14,7 +15,7 @@ test("switch colour scheme applies new background hex live", async ({ page }) =>
 
   await page.click("#btn-menu");
   await waitForMenuInputs(page);
-  await page.selectOption("#inp-colours", "Dracula");
+  await page.selectOption("#inp-colours", FX.colours.b);
 
   // composeTheme writes the terminal background as `rgba(r,g,b,0)` so the
   // WebGL atlas rasterises glyph halos against the composite of the body
@@ -44,13 +45,15 @@ test("sends colour-variant message on connect and on colour change", async ({ pa
       typeof m === 'string' && m.startsWith('{"type":"colour-variant"')
     )
   );
-  // Default colour scheme is Gruvbox Dark → dark variant
-  expect(JSON.parse(initialMsgs[initialMsgs.length - 1])).toEqual({ type: 'colour-variant', variant: 'dark' });
+  // The fixture primary theme's defaultColours is `E2E Red` (variant: dark).
+  const last = initialMsgs[initialMsgs.length - 1];
+  expect(last).toBeDefined();
+  expect(JSON.parse(last!)).toEqual({ type: 'colour-variant', variant: 'dark' });
 
-  // Switch to a light scheme — a new colour-variant message should be sent.
+  // Switch to a light-variant fixture colour — a new colour-variant message should be sent.
   await page.click("#btn-menu");
   await waitForMenuInputs(page);
-  await page.selectOption("#inp-colours", "Gruvbox Light");
+  await page.selectOption("#inp-colours", FX.colours.c); // E2E Green (variant: light)
 
   await page.waitForFunction(
     () => (window as any).__wsSent.some((m: string) =>

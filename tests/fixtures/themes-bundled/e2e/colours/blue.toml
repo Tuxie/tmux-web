@@ -1,0 +1,32 @@
+# E2E Blue colour scheme — test fixture.
+[colors.primary]
+background = "#000040"
+foreground = "#e0e0ff"
+
+[colors.cursor]
+text   = "#000040"
+cursor = "#e0e0ff"
+
+[colors.selection]
+background = "#101066"
+text       = "#ffffff"
+
+[colors.normal]
+black   = "#000020"
+red     = "#c00000"
+green   = "#008000"
+yellow  = "#808000"
+blue    = "#0000c0"
+magenta = "#800080"
+cyan    = "#008080"
+white   = "#c0c0c0"
+
+[colors.bright]
+black   = "#404040"
+red     = "#ff0000"
+green   = "#00ff00"
+yellow  = "#ffff00"
+blue    = "#0000ff"
+magenta = "#ff00ff"
+cyan    = "#00ffff"
+white   = "#ffffff"

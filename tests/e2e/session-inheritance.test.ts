@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { mockSessionStore } from "./helpers.js";
+import { FX } from "./fixture-themes.js";
 
 async function waitForMenuInputs(page: import('@playwright/test').Page): Promise<void> {
   await page.waitForFunction(
@@ -29,7 +30,7 @@ test("new session inherits live session's settings", async ({ page }) => {
 
   await page.click("#btn-menu");
   await waitForMenuInputs(page);
-  await page.selectOption("#inp-colours", "Nord");
+  await page.selectOption("#inp-colours", FX.colours.b);
   await page.fill("#inp-opacity", "40");
   await page.dispatchEvent("#inp-opacity", "change");
   await waitForStored(store, "main");
@@ -40,7 +41,7 @@ test("new session inherits live session's settings", async ({ page }) => {
   await waitForStored(store, "fresh-sess");
 
   const stored = store.get().sessions["fresh-sess"];
-  expect(stored?.colours).toBe("Nord");
+  expect(stored?.colours).toBe(FX.colours.b);
   expect(stored?.opacity).toBe(40);
 });
 
@@ -51,21 +52,18 @@ test("theme switch overwrites colours and font in active session", async ({ page
 
   await page.click("#btn-menu");
   await waitForMenuInputs(page);
-  // Select AmigaOS 3.1 which has defaultColours: "Gruvbox Light"
-  const opts = await page.locator("#inp-theme option").allTextContents();
-  if (!opts.includes("AmigaOS 3.1")) {
-    test.skip(); // theme not present
-    return;
-  }
-  await page.selectOption("#inp-theme", "AmigaOS 3.1");
+  // The alt fixture theme's defaults are distinct from the primary theme's
+  // so we can verify that switching theme overwrites `colours` and
+  // `fontFamily` in the active session.
+  await page.selectOption("#inp-theme", FX.themes.alt);
 
   // Poll until the mock store reflects the new theme defaults.
   for (let i = 0; i < 50; i++) {
     const s = store.get().sessions["main"];
-    if (s?.colours === "Gruvbox Light") break;
+    if (s?.colours === FX.colours.c) break;
     await new Promise(r => setTimeout(r, 50));
   }
   const stored = store.get().sessions["main"];
-  expect(stored?.colours).toBe("Gruvbox Light");
-  expect(stored?.fontFamily).toBe("Topaz8 Amiga1200 Nerd Font");
+  expect(stored?.colours).toBe(FX.colours.c);           // alt theme's defaultColours
+  expect(stored?.fontFamily).toBe(FX.fonts.secondary);  // alt theme's defaultFont
 });
