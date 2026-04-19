@@ -14,7 +14,8 @@
       "defaultFontSize": 17.5,
       "defaultSpacing": 1.0,
       "defaultColours": "Gruvbox Light",
-      "defaultOpacity": 0
+      "defaultOpacity": 0,
+      "defaultThemeHue": 216
     },
     {
       "name": "Amiga Scene 2000",

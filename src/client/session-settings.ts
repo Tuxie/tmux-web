@@ -60,6 +60,7 @@ export interface ThemeDefaults {
   fgContrastStrength?: number;
   fgContrastBias?: number;
   tuiSaturation?: number;
+  themeHue?: number;
 }
 
 export interface LoadOpts {
@@ -113,6 +114,7 @@ export function loadSessionSettings(name: string, live: SessionSettings | null, 
   if (td.fgContrastStrength !== undefined) overlay.fgContrastStrength = td.fgContrastStrength;
   if (td.fgContrastBias !== undefined) overlay.fgContrastBias = td.fgContrastBias;
   if (td.tuiSaturation !== undefined) overlay.tuiSaturation = td.tuiSaturation;
+  if (td.themeHue !== undefined) overlay.themeHue = td.themeHue;
   return { ...opts.defaults, ...overlay };
 }
 
@@ -161,6 +163,7 @@ export function applyThemeDefaults(s: SessionSettings, td: ThemeDefaults): Sessi
     fgContrastStrength: td.fgContrastStrength ?? s.fgContrastStrength,
     fgContrastBias: td.fgContrastBias ?? s.fgContrastBias,
     tuiSaturation: td.tuiSaturation ?? s.tuiSaturation,
+    themeHue: td.themeHue ?? s.themeHue,
   };
 }
 

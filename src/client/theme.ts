@@ -8,6 +8,10 @@ export type ThemeInfo = {
   defaultColours?: string;
   defaultOpacity?: number;
   defaultTuiOpacity?: number;
+  defaultTuiBgOpacity?: number;
+  defaultTuiFgOpacity?: number;
+  defaultTuiSaturation?: number;
+  defaultThemeHue?: number;
   author?: string;
   version?: string;
   source: 'user' | 'bundled';

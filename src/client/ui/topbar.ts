@@ -545,6 +545,7 @@ export class Topbar {
       if (theme?.defaultTuiBgOpacity !== undefined) td.tuiBgOpacity = theme.defaultTuiBgOpacity;
       if (theme?.defaultTuiFgOpacity !== undefined) td.tuiFgOpacity = theme.defaultTuiFgOpacity;
       if (theme?.defaultTuiSaturation !== undefined) td.tuiSaturation = theme.defaultTuiSaturation;
+      if (theme?.defaultThemeHue !== undefined) td.themeHue = theme.defaultThemeHue;
       const current = getSettings();
       const updated = applyThemeDefaults({ ...current, theme: name }, td);
       saveSessionSettings(this.currentSession, updated);
