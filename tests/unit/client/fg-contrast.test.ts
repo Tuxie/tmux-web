@@ -8,13 +8,12 @@
  *   bgL      ∈ [0, 1]        (auto-computed OKLab L of rendered background)
  *
  *   Bias direction: positive = "towards brighter", negative = "towards darker".
- *   Internally the sign is negated to compute the cutoff:
- *     b = -biasPct/100
- *     cutoff = b >= 0
- *       ? bgL + b × (1 - bgL)
- *       : bgL + b × bgL
- *   So bias +100 → cutoff = 0 (everything pushed bright),
- *      bias -100 → cutoff = 1 (everything pushed dark).
+ *   The sign is conditionally negated so bias always means "brighter/darker":
+ *     strength > 0 (gap):  b = -biasPct/100  (lower cutoff → brighter)
+ *     strength < 0 (pull): b = +biasPct/100  (higher cutoff → pull bright)
+ *   cutoff = b >= 0
+ *     ? bgL + b × (1 - bgL)
+ *     : bgL + b × bgL
  *
  *   strength = 0    → identity (bias + bgL ignored)
  *   strength < 0    → linear pull toward cutoff
@@ -47,20 +46,20 @@ describe('pushLightness', () => {
     expect(Math.abs(rBright - 220)).toBeGreaterThan(50);
   });
 
-  test('strength=-100, bias=+100 collapses to black (cutoff=0, "towards brighter")', async () => {
+  test('strength=-100, bias=+100 collapses to white (pull toward bright)', async () => {
     const { pushLightness } = await import('../../../src/client/fg-contrast.js');
-    const [r, g, b] = pushLightness(200, 200, 200, -100, 100, 0.5);
-    expect(r).toBeLessThanOrEqual(2);
-    expect(g).toBeLessThanOrEqual(2);
-    expect(b).toBeLessThanOrEqual(2);
-  });
-
-  test('strength=-100, bias=-100 collapses to white (cutoff=1, "towards darker")', async () => {
-    const { pushLightness } = await import('../../../src/client/fg-contrast.js');
-    const [r, g, b] = pushLightness(30, 30, 30, -100, -100, 0.5);
+    const [r, g, b] = pushLightness(30, 30, 30, -100, 100, 0.5);
     expect(r).toBeGreaterThanOrEqual(253);
     expect(g).toBeGreaterThanOrEqual(253);
     expect(b).toBeGreaterThanOrEqual(253);
+  });
+
+  test('strength=-100, bias=-100 collapses to black (pull toward dark)', async () => {
+    const { pushLightness } = await import('../../../src/client/fg-contrast.js');
+    const [r, g, b] = pushLightness(200, 200, 200, -100, -100, 0.5);
+    expect(r).toBeLessThanOrEqual(2);
+    expect(g).toBeLessThanOrEqual(2);
+    expect(b).toBeLessThanOrEqual(2);
   });
 
   test('strength=+100, bias=0 produces hard cutoff at bgL', async () => {

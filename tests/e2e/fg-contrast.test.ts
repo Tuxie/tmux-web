@@ -8,8 +8,8 @@
  * Behaviour (see `src/client/fg-contrast.ts` for the math):
  *   strength = 0    → identity; bias + bgL are ignored.
  *   strength = -100 → every colour collapses to the cutoff lightness.
- *                     Bias +100 → black, -100 → white, 0 → bg luminance.
- *                     (positive bias = "towards brighter" = lower cutoff)
+ *                     Bias +100 → white, -100 → black, 0 → bg luminance.
+ *                     (positive bias = "towards brighter" in both modes)
  *   strength = +100 → hard threshold at cutoff: below → black,
  *                     above → white.
  *   intermediate    → exclusion gap (see unit tests).
@@ -144,7 +144,7 @@ test('Contrast strength=+100 bias=0 uses bg luminance as hard cutoff', async ({ 
   }
 });
 
-test('Contrast strength=-100 with bias=+100 ("towards brighter") collapses fg to black', async ({ page }) => {
+test('Contrast strength=-100 with bias=+100 ("towards brighter") collapses fg to white', async ({ page }) => {
   await page.goto('/');
   await readyAdapter(page);
   await disableAutohide(page);
@@ -153,15 +153,15 @@ test('Contrast strength=-100 with bias=+100 ("towards brighter") collapses fg to
   await setSlider(page, 'inp-fg-contrast-strength', -100);
 
   const [r, g, b] = await samplePixel(page, SAMPLE_X, SAMPLE_Y);
-  if (r > 5 || g > 5 || b > 5) {
+  if (r < 250 || g < 250 || b < 250) {
     throw new Error(
-      `Contrast=-100 with bias=+100 → cutoff=0; collapse to black.\n` +
+      `Contrast=-100 with bias=+100 → cutoff=1; collapse to white.\n` +
       `  observed=(${r}, ${g}, ${b})`
     );
   }
 });
 
-test('Contrast strength=-100 with bias=-100 ("towards darker") collapses fg to white', async ({ page }) => {
+test('Contrast strength=-100 with bias=-100 ("towards darker") collapses fg to black', async ({ page }) => {
   await page.goto('/');
   await readyAdapter(page);
   await disableAutohide(page);
@@ -170,9 +170,9 @@ test('Contrast strength=-100 with bias=-100 ("towards darker") collapses fg to w
   await setSlider(page, 'inp-fg-contrast-strength', -100);
 
   const [r, g, b] = await samplePixel(page, SAMPLE_X, SAMPLE_Y);
-  if (r < 250 || g < 250 || b < 250) {
+  if (r > 5 || g > 5 || b > 5) {
     throw new Error(
-      `Contrast=-100 with bias=-100 → cutoff=1; collapse to white.\n` +
+      `Contrast=-100 with bias=-100 → cutoff=0; collapse to black.\n` +
       `  observed=(${r}, ${g}, ${b})`
     );
   }
