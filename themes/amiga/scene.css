@@ -63,10 +63,13 @@ body {
   border-top: 2px solid var(--tw-menu-bevel-hi);
   border-bottom: 2px solid var(--tw-bevel-lo);
 }
-#frame-top    { top: 0; }
-#frame-bottom { bottom: 0; }
+#frame-top    { top: 0; background: color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))); }
+#frame-bottom { bottom: 0; background: color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))); }
 #frame-left, #frame-right {
   top: 6px; bottom: 4px; width: 6px;
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))));
 }
 #frame-left {
   left: 0;
@@ -86,10 +89,10 @@ body {
   width: 6px; height: 6px;
   border: none;
 }
-#frame-tl { width: 4px;  top: 0;    left: 0;  border-top: 2px solid var(--tw-menu-bevel-hi); border-left: 2px solid var(--tw-menu-bevel-hi); }
-#frame-tr { width: 4px;  top: 0;    right: 0; border-top: 2px solid var(--tw-menu-bevel-hi); border-right: 2px solid var(--tw-bevel-lo); }
-#frame-bl { height: 4px; bottom: 0; left: 0;  border-bottom: 2px solid var(--tw-bevel-lo); border-left: 2px solid var(--tw-menu-bevel-hi); }
-#frame-br { height: 4px; bottom: 0; right: 0; border-bottom: 2px solid var(--tw-bevel-lo); border-right: 2px solid var(--tw-bevel-lo); }
+#frame-tl { width: 4px;  top: 0;    left: 0;  border-top: 2px solid var(--tw-menu-bevel-hi); border-left: 2px solid var(--tw-menu-bevel-hi); background: color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))); }
+#frame-tr { width: 4px;  top: 0;    right: 0; border-top: 2px solid var(--tw-menu-bevel-hi); border-right: 2px solid var(--tw-bevel-lo); background: color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))); }
+#frame-bl { height: 4px; bottom: 0; left: 0;  border-bottom: 2px solid var(--tw-bevel-lo); border-left: 2px solid var(--tw-menu-bevel-hi); background: color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))); }
+#frame-br { height: 4px; bottom: 0; right: 0; border-bottom: 2px solid var(--tw-bevel-lo); border-right: 2px solid var(--tw-bevel-lo); background: color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))); }
 
 /* ---------------------------------------------------------------------
  * Topbar — sits inside the frame (6px inset from top/left/right).
