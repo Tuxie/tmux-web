@@ -19,6 +19,7 @@
       "defaultThemeSat": 38,
       "defaultThemeLtn": 62,
       "defaultThemeContrast": 0,
+      "defaultDepth": 100,
       "defaultBackgroundBrightest": 72,
       "defaultBackgroundDarkest": 72
     },
@@ -35,6 +36,7 @@
       "defaultThemeSat": 36,
       "defaultThemeLtn": 27,
       "defaultThemeContrast": 0,
+      "defaultDepth": 30,
       "defaultBackgroundHue": 183,
       "defaultBackgroundSaturation": 0,
       "defaultBackgroundBrightest": 10,

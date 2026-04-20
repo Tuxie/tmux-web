@@ -25,6 +25,7 @@ export type ThemeInfo = {
   defaultThemeSat?: number;
   defaultThemeLtn?: number;
   defaultThemeContrast?: number;
+  defaultDepth?: number;
   defaultBackgroundHue?: number;
   defaultBackgroundSaturation?: number;
   defaultBackgroundBrightest?: number;
@@ -61,6 +62,7 @@ export type PackManifest = {
   defaultThemeSat?: number;
   defaultThemeLtn?: number;
   defaultThemeContrast?: number;
+  defaultDepth?: number;
   defaultBackgroundHue?: number;
   defaultBackgroundSaturation?: number;
   defaultBackgroundBrightest?: number;
@@ -133,6 +135,7 @@ const INHERITABLE_FIELDS: Array<keyof ThemeInfo> = [
   'defaultThemeSat',
   'defaultThemeLtn',
   'defaultThemeContrast',
+  'defaultDepth',
   'defaultBackgroundHue',
   'defaultBackgroundSaturation',
   'defaultBackgroundBrightest',
@@ -189,6 +192,7 @@ export function listThemes(packs: PackInfo[]): ThemeInfo[] {
         defaultThemeSat: rawDefaultBase.defaultThemeSat,
         defaultThemeLtn: rawDefaultBase.defaultThemeLtn,
         defaultThemeContrast: rawDefaultBase.defaultThemeContrast,
+        defaultDepth: rawDefaultBase.defaultDepth,
         defaultBackgroundHue: rawDefaultBase.defaultBackgroundHue,
         defaultBackgroundSaturation: rawDefaultBase.defaultBackgroundSaturation,
         defaultBackgroundBrightest: rawDefaultBase.defaultBackgroundBrightest,
@@ -222,6 +226,7 @@ export function listThemes(packs: PackInfo[]): ThemeInfo[] {
         defaultThemeSat: theme.defaultThemeSat,
         defaultThemeLtn: theme.defaultThemeLtn,
         defaultThemeContrast: theme.defaultThemeContrast,
+        defaultDepth: theme.defaultDepth,
         defaultBackgroundHue: theme.defaultBackgroundHue,
         defaultBackgroundSaturation: theme.defaultBackgroundSaturation,
         defaultBackgroundBrightest: theme.defaultBackgroundBrightest,

@@ -35,6 +35,8 @@ import {
   DEFAULT_THEME_SAT,
   DEFAULT_THEME_LTN,
   DEFAULT_THEME_CONTRAST,
+  DEFAULT_DEPTH,
+  clampDepth,
 } from '../background-hue.js';
 import {
   DEFAULT_FG_CONTRAST_STRENGTH,
@@ -401,6 +403,8 @@ export class Topbar {
     const inpThemeLtn = document.getElementById('inp-theme-ltn') as HTMLInputElement;
     const sldThemeContrast = document.getElementById('sld-theme-contrast') as HTMLInputElement;
     const inpThemeContrast = document.getElementById('inp-theme-contrast') as HTMLInputElement;
+    const sldDepth = document.getElementById('sld-depth') as HTMLInputElement;
+    const inpDepth = document.getElementById('inp-depth') as HTMLInputElement;
     const sldBackgroundHue = document.getElementById('sld-background-hue') as HTMLInputElement;
     const inpBackgroundHue = document.getElementById('inp-background-hue') as HTMLInputElement;
     const sldBackgroundSaturation = document.getElementById('sld-background-saturation') as HTMLInputElement;
@@ -486,6 +490,7 @@ export class Topbar {
       updateSliderFill(sldThemeSat);
       updateSliderFill(sldThemeLtn);
       updateSliderFill(sldThemeContrast);
+      updateSliderFill(sldDepth);
     };
     sldSize.addEventListener('input', () => updateSliderFill(sldSize));
     sldHeight.addEventListener('input', () => updateSliderFill(sldHeight));
@@ -503,6 +508,7 @@ export class Topbar {
     sldThemeSat.addEventListener('input', () => updateSliderFill(sldThemeSat));
     sldThemeLtn.addEventListener('input', () => updateSliderFill(sldThemeLtn));
     sldThemeContrast.addEventListener('input', () => updateSliderFill(sldThemeContrast));
+    sldDepth.addEventListener('input', () => updateSliderFill(sldDepth));
 
     const syncUi = (s: SessionSettings) => {
       ddTheme.setValue(s.theme);
@@ -524,6 +530,7 @@ export class Topbar {
       sldThemeSat.value = inpThemeSat.value = String(s.themeSat);
       sldThemeLtn.value = inpThemeLtn.value = String(s.themeLtn);
       sldThemeContrast.value = inpThemeContrast.value = String(s.themeContrast);
+      sldDepth.value = inpDepth.value = String(s.depth);
       refreshAllSliderFills();
     };
     // Expose so updateSession() can refresh the visible controls when tmux
@@ -556,6 +563,7 @@ export class Topbar {
       if (theme?.defaultThemeSat !== undefined) td.themeSat = theme.defaultThemeSat;
       if (theme?.defaultThemeLtn !== undefined) td.themeLtn = theme.defaultThemeLtn;
       if (theme?.defaultThemeContrast !== undefined) td.themeContrast = theme.defaultThemeContrast;
+      if (theme?.defaultDepth !== undefined) td.depth = theme.defaultDepth;
       if (theme?.defaultBackgroundHue !== undefined) td.backgroundHue = theme.defaultBackgroundHue;
       if (theme?.defaultBackgroundSaturation !== undefined) td.backgroundSaturation = theme.defaultBackgroundSaturation;
       if (theme?.defaultBackgroundBrightest !== undefined) td.backgroundBrightest = theme.defaultBackgroundBrightest;
@@ -797,6 +805,18 @@ export class Topbar {
       commit({ themeContrast: v });
     });
 
+    sldDepth.addEventListener('input', () => {
+      const v = clampDepth(parseInt(sldDepth.value, 10));
+      inpDepth.value = String(v);
+      commit({ depth: v });
+    });
+    inpDepth.addEventListener('change', () => {
+      const v = clampDepth(parseInt(inpDepth.value, 10));
+      sldDepth.value = inpDepth.value = String(v);
+      updateSliderFill(sldDepth);
+      commit({ depth: v });
+    });
+
     // Double-click-to-reset wiring. Each entry maps a slider / number
     // input pair to a function that resolves the *current* default
     // (some defaults track the active theme, so we look them up lazily
@@ -833,6 +853,8 @@ export class Topbar {
         getDefault: () => activeTheme()?.defaultThemeLtn ?? DEFAULT_THEME_LTN },
       { slider: sldThemeContrast, input: inpThemeContrast, key: 'themeContrast',
         getDefault: () => activeTheme()?.defaultThemeContrast ?? DEFAULT_THEME_CONTRAST },
+      { slider: sldDepth, input: inpDepth, key: 'depth',
+        getDefault: () => activeTheme()?.defaultDepth ?? DEFAULT_DEPTH },
       { slider: sldBackgroundHue, input: inpBackgroundHue, key: 'backgroundHue',
         getDefault: () => activeTheme()?.defaultBackgroundHue ?? DEFAULT_BACKGROUND_HUE },
       { slider: sldBackgroundSaturation, input: inpBackgroundSaturation, key: 'backgroundSaturation',

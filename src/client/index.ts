@@ -22,6 +22,7 @@ import {
   applyThemeSat,
   applyThemeLtn,
   applyThemeContrast,
+  applyDepth,
 } from './background-hue.js';
 import {
   loadSessionSettings,
@@ -70,6 +71,7 @@ async function main() {
     themeSat: currentTheme.defaultThemeSat,
     themeLtn: currentTheme.defaultThemeLtn,
     themeContrast: currentTheme.defaultThemeContrast,
+    depth: currentTheme.defaultDepth,
   } : undefined;
 
   const liveSettings = getLiveSessionSettings(sessionName);
@@ -89,6 +91,7 @@ async function main() {
   applyThemeSat(settings.themeSat);
   applyThemeLtn(settings.themeLtn);
   applyThemeContrast(settings.themeContrast);
+  applyDepth(settings.depth);
 
   const colourByName = new Map(colours.map(c => [c.name, c.theme]));
   const coloursOrDefault = (name: string): ITheme =>
@@ -185,6 +188,7 @@ async function main() {
       applyThemeSat(s.themeSat);
       applyThemeLtn(s.themeLtn);
       applyThemeContrast(s.themeContrast);
+      applyDepth(s.depth);
 
       page.style.backgroundColor = composeBgColor(coloursOrDefault(s.colours), s.opacity);
       adapter.setTheme(composeTheme(coloursOrDefault(s.colours), s.opacity, getBodyBg()));

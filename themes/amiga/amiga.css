@@ -4,12 +4,10 @@
   /* --tw-chrome inherits from base.css → --tw-primary = hsl(hue, sat, ltn).
    * Theme Hue / Sat / Lightness sliders drive it; theme.json sets the
    * defaults (hue 216, sat 38%, ltn 62%) for the classic Workbench blue. */
+  /* Bevels inherit from base.css: rgba(255,255,255,depth) / rgba(0,0,0,depth).
+   * theme.json defaultDepth: 100 gives the classic opaque B/W look. */
   --tw-chrome-bg: hsl(0 0% calc(var(--tw-theme-ltn) + 10%));
   --tw-gadget-bg: hsl(0 0% calc(var(--tw-theme-ltn) + 5%));
-  --tw-bevel-hi: #fff;
-  --tw-bevel-lo: #000;
-  --tw-menu-bevel-hi: #fff;
-  --tw-menu-bevel-lo: #000;
   --tw-text: #000;
   --tw-muted: #000;
   --tw-status-active: #2c2;

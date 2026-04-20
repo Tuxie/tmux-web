@@ -9,6 +9,7 @@ import {
   DEFAULT_THEME_SAT,
   DEFAULT_THEME_LTN,
   DEFAULT_THEME_CONTRAST,
+  DEFAULT_DEPTH,
   applyBackgroundHue,
   applyBackgroundSaturation,
   applyBackgroundBrightest,
@@ -22,9 +23,11 @@ import {
   clampThemeSat,
   clampThemeLtn,
   clampThemeContrast,
+  clampDepth,
   applyThemeSat,
   applyThemeLtn,
   applyThemeContrast,
+  applyDepth,
 } from "../../../src/client/background-hue.ts";
 
 function mockElement(): HTMLElement {
@@ -261,5 +264,38 @@ describe("theme contrast", () => {
     const el = mockElement();
     applyThemeContrast(-50, el);
     expect(el.style.getPropertyValue("--tw-theme-contrast")).toBe("0.5");
+  });
+});
+
+describe("depth", () => {
+  test("defaults to 20", () => {
+    expect(DEFAULT_DEPTH).toBe(20);
+  });
+
+  test("clamps to 0..100", () => {
+    expect(clampDepth(-10)).toBe(0);
+    expect(clampDepth(0)).toBe(0);
+    expect(clampDepth(50)).toBe(50);
+    expect(clampDepth(100)).toBe(100);
+    expect(clampDepth(150)).toBe(100);
+    expect(clampDepth(NaN)).toBe(DEFAULT_DEPTH);
+  });
+
+  test("depth 0 → --tw-depth 0 (invisible bevels)", () => {
+    const el = mockElement();
+    applyDepth(0, el);
+    expect(el.style.getPropertyValue("--tw-depth")).toBe("0");
+  });
+
+  test("depth 50 → --tw-depth 0.5", () => {
+    const el = mockElement();
+    applyDepth(50, el);
+    expect(el.style.getPropertyValue("--tw-depth")).toBe("0.5");
+  });
+
+  test("depth 100 → --tw-depth 1 (opaque B/W bevels)", () => {
+    const el = mockElement();
+    applyDepth(100, el);
+    expect(el.style.getPropertyValue("--tw-depth")).toBe("1");
   });
 });

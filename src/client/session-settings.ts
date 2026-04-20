@@ -7,6 +7,7 @@ import {
   DEFAULT_THEME_SAT,
   DEFAULT_THEME_LTN,
   DEFAULT_THEME_CONTRAST,
+  DEFAULT_DEPTH,
 } from './background-hue.js';
 import {
   DEFAULT_FG_CONTRAST_STRENGTH,
@@ -33,7 +34,8 @@ export interface SessionSettings {
   themeHue: number;            // 0..360, --tw-theme-hue GUI chrome hue
   themeSat: number;              // 0..100, --tw-theme-sat GUI chrome saturation
   themeLtn: number;              // 0..100, --tw-theme-ltn GUI chrome lightness
-  themeContrast: number;         // -100..+100, bevel/gradient spread (0 = 1x, +50 = 2x, +100 = 3x)
+  themeContrast: number;         // -100..+100, gradient spread (0 = 1x, +50 = 2x, +100 = 3x)
+  depth: number;                 // 0..100, bevel opacity (0 = flat, 100 = opaque B/W)
 }
 
 export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
@@ -56,6 +58,7 @@ export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
   themeSat: DEFAULT_THEME_SAT,
   themeLtn: DEFAULT_THEME_LTN,
   themeContrast: DEFAULT_THEME_CONTRAST,
+  depth: DEFAULT_DEPTH,
 };
 
 export interface ThemeDefaults {
@@ -73,6 +76,7 @@ export interface ThemeDefaults {
   themeSat?: number;
   themeLtn?: number;
   themeContrast?: number;
+  depth?: number;
   backgroundHue?: number;
   backgroundSaturation?: number;
   backgroundBrightest?: number;
@@ -134,6 +138,7 @@ export function loadSessionSettings(name: string, live: SessionSettings | null, 
   if (td.themeSat !== undefined) overlay.themeSat = td.themeSat;
   if (td.themeLtn !== undefined) overlay.themeLtn = td.themeLtn;
   if (td.themeContrast !== undefined) overlay.themeContrast = td.themeContrast;
+  if (td.depth !== undefined) overlay.depth = td.depth;
   if (td.backgroundHue !== undefined) overlay.backgroundHue = td.backgroundHue;
   if (td.backgroundSaturation !== undefined) overlay.backgroundSaturation = td.backgroundSaturation;
   if (td.backgroundBrightest !== undefined) overlay.backgroundBrightest = td.backgroundBrightest;
@@ -190,6 +195,7 @@ export function applyThemeDefaults(s: SessionSettings, td: ThemeDefaults): Sessi
     themeSat: td.themeSat ?? s.themeSat,
     themeLtn: td.themeLtn ?? s.themeLtn,
     themeContrast: td.themeContrast ?? s.themeContrast,
+    depth: td.depth ?? s.depth,
     backgroundHue: td.backgroundHue ?? s.backgroundHue,
     backgroundSaturation: td.backgroundSaturation ?? s.backgroundSaturation,
     backgroundBrightest: td.backgroundBrightest ?? s.backgroundBrightest,

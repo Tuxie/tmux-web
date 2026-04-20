@@ -130,3 +130,18 @@ export function applyThemeContrast(
   const factor = v < 0 ? (v + 100) / 100 : 1 + 2 * v / 100;
   root.style.setProperty("--tw-theme-contrast", String(factor));
 }
+
+export const DEFAULT_DEPTH = 20;
+
+export function clampDepth(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_DEPTH;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+export function applyDepth(
+  value: number,
+  root: HTMLElement = document.documentElement,
+): void {
+  const clamped = clampDepth(value);
+  root.style.setProperty("--tw-depth", String(clamped / 100));
+}

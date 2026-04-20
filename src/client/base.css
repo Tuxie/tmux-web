@@ -7,19 +7,20 @@ html, body { height: 100%; overflow: hidden; }
   --tw-theme-sat: 0%;
   --tw-theme-ltn: 15%;
   --tw-theme-contrast: 1;
+  --tw-depth: 0.2;
 
   /* === ROOT === */
   --tw-primary: hsl(var(--tw-theme-hue) var(--tw-theme-sat) var(--tw-theme-ltn));
 
   /* === CHROME (toolbar, frame, active elements) === */
   --tw-chrome: var(--tw-primary);
-  --tw-bevel-hi: color-mix(in srgb, var(--tw-chrome), white calc(20% * var(--tw-theme-contrast)));
-  --tw-bevel-lo: color-mix(in srgb, var(--tw-chrome), black calc(35% * var(--tw-theme-contrast)));
+  --tw-bevel-hi: rgba(255, 255, 255, var(--tw-depth));
+  --tw-bevel-lo: rgba(0, 0, 0, var(--tw-depth));
 
   /* === CHROME-BG (menu bg, panel bg — defaults to toolbar's dark end) === */
   --tw-chrome-bg: color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast)));
-  --tw-menu-bevel-hi: color-mix(in srgb, var(--tw-chrome-bg), white calc(15% * var(--tw-theme-contrast)));
-  --tw-menu-bevel-lo: color-mix(in srgb, var(--tw-chrome-bg), black calc(30% * var(--tw-theme-contrast)));
+  --tw-menu-bevel-hi: rgba(255, 255, 255, var(--tw-depth));
+  --tw-menu-bevel-lo: rgba(0, 0, 0, var(--tw-depth));
 
   /* === GADGET (inputs, buttons, checkboxes, slider thumbs) === */
   --tw-gadget-bg: var(--tw-chrome-bg);

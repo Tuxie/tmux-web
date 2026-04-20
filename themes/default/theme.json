@@ -31,7 +31,8 @@
       "defaultBackgroundDarkest": 12,
       "defaultThemeSat": 0,
       "defaultThemeLtn": 15,
-      "defaultThemeContrast": 0
+      "defaultThemeContrast": 0,
+      "defaultDepth": 20
     }
   ]
 }
