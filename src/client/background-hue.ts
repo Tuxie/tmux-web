@@ -127,7 +127,7 @@ export function applyThemeContrast(
   root: HTMLElement = document.documentElement,
 ): void {
   const v = clampThemeContrast(value);
-  const factor = v < 0 ? (v + 100) / 100 : 1 + 2 * v / 100;
+  const factor = v < 0 ? (v + 100) / 100 : 1 + 19 * v / 100;
   root.style.setProperty("--tw-theme-contrast", String(factor));
 }
 

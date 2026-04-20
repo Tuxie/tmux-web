@@ -248,16 +248,16 @@ describe("theme contrast", () => {
     expect(el.style.getPropertyValue("--tw-theme-contrast")).toBe("0");
   });
 
-  test("contrast +50 → factor 2 (doubled)", () => {
-    const el = mockElement();
-    applyThemeContrast(50, el);
-    expect(el.style.getPropertyValue("--tw-theme-contrast")).toBe("2");
-  });
-
-  test("contrast +100 → factor 3 (tripled)", () => {
+  test("contrast +100 → factor 20 (5% base × 20 = 100%)", () => {
     const el = mockElement();
     applyThemeContrast(100, el);
-    expect(el.style.getPropertyValue("--tw-theme-contrast")).toBe("3");
+    expect(el.style.getPropertyValue("--tw-theme-contrast")).toBe("20");
+  });
+
+  test("contrast +50 → factor 10.5 (midpoint)", () => {
+    const el = mockElement();
+    applyThemeContrast(50, el);
+    expect(el.style.getPropertyValue("--tw-theme-contrast")).toBe("10.5");
   });
 
   test("contrast -50 → factor 0.5 (halved)", () => {
