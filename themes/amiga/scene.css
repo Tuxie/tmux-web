@@ -165,7 +165,11 @@ body {
   align-items: center;
   justify-content: center;
 }
-#topbar .tb-btn:hover { background: transparent; }
+#topbar .tb-btn:hover,
+#topbar .win-tab:hover {
+  filter: brightness(1.15);
+  opacity: 0.85;
+}
 #topbar .tb-btn:active {
   border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo);
   background: linear-gradient(to bottom,
@@ -263,7 +267,6 @@ body {
   border: 2px solid;
   border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
 }
-#topbar .win-tab:hover { background: transparent; }
 #topbar .win-tab.active {
   background: linear-gradient(to bottom,
     color-mix(in srgb, var(--tw-chrome), black 5%),

@@ -228,7 +228,7 @@ body {
   border: 2px solid;
   border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
 }
-#topbar .win-tab:hover { background: color-mix(in srgb, var(--tw-chrome), black 15%); }
+#topbar .win-tab:hover { background: transparent; }
 #topbar .win-tab.active { background: var(--tw-chrome); color: var(--tw-bevel-hi); }
 #tb-windows .tb-btn {
   color: var(--tw-bevel-hi);
