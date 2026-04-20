@@ -256,10 +256,9 @@ html, body { height: 100%; overflow: hidden; }
 /* === Component color rules — themes override variables, not these rules === */
 
 body {
-  background: hsl(
-    var(--tw-background-hue, 0)
-    calc(var(--tw-background-saturation, 0) * 1%)
-    calc(var(--tw-background-brightest, 12) * 1%)
+  background: linear-gradient(to bottom,
+    hsl(var(--tw-background-hue, 0) calc(var(--tw-background-saturation, 0) * 1%) calc(var(--tw-background-brightest, 12) * 1%)),
+    hsl(var(--tw-background-hue, 0) calc(var(--tw-background-saturation, 0) * 1%) calc(var(--tw-background-darkest, 12) * 1%))
   );
   color: var(--tw-text);
 }
