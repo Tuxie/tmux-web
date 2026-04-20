@@ -8,7 +8,8 @@
  * Behaviour (see `src/client/fg-contrast.ts` for the math):
  *   strength = 0    → identity; bias + bgL are ignored.
  *   strength = -100 → every colour collapses to the cutoff lightness.
- *                     Bias -100 → black, +100 → white, 0 → bg luminance.
+ *                     Bias +100 → black, -100 → white, 0 → bg luminance.
+ *                     (positive bias = "towards brighter" = lower cutoff)
  *   strength = +100 → hard threshold at cutoff: below → black,
  *                     above → white.
  *   intermediate    → exclusion gap (see unit tests).
@@ -107,19 +108,19 @@ test('Contrast strength=0 leaves fg at its original truecolor value (identity)',
   }
 });
 
-test('Contrast strength=+100 with bias=+100 drives all text to white (cutoff=1)', async ({ page }) => {
+test('Contrast strength=+100 with bias=-100 ("towards darker") drives all text to black', async ({ page }) => {
   await page.goto('/');
   await readyAdapter(page);
   await disableAutohide(page);
   await writeLine(page, greyBlockLine(180));
-  await setSlider(page, 'inp-fg-contrast-bias', 100);
+  await setSlider(page, 'inp-fg-contrast-bias', -100);
   await setSlider(page, 'inp-fg-contrast-strength', 100);
 
-  // bias=+100 → cutoff=1.0. Everything is below cutoff → black.
+  // bias=-100 → cutoff=1.0. Everything is below cutoff → black.
   const [r, g, b] = await samplePixel(page, SAMPLE_X, SAMPLE_Y);
   if (r > 5 || g > 5 || b > 5) {
     throw new Error(
-      `Contrast=+100 with bias=+100 → cutoff=1.0; all fg below cutoff → black.\n` +
+      `Contrast=+100 with bias=-100 → cutoff=1.0; all fg below cutoff → black.\n` +
       `  observed=(${r}, ${g}, ${b})`
     );
   }
@@ -143,24 +144,7 @@ test('Contrast strength=+100 bias=0 uses bg luminance as hard cutoff', async ({ 
   }
 });
 
-test('Contrast strength=-100 with bias=-100 collapses fg to black', async ({ page }) => {
-  await page.goto('/');
-  await readyAdapter(page);
-  await disableAutohide(page);
-  await writeLine(page, greyBlockLine(180));
-  await setSlider(page, 'inp-fg-contrast-bias', -100);
-  await setSlider(page, 'inp-fg-contrast-strength', -100);
-
-  const [r, g, b] = await samplePixel(page, SAMPLE_X, SAMPLE_Y);
-  if (r > 5 || g > 5 || b > 5) {
-    throw new Error(
-      `Contrast=-100 with bias=-100 → cutoff=0; collapse to black.\n` +
-      `  observed=(${r}, ${g}, ${b})`
-    );
-  }
-});
-
-test('Contrast strength=-100 with bias=+100 collapses fg to white', async ({ page }) => {
+test('Contrast strength=-100 with bias=+100 ("towards brighter") collapses fg to black', async ({ page }) => {
   await page.goto('/');
   await readyAdapter(page);
   await disableAutohide(page);
@@ -169,9 +153,26 @@ test('Contrast strength=-100 with bias=+100 collapses fg to white', async ({ pag
   await setSlider(page, 'inp-fg-contrast-strength', -100);
 
   const [r, g, b] = await samplePixel(page, SAMPLE_X, SAMPLE_Y);
+  if (r > 5 || g > 5 || b > 5) {
+    throw new Error(
+      `Contrast=-100 with bias=+100 → cutoff=0; collapse to black.\n` +
+      `  observed=(${r}, ${g}, ${b})`
+    );
+  }
+});
+
+test('Contrast strength=-100 with bias=-100 ("towards darker") collapses fg to white', async ({ page }) => {
+  await page.goto('/');
+  await readyAdapter(page);
+  await disableAutohide(page);
+  await writeLine(page, greyBlockLine(180));
+  await setSlider(page, 'inp-fg-contrast-bias', -100);
+  await setSlider(page, 'inp-fg-contrast-strength', -100);
+
+  const [r, g, b] = await samplePixel(page, SAMPLE_X, SAMPLE_Y);
   if (r < 250 || g < 250 || b < 250) {
     throw new Error(
-      `Contrast=-100 with bias=+100 → cutoff=1; collapse to white.\n` +
+      `Contrast=-100 with bias=-100 → cutoff=1; collapse to white.\n` +
       `  observed=(${r}, ${g}, ${b})`
     );
   }

@@ -4,11 +4,13 @@
  * Reshapes every colour's OKLab lightness around a cutoff derived from
  * the actual rendered background luminance (bgL) plus a user bias.
  *
- * Cutoff calculation:
- *   bias = biasPct / 100  (∈ [-1, +1])
- *   cutoff = bias >= 0
- *     ? bgL + bias × (1 - bgL)   // +100 → cutoff = 1
- *     : bgL + bias × bgL          // -100 → cutoff = 0
+ * Cutoff calculation (sign negated so +bias = "towards brighter"):
+ *   b = -biasPct / 100  (∈ [-1, +1])
+ *   cutoff = b >= 0
+ *     ? bgL + b × (1 - bgL)
+ *     : bgL + b × bgL
+ *   bias +100 → cutoff = 0 (max bright bias: everything above → white)
+ *   bias -100 → cutoff = 1 (max dark bias: everything below → black)
  *   bias 0 → cutoff = bgL; ±50 → halfway to extreme.
  *
  * Piecewise by t = strength / 100 ∈ [-1, +1]:
@@ -104,7 +106,7 @@ export function pushLightness(
 ): [number, number, number] {
   if (strengthPct === 0) return [r, g, b];
   const t = Math.max(-1, Math.min(1, strengthPct / 100));
-  const bias = Math.max(-1, Math.min(1, biasPct / 100));
+  const bias = Math.max(-1, Math.min(1, -biasPct / 100));
   const cutoff = bias >= 0
     ? bgL + bias * (1 - bgL)
     : bgL + bias * bgL;
