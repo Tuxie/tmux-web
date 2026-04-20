@@ -1,24 +1,20 @@
 /* AmigaOS 3.1 Theme */
 
 :root {
-  /* Override the shared surface palette declared in base.css so toasts,
-   * the clipboard-prompt modal, and other surface-rendered UI pick up
-   * Workbench colours instead of the default dark tones. Kept semantic
-   * (role, not colour) so base.css rules don't need to know the theme. */
-  --tw-surface-bg: #b8b8b8;            /* Workbench grey */
-  --tw-surface-bg-alt: #fff;        /* input-field white */
-  --tw-surface-border: #000;        /* hard black borders */
-  --tw-surface-hover: hsl(var(--tw-theme-hue, 216) 38% 62%);      /* selection blue */
-  --tw-danger-bg: #a04040;          /* muted Workbench red */
-  --tw-danger-border: #000;
-  --tw-success-bg: #4a8c4a;         /* muted Workbench green */
+  --tw-chrome: hsl(var(--tw-theme-hue, 216) 38% 62%);
+  --tw-chrome-bg: #b8b8b8;
+  --tw-gadget-bg: #aaa;
+  --tw-bevel-hi: #fff;
+  --tw-bevel-lo: #000;
+  --tw-menu-bevel-hi: #fff;
+  --tw-menu-bevel-lo: #000;
   --tw-text: #000;
-  /* --tw-text-muted inherits the base.css derivation (40% transparent
-   * --tw-text) so overriding --tw-text above is enough. */
-  /* Muted text + delimiter-line tint. Used by inactive window tabs,
-   * the menu HR, and the menu footer label so they all read at the
-   * same visual weight. */
   --tw-muted: #000;
+  --tw-status-active: #2c2;
+  --tw-status-inactive: #c22;
+  --tw-danger-bg: #a04040;
+  --tw-danger-border: #000;
+  --tw-success-bg: #4a8c4a;
 }
 
 body {
@@ -44,13 +40,13 @@ body {
  * ------------------------------------------------------------------- */
 #frame-top, #frame-bottom, #frame-left, #frame-right,
 #frame-tl, #frame-tr, #frame-bl, #frame-br {
-  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
+  background: var(--tw-chrome);
   box-sizing: border-box;
 }
 #frame-top, #frame-bottom {
   left: 4px; right: 4px; height: 6px;
-  border-top: 2px solid #fff;
-  border-bottom: 2px solid #000;
+  border-top: 2px solid var(--tw-bevel-hi);
+  border-bottom: 2px solid var(--tw-bevel-lo);
 }
 #frame-top    { top: 0; }
 #frame-bottom { bottom: 0; }
@@ -59,13 +55,13 @@ body {
 }
 #frame-left {
   left: 0;
-  border-left: 2px solid #fff;
-  border-right: 2px solid #000;
+  border-left: 2px solid var(--tw-bevel-hi);
+  border-right: 2px solid var(--tw-bevel-lo);
 }
 #frame-right {
   right: 0;
-  border-left: 2px solid #fff;
-  border-right: 2px solid #000;
+  border-left: 2px solid var(--tw-bevel-hi);
+  border-right: 2px solid var(--tw-bevel-lo);
 }
 /* All four corners share one border-color pattern: outer TL pixel is
  * white (raised), inner BR pixel is black (sunken). Geometrically the
@@ -75,10 +71,10 @@ body {
   width: 6px; height: 6px;
   border: none;
 }
-#frame-tl { width: 4px;  top: 0;    left: 0;  border-top: 2px solid #fff; border-left: 2px solid #fff; }
-#frame-tr { width: 4px;  top: 0;    right: 0; border-top: 2px solid #fff; border-right: 2px solid #000; }
-#frame-bl { height: 4px; bottom: 0; left: 0;  border-bottom: 2px solid #000; border-left: 2px solid #fff; }
-#frame-br { height: 4px; bottom: 0; right: 0; border-bottom: 2px solid #000; border-right: 2px solid #000; }
+#frame-tl { width: 4px;  top: 0;    left: 0;  border-top: 2px solid var(--tw-bevel-hi); border-left: 2px solid var(--tw-bevel-hi); }
+#frame-tr { width: 4px;  top: 0;    right: 0; border-top: 2px solid var(--tw-bevel-hi); border-right: 2px solid var(--tw-bevel-lo); }
+#frame-bl { height: 4px; bottom: 0; left: 0;  border-bottom: 2px solid var(--tw-bevel-lo); border-left: 2px solid var(--tw-bevel-hi); }
+#frame-br { height: 4px; bottom: 0; right: 0; border-bottom: 2px solid var(--tw-bevel-lo); border-right: 2px solid var(--tw-bevel-lo); }
 
 /* ---------------------------------------------------------------------
  * Topbar — sits inside the frame (6px inset from top/left/right).
@@ -87,8 +83,7 @@ body {
   display: flex;
   align-items: stretch;
   height: 28px;
-  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
-  color: #000;
+  background: var(--tw-chrome);
   font-family: 'Topaz8 Amiga1200 Nerd Font', monospace;
   font-size: 19px;
   position: absolute;
@@ -113,9 +108,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
+  background: var(--tw-chrome);
   border: 2px solid;
-  border-color: #fff #000 #000 #fff;
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
 }
 #tb-windows #win-tabs { display: flex; gap: 0; }
 #tb-session { margin-left: 0; gap: 0; }
@@ -125,10 +120,9 @@ body {
  * Pressed / .open state flips all four borders to black.
  * ------------------------------------------------------------------- */
 #topbar .tb-btn {
-  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
+  background: var(--tw-chrome);
   border: 2px solid;
-  border-color: #fff #000 #000 #fff;
-  color: #000;
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   margin: 0;
   padding: 0 8px;
   font-family: inherit;
@@ -140,8 +134,8 @@ body {
   justify-content: center;
 }
 #topbar .tb-btn:active {
-  border-color: #000 #fff #fff #000;
-  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
+  border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-hi) var(--tw-bevel-lo);
+  background: var(--tw-chrome);
 }
 
 /* Session button [ + | name ] — two-segment, no left border so it butts
@@ -151,12 +145,12 @@ body {
 #topbar .tb-btn-session-plus {
   width: 28px;
   padding: 0;
-  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
+  background: var(--tw-chrome);
 }
 #topbar .tb-btn-session-plus .tb-session-plus {
   display: block;
   width: 8px; height: 12px;
-  background: #fff; border: 2px solid #000;
+  background: var(--tw-bevel-hi); border: 2px solid var(--tw-bevel-lo);
   transform: translateY(1px);
 }
 
@@ -169,33 +163,33 @@ body {
 #topbar .tb-btn-window-compact.open,
 #topbar .win-tab.open,
 #btn-menu.open {
-  border-color: #000 #000 #000 #000;
-  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
+  border-color: var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-lo);
+  background: var(--tw-chrome);
 }
 
 /* Compact window button [ name | + ] — mirror of the session button. */
 #topbar .tb-btn-window-compact {
   justify-content: flex-start;
   padding: 0;
-  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
+  background: var(--tw-chrome);
   font-size: 16px;
   align-items: stretch;
 }
 #topbar .tb-btn-window-compact .tb-window-compact-label {
   display: flex; align-items: center;
   padding: 0 10px;
-  border-right: 2px solid #000;
+  border-right: 2px solid var(--tw-bevel-lo);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   max-width: 28ch;
-  color: #000; text-shadow: none; font-weight: normal;
+  text-shadow: none; font-weight: normal;
 }
 #topbar .tb-btn-window-compact.tabs-shown .tb-window-compact-label { display: none; }
 #topbar .tb-btn-window-compact.tabs-shown .tb-window-compact-plus { border-left: none; }
 #topbar .tb-btn-window-compact .tb-window-compact-plus {
   display: flex; align-items: center; justify-content: center;
   width: 32px;
-  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
-  border-left: 2px solid #fff;
+  background: var(--tw-chrome);
+  border-left: 2px solid var(--tw-bevel-hi);
   flex-shrink: 0;
   position: relative;
 }
@@ -204,7 +198,7 @@ body {
 #topbar .tb-btn-window-compact .tb-window-compact-plus::before {
   content: ''; position: absolute;
   width: 17px; height: 15px;
-  border: 2px solid #000;
+  border: 2px solid var(--tw-bevel-lo);
   top: 50%; left: 50%; transform: translate(-50%, -50%);
   box-sizing: content-box;
 }
@@ -213,8 +207,8 @@ body {
 #topbar .tb-btn-window-compact .tb-window-compact-plus::after {
   content: ''; position: absolute;
   width: 8px; height: 7px;
-  background: #fff;
-  border: 2px solid #000;
+  background: var(--tw-bevel-hi);
+  border: 2px solid var(--tw-bevel-lo);
   border-right-width: 2px;
   border-bottom-width: 2px;
   top: calc(50% - 8px); left: calc(50% - 9px);
@@ -231,12 +225,12 @@ body {
   font-family: inherit;
   font-size: 16px;
   border: 2px solid;
-  border-color: #fff #000 #000 #fff;
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
 }
-#topbar .win-tab:hover { background: hsl(var(--tw-theme-hue, 216) 38% 47%); }
-#topbar .win-tab.active { background: hsl(var(--tw-theme-hue, 216) 38% 62%); color: #fff; }
+#topbar .win-tab:hover { background: color-mix(in srgb, var(--tw-chrome), black 15%); }
+#topbar .win-tab.active { background: var(--tw-chrome); color: var(--tw-bevel-hi); }
 #tb-windows .tb-btn {
-  color: #fff;
+  color: var(--tw-bevel-hi);
   text-shadow: -1px 0 black, 0 1px black, 1px 0 black, 0 -1px black;
   font-weight: bold;
 }
@@ -259,7 +253,7 @@ body {
  * (grey) and one in front (white). */
 #menu-wrap { display: flex; align-items: stretch; width: auto; }
 #btn-menu {
-  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
+  background: var(--tw-chrome);
   color: transparent;        /* hide the ☰ fallback glyph */
   text-shadow: none;
   font-size: 0;
@@ -277,7 +271,7 @@ body {
   width: 12px;
   height: 9px;
   background: #888;
-  border: 2px solid #000;
+  border: 2px solid var(--tw-bevel-lo);
   top: calc(50% - 9px);
   left: calc(50% - 10px);
   box-sizing: content-box;
@@ -288,8 +282,8 @@ body {
   position: absolute;
   width: 12px;
   height: 9px;
-  background: #fff;
-  border: 2px solid #000;
+  background: var(--tw-bevel-hi);
+  border: 2px solid var(--tw-bevel-lo);
   top: calc(50% - 3px);
   left: calc(50% - 4px);
   box-sizing: content-box;
@@ -304,10 +298,9 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  background: #aaa;
+  background: var(--tw-gadget-bg);
   border: 2px solid;
-  border-color: #fff #000 #000 #fff;
-  color: #000;
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   padding: 1px 4px;
   height: 22px;
   font-family: inherit;
@@ -317,7 +310,7 @@ body {
   min-width: 0;
 }
 .tw-dropdown-trigger:active,
-.tw-dropdown.open > .tw-dropdown-trigger { border-color: #000 #fff #fff #000; }
+.tw-dropdown.open > .tw-dropdown-trigger { border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-hi) var(--tw-bevel-lo); }
 .tw-dropdown-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tw-dropdown-arrow { font-size: 12px; }
 .tw-dropdown-menu {
@@ -325,19 +318,18 @@ body {
   top: 100%;
   left: 0;
   min-width: 100%;
-  background: #b8b8b8;
+  background: var(--tw-chrome-bg);
   border: 2px solid;
-  border-color: #fff #000 #000 #fff;
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   z-index: 200;
   padding: 2px 0;
-  color: #000;
   font-family: inherit;
   font-size: 15px;
   /* max-height / overflow-y live in base.css. */
 }
 .tw-dropdown-item { padding: 2px 12px; cursor: pointer; white-space: nowrap; }
-.tw-dropdown-item:hover { background: hsl(var(--tw-theme-hue, 216) 38% 62%); color: #fff; }
-.tw-dropdown-item.selected { background: hsl(var(--tw-theme-hue, 216) 38% 62%); color: #fff; }
+.tw-dropdown-item:hover { background: var(--tw-chrome); color: var(--tw-bevel-hi); }
+.tw-dropdown-item.selected { background: var(--tw-chrome); color: var(--tw-bevel-hi); }
 .tw-dropdown-sep { border: none; border-top: 2px solid #888; margin: 3px 4px; }
 .tw-dropdown-menu.tw-dd-sessions-menu { min-width: 160px; }
 .tw-dropdown-menu.tw-dd-context { min-width: auto; }
@@ -356,24 +348,20 @@ body {
 }
 .tw-dd-session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Session id (tmux #{session_id}) — muted informational tag. */
-.tw-dd-session-id { color: var(--tw-muted); font-variant-numeric: tabular-nums; }
+.tw-dd-session-id { font-variant-numeric: tabular-nums; }
 .tw-dd-session-status {
   position: absolute; right: 8px; top: 50%;
   width: 8px; height: 8px;
   border-radius: 50%;
   transform: translateY(-50%);
-  box-shadow: 0 0 0 1px #000 inset;
+  box-shadow: 0 0 0 1px var(--tw-bevel-lo) inset;
 }
-.tw-dd-session-status.running { background: #2c2; }
-/* stopped: hollow outline; background: transparent and border set in base.css */
-.tw-dd-session-status.stopped { color: #c22; }
 
 /* Text input used in some context-menu dropdowns — sunken bevel. */
 .tw-dd-input {
-  background: #aaa;
-  color: #000;
+  background: var(--tw-gadget-bg);
   border: 2px solid;
-  border-color: #000 #fff #fff #000;
+  border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-hi) var(--tw-bevel-lo);
   border-radius: 0;
   padding: 1px 4px;
   font-family: inherit;
@@ -398,9 +386,8 @@ body {
 }
 .menu-row { display: flex; align-items: center; gap: 3px; padding: 2px 12px;
             cursor: pointer; white-space: nowrap; font-size: 15px; }
-.menu-row:hover { background: hsl(var(--tw-theme-hue, 216) 38% 62%); }
+.menu-row:hover { background: var(--tw-chrome); color: var(--tw-bevel-hi); }
 .menu-row-static { cursor: default; gap: 3px; }
-.menu-label { color: #000; min-width: 120px; }
 /* AmigaOS 3.1 GadTools-style checkbox. Raised sunken well when unchecked,
  * sunken bevel with a filled square when checked — mirrors the look of
  * the Workbench 3.1 installer's radio group. */
@@ -412,17 +399,17 @@ body {
   height: 16px;
   margin: 0 6px 0 0;
   padding: 0;
-  background: #aaa;
+  background: var(--tw-gadget-bg);
   border: 2px solid;
-  border-color: #fff #000 #000 #fff;
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   border-radius: 0;
   cursor: pointer;
   position: relative;
   flex-shrink: 0;
 }
 .tw-dropdown-menu input[type="checkbox"]:checked {
-  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
-  border-color: #000 #fff #fff #000;
+  background: var(--tw-chrome);
+  border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-hi) var(--tw-bevel-lo);
 }
 .tw-dropdown-menu input[type="checkbox"]:checked::after {
   content: '';
@@ -431,16 +418,15 @@ body {
   left: 50%;
   width: 6px;
   height: 6px;
-  background: #000;
+  background: var(--tw-bevel-lo);
   transform: translate(-50%, -50%);
 }
 
 /* Selects and number inputs — Amiga sunken bevel. */
 .menu-input-select {
-  background: #aaa;
-  color: #000;
+  background: var(--tw-gadget-bg);
   border: 2px solid;
-  border-color: #fff #000 #000 #fff;
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   padding: 1px 0 1px 3px;
   height: 22px;
   margin: 0 2px;
@@ -449,10 +435,9 @@ body {
   outline: none;
 }
 .menu-input-number {
-  background: #aaa;
-  color: #000;
+  background: var(--tw-gadget-bg);
   border: 2px solid;
-  border-color: #000 #fff #fff #000;
+  border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-hi) var(--tw-bevel-lo);
   border-radius: 0;
   padding: 3px 4px;
   font-family: inherit;
@@ -462,7 +447,7 @@ body {
 /* In-menu buttons (reset colours/font, drops refresh/purge, per-row
  * trash). Override the topbar blue with neutral grey. */
 #menu-dropdown .tb-btn {
-  background: #aaa;
+  background: var(--tw-gadget-bg);
   height: 22px;
 }
 /* Glyph-only buttons with Unicode arrows use sans-serif so ↺/↻ render
@@ -483,14 +468,10 @@ body {
  * inserted as a child of #topbar, so the `#topbar .tb-btn` blue rule
  * otherwise wins — scope this one to the same id to outrank it. */
 #topbar .tw-dd-sessions-menu .tb-btn {
-  background: #aaa;
-  border-color: #fff #000 #000 #fff;
+  background: var(--tw-gadget-bg);
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   height: 22px;
 }
-
-/* Drops list: plain black-on-grey. */
-#drops-list, #drops-list > div, #drops-list span { color: #000; }
-#drops-list .meta-size { color: #555; }
 
 /* Plain HR: section header without the title. Same 1px muted line,
  * same 12px horizontal inset so the ruler length matches the
@@ -514,7 +495,7 @@ body {
 }
 #menu-footer:hover { background: none; }
 
-input { accent-color: hsl(var(--tw-theme-hue, 216) 38% 62%); }
+input { accent-color: var(--tw-chrome); }
 
 /* ---------------------------------------------------------------------
  * Range sliders (settings menu).
@@ -535,46 +516,46 @@ input { accent-color: hsl(var(--tw-theme-hue, 216) 38% 62%); }
   height: 6px;
   background:
     linear-gradient(to right,
-      hsl(var(--tw-theme-hue, 216) 38% 62%) 0, hsl(var(--tw-theme-hue, 216) 38% 62%) var(--tw-slider-val, 0%),
-      #aaa var(--tw-slider-val, 0%), #aaa 100%);
+      var(--tw-chrome) 0, var(--tw-chrome) var(--tw-slider-val, 0%),
+      var(--tw-gadget-bg) var(--tw-slider-val, 0%), var(--tw-gadget-bg) 100%);
   border: 2px solid;
-  border-color: #000 #fff #fff #000;
+  border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-hi) var(--tw-bevel-lo);
 }
 /* Firefox: separate ::-moz-range-track + ::-moz-range-progress. */
 #menu-dropdown input[type="range"]::-moz-range-track {
   height: 6px;
-  background: #aaa;
+  background: var(--tw-gadget-bg);
   border: 2px solid;
-  border-color: #000 #fff #fff #000;
+  border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-hi) var(--tw-bevel-lo);
 }
 #menu-dropdown input[type="range"]::-moz-range-progress {
   height: 6px;
-  background: hsl(var(--tw-theme-hue, 216) 38% 62%);
+  background: var(--tw-chrome);
 }
 #menu-dropdown input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 10px; height: 18px;
-  background: #aaa;
+  background: var(--tw-gadget-bg);
   border: 2px solid;
-  border-color: #fff #000 #000 #fff;
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   box-sizing: border-box;
   margin-top: -6px;
 }
 #menu-dropdown input[type="range"]::-moz-range-thumb {
   width: 10px; height: 18px;
-  background: #aaa;
+  background: var(--tw-gadget-bg);
   border: 2px solid;
-  border-color: #fff #000 #000 #fff;
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   box-sizing: border-box;
 }
 #menu-dropdown input[type="range"]:active::-webkit-slider-thumb {
-  border-color: #000 #fff #fff #000;
-  background: #999;
+  border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-hi) var(--tw-bevel-lo);
+  background: color-mix(in srgb, var(--tw-gadget-bg), black 8%);
 }
 #menu-dropdown input[type="range"]:active::-moz-range-thumb {
-  border-color: #000 #fff #fff #000;
-  background: #999;
+  border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-hi) var(--tw-bevel-lo);
+  background: color-mix(in srgb, var(--tw-gadget-bg), black 8%);
 }
 
 /* ---------------------------------------------------------------------
