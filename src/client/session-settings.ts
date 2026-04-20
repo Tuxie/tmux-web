@@ -4,6 +4,9 @@ import {
   DEFAULT_BACKGROUND_BRIGHTEST,
   DEFAULT_BACKGROUND_DARKEST,
   DEFAULT_THEME_HUE,
+  DEFAULT_THEME_SAT,
+  DEFAULT_THEME_LTN,
+  DEFAULT_THEME_CONTRAST,
 } from './background-hue.js';
 import {
   DEFAULT_FG_CONTRAST_STRENGTH,
@@ -28,6 +31,9 @@ export interface SessionSettings {
   fgContrastBias: number;      // -50..+50, repulsion midpoint offset
   tuiSaturation: number;       // -100..+100, OKLab chroma scale for FG + BG
   themeHue: number;            // 0..360, --tw-theme-hue GUI chrome hue
+  themeSat: number;              // 0..100, --tw-theme-sat GUI chrome saturation
+  themeLtn: number;              // 0..100, --tw-theme-ltn GUI chrome lightness
+  themeContrast: number;         // 0..200, --tw-theme-contrast bevel spread (100 = 1.0x)
 }
 
 export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
@@ -47,6 +53,9 @@ export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
   fgContrastBias: DEFAULT_FG_CONTRAST_BIAS,
   tuiSaturation: DEFAULT_TUI_SATURATION,
   themeHue: DEFAULT_THEME_HUE,
+  themeSat: DEFAULT_THEME_SAT,
+  themeLtn: DEFAULT_THEME_LTN,
+  themeContrast: DEFAULT_THEME_CONTRAST,
 };
 
 export interface ThemeDefaults {
@@ -61,6 +70,9 @@ export interface ThemeDefaults {
   fgContrastBias?: number;
   tuiSaturation?: number;
   themeHue?: number;
+  themeSat?: number;
+  themeLtn?: number;
+  themeContrast?: number;
   backgroundHue?: number;
   backgroundSaturation?: number;
   backgroundBrightest?: number;
@@ -119,6 +131,9 @@ export function loadSessionSettings(name: string, live: SessionSettings | null, 
   if (td.fgContrastBias !== undefined) overlay.fgContrastBias = td.fgContrastBias;
   if (td.tuiSaturation !== undefined) overlay.tuiSaturation = td.tuiSaturation;
   if (td.themeHue !== undefined) overlay.themeHue = td.themeHue;
+  if (td.themeSat !== undefined) overlay.themeSat = td.themeSat;
+  if (td.themeLtn !== undefined) overlay.themeLtn = td.themeLtn;
+  if (td.themeContrast !== undefined) overlay.themeContrast = td.themeContrast;
   if (td.backgroundHue !== undefined) overlay.backgroundHue = td.backgroundHue;
   if (td.backgroundSaturation !== undefined) overlay.backgroundSaturation = td.backgroundSaturation;
   if (td.backgroundBrightest !== undefined) overlay.backgroundBrightest = td.backgroundBrightest;
@@ -172,6 +187,9 @@ export function applyThemeDefaults(s: SessionSettings, td: ThemeDefaults): Sessi
     fgContrastBias: td.fgContrastBias ?? s.fgContrastBias,
     tuiSaturation: td.tuiSaturation ?? s.tuiSaturation,
     themeHue: td.themeHue ?? s.themeHue,
+    themeSat: td.themeSat ?? s.themeSat,
+    themeLtn: td.themeLtn ?? s.themeLtn,
+    themeContrast: td.themeContrast ?? s.themeContrast,
     backgroundHue: td.backgroundHue ?? s.backgroundHue,
     backgroundSaturation: td.backgroundSaturation ?? s.backgroundSaturation,
     backgroundBrightest: td.backgroundBrightest ?? s.backgroundBrightest,

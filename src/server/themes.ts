@@ -22,6 +22,9 @@ export type ThemeInfo = {
   defaultTuiFgOpacity?: number;
   defaultTuiSaturation?: number;
   defaultThemeHue?: number;
+  defaultThemeSat?: number;
+  defaultThemeLtn?: number;
+  defaultThemeContrast?: number;
   defaultBackgroundHue?: number;
   defaultBackgroundSaturation?: number;
   defaultBackgroundBrightest?: number;
@@ -55,6 +58,9 @@ export type PackManifest = {
   defaultTuiFgOpacity?: number;
   defaultTuiSaturation?: number;
   defaultThemeHue?: number;
+  defaultThemeSat?: number;
+  defaultThemeLtn?: number;
+  defaultThemeContrast?: number;
   defaultBackgroundHue?: number;
   defaultBackgroundSaturation?: number;
   defaultBackgroundBrightest?: number;
@@ -124,6 +130,9 @@ const INHERITABLE_FIELDS: Array<keyof ThemeInfo> = [
   'defaultTuiFgOpacity',
   'defaultTuiSaturation',
   'defaultThemeHue',
+  'defaultThemeSat',
+  'defaultThemeLtn',
+  'defaultThemeContrast',
   'defaultBackgroundHue',
   'defaultBackgroundSaturation',
   'defaultBackgroundBrightest',
@@ -177,6 +186,9 @@ export function listThemes(packs: PackInfo[]): ThemeInfo[] {
         defaultTuiFgOpacity: rawDefaultBase.defaultTuiFgOpacity,
         defaultTuiSaturation: rawDefaultBase.defaultTuiSaturation,
         defaultThemeHue: rawDefaultBase.defaultThemeHue,
+        defaultThemeSat: rawDefaultBase.defaultThemeSat,
+        defaultThemeLtn: rawDefaultBase.defaultThemeLtn,
+        defaultThemeContrast: rawDefaultBase.defaultThemeContrast,
         defaultBackgroundHue: rawDefaultBase.defaultBackgroundHue,
         defaultBackgroundSaturation: rawDefaultBase.defaultBackgroundSaturation,
         defaultBackgroundBrightest: rawDefaultBase.defaultBackgroundBrightest,
@@ -207,6 +219,9 @@ export function listThemes(packs: PackInfo[]): ThemeInfo[] {
         defaultTuiFgOpacity: theme.defaultTuiFgOpacity,
         defaultTuiSaturation: theme.defaultTuiSaturation,
         defaultThemeHue: theme.defaultThemeHue,
+        defaultThemeSat: theme.defaultThemeSat,
+        defaultThemeLtn: theme.defaultThemeLtn,
+        defaultThemeContrast: theme.defaultThemeContrast,
         defaultBackgroundHue: theme.defaultBackgroundHue,
         defaultBackgroundSaturation: theme.defaultBackgroundSaturation,
         defaultBackgroundBrightest: theme.defaultBackgroundBrightest,
