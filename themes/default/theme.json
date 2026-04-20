@@ -28,7 +28,10 @@
       "defaultBackgroundHue": 0,
       "defaultBackgroundSaturation": -100,
       "defaultBackgroundBrightest": 12,
-      "defaultBackgroundDarkest": 12
+      "defaultBackgroundDarkest": 12,
+      "defaultThemeSat": 0,
+      "defaultThemeLtn": 15,
+      "defaultThemeContrast": 100
     }
   ]
 }
