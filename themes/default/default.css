@@ -19,8 +19,10 @@ body {
   height: 28px;
   padding: 0 6px;
   gap: 4px;
-  font-family: 'Iosevka Nerd Font Mono', 'MOsOul Nerd Font', 'ZedMono Nerd Font', 'JetBrains Mono', monospace;
   font-size: 13px;
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))));
   user-select: none;
   -webkit-user-select: none;
   position: absolute;
