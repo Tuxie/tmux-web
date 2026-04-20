@@ -1,21 +1,11 @@
 /* Scene Theme */
 
 :root {
-  /* GUI-chrome hue: `--tw-theme-hue` (default 222, Amiga Workbench
-   * blue) lets the Theme Hue slider rotate every toolbar / menu /
-   * bevel / border colour below without touching the terminal, body
-   * gradient, or accents. At hue 222 the chrome renders within ±1
-   * sRGB byte of the pre-slider palette.
-   *
-   * Override the shared surface palette declared in base.css so
-   * toasts, the clipboard-prompt modal, and other surface-rendered
-   * UI pick up Workbench colours instead of the default dark tones.
-   * Kept semantic (role, not colour) so base.css rules don't need to
-   * know the theme. */
-  --tw-chrome: hsl(var(--tw-theme-hue, 222) 36% 27%);
+  /* --tw-chrome, --tw-bevel-hi, --tw-bevel-lo all inherit from base.css
+   * via --tw-primary and --tw-theme-contrast. Theme Hue / Sat / Lightness
+   * / Contrast sliders drive them; theme.json sets the defaults
+   * (hue 222, sat 36%, ltn 27%, contrast 100). */
   --tw-gadget-bg: rgba(255, 255, 255, 0.12);
-  --tw-bevel-hi: hsl(var(--tw-theme-hue, 222) 32% 34%);
-  --tw-bevel-lo: hsl(var(--tw-theme-hue, 222) 36% 10%);
   --tw-text: #fff;
   --tw-muted: rgba(255, 255, 255, 0.3);
   --tw-status-active: #2c2;

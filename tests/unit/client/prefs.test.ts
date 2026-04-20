@@ -4,8 +4,6 @@ import {
   setTopbarAutohide,
   getShowWindowTabs,
   setShowWindowTabs,
-  getWebglEnabled,
-  setWebglEnabled,
 } from "../../../src/client/prefs.ts";
 
 function installLocalStorage(initial: Record<string, string> = {}, opts: { throwOnGet?: boolean; throwOnSet?: boolean } = {}) {
@@ -125,31 +123,4 @@ describe("prefs", () => {
     expect(() => setShowWindowTabs(false)).not.toThrow();
   });
 
-  // --- webgl ---
-  test("getWebglEnabled defaults to true", () => {
-    expect(getWebglEnabled()).toBe(true);
-  });
-
-  test("getWebglEnabled returns false when '0'", () => {
-    installLocalStorage({ 'tmux-web-webgl': '0' });
-    expect(getWebglEnabled()).toBe(false);
-  });
-
-  test("getWebglEnabled returns true on storage error", () => {
-    installLocalStorage({}, { throwOnGet: true });
-    expect(getWebglEnabled()).toBe(true);
-  });
-
-  test("setWebglEnabled persists value", () => {
-    const storage = installLocalStorage();
-    setWebglEnabled(false);
-    expect(storage['tmux-web-webgl']).toBe('0');
-    setWebglEnabled(true);
-    expect(storage['tmux-web-webgl']).toBe('1');
-  });
-
-  test("setWebglEnabled swallows storage errors", () => {
-    installLocalStorage({}, { throwOnSet: true });
-    expect(() => setWebglEnabled(true)).not.toThrow();
-  });
 });

@@ -1,9 +1,11 @@
 /* AmigaOS 3.1 Theme */
 
 :root {
-  --tw-chrome: hsl(var(--tw-theme-hue, 216) 38% 62%);
-  --tw-chrome-bg: #b8b8b8;
-  --tw-gadget-bg: #aaa;
+  /* --tw-chrome inherits from base.css → --tw-primary = hsl(hue, sat, ltn).
+   * Theme Hue / Sat / Lightness sliders drive it; theme.json sets the
+   * defaults (hue 216, sat 38%, ltn 62%) for the classic Workbench blue. */
+  --tw-chrome-bg: hsl(0 0% calc(var(--tw-theme-ltn) + 10%));
+  --tw-gadget-bg: hsl(0 0% calc(var(--tw-theme-ltn) + 5%));
   --tw-bevel-hi: #fff;
   --tw-bevel-lo: #000;
   --tw-menu-bevel-hi: #fff;

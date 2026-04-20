@@ -68,22 +68,3 @@ export function setShowWindowTabs(value: boolean): void {
     localStorage.setItem(SHOW_WINDOW_TABS_KEY, value ? '1' : '0');
   } catch {}
 }
-
-const WEBGL_KEY = 'tmux-web-webgl';
-
-/** Default: true (WebGL renderer enabled). Per-browser setting. */
-export function getWebglEnabled(): boolean {
-  try {
-    const raw = localStorage.getItem(WEBGL_KEY);
-    if (raw === '0') return false;
-    return true;
-  } catch {
-    return true;
-  }
-}
-
-export function setWebglEnabled(value: boolean): void {
-  try {
-    localStorage.setItem(WEBGL_KEY, value ? '1' : '0');
-  } catch {}
-}
