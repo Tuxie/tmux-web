@@ -16,8 +16,8 @@ html, body { height: 100%; overflow: hidden; }
   --tw-bevel-hi: color-mix(in srgb, var(--tw-chrome), white calc(20% * var(--tw-theme-contrast)));
   --tw-bevel-lo: color-mix(in srgb, var(--tw-chrome), black calc(35% * var(--tw-theme-contrast)));
 
-  /* === CHROME-BG (menu bg, panel bg) === */
-  --tw-chrome-bg: var(--tw-chrome);
+  /* === CHROME-BG (menu bg, panel bg — defaults to toolbar's dark end) === */
+  --tw-chrome-bg: color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast)));
   --tw-menu-bevel-hi: color-mix(in srgb, var(--tw-chrome-bg), white calc(15% * var(--tw-theme-contrast)));
   --tw-menu-bevel-lo: color-mix(in srgb, var(--tw-chrome-bg), black calc(30% * var(--tw-theme-contrast)));
 

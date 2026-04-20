@@ -13,12 +13,9 @@
    * Kept semantic (role, not colour) so base.css rules don't need to
    * know the theme. */
   --tw-chrome: hsl(var(--tw-theme-hue, 222) 36% 27%);
-  --tw-chrome-bg: hsl(var(--tw-theme-hue, 222) 37% 22%);
   --tw-gadget-bg: rgba(255, 255, 255, 0.12);
   --tw-bevel-hi: hsl(var(--tw-theme-hue, 222) 32% 34%);
   --tw-bevel-lo: hsl(var(--tw-theme-hue, 222) 36% 10%);
-  --tw-menu-bevel-hi: hsl(var(--tw-theme-hue, 222) 32% 27%);
-  --tw-menu-bevel-lo: hsl(var(--tw-theme-hue, 222) 36% 10%);
   --tw-text: #fff;
   --tw-muted: rgba(255, 255, 255, 0.3);
   --tw-status-active: #2c2;
