@@ -88,3 +88,44 @@ export function applyBackgroundDarkest(
 ): void {
   root.style.setProperty("--tw-background-darkest", String(clampBackgroundDarkest(value)));
 }
+
+export const DEFAULT_THEME_SAT = 0;
+export const DEFAULT_THEME_LTN = 15;
+export const DEFAULT_THEME_CONTRAST = 100;
+
+export function clampThemeSat(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_THEME_SAT;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+export function clampThemeLtn(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_THEME_LTN;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+export function clampThemeContrast(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_THEME_CONTRAST;
+  return Math.max(0, Math.min(200, Math.round(value)));
+}
+
+export function applyThemeSat(
+  value: number,
+  root: HTMLElement = document.documentElement,
+): void {
+  root.style.setProperty("--tw-theme-sat", clampThemeSat(value) + "%");
+}
+
+export function applyThemeLtn(
+  value: number,
+  root: HTMLElement = document.documentElement,
+): void {
+  root.style.setProperty("--tw-theme-ltn", clampThemeLtn(value) + "%");
+}
+
+export function applyThemeContrast(
+  value: number,
+  root: HTMLElement = document.documentElement,
+): void {
+  const clamped = clampThemeContrast(value);
+  root.style.setProperty("--tw-theme-contrast", String(clamped / 100));
+}
