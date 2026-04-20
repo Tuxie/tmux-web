@@ -99,8 +99,8 @@ body {
   align-items: stretch;
   height: 28px;
   background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome), white 5%),
-    color-mix(in srgb, var(--tw-chrome), black 5%));
+    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))));
   font-family: 'MicroKnight Nerd Font', monospace;
   font-size: 19px;
   position: absolute;
@@ -162,8 +162,8 @@ body {
 #topbar .tb-btn:active {
   border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo);
   background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome), black 5%),
-    color-mix(in srgb, var(--tw-chrome), white 5%));
+    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))));
 }
 
 /* Session plus button — standalone topbar button carrying the
@@ -193,8 +193,8 @@ body {
 #btn-menu.open {
   border-color: var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-lo);
   background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome), black 5%),
-    color-mix(in srgb, var(--tw-chrome), white 5%));
+    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))));
 }
 
 /* Compact window button [ name | + ] — mirror of the session button. */
@@ -258,8 +258,8 @@ body {
 }
 #topbar .win-tab.active {
   background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome), black 5%),
-    color-mix(in srgb, var(--tw-chrome), white 5%));
+    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))));
 }
 #tb-windows .tb-btn {
   text-shadow: -1px 0 black, 0 1px black, 1px 0 black, 0 -1px black;
@@ -333,7 +333,7 @@ body {
   gap: 6px;
   background: linear-gradient(to bottom,
     var(--tw-chrome-bg),
-    color-mix(in srgb, var(--tw-chrome-bg), black 12%));
+    color-mix(in srgb, var(--tw-chrome-bg), black calc(12% * var(--tw-theme-contrast))));
   border: 2px solid;
   border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   padding: 1px 4px;
@@ -355,7 +355,7 @@ body {
   min-width: 100%;
   background: linear-gradient(to bottom,
     var(--tw-chrome-bg),
-    color-mix(in srgb, var(--tw-chrome-bg), black 12%));
+    color-mix(in srgb, var(--tw-chrome-bg), black calc(12% * var(--tw-theme-contrast))));
   border: 2px solid;
   border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   z-index: 200;
