@@ -61,7 +61,7 @@ html, body { height: 100%; overflow: hidden; }
 .xterm-scrollable-element { background-color: #0000 !important; }
 .xterm .xterm-viewport { overflow-y: hidden !important; background-color: #0000 !important; }
 
-#menu-dropdown input[type="range"] { cursor: pointer; }
+#menu-dropdown input[type="range"] { cursor: pointer; accent-color: var(--tw-chrome); }
 #menu-dropdown input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 #menu-dropdown input[type="number"]::-webkit-inner-spin-button,
 #menu-dropdown input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
@@ -78,11 +78,11 @@ html, body { height: 100%; overflow: hidden; }
 .menu-label { color: var(--tw-text-muted); min-width: 72px; }
 .menu-label-clickable { cursor: pointer; }
 .menu-input-select, .menu-input-number {
-  background: var(--tw-surface-bg-alt); border: 1px solid var(--tw-surface-border); color: var(--tw-text);
+  background: var(--tw-gadget-bg); border: 1px solid var(--tw-bevel-lo); color: var(--tw-text);
   border-radius: 2px; padding: 1px 4px; font-family: inherit; font-size: 12px;
 }
 .menu-input-number { width: 46px; }
-.menu-hr { border: none; border-top: 1px solid #444; margin: 4px 0; }
+.menu-hr { border: none; border-top: 1px solid var(--tw-muted); margin: 4px 0; }
 
 /* Labelled section divider: rule — label — rule, in the same colour
  * as the plain .menu-hr. Themes can override font / tint by targeting
@@ -93,7 +93,7 @@ html, body { height: 100%; overflow: hidden; }
   align-items: center;
   gap: 8px;
   font-size: 10px;
-  color: #888;
+  color: var(--tw-muted);
   text-transform: uppercase;
   letter-spacing: 1px;
   padding: 6px 12px 2px;
@@ -103,11 +103,11 @@ html, body { height: 100%; overflow: hidden; }
 .menu-section::after {
   content: '';
   flex: 1;
-  border-top: 1px solid #444;
+  border-top: 1px solid currentColor;
 }
 
 /* Menu footer: left and right side labels. */
-#menu-footer { justify-content: space-between; color: #888; font-size: 11px; }
+#menu-footer { justify-content: space-between; color: var(--tw-muted); font-size: 11px; }
 
 /* "Dropped files" row: stacked header + list. Selector is double-classed
  * so the column + stretch beats any theme .menu-row rule with
@@ -131,9 +131,9 @@ html, body { height: 100%; overflow: hidden; }
   position: absolute; inset: 0;
   display: none;
   align-items: center; justify-content: center;
-  background: rgba(40, 80, 140, 0.25);
-  border: 2px dashed #88bbff;
-  color: #eee; font-size: 14px; font-family: inherit;
+  background: color-mix(in srgb, var(--tw-chrome), transparent 75%);
+  border: 2px dashed var(--tw-bevel-hi);
+  color: var(--tw-text); font-size: 14px; font-family: inherit;
   pointer-events: none; z-index: 50;
 }
 .tw-drop-overlay.visible { display: flex; }
@@ -145,8 +145,8 @@ html, body { height: 100%; overflow: hidden; }
   z-index: 9000; pointer-events: none;
 }
 .tw-toast {
-  background: var(--tw-surface-bg); color: var(--tw-text);
-  border: 1px solid var(--tw-surface-border);
+  background: var(--tw-chrome-bg); color: var(--tw-text);
+  border: 1px solid var(--tw-bevel-hi);
   border-radius: 3px;
   padding: 6px 10px;
   font-size: 12px; font-family: inherit;
@@ -169,8 +169,8 @@ html, body { height: 100%; overflow: hidden; }
 }
 .tw-clip-prompt-card {
   min-width: 340px; max-width: 520px;
-  background: var(--tw-surface-bg); color: var(--tw-text);
-  border: 1px solid var(--tw-surface-border); border-radius: 4px;
+  background: var(--tw-chrome-bg); color: var(--tw-text);
+  border: 1px solid var(--tw-bevel-hi); border-radius: 4px;
   padding: 14px 16px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
   font-size: 13px;
@@ -184,12 +184,12 @@ html, body { height: 100%; overflow: hidden; }
 .tw-clip-prompt-btns { display: flex; gap: 6px; justify-content: flex-end; }
 .tw-clip-prompt-btn {
   padding: 4px 10px;
-  border: 1px solid var(--tw-surface-border); border-radius: 3px;
+  border: 1px solid var(--tw-bevel-hi); border-radius: 3px;
   cursor: pointer; font-family: inherit; font-size: 12px;
   color: var(--tw-text);
 }
 .tw-clip-prompt-btn-deny { background: var(--tw-danger-bg); }
-.tw-clip-prompt-btn-once { background: var(--tw-surface-hover); }
+.tw-clip-prompt-btn-once { background: var(--tw-gadget-hover); }
 .tw-clip-prompt-btn-always { background: var(--tw-success-bg); }
 
 /* Session status dots: non-colour shape cue (A11Y-3).
@@ -198,7 +198,7 @@ html, body { height: 100%; overflow: hidden; }
  * carries the signal even for colour-blind users.
  * box-sizing ensures the border sits inside the 8×8px box. */
 .tw-dd-session-status { box-sizing: border-box; }
-.tw-dd-session-status.stopped { background: transparent; border: 1.5px solid currentColor; }
+.tw-dd-session-status.stopped { background: transparent; border: 1.5px solid currentColor; color: var(--tw-status-inactive); }
 
 /* Delete button for stopped sessions — sits left of the status dot.
  * Layout only; look-and-feel (bevel, colours, font) lives in theme CSS. */
@@ -240,11 +240,75 @@ html, body { height: 100%; overflow: hidden; }
 }
 
 /* Scrollbar for overflowing dropdown menus: transparent track so the
- * menu's own background shows through, thumb is a 20% white overlay
- * on top of the menu bg. Works for both dark- and light-bg themes
- * without needing per-theme rules. */
-.tw-dropdown-menu { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.2) transparent; }
+ * menu's own background shows through, thumb uses the gadget-hover
+ * variable so it adapts to the active theme. */
+.tw-dropdown-menu { scrollbar-width: thin; scrollbar-color: var(--tw-gadget-hover) transparent; }
 .tw-dropdown-menu::-webkit-scrollbar { width: 10px; }
 .tw-dropdown-menu::-webkit-scrollbar-track { background: transparent; }
-.tw-dropdown-menu::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); }
-.tw-dropdown-menu::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
+.tw-dropdown-menu::-webkit-scrollbar-thumb { background: var(--tw-gadget-hover); }
+.tw-dropdown-menu::-webkit-scrollbar-thumb:hover { background: var(--tw-gadget-active); }
+
+/* === Component color rules — themes override variables, not these rules === */
+
+body {
+  background: hsl(
+    var(--tw-background-hue, 0)
+    calc(var(--tw-background-saturation, 0) * 1%)
+    calc(var(--tw-background-brightest, 12) * 1%)
+  );
+  color: var(--tw-text);
+}
+
+#topbar {
+  background: var(--tw-chrome);
+  color: var(--tw-text);
+}
+
+#topbar .tb-btn {
+  background: var(--tw-chrome);
+  border: 1px solid var(--tw-bevel-hi);
+  color: var(--tw-text);
+}
+#topbar .tb-btn:hover { background: var(--tw-gadget-hover); }
+#topbar .tb-btn:active { background: var(--tw-gadget-active); }
+
+#topbar .win-tab {
+  color: var(--tw-muted);
+  border: 1px solid transparent;
+}
+#topbar .win-tab:hover { background: var(--tw-gadget-hover); color: var(--tw-text); }
+#topbar .win-tab.active { color: var(--tw-text); border-color: var(--tw-bevel-hi); }
+
+.tw-dropdown-trigger {
+  background: var(--tw-gadget-bg);
+  border: 1px solid var(--tw-bevel-hi);
+  color: var(--tw-text);
+}
+.tw-dropdown-trigger:hover { background: var(--tw-gadget-hover); }
+
+.tw-dropdown-menu {
+  background: var(--tw-chrome-bg);
+  border: 1px solid var(--tw-bevel-hi);
+  color: var(--tw-text);
+}
+
+.tw-dropdown-item { color: var(--tw-text); }
+.tw-dropdown-item:hover { background: var(--tw-gadget-hover); }
+.tw-dropdown-item.selected { background: var(--tw-gadget-active); }
+
+.tw-dropdown-sep { border-top-color: var(--tw-muted); }
+
+.tw-dd-input {
+  background: var(--tw-gadget-bg);
+  border: 1px solid var(--tw-bevel-hi);
+  color: var(--tw-text);
+}
+
+.tw-dd-session-status.running { background: var(--tw-status-active); }
+
+.menu-row:hover { background: var(--tw-gadget-hover); }
+
+#menu-dropdown .tb-btn {
+  background: var(--tw-gadget-bg);
+  color: var(--tw-text);
+}
