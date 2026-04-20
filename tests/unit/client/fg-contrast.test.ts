@@ -1,24 +1,25 @@
 /**
  * Contrast transform unit tests.
  *
- * New semantics (OKLab-L space):
+ * Semantics (OKLab-L space):
  *
  *   strength ∈ [-100, +100]  (slider)
- *   bias     ∈ [-100, +100]  (slider, 0 = use background luminance)
+ *   bias     ∈ [-100, +100]  (slider, independent output shift)
  *   bgL      ∈ [0, 1]        (auto-computed OKLab L of rendered background)
  *
- *   Bias direction: positive = "towards brighter", negative = "towards darker".
- *   The sign is conditionally negated so bias always means "brighter/darker":
- *     strength > 0 (gap):  b = -biasPct/100  (lower cutoff → brighter)
- *     strength < 0 (pull): b = +biasPct/100  (higher cutoff → pull bright)
- *   cutoff = b >= 0
- *     ? bgL + b × (1 - bgL)
- *     : bgL + b × bgL
+ *   Strength controls gap/pull with cutoff always at bgL:
+ *     strength > 0 → exclusion gap around bgL
+ *     strength < 0 → linear pull toward bgL
+ *     strength = 0 → identity (no gap/pull)
  *
- *   strength = 0    → identity (bias + bgL ignored)
- *   strength < 0    → linear pull toward cutoff
- *   strength > 0    → exclusion gap around cutoff; colours inside snap
- *                     to nearest edge, outside stay put
+ *   Bias shifts the output independently:
+ *     bias > 0 → shift toward white: L' = L + (bias/100)×(1-L)
+ *     bias < 0 → shift toward black: L' = L + (bias/100)×L
+ *     bias +100 → always white, bias -100 → always black
+ *     bias 0 → no shift
+ *
+ *   Both strength and bias compose: gap/pull runs first, then bias shifts.
+ *   Bias works even at strength=0.
  *
  * Applies to both FG and explicit cell BG colours.
  * Chroma/hue (OKLab a, b) always preserved; only L moves.
@@ -27,12 +28,64 @@
 import { describe, test, expect } from 'bun:test';
 
 describe('pushLightness', () => {
-  test('strength=0 returns identity regardless of bias and bgL', async () => {
+  test('strength=0 bias=0 returns identity', async () => {
     const { pushLightness } = await import('../../../src/client/fg-contrast.js');
     expect(pushLightness(120, 130, 140, 0, 0, 0.5)).toEqual([120, 130, 140]);
-    expect(pushLightness(120, 130, 140, 0, -100, 0.2)).toEqual([120, 130, 140]);
-    expect(pushLightness(120, 130, 140, 0, 100, 0.8)).toEqual([120, 130, 140]);
+    expect(pushLightness(120, 130, 140, 0, 0, 0.2)).toEqual([120, 130, 140]);
   });
+
+  // --- Bias as independent output shift ---
+
+  test('bias=+100 always produces white regardless of strength', async () => {
+    const { pushLightness } = await import('../../../src/client/fg-contrast.js');
+    for (const str of [-100, -50, 0, 50, 100]) {
+      const [r, g, b] = pushLightness(80, 80, 80, str, 100, 0.5);
+      expect(r).toBeGreaterThanOrEqual(253);
+      expect(g).toBeGreaterThanOrEqual(253);
+      expect(b).toBeGreaterThanOrEqual(253);
+    }
+  });
+
+  test('bias=-100 always produces black regardless of strength', async () => {
+    const { pushLightness } = await import('../../../src/client/fg-contrast.js');
+    for (const str of [-100, -50, 0, 50, 100]) {
+      const [r, g, b] = pushLightness(200, 200, 200, str, -100, 0.5);
+      expect(r).toBeLessThanOrEqual(2);
+      expect(g).toBeLessThanOrEqual(2);
+      expect(b).toBeLessThanOrEqual(2);
+    }
+  });
+
+  test('bias=+50 shifts output halfway to white', async () => {
+    const { pushLightness, rgbToOklabL } = await import('../../../src/client/fg-contrast.js');
+    // At strength=0 (identity), input L goes through bias shift only:
+    // finalL = L + 0.5*(1-L) = 0.5 + 0.5*L
+    const origL = rgbToOklabL(80, 80, 80);
+    const expectedL = 0.5 + 0.5 * origL;
+    const [rOut] = pushLightness(80, 80, 80, 0, 50, 0.5);
+    const outL = rgbToOklabL(rOut, rOut, rOut);
+    expect(Math.abs(outL - expectedL)).toBeLessThan(0.03);
+  });
+
+  test('bias=-50 shifts output halfway to black', async () => {
+    const { pushLightness, rgbToOklabL } = await import('../../../src/client/fg-contrast.js');
+    const origL = rgbToOklabL(200, 200, 200);
+    const expectedL = origL + (-0.5) * origL; // = 0.5 * origL
+    const [rOut] = pushLightness(200, 200, 200, 0, -50, 0.5);
+    const outL = rgbToOklabL(rOut, rOut, rOut);
+    expect(Math.abs(outL - expectedL)).toBeLessThan(0.03);
+  });
+
+  test('bias works even at strength=0', async () => {
+    const { pushLightness } = await import('../../../src/client/fg-contrast.js');
+    // Non-zero bias at strength=0 should still shift output
+    const [rBright] = pushLightness(128, 128, 128, 0, 50, 0.5);
+    expect(rBright).toBeGreaterThan(128 + 20);
+    const [rDark] = pushLightness(128, 128, 128, 0, -50, 0.5);
+    expect(rDark).toBeLessThan(128 - 20);
+  });
+
+  // --- Strength: gap mode ---
 
   test('strength=-100, bias=0 collapses all colours to bgL', async () => {
     const { pushLightness } = await import('../../../src/client/fg-contrast.js');
@@ -46,119 +99,76 @@ describe('pushLightness', () => {
     expect(Math.abs(rBright - 220)).toBeGreaterThan(50);
   });
 
-  test('strength=-100, bias=+100 collapses to white (pull toward bright)', async () => {
-    const { pushLightness } = await import('../../../src/client/fg-contrast.js');
-    const [r, g, b] = pushLightness(30, 30, 30, -100, 100, 0.5);
-    expect(r).toBeGreaterThanOrEqual(253);
-    expect(g).toBeGreaterThanOrEqual(253);
-    expect(b).toBeGreaterThanOrEqual(253);
-  });
-
-  test('strength=-100, bias=-100 collapses to black (pull toward dark)', async () => {
-    const { pushLightness } = await import('../../../src/client/fg-contrast.js');
-    const [r, g, b] = pushLightness(200, 200, 200, -100, -100, 0.5);
-    expect(r).toBeLessThanOrEqual(2);
-    expect(g).toBeLessThanOrEqual(2);
-    expect(b).toBeLessThanOrEqual(2);
-  });
-
   test('strength=+100, bias=0 produces hard cutoff at bgL', async () => {
     const { pushLightness } = await import('../../../src/client/fg-contrast.js');
     const bgL = 0.5;
-    // Byte 80 → L ≈ 0.43, below bgL → black
     const [rDark] = pushLightness(80, 80, 80, 100, 0, bgL);
     expect(rDark).toBeLessThanOrEqual(2);
-    // Byte 200 → L ≈ 0.82, above bgL → white
     const [rBright] = pushLightness(200, 200, 200, 100, 0, bgL);
     expect(rBright).toBeGreaterThanOrEqual(253);
   });
 
   test('strength=+100 with non-centred bgL still produces binary cutoff', async () => {
     const { pushLightness } = await import('../../../src/client/fg-contrast.js');
-    // bgL=0.25, bias=0 → cutoff=0.25
     const [rMidGrey] = pushLightness(128, 128, 128, 100, 0, 0.25);
     expect(rMidGrey).toBeGreaterThanOrEqual(253);
     const [rShadow] = pushLightness(20, 20, 20, 100, 0, 0.25);
     expect(rShadow).toBeLessThanOrEqual(2);
   });
 
-  test('bias ±50 lands halfway between bgL and extreme (sign reversed)', async () => {
-    const { pushLightness } = await import('../../../src/client/fg-contrast.js');
-    const bgL = 0.3;
-
-    // bias=-50 ("towards darker") → cutoff = 0.3 + 0.5*(1-0.3) = 0.65
-    // Byte 200 → L ≈ 0.82, above 0.65 → white
-    const [rAbove] = pushLightness(200, 200, 200, 100, -50, bgL);
-    expect(rAbove).toBeGreaterThanOrEqual(253);
-    // Byte 128 → L ≈ 0.57, below 0.65 → black
-    const [rBelow] = pushLightness(128, 128, 128, 100, -50, bgL);
-    expect(rBelow).toBeLessThanOrEqual(2);
-
-    // bias=+50 ("towards brighter") → cutoff = 0.3 + (-0.5)*0.3 = 0.15
-    // Byte 30 → L ≈ 0.24, above 0.15 → white
-    const [rAboveLow] = pushLightness(30, 30, 30, 100, 50, bgL);
-    expect(rAboveLow).toBeGreaterThanOrEqual(253);
-    // Byte 5 → L ≈ 0.12, below 0.15 → black
-    const [rBelowLow] = pushLightness(5, 5, 5, 100, 50, bgL);
-    expect(rBelowLow).toBeLessThanOrEqual(2);
-  });
-
-  test('positive strength NEVER pushes colours closer to cutoff', async () => {
+  test('positive strength NEVER pushes colours closer to bgL (at bias=0)', async () => {
     const { pushLightness, rgbToOklabL } = await import('../../../src/client/fg-contrast.js');
     const bgL = 0.4;
-    const strengthPct = 30;
-    const biasPct = 0;
-    const cutoff = bgL; // bias=0 → cutoff = bgL
-
     for (let byte = 0; byte <= 255; byte += 5) {
       const origL = rgbToOklabL(byte, byte, byte);
-      const [rOut, gOut, bOut] = pushLightness(byte, byte, byte, strengthPct, biasPct, bgL);
+      const [rOut, gOut, bOut] = pushLightness(byte, byte, byte, 30, 0, bgL);
       const newL = rgbToOklabL(rOut, gOut, bOut);
-      const origDist = Math.abs(origL - cutoff);
-      const newDist = Math.abs(newL - cutoff);
+      const origDist = Math.abs(origL - bgL);
+      const newDist = Math.abs(newL - bgL);
       expect(newDist).toBeGreaterThanOrEqual(origDist - 0.02);
     }
   });
 
-  test('positive strength creates exclusion zone — no output L inside gap', async () => {
+  test('positive strength creates exclusion zone — no output L inside gap (bias=0)', async () => {
     const { pushLightness, rgbToOklabL } = await import('../../../src/client/fg-contrast.js');
     const bgL = 0.5;
-    const strengthPct = 50;
-    const biasPct = 0;
-    // cutoff=0.5, t=0.5
-    // lower = 0.5 * (1-0.5) = 0.25, upper = 0.5 + 0.5*0.5 = 0.75
-    const lower = 0.25;
-    const upper = 0.75;
-
+    // cutoff=0.5, t=0.5 → lower=0.25, upper=0.75
     for (let byte = 0; byte <= 255; byte += 3) {
-      const [rOut, gOut, bOut] = pushLightness(byte, byte, byte, strengthPct, biasPct, bgL);
+      const [rOut, gOut, bOut] = pushLightness(byte, byte, byte, 50, 0, bgL);
       const newL = rgbToOklabL(rOut, gOut, bOut);
-      const insideGap = newL > lower + 0.01 && newL < upper - 0.01;
+      const insideGap = newL > 0.26 && newL < 0.74;
       if (insideGap) {
         throw new Error(
-          `Byte ${byte} → newL=${newL.toFixed(3)} inside gap [${lower}, ${upper}]. ` +
-          `Contrast should exclude colours from this zone.`
+          `Byte ${byte} → newL=${newL.toFixed(3)} inside gap [0.25, 0.75].`
         );
       }
     }
   });
 
-  test('colours outside gap stay untouched', async () => {
+  test('colours outside gap stay untouched (bias=0)', async () => {
     const { pushLightness } = await import('../../../src/client/fg-contrast.js');
     const bgL = 0.5;
-    // strength=50, bias=0 → gap [0.25, 0.75]
-    // Byte 20 → L≈0.17, well below gap → unchanged
     const [rBelow] = pushLightness(20, 20, 20, 50, 0, bgL);
     expect(Math.abs(rBelow - 20)).toBeLessThanOrEqual(2);
-    // Byte 240 → L≈0.95, well above gap → unchanged
     const [rAbove] = pushLightness(240, 240, 240, 50, 0, bgL);
     expect(Math.abs(rAbove - 240)).toBeLessThanOrEqual(2);
   });
 
+  // --- Composition ---
+
+  test('strength + bias compose: gap then shift', async () => {
+    const { pushLightness } = await import('../../../src/client/fg-contrast.js');
+    // strength=+100 bias=0 at bgL=0.5: byte 80 (L<0.5) → black
+    const [rNoShift] = pushLightness(80, 80, 80, 100, 0, 0.5);
+    expect(rNoShift).toBeLessThanOrEqual(2);
+    // Same but bias=+50: gap snaps to L=0, then shift: 0+0.5*(1-0)=0.5 → byte≈99
+    const [rShifted] = pushLightness(80, 80, 80, 100, 50, 0.5);
+    expect(rShifted).toBeGreaterThan(80);
+    expect(rShifted).toBeLessThan(130);
+  });
+
   test('hue and chroma preserved — only L changes', async () => {
     const { pushLightness } = await import('../../../src/client/fg-contrast.js');
-    // Pinkish fg: r > g ≈ b. At +100/bias=0/bgL=0.5, L>0.5 → near-white
-    // but red channel should still dominate.
     const [r, g, b] = pushLightness(180, 120, 120, 100, 0, 0.5);
     expect(r).toBeGreaterThanOrEqual(g);
     expect(r).toBeGreaterThanOrEqual(b);

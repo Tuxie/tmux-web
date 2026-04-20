@@ -1,24 +1,17 @@
 /**
- * Contrast E2E regression tests.
+ * Contrast + Bias E2E regression tests.
  *
  * Slider ranges:
  *   #inp-fg-contrast-strength   −100 … +100   (default 0)
- *   #inp-fg-contrast-bias       -100 … +100   (default 0 = bg luminance)
+ *   #inp-fg-contrast-bias       -100 … +100   (default 0)
  *
  * Behaviour (see `src/client/fg-contrast.ts` for the math):
- *   strength = 0    → identity; bias + bgL are ignored.
- *   strength = -100 → every colour collapses to the cutoff lightness.
- *                     Bias +100 → white, -100 → black, 0 → bg luminance.
- *                     (positive bias = "towards brighter" in both modes)
- *   strength = +100 → hard threshold at cutoff: below → black,
- *                     above → white.
- *   intermediate    → exclusion gap (see unit tests).
+ *   Strength controls gap/pull around bgL (the background luminance).
+ *   Bias is an independent output shift: +100 → white, -100 → black.
+ *   Both compose: contrast runs first, then bias shifts the result.
+ *   Bias works even at strength=0.
  *
  * Both FG and explicit cell BG colours are affected.
- *
- * These e2e tests drive the sliders through the UI and sample the
- * rendered block-glyph pixel to verify the end-to-end path
- * (slider → session settings → adapter → atlas → pixel).
  */
 
 import { test, type Page } from '@playwright/test';
@@ -90,37 +83,54 @@ async function samplePixel(page: Page, x: number, y: number): Promise<[number, n
 const SAMPLE_X = 100;
 const SAMPLE_Y = 38;
 
-test('Contrast strength=0 leaves fg at its original truecolor value (identity)', async ({ page }) => {
+test('Contrast strength=0 bias=0 leaves fg at its original value (identity)', async ({ page }) => {
   await page.goto('/');
   await readyAdapter(page);
   await disableAutohide(page);
   await writeLine(page, greyBlockLine(180));
   await setSlider(page, 'inp-fg-contrast-strength', 0);
+  await setSlider(page, 'inp-fg-contrast-bias', 0);
 
   const observed = await samplePixel(page, SAMPLE_X, SAMPLE_Y);
   for (const ch of [0, 1, 2] as const) {
     if (Math.abs(observed[ch] - 180) > TOLERANCE) {
       throw new Error(
-        `Contrast=0 should be identity. observed=(${observed.join(', ')}), ` +
-        `expected≈(180, 180, 180). pushLightness must short-circuit at strength=0.`
+        `Contrast=0 Bias=0 should be identity. observed=(${observed.join(', ')}), ` +
+        `expected≈(180, 180, 180).`
       );
     }
   }
 });
 
-test('Contrast strength=+100 with bias=-100 ("towards darker") drives all text to black', async ({ page }) => {
+test('Bias=+100 always produces white regardless of strength', async ({ page }) => {
   await page.goto('/');
   await readyAdapter(page);
   await disableAutohide(page);
-  await writeLine(page, greyBlockLine(180));
-  await setSlider(page, 'inp-fg-contrast-bias', -100);
-  await setSlider(page, 'inp-fg-contrast-strength', 100);
+  await writeLine(page, greyBlockLine(80));
+  await setSlider(page, 'inp-fg-contrast-bias', 100);
+  await setSlider(page, 'inp-fg-contrast-strength', 0);
 
-  // bias=-100 → cutoff=1.0. Everything is below cutoff → black.
+  const [r, g, b] = await samplePixel(page, SAMPLE_X, SAMPLE_Y);
+  if (r < 250 || g < 250 || b < 250) {
+    throw new Error(
+      `Bias=+100 at strength=0 should produce white.\n` +
+      `  observed=(${r}, ${g}, ${b})`
+    );
+  }
+});
+
+test('Bias=-100 always produces black regardless of strength', async ({ page }) => {
+  await page.goto('/');
+  await readyAdapter(page);
+  await disableAutohide(page);
+  await writeLine(page, greyBlockLine(200));
+  await setSlider(page, 'inp-fg-contrast-bias', -100);
+  await setSlider(page, 'inp-fg-contrast-strength', 0);
+
   const [r, g, b] = await samplePixel(page, SAMPLE_X, SAMPLE_Y);
   if (r > 5 || g > 5 || b > 5) {
     throw new Error(
-      `Contrast=+100 with bias=-100 → cutoff=1.0; all fg below cutoff → black.\n` +
+      `Bias=-100 at strength=0 should produce black.\n` +
       `  observed=(${r}, ${g}, ${b})`
     );
   }
@@ -130,7 +140,6 @@ test('Contrast strength=+100 bias=0 uses bg luminance as hard cutoff', async ({ 
   await page.goto('/');
   await readyAdapter(page);
   await disableAutohide(page);
-  // Grey 180 → OKLab L ≈ 0.73, well above any dark-theme bg → white.
   await writeLine(page, greyBlockLine(180));
   await setSlider(page, 'inp-fg-contrast-bias', 0);
   await setSlider(page, 'inp-fg-contrast-strength', 100);
@@ -140,40 +149,6 @@ test('Contrast strength=+100 bias=0 uses bg luminance as hard cutoff', async ({ 
     throw new Error(
       `Bias=0 → cutoff=bgL (dark). Grey 180 (L≈0.73) above cutoff → white.\n` +
       `  observed=(${bright.join(', ')})`
-    );
-  }
-});
-
-test('Contrast strength=-100 with bias=+100 ("towards brighter") collapses fg to white', async ({ page }) => {
-  await page.goto('/');
-  await readyAdapter(page);
-  await disableAutohide(page);
-  await writeLine(page, greyBlockLine(180));
-  await setSlider(page, 'inp-fg-contrast-bias', 100);
-  await setSlider(page, 'inp-fg-contrast-strength', -100);
-
-  const [r, g, b] = await samplePixel(page, SAMPLE_X, SAMPLE_Y);
-  if (r < 250 || g < 250 || b < 250) {
-    throw new Error(
-      `Contrast=-100 with bias=+100 → cutoff=1; collapse to white.\n` +
-      `  observed=(${r}, ${g}, ${b})`
-    );
-  }
-});
-
-test('Contrast strength=-100 with bias=-100 ("towards darker") collapses fg to black', async ({ page }) => {
-  await page.goto('/');
-  await readyAdapter(page);
-  await disableAutohide(page);
-  await writeLine(page, greyBlockLine(180));
-  await setSlider(page, 'inp-fg-contrast-bias', -100);
-  await setSlider(page, 'inp-fg-contrast-strength', -100);
-
-  const [r, g, b] = await samplePixel(page, SAMPLE_X, SAMPLE_Y);
-  if (r > 5 || g > 5 || b > 5) {
-    throw new Error(
-      `Contrast=-100 with bias=-100 → cutoff=0; collapse to black.\n` +
-      `  observed=(${r}, ${g}, ${b})`
     );
   }
 });

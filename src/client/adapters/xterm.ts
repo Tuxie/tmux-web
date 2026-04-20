@@ -373,7 +373,7 @@ export class XtermAdapter implements TerminalAdapter {
       let bgR = (cellBgRgb >> 16) & 0xff;
       let bgG = (cellBgRgb >> 8) & 0xff;
       let bgB = cellBgRgb & 0xff;
-      if (adapter.fgContrastStrength !== 0) {
+      if (adapter.fgContrastStrength !== 0 || adapter.fgContrastBias !== 0) {
         [fgR, fgG, fgB] = pushLightness(
           fgR, fgG, fgB,
           adapter.fgContrastStrength,
@@ -425,7 +425,7 @@ export class XtermAdapter implements TerminalAdapter {
         let blendedBgRgb = blendRgbaOverDefaultBackground(
           resolveAttrRgba(effectiveBg, inverse ? fgDefaultRgba : bgDefaultRgba),
         );
-        if (adapter.fgContrastStrength !== 0) {
+        if (adapter.fgContrastStrength !== 0 || adapter.fgContrastBias !== 0) {
           let cR = (blendedBgRgb >> 16) & 0xff;
           let cG = (blendedBgRgb >> 8) & 0xff;
           let cB = blendedBgRgb & 0xff;
@@ -443,7 +443,7 @@ export class XtermAdapter implements TerminalAdapter {
       // path collapses to identity. `cellBgRgb` is what the glyph atlas
       // will visually sit on (a default-bg cell shows theme bg; an
       // explicit-bg cell shows the blended ansi colour).
-      if (adapter.tuiFgAlpha < 1 || adapter.fgContrastStrength !== 0 || adapter.tuiSaturation !== 0) {
+      if (adapter.tuiFgAlpha < 1 || adapter.fgContrastStrength !== 0 || adapter.fgContrastBias !== 0 || adapter.tuiSaturation !== 0) {
         const cellBgRgb = resolveCellBgRgb(fg, bg);
         if (inverse) {
           // Inverse: bg slot carries the glyph colour. Blend that toward

@@ -4,13 +4,16 @@
  * Reshapes every colour's OKLab lightness around a cutoff derived from
  * the actual rendered background luminance (bgL) plus a user bias.
  *
- * Cutoff calculation (bias sign adjusted per mode so +bias always = brighter):
- *   Gap mode  (strength > 0): b = -biasPct/100  (lower cutoff → more bright)
- *   Pull mode (strength < 0): b = +biasPct/100  (higher cutoff → pull bright)
- *   cutoff = b >= 0
- *     ? bgL + b × (1 - bgL)
- *     : bgL + b × bgL
- *   bias 0 → cutoff = bgL; ±50 → halfway to extreme.
+ * Two independent stages:
+ *
+ * 1. Contrast (strength): gap/pull around bgL.
+ *    Cutoff is always bgL. Bias does not move it.
+ *
+ * 2. Bias: independent output shift applied after contrast.
+ *    finalL = biasNorm >= 0
+ *      ? newL + biasNorm × (1 - newL)   // shift toward white
+ *      : newL + biasNorm × newL          // shift toward black
+ *    bias +100 → always white, -100 → always black, 0 → no shift.
  *
  * Piecewise by t = strength / 100 ∈ [-1, +1]:
  *
@@ -90,11 +93,12 @@ export function rgbToOklabL(r: number, g: number, b: number): number {
 }
 
 /**
- * Reshape `(r, g, b)` per the strength/bias/bgL curve. Identity at
- * `strengthPct === 0`. Applies to both FG and explicit cell BG.
+ * Reshape `(r, g, b)` via contrast (gap/pull around bgL) then bias
+ * (independent output shift toward bright/dark). Applies to both FG
+ * and explicit cell BG.
  *
- * `strengthPct` — -100..+100 slider value.
- * `biasPct` — -100..+100 slider value (0 = use bgL as cutoff).
+ * `strengthPct` — -100..+100: gap (>0) or pull (<0) around bgL.
+ * `biasPct` — -100..+100: output shift. +100 → white, -100 → black.
  * `bgL` — OKLab L of the rendered background (0..1).
  */
 export function pushLightness(
@@ -103,31 +107,33 @@ export function pushLightness(
   biasPct: number,
   bgL: number,
 ): [number, number, number] {
-  if (strengthPct === 0) return [r, g, b];
+  if (strengthPct === 0 && biasPct === 0) return [r, g, b];
   const t = Math.max(-1, Math.min(1, strengthPct / 100));
-  const rawBias = Math.max(-1, Math.min(1, biasPct / 100));
-  const bias = t > 0 ? -rawBias : rawBias;
-  const cutoff = bias >= 0
-    ? bgL + bias * (1 - bgL)
-    : bgL + bias * bgL;
+  const biasNorm = Math.max(-1, Math.min(1, biasPct / 100));
   const [inL, ia, ib] = srgbByteToOklab(r, g, b);
 
-  let newL: number;
+  let newL = inL;
   if (t < 0) {
     const mag = -t;
-    newL = inL * (1 - mag) + cutoff * mag;
-  } else {
-    const lower = cutoff * (1 - t);
-    const upper = cutoff + t * (1 - cutoff);
+    newL = inL * (1 - mag) + bgL * mag;
+  } else if (t > 0) {
+    const lower = bgL * (1 - t);
+    const upper = bgL + t * (1 - bgL);
     if (inL < lower) {
       newL = inL;
-    } else if (inL < cutoff) {
+    } else if (inL < bgL) {
       newL = lower;
     } else if (inL <= upper) {
       newL = upper;
     } else {
       newL = inL;
     }
+  }
+
+  if (biasNorm > 0) {
+    newL = newL + biasNorm * (1 - newL);
+  } else if (biasNorm < 0) {
+    newL = newL + biasNorm * newL;
   }
 
   newL = Math.max(0, Math.min(1, newL));
