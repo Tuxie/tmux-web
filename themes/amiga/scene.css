@@ -418,6 +418,7 @@ body {
   right: 0; left: auto;
   min-width: 270px;
   padding: 4px 0;
+  font-family: 'MicroKnight Nerd Font', monospace;
 }
 .menu-row { display: flex; align-items: center; gap: 3px; padding: 2px 12px;
             cursor: pointer; white-space: nowrap; font-size: 15px; }
