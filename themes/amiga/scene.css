@@ -165,6 +165,7 @@ body {
   align-items: center;
   justify-content: center;
 }
+#topbar .tb-btn:hover { background: transparent; }
 #topbar .tb-btn:active {
   border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo);
   background: linear-gradient(to bottom,

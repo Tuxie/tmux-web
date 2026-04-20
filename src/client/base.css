@@ -277,7 +277,7 @@ body {
   border: 1px solid transparent;
 }
 #topbar .win-tab:hover { background: var(--tw-gadget-hover); color: var(--tw-text); }
-#topbar .win-tab.active { color: var(--tw-text); border-color: var(--tw-bevel-hi); }
+#topbar .win-tab.active { color: var(--tw-text); }
 
 .tw-dropdown-trigger {
   background: var(--tw-gadget-bg);

@@ -165,6 +165,7 @@ body {
 #topbar .tb-sep { width: 12px; }
 
 #topbar .win-tab {
+  background: none;
   border-radius: 3px;
   padding: 2px 8px;
   cursor: pointer;
@@ -172,6 +173,7 @@ body {
   font-size: 13px;
   line-height: 1.4;
 }
+#topbar .win-tab.active { border-color: var(--tw-bevel-hi); }
 
 /* New-window button appended to #win-tabs */
 #topbar .tb-btn-new-window { margin-left: 2px; font-weight: bold; }

@@ -133,6 +133,7 @@ body {
   align-items: center;
   justify-content: center;
 }
+#topbar .tb-btn:hover { background: var(--tw-chrome); }
 #topbar .tb-btn:active {
   border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-hi) var(--tw-bevel-lo);
   background: var(--tw-chrome);
