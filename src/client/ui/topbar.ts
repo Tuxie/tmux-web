@@ -30,6 +30,12 @@ import {
   clampBackgroundBrightest,
   clampBackgroundDarkest,
   clampThemeHue,
+  clampThemeSat,
+  clampThemeLtn,
+  clampThemeContrast,
+  DEFAULT_THEME_SAT,
+  DEFAULT_THEME_LTN,
+  DEFAULT_THEME_CONTRAST,
 } from '../background-hue.js';
 import {
   DEFAULT_FG_CONTRAST_STRENGTH,
@@ -403,6 +409,12 @@ export class Topbar {
     const inpOpacity = document.getElementById('inp-opacity') as HTMLInputElement;
     const sldThemeHue = document.getElementById('sld-theme-hue') as HTMLInputElement;
     const inpThemeHue = document.getElementById('inp-theme-hue') as HTMLInputElement;
+    const sldThemeSat = document.getElementById('sld-theme-sat') as HTMLInputElement;
+    const inpThemeSat = document.getElementById('inp-theme-sat') as HTMLInputElement;
+    const sldThemeLtn = document.getElementById('sld-theme-ltn') as HTMLInputElement;
+    const inpThemeLtn = document.getElementById('inp-theme-ltn') as HTMLInputElement;
+    const sldThemeContrast = document.getElementById('sld-theme-contrast') as HTMLInputElement;
+    const inpThemeContrast = document.getElementById('inp-theme-contrast') as HTMLInputElement;
     const sldBackgroundHue = document.getElementById('sld-background-hue') as HTMLInputElement;
     const inpBackgroundHue = document.getElementById('inp-background-hue') as HTMLInputElement;
     const sldBackgroundSaturation = document.getElementById('sld-background-saturation') as HTMLInputElement;
@@ -485,6 +497,9 @@ export class Topbar {
       updateSliderFill(sldFgContrastBias);
       updateSliderFill(sldTuiSaturation);
       updateSliderFill(sldThemeHue);
+      updateSliderFill(sldThemeSat);
+      updateSliderFill(sldThemeLtn);
+      updateSliderFill(sldThemeContrast);
     };
     sldSize.addEventListener('input', () => updateSliderFill(sldSize));
     sldHeight.addEventListener('input', () => updateSliderFill(sldHeight));
@@ -499,6 +514,9 @@ export class Topbar {
     sldFgContrastBias.addEventListener('input', () => updateSliderFill(sldFgContrastBias));
     sldTuiSaturation.addEventListener('input', () => updateSliderFill(sldTuiSaturation));
     sldThemeHue.addEventListener('input', () => updateSliderFill(sldThemeHue));
+    sldThemeSat.addEventListener('input', () => updateSliderFill(sldThemeSat));
+    sldThemeLtn.addEventListener('input', () => updateSliderFill(sldThemeLtn));
+    sldThemeContrast.addEventListener('input', () => updateSliderFill(sldThemeContrast));
 
     const syncUi = (s: SessionSettings) => {
       ddTheme.setValue(s.theme);
@@ -517,6 +535,9 @@ export class Topbar {
       sldFgContrastBias.value = inpFgContrastBias.value = String(s.fgContrastBias);
       sldTuiSaturation.value = inpTuiSaturation.value = String(s.tuiSaturation);
       sldThemeHue.value = inpThemeHue.value = String(s.themeHue);
+      sldThemeSat.value = inpThemeSat.value = String(s.themeSat);
+      sldThemeLtn.value = inpThemeLtn.value = String(s.themeLtn);
+      sldThemeContrast.value = inpThemeContrast.value = String(s.themeContrast);
       refreshAllSliderFills();
     };
     // Expose so updateSession() can refresh the visible controls when tmux
@@ -546,6 +567,9 @@ export class Topbar {
       if (theme?.defaultTuiFgOpacity !== undefined) td.tuiFgOpacity = theme.defaultTuiFgOpacity;
       if (theme?.defaultTuiSaturation !== undefined) td.tuiSaturation = theme.defaultTuiSaturation;
       if (theme?.defaultThemeHue !== undefined) td.themeHue = theme.defaultThemeHue;
+      if (theme?.defaultThemeSat !== undefined) td.themeSat = theme.defaultThemeSat;
+      if (theme?.defaultThemeLtn !== undefined) td.themeLtn = theme.defaultThemeLtn;
+      if (theme?.defaultThemeContrast !== undefined) td.themeContrast = theme.defaultThemeContrast;
       if (theme?.defaultBackgroundHue !== undefined) td.backgroundHue = theme.defaultBackgroundHue;
       if (theme?.defaultBackgroundSaturation !== undefined) td.backgroundSaturation = theme.defaultBackgroundSaturation;
       if (theme?.defaultBackgroundBrightest !== undefined) td.backgroundBrightest = theme.defaultBackgroundBrightest;
@@ -751,6 +775,42 @@ export class Topbar {
       commit({ themeHue: v });
     });
 
+    sldThemeSat.addEventListener('input', () => {
+      const v = clampThemeSat(parseInt(sldThemeSat.value, 10));
+      inpThemeSat.value = String(v);
+      commit({ themeSat: v });
+    });
+    inpThemeSat.addEventListener('change', () => {
+      const v = clampThemeSat(parseInt(inpThemeSat.value, 10));
+      sldThemeSat.value = inpThemeSat.value = String(v);
+      updateSliderFill(sldThemeSat);
+      commit({ themeSat: v });
+    });
+
+    sldThemeLtn.addEventListener('input', () => {
+      const v = clampThemeLtn(parseInt(sldThemeLtn.value, 10));
+      inpThemeLtn.value = String(v);
+      commit({ themeLtn: v });
+    });
+    inpThemeLtn.addEventListener('change', () => {
+      const v = clampThemeLtn(parseInt(inpThemeLtn.value, 10));
+      sldThemeLtn.value = inpThemeLtn.value = String(v);
+      updateSliderFill(sldThemeLtn);
+      commit({ themeLtn: v });
+    });
+
+    sldThemeContrast.addEventListener('input', () => {
+      const v = clampThemeContrast(parseInt(sldThemeContrast.value, 10));
+      inpThemeContrast.value = String(v);
+      commit({ themeContrast: v });
+    });
+    inpThemeContrast.addEventListener('change', () => {
+      const v = clampThemeContrast(parseInt(inpThemeContrast.value, 10));
+      sldThemeContrast.value = inpThemeContrast.value = String(v);
+      updateSliderFill(sldThemeContrast);
+      commit({ themeContrast: v });
+    });
+
     // Double-click-to-reset wiring. Each entry maps a slider / number
     // input pair to a function that resolves the *current* default
     // (some defaults track the active theme, so we look them up lazily
@@ -781,6 +841,12 @@ export class Topbar {
         getDefault: () => activeTheme()?.defaultTuiSaturation ?? DEFAULT_TUI_SATURATION },
       { slider: sldThemeHue, input: inpThemeHue, key: 'themeHue',
         getDefault: () => activeTheme()?.defaultThemeHue ?? DEFAULT_THEME_HUE },
+      { slider: sldThemeSat, input: inpThemeSat, key: 'themeSat',
+        getDefault: () => activeTheme()?.defaultThemeSat ?? DEFAULT_THEME_SAT },
+      { slider: sldThemeLtn, input: inpThemeLtn, key: 'themeLtn',
+        getDefault: () => activeTheme()?.defaultThemeLtn ?? DEFAULT_THEME_LTN },
+      { slider: sldThemeContrast, input: inpThemeContrast, key: 'themeContrast',
+        getDefault: () => activeTheme()?.defaultThemeContrast ?? DEFAULT_THEME_CONTRAST },
       { slider: sldBackgroundHue, input: inpBackgroundHue, key: 'backgroundHue',
         getDefault: () => activeTheme()?.defaultBackgroundHue ?? DEFAULT_BACKGROUND_HUE },
       { slider: sldBackgroundSaturation, input: inpBackgroundSaturation, key: 'backgroundSaturation',

@@ -12,6 +12,9 @@ export type ThemeInfo = {
   defaultTuiFgOpacity?: number;
   defaultTuiSaturation?: number;
   defaultThemeHue?: number;
+  defaultThemeSat?: number;
+  defaultThemeLtn?: number;
+  defaultThemeContrast?: number;
   defaultBackgroundHue?: number;
   defaultBackgroundSaturation?: number;
   defaultBackgroundBrightest?: number;

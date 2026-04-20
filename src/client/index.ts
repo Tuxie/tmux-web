@@ -19,6 +19,9 @@ import {
   applyBackgroundBrightest,
   applyBackgroundDarkest,
   applyThemeHue,
+  applyThemeSat,
+  applyThemeLtn,
+  applyThemeContrast,
 } from './background-hue.js';
 import {
   loadSessionSettings,
@@ -64,6 +67,9 @@ async function main() {
     tuiBgOpacity: currentTheme.defaultTuiBgOpacity,
     tuiFgOpacity: currentTheme.defaultTuiFgOpacity,
     tuiSaturation: currentTheme.defaultTuiSaturation,
+    themeSat: currentTheme.defaultThemeSat,
+    themeLtn: currentTheme.defaultThemeLtn,
+    themeContrast: currentTheme.defaultThemeContrast,
   } : undefined;
 
   const liveSettings = getLiveSessionSettings(sessionName);
@@ -80,6 +86,9 @@ async function main() {
   applyBackgroundBrightest(settings.backgroundBrightest);
   applyBackgroundDarkest(settings.backgroundDarkest);
   applyThemeHue(settings.themeHue);
+  applyThemeSat(settings.themeSat);
+  applyThemeLtn(settings.themeLtn);
+  applyThemeContrast(settings.themeContrast);
 
   const colourByName = new Map(colours.map(c => [c.name, c.theme]));
   const coloursOrDefault = (name: string): ITheme =>
@@ -173,6 +182,9 @@ async function main() {
       applyBackgroundBrightest(s.backgroundBrightest);
       applyBackgroundDarkest(s.backgroundDarkest);
       applyThemeHue(s.themeHue);
+      applyThemeSat(s.themeSat);
+      applyThemeLtn(s.themeLtn);
+      applyThemeContrast(s.themeContrast);
 
       page.style.backgroundColor = composeBgColor(coloursOrDefault(s.colours), s.opacity);
       adapter.setTheme(composeTheme(coloursOrDefault(s.colours), s.opacity, getBodyBg()));
