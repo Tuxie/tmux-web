@@ -1,28 +1,25 @@
+:root {
+  /* Default inputs are slightly darker than chrome — override gadget-bg. */
+  --tw-gadget-bg: color-mix(in srgb, var(--tw-chrome-bg), black 20%);
+}
+
 body {
-  background: hsl(
-    var(--tw-background-hue, 0)
-    calc(var(--tw-background-saturation, 0) * 1%)
-    calc(var(--tw-background-brightest, 12) * 1%)
-  );
   /* Default font for anything attached directly to body — e.g. the
    * windows menu (showContextMenu uses position:fixed and appends to
    * body), which would otherwise fall back to the browser's serif
    * default instead of inheriting from #topbar. */
   font-family: 'Iosevka Nerd Font Mono', 'MOsOul Nerd Font', 'ZedMono Nerd Font', 'JetBrains Mono', monospace;
   font-size: 13px;
-  color: #d4d4d4;
 }
 
 #topbar {
   display: flex;
   align-items: center;
   height: 28px;
-  background: #262626;
   padding: 0 6px;
   gap: 4px;
   font-family: 'Iosevka Nerd Font Mono', 'MOsOul Nerd Font', 'ZedMono Nerd Font', 'JetBrains Mono', monospace;
   font-size: 13px;
-  color: #d4d4d4;
   user-select: none;
   -webkit-user-select: none;
   position: absolute;
@@ -49,9 +46,6 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  background: #1e1e1e;
-  border: 1px solid #555;
-  color: #d4d4d4;
   border-radius: 3px;
   padding: 2px 6px;
   font-family: inherit;
@@ -60,7 +54,6 @@ body {
   min-width: 0;
   width: 100%;
 }
-.tw-dropdown-trigger:hover { background: #333; }
 .tw-dropdown-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tw-dropdown-arrow { opacity: 0.7; font-size: 10px; }
 .tw-dropdown-menu {
@@ -68,8 +61,6 @@ body {
   top: calc(100% + 2px);
   left: 0;
   min-width: 100%;
-  background: #262626;
-  border: 1px solid #555;
   border-radius: 4px;
   z-index: 200;
   padding: 4px 0;
@@ -80,12 +71,9 @@ body {
   padding: 4px 12px;
   cursor: pointer;
   white-space: nowrap;
-  color: #d4d4d4;
   font-family: inherit;
   font-size: 13px;
 }
-.tw-dropdown-item:hover { background: #333; }
-.tw-dropdown-item.selected { background: #3a3a3a; }
 /* Session menu items have a fixed-width gutter so the name column stays
  * aligned whether the row has a check mark or not. */
 .tw-dd-session-item {
@@ -113,9 +101,6 @@ body {
   transform: translateY(-50%);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4) inset;
 }
-.tw-dd-session-status.running { background: #2ecc40; }
-/* stopped: hollow outline; background: transparent and border set in base.css */
-.tw-dd-session-status.stopped { color: #e74c3c; }
 .tw-dd-session-delete {
   background: transparent;
   border: none;
@@ -125,16 +110,10 @@ body {
   opacity: 0.65;
 }
 .tw-dd-session-delete:hover { opacity: 1; }
-.tw-dropdown-sep { border: none; border-top: 1px solid #444; margin: 4px 0; }
-/* Sessions dropdown menu — anchors under the session button by default (left-aligned) */
-
 /* Context menu is position:fixed at the cursor — `min-width: 100%` would
  * otherwise resolve to the viewport width. Let the content size it. */
 .tw-dropdown-menu.tw-dd-context { min-width: auto; }
 .tw-dd-input {
-  background: #1e1e1e;
-  border: 1px solid #555;
-  color: #d4d4d4;
   border-radius: 3px;
   padding: 2px 6px;
   font-family: inherit;
@@ -150,9 +129,6 @@ body {
 .tw-dd-context-win .tw-dd-input { min-width: 120px; }
 
 #topbar .tb-btn {
-  background: none;
-  border: none;
-  color: #d4d4d4;
   border-radius: 3px;
   padding: 2px 8px;
   cursor: pointer;
@@ -160,9 +136,6 @@ body {
   font-size: 13px;
   line-height: 1.4;
 }
-
-#topbar .tb-btn:hover { background: #333; }
-#topbar .tb-btn:active { background: #444; }
 
 /* Session menu button: [ + | name ] — single button, opens the sessions dropdown */
 #topbar .tb-btn-session {
@@ -176,38 +149,22 @@ body {
   align-items: center;
   justify-content: center;
   width: 18px;
-  border-right: 1px solid #555;
+  border-right: 1px solid var(--tw-bevel-lo);
 }
 #topbar .tb-btn-session .tb-session-plus::before {
   content: '';
   display: block;
   width: 8px;
   height: 8px;
-  background: #d4d4d4;
+  background: var(--tw-text);
 }
 #topbar .tb-btn-session .tb-session-name {
   padding: 2px 8px;
 }
-#topbar .tb-btn-session.open { background: #444; }
 
-#topbar select {
-  background: #1e1e1e;
-  border: 1px solid #555;
-  color: #d4d4d4;
-  border-radius: 3px;
-  padding: 2px 6px;
-  font-family: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-#topbar select:hover { background: #333; }
 #topbar .tb-sep { width: 12px; }
 
 #topbar .win-tab {
-  background: none;
-  border: 1px solid transparent;
-  color: #888;
   border-radius: 3px;
   padding: 2px 8px;
   cursor: pointer;
@@ -215,9 +172,6 @@ body {
   font-size: 13px;
   line-height: 1.4;
 }
-
-#topbar .win-tab:hover { background: #333; color: #d4d4d4; }
-#topbar .win-tab.active { color: #d4d4d4; border-color: #555; }
 
 /* New-window button appended to #win-tabs */
 #topbar .tb-btn-new-window { margin-left: 2px; font-weight: bold; }
@@ -231,7 +185,7 @@ body {
 }
 #topbar .tb-btn-window-compact .tb-window-compact-label {
   padding: 2px 8px;
-  border-right: 1px solid #555;
+  border-right: 1px solid var(--tw-bevel-lo);
 }
 /* In tabs mode the button next to the tab strip only shows the gadget. */
 #topbar .tb-btn-window-compact.tabs-shown .tb-window-compact-label { display: none; }
@@ -255,7 +209,7 @@ body {
   position: absolute;
   width: 10px;
   height: 8px;
-  border: 1px solid #d4d4d4;
+  border: 1px solid var(--tw-text);
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
@@ -268,8 +222,8 @@ body {
   position: absolute;
   width: 4px;
   height: 2px;
-  background: #d4d4d4;
-  border: 1px solid #262626;
+  background: var(--tw-text);
+  border: 1px solid var(--tw-chrome);
   top: calc(50% - 4px);
   left: calc(50% - 5px);
   box-sizing: content-box;
@@ -295,17 +249,12 @@ body {
   min-width: 270px;
 }
 
-.menu-row:hover { background: #333; }
-
-#menu-dropdown input[type="range"] { accent-color: #aaa; }
-
 #menu-footer {
   display: flex;
   justify-content: space-between;
   gap: 12px;
   padding: 5px 12px;
   font-size: 11px;
-  color: #888;
   white-space: nowrap;
 }
 
