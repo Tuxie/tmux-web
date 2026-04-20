@@ -112,15 +112,6 @@ async function disableAutohide(page: Page): Promise<void> {
 async function readyAdapter(page: Page): Promise<void> {
   await page.waitForSelector("#terminal canvas");
   await page.waitForFunction(() => !!(window as any).__adapter);
-  // Bail early if WebGL renderer isn't active — the patch lives inside
-  // the WebGL path; with the DOM fallback these tests are meaningless.
-  const hasWebgl = await page.evaluate(() => {
-    const a = (window as any).__adapter;
-    return !!a?.webglAddon;
-  });
-  if (!hasWebgl) {
-    test.skip(true, 'WebGL renderer unavailable — opacity patches only apply to WebGL');
-  }
   await page.waitForTimeout(400);
 }
 

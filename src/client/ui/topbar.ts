@@ -1,7 +1,6 @@
 import {
   getTopbarAutohide, setTopbarAutohide,
   getShowWindowTabs, setShowWindowTabs,
-  getWebglEnabled, setWebglEnabled,
 } from '../prefs.js';
 import { applyTheme, listFonts, listThemes } from '../theme.js';
 import { fetchColours } from '../colours.js';
@@ -91,7 +90,6 @@ export class Topbar {
     this.setupAutoHide();
     this.setupMenu();
     this.setupFullscreenCheckbox();
-    this.setupWebglCheckbox();
     // setupSettingsInputs wires event listeners synchronously and returns a
     // promise for the async font-list fetch. We await here so that callers of
     // init() can rely on fonts being populated (e.g. before opening WebSocket).
@@ -375,18 +373,6 @@ export class Topbar {
     document.addEventListener('fullscreenchange', () => {
       chkFs.checked = !!document.fullscreenElement;
       this.show();
-    });
-  }
-
-  private setupWebglCheckbox(): void {
-    const chk = document.getElementById('chk-webgl') as HTMLInputElement | null;
-    if (!chk) return;
-    chk.checked = getWebglEnabled();
-    chk.addEventListener('change', () => {
-      setWebglEnabled(chk.checked);
-      // Renderer swap needs a full terminal re-init; cheapest is a reload.
-      sessionStorage.setItem('tmux-web:menu-reopen', '1');
-      location.reload();
     });
   }
 

@@ -42,6 +42,11 @@ and `verify-vendor-xterm.ts`, must succeed.
 - **Server** — TypeScript, Bun runtime (`src/server/`)
 - **Client** — TypeScript, bundle via `bun-build.ts` (`src/client/`)
 - **Terminal backend** — xterm.js 6.0.0 (from `vendor/xterm.js` submodule)
+- **Renderer** — **WebGL only** (`@xterm/addon-webgl`). The DOM renderer is
+  not supported. All colour transforms (contrast, bias, saturation, opacity)
+  are patched into the WebGL glyph renderer and rectangle renderer via
+  `_patchWebglExplicitBackgroundOpacity()` in `src/client/adapters/xterm.ts`.
+  Do not add DOM-renderer fallback paths or skip-guards for missing WebGL.
 - **PTY** — Bun native `Bun.spawn` with `terminal` support, spawn `tmux -f tmux.conf` (or custom `--tmux`)
 - **Auth** — HTTP Basic Auth (enabled by default) + IP allowlist via `--allow-ip`
 - **TLS** — HTTPS enabled by default (self-signed or custom cert)

@@ -1,6 +1,6 @@
 import type { TerminalAdapter } from './types.js';
 import type { CellMetrics, TerminalOptions, TerminalTheme } from '../../shared/types.js';
-import { getWebglEnabled } from '../prefs.js';
+
 import { pushLightness, rgbToOklabL } from '../fg-contrast.js';
 import { adjustSaturation } from '../tui-saturation.js';
 
@@ -28,10 +28,7 @@ export class XtermAdapter implements TerminalAdapter {
   // Metric values remain at their initial calculations even after changing fonts.
   // Reload is required to properly initialize metrics with the new font.
   get requiresReloadForFontChange(): boolean {
-    // WebGL and canvas renderers recompute metrics on option change; only the
-    // DOM fallback is stuck. webglAddon presence proves we aren't on DOM.
-    if (this.webglAddon) return false;
-    return this.term?._core?.renderer?._renderer?._type === 'dom';
+    return false;
   }
 
   async init(container: HTMLElement, options: TerminalOptions): Promise<void> {
@@ -97,21 +94,17 @@ export class XtermAdapter implements TerminalAdapter {
     safeLoad(() => new WebFontsAddon(), 'web-fonts');
     safeLoad(() => new ImageAddon(), 'image');
 
-    if (getWebglEnabled()) {
-      try {
-        const { WebglAddon } = await import('@xterm/addon-webgl');
-        const addon = new WebglAddon();
-        addon.onContextLoss(() => {
-          addon.dispose();
-          this.webglAddon = null;
-        });
-        this.term.loadAddon(addon);
-        this.webglAddon = addon;
-        this._patchWebglLineHeightOverflow();
-        this._patchWebglExplicitBackgroundOpacity();
-      } catch (err) {
-        console.warn('WebGL renderer unavailable, falling back to DOM:', err);
-      }
+    {
+      const { WebglAddon } = await import('@xterm/addon-webgl');
+      const addon = new WebglAddon();
+      addon.onContextLoss(() => {
+        addon.dispose();
+        this.webglAddon = null;
+      });
+      this.term.loadAddon(addon);
+      this.webglAddon = addon;
+      this._patchWebglLineHeightOverflow();
+      this._patchWebglExplicitBackgroundOpacity();
     }
 
     this._applyLineHeight(options.lineHeight);
@@ -226,10 +219,15 @@ export class XtermAdapter implements TerminalAdapter {
           shouldApplyBackgroundOpacity(this, fg, bg, startX, endX, y)
         ) {
           const attrs = vertices.attributes;
-          // Saturation first — rect attrs are currently straight-alpha
-          // (orig wrote rgb in [0,1], alpha=1). Scaling chroma before the
-          // premultiply below means the factor applies cleanly regardless
-          // of the TUI BG Opacity setting.
+          if (adapter.fgContrastStrength !== 0 || adapter.fgContrastBias !== 0) {
+            const r8 = Math.round(attrs[offset + 4] * 255);
+            const g8 = Math.round(attrs[offset + 5] * 255);
+            const b8 = Math.round(attrs[offset + 6] * 255);
+            const [cr, cg, cb] = pushLightness(r8, g8, b8, adapter.fgContrastStrength, adapter.fgContrastBias, adapter.bgOklabL);
+            attrs[offset + 4] = cr / 255;
+            attrs[offset + 5] = cg / 255;
+            attrs[offset + 6] = cb / 255;
+          }
           if (adapter.tuiSaturation !== 0) {
             const r8 = Math.round(attrs[offset + 4] * 255);
             const g8 = Math.round(attrs[offset + 5] * 255);

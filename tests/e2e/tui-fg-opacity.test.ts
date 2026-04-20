@@ -85,10 +85,6 @@ async function disableAutohide(page: Page): Promise<void> {
 async function readyAdapter(page: Page): Promise<void> {
   await page.waitForSelector("#terminal canvas");
   await page.waitForFunction(() => !!(window as any).__adapter);
-  const hasWebgl = await page.evaluate(() => !!(window as any).__adapter?.webglAddon);
-  if (!hasWebgl) {
-    test.skip(true, 'WebGL renderer unavailable — opacity patches only apply to WebGL');
-  }
   await page.waitForTimeout(400);
 }
 

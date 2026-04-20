@@ -52,10 +52,6 @@ async function disableAutohide(page: Page): Promise<void> {
 async function readyAdapter(page: Page): Promise<void> {
   await page.waitForSelector('#terminal canvas');
   await page.waitForFunction(() => !!(window as any).__adapter);
-  const hasWebgl = await page.evaluate(() => !!(window as any).__adapter?.webglAddon);
-  if (!hasWebgl) {
-    test.skip(true, 'WebGL renderer unavailable — Contrast patch only applies to WebGL');
-  }
   await page.waitForTimeout(400);
 }
 
@@ -149,6 +145,32 @@ test('Contrast strength=+100 bias=0 uses bg luminance as hard cutoff', async ({ 
     throw new Error(
       `Bias=0 → cutoff=bgL (dark). Grey 180 (L≈0.73) above cutoff → white.\n` +
       `  observed=(${bright.join(', ')})`
+    );
+  }
+});
+
+test('Bias affects explicit cell background colour (not just FG)', async ({ page }) => {
+  await page.goto('/');
+  await readyAdapter(page);
+  await disableAutohide(page);
+  // Write spaces with an explicit mid-grey BG (128,128,128).
+  // Spaces have no glyph, so the sampled pixel is the rect renderer's output.
+  await page.evaluate(() => {
+    (window as any).__adapter.write('\x1b[2J\x1b[H');
+    (window as any).__adapter.write('\x1b[48;2;128;128;128m' + ' '.repeat(30) + '\x1b[0m\r\n');
+  });
+  await page.waitForTimeout(300);
+
+  // With bias=-100 (all black), the BG rect should also go black.
+  await setSlider(page, 'inp-fg-contrast-strength', 0);
+  await setSlider(page, 'inp-fg-contrast-bias', -100);
+
+  const [r, g, b] = await samplePixel(page, SAMPLE_X, SAMPLE_Y);
+  if (r > 10 || g > 10 || b > 10) {
+    throw new Error(
+      `Bias=-100 should affect explicit cell BG too (rect renderer).\n` +
+      `  observed=(${r}, ${g}, ${b})\n` +
+      `  The rectangle renderer in _updateRectangle must apply pushLightness.`
     );
   }
 });
