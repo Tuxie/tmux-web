@@ -167,7 +167,10 @@ body {
 }
 #topbar .tb-btn:hover,
 #topbar .win-tab:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.1);
+}
+#topbar .win-tab:hover {
+  color: color-mix(in srgb, var(--tw-muted), white 10%);
 }
 #topbar .tb-btn:active {
   border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo);
