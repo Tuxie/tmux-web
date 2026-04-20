@@ -219,35 +219,47 @@ describe("theme lightness", () => {
 });
 
 describe("theme contrast", () => {
-  test("defaults to 100 (maps to 1.0x)", () => {
-    expect(DEFAULT_THEME_CONTRAST).toBe(100);
+  test("defaults to 0 (maps to 1.0x)", () => {
+    expect(DEFAULT_THEME_CONTRAST).toBe(0);
   });
 
-  test("clamps to 0..200", () => {
-    expect(clampThemeContrast(-10)).toBe(0);
+  test("clamps to -100..+100", () => {
+    expect(clampThemeContrast(-150)).toBe(-100);
+    expect(clampThemeContrast(-100)).toBe(-100);
     expect(clampThemeContrast(0)).toBe(0);
+    expect(clampThemeContrast(50.4)).toBe(50);
     expect(clampThemeContrast(100)).toBe(100);
-    expect(clampThemeContrast(150.4)).toBe(150);
-    expect(clampThemeContrast(200)).toBe(200);
-    expect(clampThemeContrast(250)).toBe(200);
+    expect(clampThemeContrast(150)).toBe(100);
     expect(clampThemeContrast(NaN)).toBe(DEFAULT_THEME_CONTRAST);
   });
 
-  test("applies --tw-theme-contrast as factor (divide by 100)", () => {
+  test("contrast 0 → factor 1 (theme default)", () => {
     const el = mockElement();
-    applyThemeContrast(150, el);
-    expect(el.style.getPropertyValue("--tw-theme-contrast")).toBe("1.5");
-  });
-
-  test("contrast 100 applies factor 1", () => {
-    const el = mockElement();
-    applyThemeContrast(100, el);
+    applyThemeContrast(0, el);
     expect(el.style.getPropertyValue("--tw-theme-contrast")).toBe("1");
   });
 
-  test("contrast 50 applies factor 0.5", () => {
+  test("contrast -100 → factor 0 (flat)", () => {
+    const el = mockElement();
+    applyThemeContrast(-100, el);
+    expect(el.style.getPropertyValue("--tw-theme-contrast")).toBe("0");
+  });
+
+  test("contrast +50 → factor 2 (doubled)", () => {
     const el = mockElement();
     applyThemeContrast(50, el);
+    expect(el.style.getPropertyValue("--tw-theme-contrast")).toBe("2");
+  });
+
+  test("contrast +100 → factor 3 (tripled)", () => {
+    const el = mockElement();
+    applyThemeContrast(100, el);
+    expect(el.style.getPropertyValue("--tw-theme-contrast")).toBe("3");
+  });
+
+  test("contrast -50 → factor 0.5 (halved)", () => {
+    const el = mockElement();
+    applyThemeContrast(-50, el);
     expect(el.style.getPropertyValue("--tw-theme-contrast")).toBe("0.5");
   });
 });

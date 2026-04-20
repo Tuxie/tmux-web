@@ -91,7 +91,7 @@ export function applyBackgroundDarkest(
 
 export const DEFAULT_THEME_SAT = 0;
 export const DEFAULT_THEME_LTN = 15;
-export const DEFAULT_THEME_CONTRAST = 100;
+export const DEFAULT_THEME_CONTRAST = 0;
 
 export function clampThemeSat(value: number): number {
   if (!Number.isFinite(value)) return DEFAULT_THEME_SAT;
@@ -105,7 +105,7 @@ export function clampThemeLtn(value: number): number {
 
 export function clampThemeContrast(value: number): number {
   if (!Number.isFinite(value)) return DEFAULT_THEME_CONTRAST;
-  return Math.max(0, Math.min(200, Math.round(value)));
+  return Math.max(-100, Math.min(100, Math.round(value)));
 }
 
 export function applyThemeSat(
@@ -126,6 +126,7 @@ export function applyThemeContrast(
   value: number,
   root: HTMLElement = document.documentElement,
 ): void {
-  const clamped = clampThemeContrast(value);
-  root.style.setProperty("--tw-theme-contrast", String(clamped / 100));
+  const v = clampThemeContrast(value);
+  const factor = v < 0 ? (v + 100) / 100 : 1 + 2 * v / 100;
+  root.style.setProperty("--tw-theme-contrast", String(factor));
 }

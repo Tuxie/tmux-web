@@ -33,7 +33,7 @@ export interface SessionSettings {
   themeHue: number;            // 0..360, --tw-theme-hue GUI chrome hue
   themeSat: number;              // 0..100, --tw-theme-sat GUI chrome saturation
   themeLtn: number;              // 0..100, --tw-theme-ltn GUI chrome lightness
-  themeContrast: number;         // 0..200, --tw-theme-contrast bevel spread (100 = 1.0x)
+  themeContrast: number;         // -100..+100, bevel/gradient spread (0 = 1x, +50 = 2x, +100 = 3x)
 }
 
 export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
