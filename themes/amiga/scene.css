@@ -167,6 +167,7 @@ body {
 }
 #topbar .tb-btn:hover,
 #topbar .win-tab:hover {
+  background: transparent;
   filter: brightness(1.05);
   opacity: 0.95;
 }
