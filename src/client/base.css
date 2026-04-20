@@ -19,7 +19,7 @@ html, body { height: 100%; overflow: hidden; }
   --tw-bevel-lo: rgba(0, 0, 0, var(--tw-depth));
 
   /* === CHROME-BG (menu bg, panel bg — defaults to toolbar's dark end) === */
-  --tw-chrome-bg: color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast)));
+  --tw-chrome-bg: color-mix(in srgb, var(--tw-chrome), black 5%);
   --tw-menu-bevel-hi: rgba(255, 255, 255, var(--tw-depth));
   --tw-menu-bevel-lo: rgba(0, 0, 0, var(--tw-depth));
 

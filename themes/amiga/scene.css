@@ -335,8 +335,8 @@ body {
   justify-content: space-between;
   gap: 6px;
   background: linear-gradient(to bottom,
-    var(--tw-chrome-bg),
-    color-mix(in srgb, var(--tw-chrome-bg), black calc(12% * var(--tw-theme-contrast))));
+    color-mix(in srgb, var(--tw-chrome-bg), white calc(6% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome-bg), black calc(6% * var(--tw-theme-contrast))));
   border: 2px solid;
   border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   padding: 1px 4px;
@@ -357,8 +357,8 @@ body {
   left: 0;
   min-width: 100%;
   background: linear-gradient(to bottom,
-    var(--tw-chrome-bg),
-    color-mix(in srgb, var(--tw-chrome-bg), black calc(12% * var(--tw-theme-contrast))));
+    color-mix(in srgb, var(--tw-chrome-bg), white calc(6% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome-bg), black calc(6% * var(--tw-theme-contrast))));
   border: 2px solid;
   border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   z-index: 200;
