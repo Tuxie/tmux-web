@@ -1,36 +1,35 @@
 /**
- * FG Contrast transform.
+ * Contrast transform (FG + explicit cell BG).
  *
- * Reshapes every foreground colour's OKLab lightness around a
- * user-chosen bias, from "collapse everything to bias" at -100 through
- * "identity" at 0 to "hard black/white threshold at bias" at +100.
+ * Reshapes every colour's OKLab lightness around a cutoff derived from
+ * the actual rendered background luminance (bgL) plus a user bias.
+ *
+ * Cutoff calculation:
+ *   bias = biasPct / 100  (∈ [-1, +1])
+ *   cutoff = bias >= 0
+ *     ? bgL + bias × (1 - bgL)   // +100 → cutoff = 1
+ *     : bgL + bias × bgL          // -100 → cutoff = 0
+ *   bias 0 → cutoff = bgL; ±50 → halfway to extreme.
+ *
+ * Piecewise by t = strength / 100 ∈ [-1, +1]:
+ *
+ *   t < 0  → linear lerp toward cutoff:
+ *            L' = L × (1+t) + cutoff × (-t)
+ *
+ *   t = 0  → identity; everything else ignored.
+ *
+ *   t > 0  → exclusion gap around cutoff. Half-widths scale with
+ *            cutoff's distance to each extreme:
+ *              lower = cutoff × (1 - t)
+ *              upper = cutoff + t × (1 - cutoff)
+ *            Colours inside snap to nearest edge; outside stay put.
+ *            At t=1 everything → 0 or 1 with cutoff as hard threshold.
+ *
  * Hue and chroma (OKLab a, b) always pass through untouched.
- *
- * Piecewise by `t = strength / 100 ∈ [-1, +1]` and `B = bias / 100 ∈ [0, 1]`:
- *
- *   t < 0  → linear lerp toward bias:
- *            L' = L × (1+t) + B × (-t)
- *            (t=-1 collapses every L to B; t=0 is identity.)
- *
- *   t = 0  → identity; bias is ignored.
- *
- *   t > 0  → "gap" around the bias. Half-widths scale with the bias's
- *            distance to each extreme so the gap always covers [0,1]
- *            at t=1 even for off-centre biases:
- *              lower = B × (1 - t)
- *              upper = B + t × (1 - B)
- *            Colours inside the gap snap to the nearest edge; colours
- *            outside stay put. At t=1 everything collapses to 0 or 1
- *            with B as the hard threshold — matching the user's
- *            "maximum brightness or minimum brightness" description.
- *
- * Runs on every fg colour the atlas sees (P16, P256, truecolor,
- * inverse — all of them) via the glyph-renderer hook in
- * `src/client/adapters/xterm.ts`.
  */
 
 export const DEFAULT_FG_CONTRAST_STRENGTH = 0;   // -100..+100
-export const DEFAULT_FG_CONTRAST_BIAS = 50;      // 0..100 (50 = middle)
+export const DEFAULT_FG_CONTRAST_BIAS = 0;        // -100..+100 (0 = bg luminance)
 
 export function clampFgContrastStrength(v: number): number {
   if (!Number.isFinite(v)) return DEFAULT_FG_CONTRAST_STRENGTH;
@@ -39,7 +38,7 @@ export function clampFgContrastStrength(v: number): number {
 
 export function clampFgContrastBias(v: number): number {
   if (!Number.isFinite(v)) return DEFAULT_FG_CONTRAST_BIAS;
-  return Math.max(0, Math.min(100, Math.round(v)));
+  return Math.max(-100, Math.min(100, Math.round(v)));
 }
 
 function srgbToLinear(c: number): number {
@@ -85,50 +84,53 @@ function oklabToSrgbByte(L: number, a: number, b: number): [number, number, numb
   ];
 }
 
+export function rgbToOklabL(r: number, g: number, b: number): number {
+  return srgbByteToOklab(r, g, b)[0];
+}
+
 /**
- * Reshape `(fgR, fgG, fgB)` per the strength/bias curve. See the
- * module-level comment for the piecewise formula. Identity at
- * `strengthPct === 0`; at ±100 the output either collapses to the
- * bias lightness (negative) or snaps each colour to the nearest of
- * black or white with the bias as threshold (positive).
+ * Reshape `(r, g, b)` per the strength/bias/bgL curve. Identity at
+ * `strengthPct === 0`. Applies to both FG and explicit cell BG.
  *
- * `strengthPct` is the -100..+100 slider value.
- * `biasPct` is the 0..100 slider value (50 = middle grey).
- *
- * Returns new `[r, g, b]` bytes in 0..255.
+ * `strengthPct` — -100..+100 slider value.
+ * `biasPct` — -100..+100 slider value (0 = use bgL as cutoff).
+ * `bgL` — OKLab L of the rendered background (0..1).
  */
-export function pushFgLightness(
-  fgR: number, fgG: number, fgB: number,
+export function pushLightness(
+  r: number, g: number, b: number,
   strengthPct: number,
   biasPct: number,
+  bgL: number,
 ): [number, number, number] {
-  if (strengthPct === 0) return [fgR, fgG, fgB];
+  if (strengthPct === 0) return [r, g, b];
   const t = Math.max(-1, Math.min(1, strengthPct / 100));
-  const B = Math.max(0, Math.min(1, biasPct / 100));
-  const [fgL, fa, fb] = srgbByteToOklab(fgR, fgG, fgB);
+  const bias = Math.max(-1, Math.min(1, biasPct / 100));
+  const cutoff = bias >= 0
+    ? bgL + bias * (1 - bgL)
+    : bgL + bias * bgL;
+  const [inL, ia, ib] = srgbByteToOklab(r, g, b);
 
   let newL: number;
   if (t < 0) {
     const mag = -t;
-    newL = fgL * (1 - mag) + B * mag;
+    newL = inL * (1 - mag) + cutoff * mag;
   } else {
-    // Gap half-widths scale so at t=1 the dead zone covers the whole
-    // [0, 1] range regardless of where B sits. Below bias, width is
-    // B·t (so it reaches 0 at t=1); above bias, width is (1-B)·t
-    // (so it reaches 1 at t=1).
-    const lower = B * (1 - t);
-    const upper = B + t * (1 - B);
-    if (fgL < lower) {
-      newL = fgL;                              // below the gap — stays
-    } else if (fgL < B) {
-      newL = lower;                            // in the gap, below bias — snap to lower edge
-    } else if (fgL <= upper) {
-      newL = upper;                            // in the gap, above bias — snap to upper edge
+    const lower = cutoff * (1 - t);
+    const upper = cutoff + t * (1 - cutoff);
+    if (inL < lower) {
+      newL = inL;
+    } else if (inL < cutoff) {
+      newL = lower;
+    } else if (inL <= upper) {
+      newL = upper;
     } else {
-      newL = fgL;                              // above the gap — stays
+      newL = inL;
     }
   }
 
   newL = Math.max(0, Math.min(1, newL));
-  return oklabToSrgbByte(newL, fa, fb);
+  return oklabToSrgbByte(newL, ia, ib);
 }
+
+/** @deprecated Use pushLightness instead. */
+export const pushFgLightness = pushLightness;

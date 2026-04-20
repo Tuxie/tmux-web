@@ -9,7 +9,7 @@
  *
  *   factor = 1 + pct/100   ∈ [0, 2]
  *
- * Runs after `pushFgLightness` in the FG path and after the BG rect's
+ * Runs after `pushLightness` in the FG path and after the BG rect's
  * alpha premultiply in the BG path — see `src/client/adapters/xterm.ts`.
  * Greys are natural fixed points at any setting because their input
  * chroma is already zero.

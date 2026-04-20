@@ -1,7 +1,7 @@
 import type { TerminalAdapter } from './types.js';
 import type { CellMetrics, TerminalOptions, TerminalTheme } from '../../shared/types.js';
 import { getWebglEnabled } from '../prefs.js';
-import { pushFgLightness } from '../fg-contrast.js';
+import { pushLightness, rgbToOklabL } from '../fg-contrast.js';
 import { adjustSaturation } from '../tui-saturation.js';
 
 const XTERM_COLOR_MODE_MASK = 0x3000000;
@@ -18,7 +18,8 @@ export class XtermAdapter implements TerminalAdapter {
   private tuiBgAlpha = 1;
   private tuiFgAlpha = 1;
   private fgContrastStrength = 0;  // -100..+100
-  private fgContrastBias = 50;     // 0..100, target brightness / threshold
+  private fgContrastBias = 0;      // -100..+100, offset from bg luminance
+  private bgOklabL = 0;            // OKLab L of rendered background (auto-computed)
   private tuiSaturation = 0;       // -100..+100, OKLab chroma scale for FG + BG
 
   constructor() {}
@@ -114,6 +115,7 @@ export class XtermAdapter implements TerminalAdapter {
     }
 
     this._applyLineHeight(options.lineHeight);
+    this._updateBgOklabL();
     this.fitAddon.fit();
   }
 
@@ -353,12 +355,12 @@ export class XtermAdapter implements TerminalAdapter {
 
     /** Transform and blend the "visible fg" colour:
      *
-     *    fg_transformed = pushFgLightness(fg, cellBg, strength, bias)
+     *    fg_transformed = pushLightness(fg, strength, bias, bgL)
      *    fg_final       = fg_transformed × α + cellBg × (1-α)
      *
      *  Returns an attribute word (CM_RGB | blended) suitable for either
      *  the fg slot (non-inverse) or the bg slot (inverse, where bg
-     *  carries the fg colour xterm renders). The FG Contrast transform
+     *  carries the fg colour xterm renders). The contrast transform
      *  always runs first so the user's "push text away from bg" reshape
      *  happens before TUI FG Opacity fades it; at strength=0 the
      *  transform is identity. */
@@ -372,10 +374,11 @@ export class XtermAdapter implements TerminalAdapter {
       let bgG = (cellBgRgb >> 8) & 0xff;
       let bgB = cellBgRgb & 0xff;
       if (adapter.fgContrastStrength !== 0) {
-        [fgR, fgG, fgB] = pushFgLightness(
+        [fgR, fgG, fgB] = pushLightness(
           fgR, fgG, fgB,
           adapter.fgContrastStrength,
           adapter.fgContrastBias,
+          adapter.bgOklabL,
         );
       }
       // Saturate FG and cellBg before the alpha lerp so the glyph
@@ -419,9 +422,16 @@ export class XtermAdapter implements TerminalAdapter {
       let outFg = fg;
       let outBg = bg;
       if (known || inverse) {
-        const blendedBgRgb = blendRgbaOverDefaultBackground(
+        let blendedBgRgb = blendRgbaOverDefaultBackground(
           resolveAttrRgba(effectiveBg, inverse ? fgDefaultRgba : bgDefaultRgba),
         );
+        if (adapter.fgContrastStrength !== 0) {
+          let cR = (blendedBgRgb >> 16) & 0xff;
+          let cG = (blendedBgRgb >> 8) & 0xff;
+          let cB = blendedBgRgb & 0xff;
+          [cR, cG, cB] = pushLightness(cR, cG, cB, adapter.fgContrastStrength, adapter.fgContrastBias, adapter.bgOklabL);
+          blendedBgRgb = (cR << 16) | (cG << 8) | cB;
+        }
         if (inverse) {
           outFg = (fg & ~(XTERM_RGB_MASK | XTERM_COLOR_MODE_MASK)) | XTERM_COLOR_MODE_RGB | blendedBgRgb;
         } else {
@@ -503,8 +513,8 @@ export class XtermAdapter implements TerminalAdapter {
   }
 
   private _setFgContrastBias(pct: number | undefined): void {
-    const v = Number.isFinite(pct) ? pct! : 50;
-    this.fgContrastBias = Math.max(0, Math.min(100, Math.round(v)));
+    const v = Number.isFinite(pct) ? pct! : 0;
+    this.fgContrastBias = Math.max(-100, Math.min(100, Math.round(v)));
   }
 
   private _setTuiSaturation(pct: number | undefined): void {
@@ -583,6 +593,17 @@ export class XtermAdapter implements TerminalAdapter {
 
   setTheme(theme: TerminalTheme): void {
     this.term.options.theme = theme;
+    this._updateBgOklabL();
+  }
+
+  private _updateBgOklabL(): void {
+    const rgba = this.term?._core?._renderService?._renderer?.value?._themeService?.colors?.background?.rgba;
+    if (rgba !== undefined) {
+      const r = (rgba >> 24) & 0xff;
+      const g = (rgba >> 16) & 0xff;
+      const b = (rgba >> 8) & 0xff;
+      this.bgOklabL = rgbToOklabL(r, g, b);
+    }
   }
 
   updateOptions(opts: Partial<TerminalOptions>): void {

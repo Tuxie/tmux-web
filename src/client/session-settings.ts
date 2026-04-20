@@ -27,8 +27,8 @@ export interface SessionSettings {
   backgroundSaturation: number; // -100..+100, delta from theme base saturation
   backgroundBrightest: number; // 0..100, HSL L at gradient's brightest stop
   backgroundDarkest: number;   // 0..100, HSL L at gradient's darkest stop
-  fgContrastStrength: number;  // 0..100, OKLab-L repulsion strength
-  fgContrastBias: number;      // -50..+50, repulsion midpoint offset
+  fgContrastStrength: number;  // -100..+100, OKLab-L contrast strength
+  fgContrastBias: number;      // -100..+100, cutoff offset from bg luminance
   tuiSaturation: number;       // -100..+100, OKLab chroma scale for FG + BG
   themeHue: number;            // 0..360, --tw-theme-hue GUI chrome hue
   themeSat: number;              // 0..100, --tw-theme-sat GUI chrome saturation

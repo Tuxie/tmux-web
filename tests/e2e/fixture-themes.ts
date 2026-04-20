@@ -67,7 +67,7 @@ export function fixtureSessionSettings(overrides: Partial<{
     tuiBgOpacity: 100,
     tuiFgOpacity: 100,
     fgContrastStrength: 0,
-    fgContrastBias: 50,
+    fgContrastBias: 0,
     tuiSaturation: 0,
     backgroundHue: 183,
     themeHue: 222,
