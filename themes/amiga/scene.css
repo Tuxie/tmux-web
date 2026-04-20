@@ -167,8 +167,8 @@ body {
 }
 #topbar .tb-btn:hover,
 #topbar .win-tab:hover {
-  filter: brightness(1.1);
-  opacity: 0.9;
+  filter: brightness(1.05);
+  opacity: 0.95;
 }
 #topbar .tb-btn:active {
   border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo);
