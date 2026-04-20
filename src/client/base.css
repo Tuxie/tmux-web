@@ -259,56 +259,56 @@ body {
   color: var(--tw-text);
 }
 
-#topbar {
+:where(#topbar) {
   background: var(--tw-chrome);
   color: var(--tw-text);
 }
 
-#topbar .tb-btn {
+:where(#topbar .tb-btn) {
   background: var(--tw-chrome);
   border: 1px solid var(--tw-bevel-hi);
   color: var(--tw-text);
 }
-#topbar .tb-btn:hover { background: var(--tw-gadget-hover); }
-#topbar .tb-btn:active { background: var(--tw-gadget-active); }
+:where(#topbar .tb-btn:hover) { background: var(--tw-gadget-hover); }
+:where(#topbar .tb-btn:active) { background: var(--tw-gadget-active); }
 
-#topbar .win-tab {
+:where(#topbar .win-tab) {
   color: var(--tw-muted);
   border: 1px solid transparent;
 }
-#topbar .win-tab:hover { background: var(--tw-gadget-hover); color: var(--tw-text); }
-#topbar .win-tab.active { color: var(--tw-text); }
+:where(#topbar .win-tab:hover) { background: var(--tw-gadget-hover); color: var(--tw-text); }
+:where(#topbar .win-tab.active) { color: var(--tw-text); }
 
-.tw-dropdown-trigger {
+:where(.tw-dropdown-trigger) {
   background: var(--tw-gadget-bg);
   border: 1px solid var(--tw-bevel-hi);
   color: var(--tw-text);
 }
-.tw-dropdown-trigger:hover { background: var(--tw-gadget-hover); }
+:where(.tw-dropdown-trigger:hover) { background: var(--tw-gadget-hover); }
 
-.tw-dropdown-menu {
+:where(.tw-dropdown-menu) {
   background: var(--tw-chrome-bg);
   border: 1px solid var(--tw-bevel-hi);
   color: var(--tw-text);
 }
 
-.tw-dropdown-item { color: var(--tw-text); }
-.tw-dropdown-item:hover { background: var(--tw-gadget-hover); }
-.tw-dropdown-item.selected { background: var(--tw-gadget-active); }
+:where(.tw-dropdown-item) { color: var(--tw-text); }
+:where(.tw-dropdown-item:hover) { background: var(--tw-gadget-hover); }
+:where(.tw-dropdown-item.selected) { background: var(--tw-gadget-active); }
 
-.tw-dropdown-sep { border-top-color: var(--tw-muted); }
+:where(.tw-dropdown-sep) { border-top-color: var(--tw-muted); }
 
-.tw-dd-input {
+:where(.tw-dd-input) {
   background: var(--tw-gadget-bg);
   border: 1px solid var(--tw-bevel-hi);
   color: var(--tw-text);
 }
 
-.tw-dd-session-status.running { background: var(--tw-status-active); }
+:where(.tw-dd-session-status.running) { background: var(--tw-status-active); }
 
-.menu-row:hover { background: var(--tw-gadget-hover); }
+:where(.menu-row:hover) { background: var(--tw-gadget-hover); }
 
-#menu-dropdown .tb-btn {
+:where(#menu-dropdown .tb-btn) {
   background: var(--tw-gadget-bg);
   color: var(--tw-text);
 }
