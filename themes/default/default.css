@@ -1,22 +1,3 @@
-:root {
-  /* --tw-antialias-bg -----------------------------------------------
-   * Backdrop the xterm.js WebGL atlas uses when baking glyph edge-AA
-   * so anti-aliased text doesn't fringe against the body.
-   *
-   * Derived from the BG sliders so any theme that drives its body
-   * background off the same variables gets a correct halo reference
-   * for free — solid bodies (brightest == darkest) reduce to a
-   * single L, gradient bodies land at the 42%-stop midpoint. Themes
-   * with image bodies should still override this manually.
-   * -------------------------------------------------------------- */
-  --tw-antialias-bg: hsl(
-    var(--tw-background-hue, 0)
-    calc(var(--tw-background-saturation, 0) * 1%)
-    calc((var(--tw-background-brightest, 12) * 0.58
-        + var(--tw-background-darkest,  12) * 0.42) * 1%)
-  );
-}
-
 body {
   background: hsl(
     var(--tw-background-hue, 0)

@@ -1,22 +1,52 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; overflow: hidden; }
 
-/* Surface palette — themes override these on :root to reskin
- * toast, prompt, and menu-input elements without re-declaring full rules. */
 :root {
-  --tw-surface-bg: #262626;
-  --tw-surface-bg-alt: #1e1e1e;
-  --tw-surface-border: #555;
-  --tw-surface-hover: #333;
+  /* === SLIDER INPUTS (JS-written; defaults are fallbacks for no-JS) === */
+  --tw-theme-hue: 0;
+  --tw-theme-sat: 0%;
+  --tw-theme-ltn: 15%;
+  --tw-theme-contrast: 1;
+
+  /* === ROOT === */
+  --tw-primary: hsl(var(--tw-theme-hue) var(--tw-theme-sat) var(--tw-theme-ltn));
+
+  /* === CHROME (toolbar, frame, active elements) === */
+  --tw-chrome: var(--tw-primary);
+  --tw-bevel-hi: color-mix(in srgb, var(--tw-chrome), white calc(20% * var(--tw-theme-contrast)));
+  --tw-bevel-lo: color-mix(in srgb, var(--tw-chrome), black calc(35% * var(--tw-theme-contrast)));
+
+  /* === CHROME-BG (menu bg, panel bg) === */
+  --tw-chrome-bg: var(--tw-chrome);
+  --tw-menu-bevel-hi: color-mix(in srgb, var(--tw-chrome-bg), white calc(15% * var(--tw-theme-contrast)));
+  --tw-menu-bevel-lo: color-mix(in srgb, var(--tw-chrome-bg), black calc(30% * var(--tw-theme-contrast)));
+
+  /* === GADGET (inputs, buttons, checkboxes, slider thumbs) === */
+  --tw-gadget-bg: var(--tw-chrome-bg);
+  --tw-gadget-hover: color-mix(in srgb, var(--tw-gadget-bg), white 8%);
+  --tw-gadget-active: color-mix(in srgb, var(--tw-gadget-bg), white 15%);
+
+  /* === TEXT === */
+  --tw-text: #d4d4d4;
+  --tw-text-muted: color-mix(in srgb, var(--tw-text), transparent 40%);
+  --tw-muted: var(--tw-text-muted);
+
+  /* === STATUS === */
+  --tw-status-active: #2ecc40;
+  --tw-status-inactive: #888;
+
+  /* === SEMANTIC (toast/prompt) === */
   --tw-danger-bg: #5a2a2a;
   --tw-danger-border: #a05555;
   --tw-success-bg: #2a6a2a;
-  --tw-text: #e0e0e0;
-  /* Derived: 40%-transparent main text. Composites against whatever
-   * bg sits behind the element, which matches how a theme author
-   * thinks about "muted" — same hue / family as the primary text,
-   * just quieter. Themes can still override explicitly. */
-  --tw-text-muted: color-mix(in srgb, var(--tw-text), transparent 40%);
+
+  /* === BODY BACKGROUND (existing slider system) === */
+  --tw-antialias-bg: hsl(
+    var(--tw-background-hue, 0)
+    calc(var(--tw-background-saturation, 0) * 1%)
+    calc((var(--tw-background-brightest, 12) * 0.58
+        + var(--tw-background-darkest,  12) * 0.42) * 1%)
+  );
 }
 
 #frame-bg, #frame-top, #frame-right, #frame-bottom, #frame-left,
