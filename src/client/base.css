@@ -27,6 +27,9 @@ html, body { height: 100%; overflow: hidden; }
   --tw-gadget-hover: color-mix(in srgb, var(--tw-gadget-bg), white 8%);
   --tw-gadget-active: color-mix(in srgb, var(--tw-gadget-bg), white 15%);
 
+  /* === UI FONT (themes override; used by topbar, dropdowns, menus) === */
+  --tw-ui-font: system-ui, sans-serif;
+
   /* === TEXT === */
   --tw-text: #d4d4d4;
   --tw-text-muted: color-mix(in srgb, var(--tw-text), transparent 40%);
@@ -263,6 +266,7 @@ body {
 :where(#topbar) {
   background: var(--tw-chrome);
   color: var(--tw-text);
+  font-family: var(--tw-ui-font);
 }
 
 :where(#topbar .tb-btn) {
@@ -291,6 +295,7 @@ body {
   background: var(--tw-chrome-bg);
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: var(--tw-text);
+  font-family: var(--tw-ui-font);
 }
 
 :where(.tw-dropdown-item) { color: var(--tw-text); }

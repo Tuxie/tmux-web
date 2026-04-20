@@ -6,6 +6,7 @@
    * defaults (hue 216, sat 38%, ltn 62%) for the classic Workbench blue. */
   /* Bevels inherit from base.css: rgba(255,255,255,depth) / rgba(0,0,0,depth).
    * theme.json defaultDepth: 100 gives the classic opaque B/W look. */
+  --tw-ui-font: 'Topaz8 Amiga1200 Nerd Font', monospace;
   --tw-chrome-bg: hsl(0 0% calc(var(--tw-theme-ltn) + 10%));
   --tw-gadget-bg: hsl(0 0% calc(var(--tw-theme-ltn) + 5%));
   --tw-text: #000;
@@ -84,7 +85,6 @@ body {
   align-items: stretch;
   height: 28px;
   background: var(--tw-chrome);
-  font-family: 'Topaz8 Amiga1200 Nerd Font', monospace;
   font-size: 19px;
   position: absolute;
   top: 0px; left: 0px; right: 0px;

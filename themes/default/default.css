@@ -1,4 +1,5 @@
 :root {
+  --tw-ui-font: 'Iosevka Nerd Font Mono', 'MOsOul Nerd Font', 'ZedMono Nerd Font', 'JetBrains Mono', monospace;
   /* Default inputs are slightly darker than chrome — override gadget-bg. */
   --tw-gadget-bg: color-mix(in srgb, var(--tw-chrome-bg), black 20%);
 }

@@ -5,6 +5,7 @@
    * via --tw-primary and --tw-theme-contrast. Theme Hue / Sat / Lightness
    * / Contrast sliders drive them; theme.json sets the defaults
    * (hue 222, sat 36%, ltn 27%, contrast 100). */
+  --tw-ui-font: 'MicroKnight Nerd Font', monospace;
   --tw-gadget-bg: rgba(255, 255, 255, 0.12);
   --tw-text: #fff;
   --tw-muted: rgba(255, 255, 255, 0.3);
@@ -104,7 +105,6 @@ body {
   background: linear-gradient(to bottom,
     color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))),
     color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))));
-  font-family: 'MicroKnight Nerd Font', monospace;
   font-size: 19px;
   position: absolute;
   top: 0px; left: 0px; right: 0px;
@@ -363,7 +363,6 @@ body {
   border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   z-index: 200;
   padding: 2px 0;
-  font-family: inherit;
   font-size: 15px;
   /* max-height / overflow-y live in base.css. */
 }
@@ -418,7 +417,6 @@ body {
   right: 0; left: auto;
   min-width: 270px;
   padding: 4px 0;
-  font-family: 'MicroKnight Nerd Font', monospace;
 }
 .menu-row { display: flex; align-items: center; gap: 3px; padding: 2px 12px;
             cursor: pointer; white-space: nowrap; font-size: 15px; }
