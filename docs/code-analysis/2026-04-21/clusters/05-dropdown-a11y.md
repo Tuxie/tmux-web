@@ -1,6 +1,6 @@
 ---
 Status: resolved
-Resolved-in: PENDING
+Resolved-in: da06aa8
 ---
 
 > **Resolution (2026-04-21) — keyboard contract:**
