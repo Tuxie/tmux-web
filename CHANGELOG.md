@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.6.1 — 2026-04-21
+
+### Added
+
+- **`--reset` CLI flag**: deletes saved session settings (`sessions.json`) and sends `POST /api/exit?action=restart` to the running instance on the same listen address, so the process manager restarts it with fresh defaults.
+- **`POST /api/exit`** endpoint: `?action=quit` (exit 0, default) or `?action=restart` (exit 2) for process-manager-aware restarts.
+- Default toolbar autohide is now **off** — toolbar stays visible by default.
+
+### Changed
+
+- **Default theme visual refresh**: toolbar gradient, reversed-gradient active buttons, transparent idle button borders, gradient dropdown menus, slider track with 20% brighter fill, compact menu spacing, tuned defaults (hue 222, sat 15, opacity 40, BG hue 222, BG sat −75, brightest 3, darkest 7, font size 16).
+- **Compact menus** in base.css: tighter row padding (2px 8px), smaller section/hr margins. All themes inherit compact spacing; Amiga themes override with their own.
+- Slider track/thumb styling moved to base.css so all themes get consistent left-side fill (fixes Firefox showing fill on wrong side).
+- Scene 2000 defaults tuned: depth 22, hue 220, contrast 8, ltn 26, sat 38.
+
+### Fixed
+
+- Background slider defaults (`backgroundHue`, `backgroundSaturation`, `backgroundBrightest`, `backgroundDarkest`, `themeHue`) were not loaded from theme.json on initial page load — only on theme switch. New sessions now pick up all theme.json values.
+- `.menu-hr` and `.tw-dropdown-sep` unified into one CSS rule — separators now look identical across all menus (settings, sessions, windows, context).
+- Homebrew tap was never auto-bumped for 1.5.1 or 1.6.0: releases created with `GITHUB_TOKEN` don't fire `release: published` events. Inlined the homebrew bump job into `release.yml`.
+
 ## 1.6.0 — 2026-04-21
 
 Major theming overhaul: all GUI chrome colours derive from a small set of CSS variables and slider-driven values. Themes set defaults; users tune everything at runtime.

@@ -43,6 +43,9 @@ export interface ConfigResult {
   port: number;
   help?: boolean;
   version?: boolean;
+  reset?: boolean;
+  resetTls?: boolean;
+  resetAuth?: { username: string; password: string | undefined };
 }
 
 export function parseConfig(argv: string[]): ConfigResult {
