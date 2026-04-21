@@ -99,7 +99,7 @@ test.describe('theming', () => {
       if (cb && cb.checked) cb.click();
     });
 
-    // Switch to the alt fixture theme (which has defaultTuiOpacity=70)
+    // Switch to the alt fixture theme (which has defaultTuiBgOpacity=70)
     // so Reset lands on a non-100 value we can distinguish.
     await page.selectOption('#inp-theme', ALT_THEME);
     await waitForStored(store, 'main', s => s.theme === ALT_THEME);

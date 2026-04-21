@@ -39,7 +39,7 @@ export const FX = {
     primary: 'E2E Primary Font',
     secondary: 'E2E Secondary Font',
   },
-  /** Fixture-default `defaultTuiOpacity` on the alt theme. */
+  /** Fixture-default `defaultTuiBgOpacity` on the alt theme. */
   altDefaultTuiBgOpacity: 70,
   altDefaultTuiFgOpacity: 80,
   altDefaultOpacity: 50,

@@ -7,7 +7,6 @@ export type ThemeInfo = {
   defaultSpacing?: number;
   defaultColours?: string;
   defaultOpacity?: number;
-  defaultTuiOpacity?: number;
   defaultTuiBgOpacity?: number;
   defaultTuiFgOpacity?: number;
   defaultTuiSaturation?: number;
