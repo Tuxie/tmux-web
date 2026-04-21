@@ -21,6 +21,8 @@ export type ThemeInfo = {
   defaultTuiBgOpacity?: number;
   defaultTuiFgOpacity?: number;
   defaultTuiSaturation?: number;
+  defaultFgContrastStrength?: number;
+  defaultFgContrastBias?: number;
   defaultThemeHue?: number;
   defaultThemeSat?: number;
   defaultThemeLtn?: number;
@@ -58,6 +60,8 @@ export type PackManifest = {
     defaultTuiBgOpacity?: number;
   defaultTuiFgOpacity?: number;
   defaultTuiSaturation?: number;
+  defaultFgContrastStrength?: number;
+  defaultFgContrastBias?: number;
   defaultThemeHue?: number;
   defaultThemeSat?: number;
   defaultThemeLtn?: number;
@@ -131,6 +135,8 @@ const INHERITABLE_FIELDS: Array<keyof ThemeInfo> = [
   'defaultTuiBgOpacity',
   'defaultTuiFgOpacity',
   'defaultTuiSaturation',
+  'defaultFgContrastStrength',
+  'defaultFgContrastBias',
   'defaultThemeHue',
   'defaultThemeSat',
   'defaultThemeLtn',
@@ -188,6 +194,8 @@ export function listThemes(packs: PackInfo[]): ThemeInfo[] {
         defaultTuiBgOpacity: rawDefaultBase.defaultTuiBgOpacity,
         defaultTuiFgOpacity: rawDefaultBase.defaultTuiFgOpacity,
         defaultTuiSaturation: rawDefaultBase.defaultTuiSaturation,
+        defaultFgContrastStrength: rawDefaultBase.defaultFgContrastStrength,
+        defaultFgContrastBias: rawDefaultBase.defaultFgContrastBias,
         defaultThemeHue: rawDefaultBase.defaultThemeHue,
         defaultThemeSat: rawDefaultBase.defaultThemeSat,
         defaultThemeLtn: rawDefaultBase.defaultThemeLtn,
@@ -222,6 +230,8 @@ export function listThemes(packs: PackInfo[]): ThemeInfo[] {
         defaultTuiBgOpacity: theme.defaultTuiBgOpacity,
         defaultTuiFgOpacity: theme.defaultTuiFgOpacity,
         defaultTuiSaturation: theme.defaultTuiSaturation,
+        defaultFgContrastStrength: theme.defaultFgContrastStrength,
+        defaultFgContrastBias: theme.defaultFgContrastBias,
         defaultThemeHue: theme.defaultThemeHue,
         defaultThemeSat: theme.defaultThemeSat,
         defaultThemeLtn: theme.defaultThemeLtn,

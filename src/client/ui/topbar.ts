@@ -559,6 +559,8 @@ export class Topbar {
       if (theme?.defaultTuiBgOpacity !== undefined) td.tuiBgOpacity = theme.defaultTuiBgOpacity;
       if (theme?.defaultTuiFgOpacity !== undefined) td.tuiFgOpacity = theme.defaultTuiFgOpacity;
       if (theme?.defaultTuiSaturation !== undefined) td.tuiSaturation = theme.defaultTuiSaturation;
+      if (theme?.defaultFgContrastStrength !== undefined) td.fgContrastStrength = theme.defaultFgContrastStrength;
+      if (theme?.defaultFgContrastBias !== undefined) td.fgContrastBias = theme.defaultFgContrastBias;
       if (theme?.defaultThemeHue !== undefined) td.themeHue = theme.defaultThemeHue;
       if (theme?.defaultThemeSat !== undefined) td.themeSat = theme.defaultThemeSat;
       if (theme?.defaultThemeLtn !== undefined) td.themeLtn = theme.defaultThemeLtn;

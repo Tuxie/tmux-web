@@ -68,6 +68,8 @@ async function main() {
     tuiBgOpacity: currentTheme.defaultTuiBgOpacity,
     tuiFgOpacity: currentTheme.defaultTuiFgOpacity,
     tuiSaturation: currentTheme.defaultTuiSaturation,
+    fgContrastStrength: currentTheme.defaultFgContrastStrength,
+    fgContrastBias: currentTheme.defaultFgContrastBias,
     themeHue: currentTheme.defaultThemeHue,
     themeSat: currentTheme.defaultThemeSat,
     themeLtn: currentTheme.defaultThemeLtn,
