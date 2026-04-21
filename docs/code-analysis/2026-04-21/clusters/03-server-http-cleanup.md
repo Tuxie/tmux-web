@@ -1,6 +1,6 @@
 ---
 Status: resolved
-Resolved-in: PENDING
+Resolved-in: b1d1e9a
 ---
 
 # Cluster 03 — server-http-cleanup
