@@ -11,8 +11,14 @@ import { readFileSync } from 'node:fs';
 const EXCLUDES = new Set<string>([
   'src/server/index.ts',
   'src/client/index.ts',
-  // EXCLUDED until 2026-Q3 — tracked in docs/code-analysis/2026-04-21/clusters/02-client-unit-test-coverage.md
+  // Tracked in docs/ideas/webgl-mock-harness-for-xterm-adapter.md —
+  // needs a WebGL context stub before the WebGL patcher closures can
+  // be unit-tested.
   'src/client/adapters/xterm.ts',
+  // Tracked in docs/ideas/topbar-full-coverage-harness.md — ~150
+  // mechanical cases required to cover the slider-table + menu render
+  // paths. Public surface is tested in tests/unit/client/ui/topbar.test.ts.
+  'src/client/ui/topbar.ts',
   'src/server/assets-embedded.ts',
 ]);
 

@@ -703,6 +703,59 @@ describe('http branches — direct handler (fake req/res)', () => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
+  test('POST /api/exit?action=restart returns "restarting" and schedules process.exit(2)', async () => {
+    const sessionsStorePath = path.join(tmp, 'sessions.json');
+    fs.writeFileSync(sessionsStorePath, '{"version":1,"sessions":{}}');
+    const handler = await createHttpHandler({
+      config: {
+        host: '127.0.0.1', port: 0, allowedIps: new Set(['127.0.0.1']),
+        allowedOrigins: [], tls: false, testMode: true, debug: false,
+        tmuxBin: '/bin/true', tmuxConf: '', auth: { enabled: false },
+      } as any,
+      htmlTemplate: '', distDir: tmp, themesUserDir: tmp, themesBundledDir: tmp,
+      projectRoot: tmp, isCompiled: false, sessionsStorePath, dropStorage: storage,
+    });
+    // Intercept process.exit so the 100 ms timer doesn't terminate the suite.
+    const origExit = process.exit;
+    let exitCode: number | undefined;
+    (process as any).exit = (code: number) => { exitCode = code; };
+    try {
+      const r = await callRaw(handler, 'POST', '/api/exit?action=restart');
+      expect(r.status).toBe(200);
+      expect(r.body).toBe('restarting');
+      await new Promise((res) => setTimeout(res, 110));
+      expect(exitCode).toBe(2);
+    } finally {
+      (process as any).exit = origExit;
+    }
+  });
+
+  test('POST /api/exit (no action) defaults to "quitting" and exits with 0', async () => {
+    const sessionsStorePath = path.join(tmp, 'sessions.json');
+    fs.writeFileSync(sessionsStorePath, '{"version":1,"sessions":{}}');
+    const handler = await createHttpHandler({
+      config: {
+        host: '127.0.0.1', port: 0, allowedIps: new Set(['127.0.0.1']),
+        allowedOrigins: [], tls: false, testMode: true, debug: false,
+        tmuxBin: '/bin/true', tmuxConf: '', auth: { enabled: false },
+      } as any,
+      htmlTemplate: '', distDir: tmp, themesUserDir: tmp, themesBundledDir: tmp,
+      projectRoot: tmp, isCompiled: false, sessionsStorePath, dropStorage: storage,
+    });
+    const origExit = process.exit;
+    let exitCode: number | undefined;
+    (process as any).exit = (code: number) => { exitCode = code; };
+    try {
+      const r = await callRaw(handler, 'POST', '/api/exit');
+      expect(r.status).toBe(200);
+      expect(r.body).toBe('quitting');
+      await new Promise((res) => setTimeout(res, 110));
+      expect(exitCode).toBe(0);
+    } finally {
+      (process as any).exit = origExit;
+    }
+  });
+
   test('session-settings PUT when applyPatch throws → 500', async () => {
     // Force applyPatch to fail by pointing sessionsStorePath through a
     // regular file (ENOTDIR on any write — works under root too, unlike

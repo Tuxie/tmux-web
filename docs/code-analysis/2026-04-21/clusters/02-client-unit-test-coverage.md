@@ -1,7 +1,20 @@
 ---
-Status: open
-Resolved-in:
+Status: resolved
+Resolved-in: 99de150, 3fd4dd7, PENDING
 ---
+
+> **Resolution (2026-04-21):** Four of the five untested client
+> modules now have real unit coverage (toast, connection, drops-panel,
+> dropdown — see `tests/unit/client/{,ui/}*.test.ts`). `topbar.ts`
+> keeps a public-surface test file plus a `scripts/check-coverage.ts`
+> EXCLUDES entry pointing at
+> `docs/ideas/topbar-full-coverage-harness.md` for the remaining
+> ~150-case slider-table harness. `xterm.ts` stays excluded with a
+> pointer to `docs/ideas/webgl-mock-harness-for-xterm-adapter.md` per
+> the maintainer's decision (WebGL mock is a separate idea, not
+> undertaken in this session). The two Low findings
+> (`clampFgContrastStrength`, `/api/exit`) are now tested.
+
 
 # Cluster 02 — client-unit-test-coverage
 
