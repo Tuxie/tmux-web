@@ -1,7 +1,17 @@
 ---
-Status: open
-Resolved-in:
+Status: resolved
+Resolved-in: PENDING
 ---
+
+> **Resolution (2026-04-21) — keyboard contract:**
+> ArrowDown/ArrowUp move the active option with wrap at both ends;
+> Enter / Space selects; Escape closes. No Home/End, no type-ahead
+> (keeps the sessions-dropdown's "New session:" text input clear of
+> keystroke ambiguity). Focus stays on the trigger; the active option
+> is tracked via `aria-activedescendant`. Listbox semantics apply to
+> all five dropdowns (theme / colours / font / sessions / windows).
+> Status-dot accessible name uses "Running" / "Not running".
+
 
 # Cluster 05 — dropdown-a11y
 

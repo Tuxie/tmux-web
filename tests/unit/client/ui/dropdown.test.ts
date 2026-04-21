@@ -56,6 +56,8 @@ function ext(e: StubElement): any {
   // `blur`/`select` aren't used beyond no-ops in the code paths.
   if (!any.blur) any.blur = () => {};
   if (!any.select) any.select = () => {};
+  if (!any.removeAttribute) any.removeAttribute = (k: string) => { delete any.attrs[k]; };
+  if (!any.scrollIntoView) any.scrollIntoView = () => {};
   return any;
 }
 
@@ -320,6 +322,142 @@ describe('Dropdown.fromSelect', () => {
     expect((dd.menuElement as any).hidden).toBe(false);
     (dd.triggerElement as any).click();
     expect((dd.menuElement as any).hidden).toBe(true);
+  });
+});
+
+describe('Dropdown a11y + keyboard nav', () => {
+  it('menu container carries role=listbox', async () => {
+    const doc = makeDoc();
+    const parent = ext(doc.createElement('div'));
+    doc.body.appendChild(parent);
+    const select = makeSelect([{ value: 'a', label: 'A' }]);
+    parent.appendChild(select);
+    const { Dropdown } = await import('../../../../src/client/ui/dropdown.ts');
+    const dd = Dropdown.fromSelect(select as any);
+    expect((dd.menuElement as any).getAttribute('role')).toBe('listbox');
+  });
+
+  it('items carry role=option / aria-selected', async () => {
+    const doc = makeDoc();
+    const parent = ext(doc.createElement('div'));
+    doc.body.appendChild(parent);
+    const select = makeSelect([
+      { value: 'a', label: 'A' },
+      { value: 'b', label: 'B' },
+    ], 'a');
+    parent.appendChild(select);
+    const { Dropdown } = await import('../../../../src/client/ui/dropdown.ts');
+    const dd = Dropdown.fromSelect(select as any);
+    await dd.open();
+    const items = (dd.menuElement as any).children
+      .filter((c: any) => c.getAttribute?.('role') === 'option');
+    expect(items).toHaveLength(2);
+    expect(items[0].getAttribute('aria-selected')).toBe('true');
+    expect(items[1].getAttribute('aria-selected')).toBe('false');
+  });
+
+  it('open() seeds aria-activedescendant to the selected option', async () => {
+    const doc = makeDoc();
+    const parent = ext(doc.createElement('div'));
+    doc.body.appendChild(parent);
+    const select = makeSelect([
+      { value: 'a', label: 'A' },
+      { value: 'b', label: 'B' },
+    ], 'b');
+    parent.appendChild(select);
+    const { Dropdown } = await import('../../../../src/client/ui/dropdown.ts');
+    const dd = Dropdown.fromSelect(select as any);
+    await dd.open();
+    const activeId = (dd.triggerElement as any).getAttribute('aria-activedescendant');
+    const items = (dd.menuElement as any).children
+      .filter((c: any) => c.getAttribute?.('role') === 'option');
+    const selectedItem = items.find((i: any) => i.getAttribute('aria-selected') === 'true');
+    expect(activeId).toBe(selectedItem.id);
+  });
+
+  it('ArrowDown moves the active marker to the next option, wrapping at the end', async () => {
+    const doc = makeDoc();
+    const parent = ext(doc.createElement('div'));
+    doc.body.appendChild(parent);
+    const select = makeSelect([
+      { value: 'a', label: 'A' },
+      { value: 'b', label: 'B' },
+      { value: 'c', label: 'C' },
+    ], 'c'); // start on last
+    parent.appendChild(select);
+    const { Dropdown } = await import('../../../../src/client/ui/dropdown.ts');
+    const dd = Dropdown.fromSelect(select as any);
+    await dd.open();
+    const items = (dd.menuElement as any).children
+      .filter((c: any) => c.getAttribute?.('role') === 'option');
+    expect((dd.triggerElement as any).getAttribute('aria-activedescendant')).toBe(items[2].id);
+    // ArrowDown past last → wraps to first.
+    doc.dispatch('keydown', {
+      key: 'ArrowDown', preventDefault: () => {}, stopPropagation: () => {},
+    });
+    expect((dd.triggerElement as any).getAttribute('aria-activedescendant')).toBe(items[0].id);
+  });
+
+  it('ArrowUp moves the active marker backward, wrapping at the start', async () => {
+    const doc = makeDoc();
+    const parent = ext(doc.createElement('div'));
+    doc.body.appendChild(parent);
+    const select = makeSelect([
+      { value: 'a', label: 'A' },
+      { value: 'b', label: 'B' },
+    ], 'a'); // start on first
+    parent.appendChild(select);
+    const { Dropdown } = await import('../../../../src/client/ui/dropdown.ts');
+    const dd = Dropdown.fromSelect(select as any);
+    await dd.open();
+    const items = (dd.menuElement as any).children
+      .filter((c: any) => c.getAttribute?.('role') === 'option');
+    // ArrowUp past first → wraps to last.
+    doc.dispatch('keydown', {
+      key: 'ArrowUp', preventDefault: () => {}, stopPropagation: () => {},
+    });
+    expect((dd.triggerElement as any).getAttribute('aria-activedescendant')).toBe(items[1].id);
+  });
+
+  it('Enter selects the currently-active option', async () => {
+    const doc = makeDoc();
+    const parent = ext(doc.createElement('div'));
+    doc.body.appendChild(parent);
+    const select = makeSelect([
+      { value: 'a', label: 'A' },
+      { value: 'b', label: 'B' },
+    ], 'a');
+    let changed = 0;
+    (select as any).addEventListener('change', () => changed++);
+    parent.appendChild(select);
+    const { Dropdown } = await import('../../../../src/client/ui/dropdown.ts');
+    const dd = Dropdown.fromSelect(select as any);
+    await dd.open();
+    // ArrowDown to move active to 'b'.
+    doc.dispatch('keydown', {
+      key: 'ArrowDown', preventDefault: () => {}, stopPropagation: () => {},
+    });
+    // Enter picks 'b'.
+    doc.dispatch('keydown', {
+      key: 'Enter', preventDefault: () => {}, stopPropagation: () => {},
+    });
+    expect((select as any).value).toBe('b');
+    expect(changed).toBe(1);
+    expect((dd.menuElement as any).hidden).toBe(true);
+  });
+
+  it('close() strips aria-activedescendant from the trigger', async () => {
+    const doc = makeDoc();
+    const parent = ext(doc.createElement('div'));
+    doc.body.appendChild(parent);
+    const select = makeSelect([{ value: 'a', label: 'A' }]);
+    parent.appendChild(select);
+    const { Dropdown } = await import('../../../../src/client/ui/dropdown.ts');
+    const dd = Dropdown.fromSelect(select as any);
+    await dd.open();
+    expect((dd.triggerElement as any).getAttribute('aria-activedescendant')).toBeTruthy();
+    dd.close();
+    expect((dd.triggerElement as any).getAttribute('aria-activedescendant')).toBe(null);
   });
 });
 

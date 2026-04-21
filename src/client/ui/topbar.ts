@@ -201,6 +201,9 @@ export class Topbar {
           const isRunning = runningByName.has(s.name);
           const el = document.createElement('div');
           el.className = 'tw-dropdown-item tw-dd-session-item' + (isCurrent ? ' current' : '');
+          el.setAttribute('role', 'option');
+          el.setAttribute('tabindex', '-1');
+          el.setAttribute('aria-selected', isCurrent ? 'true' : 'false');
           const name = document.createElement('span');
           name.className = 'tw-dd-session-name';
           name.textContent = s.name;
@@ -230,7 +233,13 @@ export class Topbar {
           }
           const dot = document.createElement('span');
           dot.className = 'tw-dd-session-status ' + (isRunning ? 'running' : 'stopped');
-          dot.title = isRunning ? 'Running' : 'Not running';
+          // Explicit aria-label on top of the existing `title`: `title` is not
+          // reliably exposed as an accessible name across screen readers, so
+          // the dot would otherwise carry only colour-coded meaning.
+          const status = isRunning ? 'Running' : 'Not running';
+          dot.title = status;
+          dot.setAttribute('aria-label', status);
+          dot.setAttribute('role', 'img');
           el.appendChild(dot);
           el.addEventListener('click', (ev) => {
             ev.stopPropagation();
@@ -824,6 +833,9 @@ export class Topbar {
       const isCurrent = w.active;
       const el = document.createElement('div');
       el.className = 'tw-dropdown-item tw-dd-session-item' + (isCurrent ? ' current' : '');
+      el.setAttribute('role', 'option');
+      el.setAttribute('tabindex', '-1');
+      el.setAttribute('aria-selected', isCurrent ? 'true' : 'false');
       el.textContent = w.index + ': ' + w.name;
       el.addEventListener('click', (ev) => {
         ev.stopPropagation();

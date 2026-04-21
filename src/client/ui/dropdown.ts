@@ -74,9 +74,15 @@ function createTriggerShell(className: string | undefined): {
 function createMenu(className: string | undefined): HTMLDivElement {
   const menu = document.createElement('div');
   menu.className = 'tw-dropdown-menu' + (className ? ' ' + className + '-menu' : '');
+  menu.setAttribute('role', 'listbox');
   menu.hidden = true;
   return menu;
 }
+
+/** Monotonic id used by `renderItems` so each rendered option gets a
+ *  stable DOM id for `aria-activedescendant` to point at. Resets on
+ *  module reload; uniqueness inside a single open menu is sufficient. */
+let nextOptionIdSeq = 0;
 
 function renderItems(
   menu: HTMLElement,
@@ -93,9 +99,12 @@ function renderItems(
     }
     const el = document.createElement('div');
     el.className = 'tw-dropdown-item';
-    if (selectedValue !== null && item.value === selectedValue) {
-      el.classList.add('selected');
-    }
+    el.setAttribute('role', 'option');
+    el.setAttribute('tabindex', '-1');
+    el.id = 'tw-dd-opt-' + (++nextOptionIdSeq);
+    const isSelected = selectedValue !== null && item.value === selectedValue;
+    if (isSelected) el.classList.add('selected');
+    el.setAttribute('aria-selected', isSelected ? 'true' : 'false');
     el.textContent = item.label;
     el.dataset.value = item.value;
     el.addEventListener('click', (ev) => {
@@ -167,6 +176,7 @@ export function showContextMenu(opts: ContextMenuOptions): void {
   // menus.
   const extra = opts.className ? ' ' + opts.className + '-menu' : '';
   menu.className = 'tw-dropdown-menu tw-dd-context' + extra;
+  menu.setAttribute('role', 'listbox');
   // top/left/minWidth are computed from the click coordinates — these
   // must remain as inline style assignments (dynamic values).
   menu.style.top = opts.y + 'px';
@@ -228,6 +238,9 @@ export function showContextMenu(opts: ContextMenuOptions): void {
       }
       const el = document.createElement('div');
       el.className = 'tw-dropdown-item';
+      el.setAttribute('role', 'option');
+      el.setAttribute('tabindex', '-1');
+      el.setAttribute('aria-selected', 'false');
       el.textContent = item.label;
       el.dataset.value = item.value;
       el.addEventListener('click', (ev) => {
@@ -320,9 +333,36 @@ export class Dropdown {
       this.close();
     };
     this.keyHandler = (ev) => {
-      if (!this.menu.hidden && ev.key === 'Escape') {
+      if (this.menu.hidden) return;
+      if (ev.key === 'Escape') {
         this.close();
         (this.trigger as HTMLElement).blur();
+        return;
+      }
+      // Arrow-key navigation + Enter/Space selection. Focus stays on the
+      // trigger; the "active" option is tracked via aria-activedescendant
+      // so screen readers announce it without a real focus move that
+      // would close the dropdown on some browsers.
+      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp'
+          || ev.key === 'Enter' || ev.key === ' ') {
+        const items = this.optionElements();
+        if (items.length === 0) return;
+        ev.preventDefault();
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          const idx = this.activeIndex(items);
+          if (idx >= 0) {
+            const value = items[idx]!.dataset.value ?? '';
+            this.handlePick(value);
+          }
+          return;
+        }
+        const cur = this.activeIndex(items);
+        const delta = ev.key === 'ArrowDown' ? 1 : -1;
+        // Wrap at both ends: past-last → first, past-first → last.
+        const next = cur < 0
+          ? (delta > 0 ? 0 : items.length - 1)
+          : (cur + delta + items.length) % items.length;
+        this.setActive(items[next]!);
       }
     };
     document.addEventListener('pointerdown', this.outsideHandler);
@@ -480,6 +520,34 @@ export class Dropdown {
     this.onSelect(value);
   }
 
+  /** Interactive options in menu order. Separator `<hr>` rows and any
+   *  future decorative children are filtered out. */
+  private optionElements(): HTMLElement[] {
+    return Array.from(this.menu.children)
+      .filter((c): c is HTMLElement =>
+        typeof (c as HTMLElement).getAttribute === 'function'
+        && (c as HTMLElement).getAttribute('role') === 'option');
+  }
+
+  private activeIndex(items: HTMLElement[]): number {
+    const id = this.trigger.getAttribute('aria-activedescendant');
+    if (!id) return items.findIndex(it => it.classList.contains('selected'));
+    return items.findIndex(it => it.id === id);
+  }
+
+  private setActive(item: HTMLElement): void {
+    this.trigger.setAttribute('aria-activedescendant', item.id);
+    for (const other of this.optionElements()) {
+      other.classList.toggle('tw-dd-active', other === item);
+    }
+    // Keep the active option in view for long lists that exceed the
+    // fixed-position max-height.
+    const scrollIntoView = (item as any).scrollIntoView;
+    if (typeof scrollIntoView === 'function') {
+      scrollIntoView.call(item, { block: 'nearest' });
+    }
+  }
+
   async open(): Promise<void> {
     if (this.beforeOpen) {
       try { await this.beforeOpen(); } catch { /* ignore */ }
@@ -494,12 +562,23 @@ export class Dropdown {
     this.trigger.setAttribute('aria-expanded', 'true');
     this.trigger.classList.add('open');
     if (this.wrap) this.wrap.classList.add('open');
+    // Start active = currently-selected option (or first option if none
+    // is selected), so ArrowDown/ArrowUp feel like they're "on" the
+    // current choice from the first press.
+    const items = this.optionElements();
+    if (items.length > 0) {
+      const selectedIdx = items.findIndex(it => it.classList.contains('selected'));
+      this.setActive(items[selectedIdx >= 0 ? selectedIdx : 0]!);
+    } else {
+      this.trigger.removeAttribute('aria-activedescendant');
+    }
     this._positionFixed();
   }
 
   close(): void {
     this.menu.hidden = true;
     this.trigger.setAttribute('aria-expanded', 'false');
+    this.trigger.removeAttribute('aria-activedescendant');
     this.trigger.classList.remove('open');
     if (this.wrap) this.wrap.classList.remove('open');
     // Reset inline positioning so subsequent opens recompute cleanly

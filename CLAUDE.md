@@ -297,6 +297,25 @@ WS reconnect: call `adapter.fit()`, send `{"type":"resize"}` on `ws.onopen`. `sr
   instead of a bare `\r`.
 - **Ctrl+Enter** — send `\x1b[13;5u` for the same reason.
 
+### 7b. Custom-dropdown keyboard model
+
+Every `Dropdown` instance (theme / colours / font / sessions / windows)
+shares one keyboard contract, implemented once in
+`src/client/ui/dropdown.ts`:
+
+- **ArrowDown / ArrowUp** move the active-option marker, wrapping at
+  both ends.
+- **Enter** or **Space** selects the active option and closes the menu.
+- **Escape** closes without selecting.
+
+Focus stays on the trigger; the active option is tracked via
+`aria-activedescendant` on the trigger + `.tw-dd-active` visual class
+on the option. Items are `role="option"` inside a `role="listbox"`
+container, with `aria-selected` toggled for the already-picked value.
+No Home/End, no first-letter type-ahead — deliberate choice to keep
+the sessions-dropdown text input (bottom of the menu) free of
+keystroke ambiguity.
+
 ### 8. URL = session name
 
 URL path = tmux session name (e.g. `/dev`). URL update via `history.replaceState` on session change.

@@ -415,6 +415,9 @@ body {
 :where(.tw-dropdown-item) { color: var(--tw-text); }
 :where(.tw-dropdown-item:hover) { background: var(--tw-gadget-hover); }
 :where(.tw-dropdown-item.selected) { background: var(--tw-gadget-active); }
+/* Keyboard-focused option (tracked via aria-activedescendant on the
+ * trigger — focus stays on the trigger, so we can't use :focus). */
+:where(.tw-dropdown-item.tw-dd-active) { background: var(--tw-gadget-hover); }
 
 
 :where(.tw-dd-input) {
