@@ -1,5 +1,67 @@
 # Changelog
 
+## 1.7.0 — 2026-04-21
+
+Closes the 16-cluster codebase audit from `docs/code-analysis/2026-04-21/`. 15 clusters fully resolved, 1 partial (cluster 13's `bunx playwright` swap deferred to Bun 1.4). No breaking API changes; a few label renames, one accessibility overhaul, and one CSS class-name sweep are the biggest surface changes.
+
+### Added
+
+- **Keyboard navigation for every custom dropdown** (theme / colours / font / sessions / windows). ArrowDown / ArrowUp move the active option with wrap at both ends; Enter or Space selects; Escape closes. Focus stays on the trigger; the active option is tracked via `aria-activedescendant`. Listbox / option ARIA roles applied throughout, including the context-menu popup. (Cluster 05.)
+- **Status-dot accessible names** — session-running indicators carry `aria-label="Running"` / `"Not running"` alongside the existing colour cue, so screen readers announce them instead of relying on the `title` attribute (which isn't reliably surfaced). (Cluster 05.)
+- **Boot-fetch error surfacing** — if any of `/api/session-settings`, `/api/colours`, `/api/themes`, `/api/fonts` fails at page load, each writes a labelled `console.warn`, and `main()` shows one combined user toast listing the failed resources. Previously silent. (Cluster 10.)
+- **Property-based / fuzz tests** (`tests/fuzz/`, 58 cases, 9 parsers). Covers shell quoting, session and filename sanitisation, OSC 52 extraction, origin parsing, WS message router, TOML colour parser, `/proc/<pid>/stat` parser, and client-side TT message extraction. Run via `make fuzz`; excluded from the release CI budget. (Cluster 15.)
+- **OKLab render-math bench** — `scripts/bench-render-math.ts` / `make bench` times `pushLightness` / `adjustSaturation` over 100k synthetic cells so algorithmic regressions in the per-frame WebGL hot path are visible without a WebGL fixture. (Cluster 16.)
+- **E2E job in release CI** — one `ubuntu-latest` Playwright run (chromium, with-deps install) gates the 4-leg build matrix. DOM / menu regressions now block every artifact. (Cluster 13.)
+- **`_twDispose` teardown path** on `window` — `main()` now returns a dispose hook that unwinds every subscription (window resize, ResizeObserver, document keydown / paste, mouse + keyboard + file-drop installers, drops-panel, WebSocket connection). Production never calls it; exists for multi-mount test harnesses. (Cluster 10.)
+
+### Changed
+
+- **Slider labels renamed** for clarity (cluster 11):
+    - **Depth** → **Bevel**
+    - **Brightest** / **Darkest** (background gradient endpoints) → **Top** / **Bottom**
+
+  Internal field names, element IDs, and clamp functions are unchanged — only the visible `<label>` text moves.
+- **Topbar slider wiring** collapsed from 17 near-identical listener blocks (~350 lines) into a single 17-row `sliders: SliderSpec[]` table driving input/change commit, dblclick reset, `syncUi` mirror, and slider-fill refresh. Net −210 lines in `src/client/ui/topbar.ts`. Adding a new slider is now one table entry + one HTML row. (Cluster 11.)
+- **Theme slider structure** moved from each theme's CSS into `base.css` with eight `--tw-slider-*` custom properties on `#menu-dropdown`. Amiga inherits the base defaults outright (zero overrides); Scene 2000 sets five variables instead of duplicating a 55-line pseudo-element block. (Cluster 12.)
+- **Project-owned CSS classes renamed with `tw-` prefix** across 11 files. 18 class names moved: `menu-row`, `menu-row-static`, `menu-row-drops`, `menu-section`, `menu-label`, `menu-label-clickable`, `menu-input-select`, `menu-input-number`, `menu-hr`, `menu-footer-link`, `drops-empty`, `drops-header`, `drops-revoke`, `drops-row`, `drops-row-label`, `drops-row-meta`, `win-tab`. IDs stay bare. CLAUDE.md's new "Class naming" rule documents the convention. **Theme authors:** update any selectors targeting the old bare names. (Cluster 12.)
+- **tmux window / session listing** now uses `\t`-separated `list-windows` output instead of `:`, so window names containing a colon (e.g. `node:server`, `2.0:api`) parse correctly on both the WS push path and `GET /api/windows`. (Cluster 03.)
+- **Slider commit paths apply their clamp helpers consistently.** Font size, spacing, opacity, TUI BG opacity, and TUI FG opacity previously skipped their `clamp*` call in the commit path, so the paired number input could receive out-of-range values even when the slider thumb couldn't. All 17 sliders now route input + change through their clamp. (Cluster 11.)
+
+### Fixed
+
+- **`sanitizeSession('%')` used to throw** via internal `decodeURIComponent` on malformed percent-escapes. Now falls back to the raw input (the charset filter strips the stray `%` anyway). Found by the new `fast-check` fuzz pass on first run.
+- **`safeStringEqual` is actually constant-time now.** The previous length-mismatch short-circuit leaked "wrong-length credential" through wall time — the function's name and comment promised timing safety that the implementation didn't deliver. Both buffers now pad to the longer length before `timingSafeEqual`; length mismatch still returns false via the residual equality check. (Cluster 07.)
+- **Coverage gate is enforced in release CI.** `release.yml` used to run `bun test` bare; now runs `bun run coverage:check`, so a per-file regression below 95% line / 90% func blocks a tag push. (Cluster 01.)
+- **Homebrew tap bump no longer races itself.** The inline `homebrew:` job in `release.yml` competed with the standalone `bump-homebrew-tap.yml` workflow on every tag; one of them occasionally failed with a non-fast-forward and marked the release run red. Inline job removed; standalone workflow is now the sole source. (Cluster 13.)
+- **`ws.onerror` no longer a silent no-op.** Browser CORS / protocol errors now produce a `console.warn` plus a rate-limited user toast (once per reconnect burst, reset on next successful open). (Cluster 10.)
+- **`GET /api/drops` no longer leaks absolute paths.** The response used to include `absolutePath` pointing at `/run/user/<uid>/tmux-web/drop/…`, disclosing the runtime uid and `$XDG_RUNTIME_DIR` layout to any authenticated client. Paths are now resolved server-side from `dropId` at paste time. (Cluster 06.)
+- **`PUT /api/session-settings` rejects `clipboard` sub-objects** with HTTP 400. Grants flow exclusively through `recordGrant` driven by the consent prompt; the client never sent this field, but the server used to accept and store it, letting a post-auth client pre-seed allow-grants for arbitrary binary paths. (Cluster 06.)
+- **Non-GET requests to read-only `/api/*` endpoints return 405.** `GET /api/fonts`, `/api/themes`, `/api/colours`, `/api/sessions`, `/api/windows`, `/api/terminal-versions` all had no method guard; `POST /api/sessions` used to spawn a tmux subprocess and return 200. (Cluster 03.)
+- **`sendBytesToPane` now has a 5 s timeout** (via the shared `src/server/exec.ts` helper). A hung `tmux send-keys` can no longer pin an HTTP handler open indefinitely. (Cluster 04.)
+- **WS-driven rename / new-window argv hardened.** `rename-session` and `rename-window` now insert a literal `--` before the user-controlled positional; all three rename/new-window paths reject names that start with `-` or contain `:` / `.` via a new `isSafeTmuxName` guard. Prevents a future tmux option from silently turning a rename into a flag. (Cluster 04.)
+- **OSC 52 write-frame cap.** A maximum of 8 clipboard-write frames are forwarded per PTY data chunk (earlier writes are superseded on the browser side anyway), so a rogue TUI can't flood the WebSocket with an unbounded burst. Per-frame payload cap of 1 MiB already existed. (Cluster 04.)
+- **Tautological test assertion removed.** `logOriginReject`'s final `expect(typeof called).toBe('number')` always passed regardless of behaviour; replaced with real eviction + rate-limit assertions. Added `_resetRecentOriginRejects` export so the module-level singleton doesn't leak state across sibling tests. (Cluster 14.)
+- **Dropdown click re-paste no longer runs on revoke.** Clicking the per-row trash can inside the drops panel used to also fire the row's re-paste handler on some browsers. `stopPropagation()` on the revoke path prevents the double-fire. (Cluster 02 coverage work surfaced the case; fix in drops-panel tests.)
+
+### Internal
+
+- 16-cluster codebase audit report committed at `docs/code-analysis/2026-04-21/` with per-cluster findings, fix records, and a filled-in fix-coordinator retrospective (`analysis-analysis.md` Part B).
+- **New module `src/client/oklab.ts`** — shared sRGB ↔ OKLab math used by `fg-contrast` and `tui-saturation` (previously duplicated across both files). (Cluster 09.)
+- **New module `src/client/adapters/xterm-cell-math.ts`** — pure per-cell colour transforms (`effectiveBackgroundAttr`, `resolveAttrRgba`, `blendRgbaOverDefaultBackground`, `resolveCellBgRgb`, `blendFgTowardCellBg`, `withBlendedEffectiveBackground`) hoisted out of `_patchWebglExplicitBackgroundOpacity` so they can be unit-tested without a WebGL context. Layer 1 of `docs/ideas/webgl-mock-harness-for-xterm-adapter.md`.
+- **New module `src/client/boot-errors.ts`** — small accumulator for labelled boot-time fetch failures. `main()` drains it for the combined toast.
+- **CLAUDE.md pre-release protocol updated.** Previously only `act` was required; now `act` + `make fuzz` before the tag push. Fuzz discovers bugs the audit's hand-picked fixtures miss (see `sanitizeSession('%')` above).
+- **`src/server/assets-embedded.ts` is now gitignored.** Regenerated in CI's build step (already happens); removes the paired diff on every theme/asset PR. (Cluster 13.)
+- **Dropdown keyboard contract documented in CLAUDE.md** under Workaround 7b, including the wrap-at-ends + Enter/Space + Escape + no-Home/End + no-type-ahead decisions. (Cluster 05.)
+- **TOCTOU assumption documented in CLAUDE.md** under the OSC 52 clipboard workaround. The BLAKE3 pin defends against accidental binary replacement and unrelated processes; it isn't — and doesn't claim to be — a kernel-level isolation boundary against a same-user attacker. (Cluster 06.)
+- **Slider styling contract documented in CLAUDE.md.** Every menu slider's dimensions + pseudo-element layout + active-press bevel flip live in `base.css`; themes set material via `--tw-slider-*` custom properties. (Cluster 12.)
+- **Dead `pushFgLightness` alias removed** (no live callers). (Cluster 09.)
+- **Dead `PLATFORM` / `ARCH` Makefile vars removed** — expanded every `make` invocation but referenced by nothing. (Cluster 13.)
+- **Dead `ThemeInfo.defaultTuiOpacity` field removed** — superseded in v1.6.0 by `defaultTuiBgOpacity` / `defaultTuiFgOpacity`. (Cluster 09.)
+- **`pty-argv.test.ts` merged into `pty.test.ts`**, deduplicating overlapping `sanitizeSession` / `buildPtyCommand` assertions. (Cluster 14.)
+- **fast-check 4.7.0** added as a devDependency; used by the new fuzz suite.
+- **Two new files in `docs/ideas/`** describing deferred work: a WebGL stub harness + a topbar full-coverage harness. Both carry pointers to the relevant cluster files and the current EXCLUDES entries so future sessions can pick them up without archeology.
+- **Coverage gate moved from 98.21% → 98.90%** global line coverage. 742 unit tests (+145 net) + 58 fuzz tests.
+
 ## 1.6.3 — 2026-04-21
 
 ### Added
