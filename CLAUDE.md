@@ -154,7 +154,7 @@ General `tmux.conf` files are picked up first so a single user config works ever
 
 ## Terminal Backend Adapter
 
-`TerminalAdapter` interface (`src/client/adapters/types.ts`) abstract terminal emulator. UI modules interact with interface only.
+`TerminalAdapter` interface (`src/client/adapters/types.ts`) abstracts the terminal emulator. UI modules interact with the interface only.
 
 ## Colour Schemes
 
@@ -192,7 +192,7 @@ Session settings are persisted server-side at `~/.config/tmux-web/sessions.json`
 
 ### Theme-switch semantics
 
-When the user switches theme, `colours`, `fontFamily`, `fontSize`, and `spacing` are **unconditionally overwritten** with the new theme's defaults (`theme.json` fields `defaultColours`, `defaultFont`, `defaultFontSize`, `defaultSpacing`). This avoids stale cross-theme combinations.
+When the user switches theme, every theme default declared in `theme.json` overwrites the corresponding session field — `colours`, `fontFamily`, `fontSize`, `spacing`, `opacity`, `themeHue`, `backgroundHue`, and all slider defaults introduced in v1.6.0 (`tuiBgOpacity`, `tuiFgOpacity`, `fgContrastStrength`, `fgContrastBias`, `tuiSaturation`, `themeSat`, `themeLtn`, `themeContrast`, `depth`, `backgroundSaturation`, `backgroundBrightest`, `backgroundDarkest`). See `applyThemeDefaults` in `src/client/session-settings.ts` for the authoritative list. Fields the target theme does not declare keep their previous values.
 
 ## Server-Client Protocol
 
@@ -220,16 +220,20 @@ Forward `\x1b[<64;col;rowM` / `\x1b[<65;col;rowM` (up/down). Shift+wheel bypass 
 ### 2. Mouse button + drag forwarding
 
 Backends do not forward mouse buttons as SGR sequences to tmux.
-**Fix:** `src/client/ui/mouse.ts` register `mousedown`/`mouseup`/`mousemove` on **`document`** (capture). `stopPropagation()` prevent terminal from see event. Shift+click bypass for native selection.
+**Fix:** `src/client/ui/mouse.ts` register `mousedown`/`mouseup`/`mousemove` on **`document`** (capture). `stopPropagation()` prevents the terminal from seeing the event. Shift+click bypass for native selection.
 
 Format: `\x1b[<btn;col;rowM` (press), `\x1b[<btn;col;rowm` (release), motion add 32 to btn.
 
 ### 3. Kitty keyboard protocol
 
 xterm.js's `vtExtensions.kittyKeyboard: true` option (vendored build) emits
-Kitty-protocol CSI sequences for modified special keys. Our custom CSI-u
-handler in `src/client/ui/keyboard.ts` is now browser-shortcut-only (Cmd+R,
-Cmd+F) — xterm handles the modified-key encoding itself.
+Kitty-protocol CSI sequences for modified special keys once the app
+negotiates Kitty mode. `src/client/ui/keyboard.ts` handles the pieces
+xterm can't or won't: Cmd+R / Shift+Cmd+R browser-reload passthrough,
+Cmd+F fullscreen toggle, and unconditional Shift+Enter / Ctrl+Enter
+CSI-u sends (`\x1b[13;2u` / `\x1b[13;5u`). The explicit CSI-u sends
+exist because TUIs that don't negotiate Kitty mode — notably Claude
+Code — would otherwise receive a bare `\r`.
 
 ### 4. OSC 52 clipboard
 
@@ -276,7 +280,7 @@ WS reconnect: call `adapter.fit()`, send `{"type":"resize"}` on `ws.onopen`. `sr
 
 32px toolbar overlay terminal. `src/client/ui/topbar.ts`:
 
-- **Session menu button** (`#btn-session-menu`) — `[ + | <session name> ]` button that opens a custom dropdown listing sessions from `/api/sessions` plus a "Create new session" entry at the bottom. Label is `#tb-session-name`. Button gets `.open` while dropdown is showing.
+- **Session menu button** (`#btn-session-menu`) — the right half of the `[ + | <session name> ]` control. Opens a custom dropdown listing sessions from `/api/sessions`, a "New session:" text-input row, and a "Kill session X…" entry at the bottom. Label is `#tb-session-name`. Button gets `.open` while dropdown is showing. The `+` half is `#btn-session-plus`, currently an unwired placeholder (fate tracked in cluster 11).
 - **Window tabs** (`#win-tabs`) — one per tmux window; click sends a `{type:'window', action:'select', index}` WS message, which the server translates to `tmux select-window`
 - **Fullscreen checkbox** (`#chk-fullscreen`) — inside the settings menu
 
@@ -288,6 +292,10 @@ WS reconnect: call `adapter.fit()`, send `{"type":"resize"}` on `ws.onopen`. `sr
 `src/client/ui/keyboard.ts`, document capture:
 - **Cmd+R / Shift+Cmd+R** — passthrough to browser
 - **Cmd+F** — toggle fullscreen
+- **Shift+Enter** — send `\x1b[13;2u` (CSI-u) even when the app hasn't
+  negotiated Kitty mode, so e.g. Claude Code sees a real modified-Enter
+  instead of a bare `\r`.
+- **Ctrl+Enter** — send `\x1b[13;5u` for the same reason.
 
 ### 8. URL = session name
 
@@ -297,16 +305,24 @@ URL path = tmux session name (e.g. `/dev`). URL update via `history.replaceState
 
 IDs (do not rename):
 - `#terminal` — container
-- `#btn-session-menu` — session menu button (`[ + | name ]`), opens sessions dropdown
-- `#tb-session-name` — text label inside the session menu button (the `<name>` part)
+- `#btn-session-plus` — left half of the session control (currently unwired; fate tracked in cluster 11)
+- `#btn-session-menu` — right half of the session control, opens the sessions dropdown
+- `#tb-session-name` — text label inside `#btn-session-menu` (the `<name>` part)
 - `#win-tabs` — window buttons
 - `#chk-fullscreen` — fullscreen checkbox (inside settings menu)
+- `#chk-autohide` — topbar auto-hide checkbox (inside settings menu)
 - `#inp-theme` — theme `<select>` (visually replaced by `#inp-theme-dd` + `#inp-theme-btn` custom dropdown; original `<select>` stays hidden as source of truth)
 - `#inp-colours` — colour scheme `<select>` (custom dropdown: `#inp-colours-dd` / `#inp-colours-btn`)
 - `#inp-font-bundled` — bundled font `<select>` (custom dropdown: `#inp-font-bundled-dd` / `#inp-font-bundled-btn`)
 - `#inp-fontsize` / `#sld-fontsize` — font size number/slider
 - `#inp-spacing` / `#sld-spacing` — spacing (line height) number/slider
 - `#inp-opacity` / `#sld-opacity` — opacity number/slider
+- Slider pairs following the pattern `#sld-{name}` / `#inp-{name}` for
+  v1.6.0 theming controls: `theme-hue`, `theme-sat`, `theme-ltn`,
+  `theme-contrast`, `depth`, `background-hue`, `background-saturation`,
+  `background-brightest`, `background-darkest`, `tui-bg-opacity`,
+  `tui-fg-opacity`, `fg-contrast-strength`, `fg-contrast-bias`,
+  `tui-saturation`.
 - `#btn-reset-colours` / `#btn-reset-font` — reset to theme defaults
 
 ## Tests

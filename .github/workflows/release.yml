@@ -62,6 +62,10 @@ jobs:
       - name: Run unit tests with coverage gate
         run: bun run coverage:check
 
+      # Post-compile verification: block release if the compiled binary
+      # serves the npm @xterm/xterm bundle instead of vendor/xterm.js.
+      # This has regressed several times; see CLAUDE.md.
+      #
       # Only runs on legs where the runner arch matches the compiled target
       # (x64 runner for bun-linux-x64, arm64 runner for bun-darwin-arm64).
       # The cross-compiled legs produce a binary the runner can't execute;

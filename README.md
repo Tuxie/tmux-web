@@ -77,7 +77,10 @@ xattr -d com.apple.quarantine tmux-web-darwin-*
     --tls-key <file>           Use a specific TLS private key
     --tmux <path>              Path to tmux executable (default: tmux)
     --tmux-conf <path>         Alternative tmux.conf to load instead of user default
+    --themes-dir <path>        User theme-pack directory override
+    --reset                    Delete saved settings and restart running instances
     --test                     Test mode: `cat` instead of tmux, bypass IP/Origin allowlists
+-d, --debug                    Log debug messages to stderr
 ```
 
 ## Running as a service
