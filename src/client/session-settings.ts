@@ -38,6 +38,23 @@ export interface SessionSettings {
   depth: number;                 // 0..100, bevel opacity (0 = flat, 100 = opaque B/W)
 }
 
+/** Clamp helpers matching the HTML slider `min`/`max` attributes.
+ *  Paired number inputs can still receive out-of-range values (the
+ *  slider handle is DOM-clamped, the number input is not), so every
+ *  commit path goes through the helper corresponding to its field. */
+export function clampFontSize(v: number): number {
+  if (!Number.isFinite(v)) return 18;
+  return Math.max(8, Math.min(30, v));
+}
+export function clampSpacing(v: number): number {
+  if (!Number.isFinite(v)) return 0.85;
+  return Math.max(0.5, Math.min(2, v));
+}
+export function clampPercent0to100(v: number): number {
+  if (!Number.isFinite(v)) return 0;
+  return Math.max(0, Math.min(100, Math.round(v)));
+}
+
 export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
   theme: 'Default',
   colours: 'Gruvbox Dark',

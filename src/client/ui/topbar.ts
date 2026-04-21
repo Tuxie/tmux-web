@@ -15,6 +15,9 @@ import {
   setLastActiveSession,
   applyThemeDefaults,
   DEFAULT_SESSION_SETTINGS,
+  clampFontSize,
+  clampSpacing,
+  clampPercent0to100,
   type SessionSettings,
   type ThemeDefaults,
 } from '../session-settings.js';
@@ -660,20 +663,65 @@ export class Topbar {
       if (Object.keys(patch).length) commit(patch);
     });
 
-    sldSize.addEventListener('input', () => { inpSize.value = sldSize.value; commit({ fontSize: parseFloat(sldSize.value) }); });
-    inpSize.addEventListener('change', () => { sldSize.value = inpSize.value; updateSliderFill(sldSize); commit({ fontSize: parseFloat(inpSize.value) }); });
+    sldSize.addEventListener('input', () => {
+      const v = clampFontSize(parseFloat(sldSize.value));
+      inpSize.value = String(v);
+      commit({ fontSize: v });
+    });
+    inpSize.addEventListener('change', () => {
+      const v = clampFontSize(parseFloat(inpSize.value));
+      sldSize.value = inpSize.value = String(v);
+      updateSliderFill(sldSize);
+      commit({ fontSize: v });
+    });
 
-    sldHeight.addEventListener('input', () => { inpHeight.value = sldHeight.value; commit({ spacing: parseFloat(sldHeight.value) }); });
-    inpHeight.addEventListener('change', () => { sldHeight.value = inpHeight.value; updateSliderFill(sldHeight); commit({ spacing: parseFloat(inpHeight.value) }); });
+    sldHeight.addEventListener('input', () => {
+      const v = clampSpacing(parseFloat(sldHeight.value));
+      inpHeight.value = String(v);
+      commit({ spacing: v });
+    });
+    inpHeight.addEventListener('change', () => {
+      const v = clampSpacing(parseFloat(inpHeight.value));
+      sldHeight.value = inpHeight.value = String(v);
+      updateSliderFill(sldHeight);
+      commit({ spacing: v });
+    });
 
-    sldTuiBgOpacity.addEventListener('input', () => { inpTuiBgOpacity.value = sldTuiBgOpacity.value; commit({ tuiBgOpacity: parseInt(sldTuiBgOpacity.value, 10) }); });
-    inpTuiBgOpacity.addEventListener('change', () => { sldTuiBgOpacity.value = inpTuiBgOpacity.value; updateSliderFill(sldTuiBgOpacity); commit({ tuiBgOpacity: parseInt(inpTuiBgOpacity.value, 10) }); });
+    sldTuiBgOpacity.addEventListener('input', () => {
+      const v = clampPercent0to100(parseInt(sldTuiBgOpacity.value, 10));
+      inpTuiBgOpacity.value = String(v);
+      commit({ tuiBgOpacity: v });
+    });
+    inpTuiBgOpacity.addEventListener('change', () => {
+      const v = clampPercent0to100(parseInt(inpTuiBgOpacity.value, 10));
+      sldTuiBgOpacity.value = inpTuiBgOpacity.value = String(v);
+      updateSliderFill(sldTuiBgOpacity);
+      commit({ tuiBgOpacity: v });
+    });
 
-    sldTuiFgOpacity.addEventListener('input', () => { inpTuiFgOpacity.value = sldTuiFgOpacity.value; commit({ tuiFgOpacity: parseInt(sldTuiFgOpacity.value, 10) }); });
-    inpTuiFgOpacity.addEventListener('change', () => { sldTuiFgOpacity.value = inpTuiFgOpacity.value; updateSliderFill(sldTuiFgOpacity); commit({ tuiFgOpacity: parseInt(inpTuiFgOpacity.value, 10) }); });
+    sldTuiFgOpacity.addEventListener('input', () => {
+      const v = clampPercent0to100(parseInt(sldTuiFgOpacity.value, 10));
+      inpTuiFgOpacity.value = String(v);
+      commit({ tuiFgOpacity: v });
+    });
+    inpTuiFgOpacity.addEventListener('change', () => {
+      const v = clampPercent0to100(parseInt(inpTuiFgOpacity.value, 10));
+      sldTuiFgOpacity.value = inpTuiFgOpacity.value = String(v);
+      updateSliderFill(sldTuiFgOpacity);
+      commit({ tuiFgOpacity: v });
+    });
 
-    sldOpacity.addEventListener('input', () => { inpOpacity.value = sldOpacity.value; commit({ opacity: parseInt(sldOpacity.value, 10) }); });
-    inpOpacity.addEventListener('change', () => { sldOpacity.value = inpOpacity.value; updateSliderFill(sldOpacity); commit({ opacity: parseInt(inpOpacity.value, 10) }); });
+    sldOpacity.addEventListener('input', () => {
+      const v = clampPercent0to100(parseInt(sldOpacity.value, 10));
+      inpOpacity.value = String(v);
+      commit({ opacity: v });
+    });
+    inpOpacity.addEventListener('change', () => {
+      const v = clampPercent0to100(parseInt(inpOpacity.value, 10));
+      sldOpacity.value = inpOpacity.value = String(v);
+      updateSliderFill(sldOpacity);
+      commit({ opacity: v });
+    });
 
     sldBackgroundHue.addEventListener('input', () => {
       const hue = clampBackgroundHue(parseInt(sldBackgroundHue.value, 10));

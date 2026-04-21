@@ -1,7 +1,14 @@
 ---
-Status: open
-Resolved-in:
+Status: partial
+Resolved-in: PENDING
 ---
+
+> **Partial resolution (2026-04-21):** The autofix-ready clamping
+> inconsistency is fixed (commit below). The four needs-decision items
+> — `#btn-session-plus` fate, 17-slider-listener refactor scope, label
+> rephrases ("Brightest"/"Darkest"/"Depth"), and the speculative
+> refreshCachedSessions race — remain open pending maintainer input.
+
 
 # Cluster 11 — topbar-ergonomics
 

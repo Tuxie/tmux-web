@@ -264,3 +264,30 @@ describe("session-settings", () => {
     expect(getStoredSessionNames()).toEqual([]);
   });
 });
+
+describe("clamp helpers", () => {
+  test("clampFontSize enforces 8..30 and defaults NaN to 18", async () => {
+    const { clampFontSize } = await import("../../../src/client/session-settings.ts");
+    expect(clampFontSize(0)).toBe(8);
+    expect(clampFontSize(100)).toBe(30);
+    expect(clampFontSize(14.5)).toBe(14.5);
+    expect(clampFontSize(NaN)).toBe(18);
+    expect(clampFontSize(Infinity)).toBe(18);
+  });
+
+  test("clampSpacing enforces 0.5..2 and defaults NaN to 0.85", async () => {
+    const { clampSpacing } = await import("../../../src/client/session-settings.ts");
+    expect(clampSpacing(0.2)).toBe(0.5);
+    expect(clampSpacing(5)).toBe(2);
+    expect(clampSpacing(1.25)).toBe(1.25);
+    expect(clampSpacing(NaN)).toBe(0.85);
+  });
+
+  test("clampPercent0to100 rounds and clamps to 0..100, defaults NaN to 0", async () => {
+    const { clampPercent0to100 } = await import("../../../src/client/session-settings.ts");
+    expect(clampPercent0to100(-5)).toBe(0);
+    expect(clampPercent0to100(250)).toBe(100);
+    expect(clampPercent0to100(42.6)).toBe(43);
+    expect(clampPercent0to100(NaN)).toBe(0);
+  });
+});
