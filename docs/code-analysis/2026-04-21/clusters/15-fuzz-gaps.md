@@ -1,6 +1,6 @@
 ---
 Status: resolved
-Resolved-in: PENDING
+Resolved-in: 11b8d7d
 ---
 
 > **Resolution (2026-04-21) — maintainer decisions:**
