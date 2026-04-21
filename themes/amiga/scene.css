@@ -472,7 +472,7 @@ body {
   border: 2px solid;
   border-color: var(--tw-bevel-lo) var(--tw-menu-bevel-hi) var(--tw-menu-bevel-hi) var(--tw-bevel-lo);
   border-radius: 0;
-  padding: 3px 4px;
+  padding: 1px;
   font-family: inherit;
   font-size: 15px;
   width: 46px;
