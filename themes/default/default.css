@@ -68,6 +68,9 @@ body {
   z-index: 200;
   padding: 4px 0;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--tw-chrome-bg), white calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome-bg), black calc(5% * var(--tw-theme-contrast))));
   /* max-height / overflow-y live in base.css. */
 }
 .tw-dropdown-item {
