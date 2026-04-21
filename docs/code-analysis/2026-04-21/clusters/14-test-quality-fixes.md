@@ -1,6 +1,6 @@
 ---
 Status: partial
-Resolved-in: PENDING
+Resolved-in: ce38d29 (partial)
 ---
 
 > **Partial resolution (2026-04-21):** The tautological assertion
