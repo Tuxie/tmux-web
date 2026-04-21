@@ -66,7 +66,43 @@ html, body { height: 100%; overflow: hidden; }
 .xterm-scrollable-element { background-color: #0000 !important; }
 .xterm .xterm-viewport { overflow-y: hidden !important; background-color: #0000 !important; }
 
-#menu-dropdown input[type="range"] { cursor: pointer; accent-color: var(--tw-chrome); }
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 18px;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right,
+    var(--tw-chrome) 0, var(--tw-chrome) var(--tw-slider-val, 0%),
+    var(--tw-gadget-bg) var(--tw-slider-val, 0%), var(--tw-gadget-bg) 100%);
+}
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--tw-gadget-bg);
+}
+input[type="range"]::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--tw-chrome);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--tw-text);
+  margin-top: -4px;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  border: none;
+  background: var(--tw-text);
+}
 #menu-dropdown input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 #menu-dropdown input[type="number"]::-webkit-inner-spin-button,
 #menu-dropdown input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
