@@ -139,6 +139,3 @@ export function pushLightness(
   newL = Math.max(0, Math.min(1, newL));
   return oklabToSrgbByte(newL, ia, ib);
 }
-
-/** @deprecated Use pushLightness instead. */
-export const pushFgLightness = pushLightness;

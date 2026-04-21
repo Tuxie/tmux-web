@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 const EXCLUDES = new Set<string>([
   'src/server/index.ts',
   'src/client/index.ts',
+  // EXCLUDED until 2026-Q3 — tracked in docs/code-analysis/2026-04-21/clusters/02-client-unit-test-coverage.md
   'src/client/adapters/xterm.ts',
   'src/server/assets-embedded.ts',
 ]);

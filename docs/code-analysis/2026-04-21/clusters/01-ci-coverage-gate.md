@@ -1,6 +1,6 @@
 ---
-Status: open
-Resolved-in:
+Status: resolved
+Resolved-in: df738f6
 ---
 
 # Cluster 01 — ci-coverage-gate

@@ -202,3 +202,17 @@ describe('clampFgContrastBias', () => {
     expect(clampFgContrastBias(-50)).toBe(-50);
   });
 });
+
+describe('clampFgContrastStrength', () => {
+  test('range is -100..+100 with default 0', async () => {
+    const { clampFgContrastStrength, DEFAULT_FG_CONTRAST_STRENGTH } =
+      await import('../../../src/client/fg-contrast.js');
+    expect(DEFAULT_FG_CONTRAST_STRENGTH).toBe(0);
+    expect(clampFgContrastStrength(-150)).toBe(-100);
+    expect(clampFgContrastStrength(150)).toBe(100);
+    expect(clampFgContrastStrength(NaN)).toBe(0);
+    expect(clampFgContrastStrength(Infinity)).toBe(0);
+    expect(clampFgContrastStrength(42.6)).toBe(43);
+    expect(clampFgContrastStrength(-42.6)).toBe(-43);
+  });
+});
