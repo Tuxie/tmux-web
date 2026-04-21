@@ -1,6 +1,6 @@
 ---
 Status: resolved
-Resolved-in: PENDING
+Resolved-in: b1513a4
 ---
 
 # Cluster 07 — server-auth-consistency
