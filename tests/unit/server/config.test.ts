@@ -119,6 +119,20 @@ describe("warnIfDangerousOriginConfig", () => {
     }
     expect(messages).toEqual([]);
   });
+  test("recognises ::ffff:127.0.0.1 (IPv4-mapped loopback) as loopback", () => {
+    const messages: string[] = [];
+    const origErr = console.error;
+    console.error = (m: unknown) => { messages.push(String(m)); };
+    try {
+      warnIfDangerousOriginConfig({
+        allowedIps: new Set(["::ffff:127.0.0.1"]),
+        allowedOrigins: ["*"],
+      });
+    } finally {
+      console.error = origErr;
+    }
+    expect(messages).toEqual([]);
+  });
   test("does not warn when -o is not wildcard", () => {
     const messages: string[] = [];
     const origErr = console.error;

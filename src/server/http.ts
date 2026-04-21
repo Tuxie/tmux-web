@@ -147,11 +147,21 @@ function getTerminalVersions(projectRoot: string): Record<string, string> {
   return versions;
 }
 
+/** Constant-time string compare. Pads the shorter buffer to the longer
+ *  one's length before `timingSafeEqual` so mismatched lengths don't
+ *  short-circuit and leak "your password is the wrong length" via wall
+ *  time. Length-mismatch is still reported as `false` via the residual
+ *  equality check. */
 function safeStringEqual(a: string, b: string): boolean {
   const bufA = Buffer.from(a, 'utf-8');
   const bufB = Buffer.from(b, 'utf-8');
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
+  const len = Math.max(bufA.length, bufB.length, 1);
+  const padA = Buffer.alloc(len);
+  const padB = Buffer.alloc(len);
+  bufA.copy(padA);
+  bufB.copy(padB);
+  const eq = timingSafeEqual(padA, padB);
+  return eq && bufA.length === bufB.length;
 }
 
 export function isAuthorized(req: IncomingMessage, config: ServerConfig): boolean {

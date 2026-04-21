@@ -9,7 +9,7 @@ import { createWsServer } from './ws.js';
 import { defaultDropStorage, cleanupAll as cleanupDrops } from './file-drop.js';
 import { generateSelfSignedCert } from './tls.js';
 import type { ServerConfig } from '../shared/types.js';
-import { DEFAULT_HOST, DEFAULT_PORT } from '../shared/constants.js';
+import { DEFAULT_HOST, DEFAULT_PORT, LOCALHOST_IPS } from '../shared/constants.js';
 import { parseAllowOriginFlag } from './origin.js';
 import { embeddedAssets } from './assets-embedded.js';
 import pkg from '../../package.json' with { type: 'json' };
@@ -124,14 +124,12 @@ export function parseConfig(argv: string[]): ConfigResult {
   return { config, host, port };
 }
 
-const LOOPBACK_IPS = new Set(['127.0.0.1', '::1']);
-
 export function warnIfDangerousOriginConfig(
   cfg: Pick<ServerConfig, 'allowedIps' | 'allowedOrigins'>,
 ): void {
   const hasWildcard = cfg.allowedOrigins.some(e => e === '*');
   if (!hasWildcard) return;
-  const hasNonLoopback = [...cfg.allowedIps].some(ip => !LOOPBACK_IPS.has(ip));
+  const hasNonLoopback = [...cfg.allowedIps].some(ip => !LOCALHOST_IPS.has(ip));
   if (!hasNonLoopback) return;
   console.error(
     'tmux-web: warning: --allow-origin * with non-loopback --allow-ip re-opens DNS rebinding;\n'

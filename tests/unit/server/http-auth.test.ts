@@ -72,4 +72,13 @@ describe('isAuthorized (timing-safe)', () => {
     expect(isAuthorized(makeReq(basicHeader('', '')), cfg)).toBe(true);
     expect(isAuthorized(makeReq(basicHeader('x', '')), cfg)).toBe(false);
   });
+
+  it('rejects short wrong-length passwords (no early return on length)', () => {
+    const cfg = makeConfig({ password: 'correct-horse-battery-staple' });
+    // A one-byte password must still return false; if safeStringEqual
+    // returns true on length mismatch, this will (wrongly) authorize.
+    expect(isAuthorized(makeReq(basicHeader('user', 'x')), cfg)).toBe(false);
+    // Also a long-and-wrong password.
+    expect(isAuthorized(makeReq(basicHeader('user', 'x'.repeat(1024))), cfg)).toBe(false);
+  });
 });
