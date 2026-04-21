@@ -38,8 +38,16 @@ const MAX_BASE64 = 1024 * 1024;
 
 export function routeClientMessage(raw: string, state: RouterState): WsAction[] {
   if (!raw.startsWith('{')) return [{ type: 'pty-write', data: raw }];
-  let parsed: any;
-  try { parsed = JSON.parse(raw); } catch { return [{ type: 'pty-write', data: raw }]; }
+  let raw2: unknown;
+  try { raw2 = JSON.parse(raw); } catch { return [{ type: 'pty-write', data: raw }]; }
+  // JSON.parse returns `unknown`; runtime is still validated per-branch
+  // via typeof / === checks below. A `Record<string, unknown>` cast
+  // gives TypeScript enough shape to typecheck the optional-chained
+  // property reads without loosening everything back to `any`.
+  if (raw2 === null || typeof raw2 !== 'object') {
+    return [{ type: 'pty-write', data: raw }];
+  }
+  const parsed = raw2 as Record<string, unknown>;
 
   if (parsed?.type === 'resize' && typeof parsed.cols === 'number' && typeof parsed.rows === 'number') {
     return [{ type: 'pty-resize', cols: parsed.cols, rows: parsed.rows }];
@@ -48,10 +56,19 @@ export function routeClientMessage(raw: string, state: RouterState): WsAction[] 
     return [{ type: 'colour-variant', variant: parsed.variant }];
   }
   if (parsed?.type === 'window' && typeof parsed.action === 'string') {
-    return [{ type: 'window', action: parsed.action, index: parsed.index, name: parsed.name }];
+    return [{
+      type: 'window',
+      action: parsed.action,
+      index: typeof parsed.index === 'string' ? parsed.index : undefined,
+      name: typeof parsed.name === 'string' ? parsed.name : undefined,
+    }];
   }
   if (parsed?.type === 'session' && typeof parsed.action === 'string') {
-    return [{ type: 'session', action: parsed.action, name: parsed.name }];
+    return [{
+      type: 'session',
+      action: parsed.action,
+      name: typeof parsed.name === 'string' ? parsed.name : undefined,
+    }];
   }
   if (parsed?.type === 'clipboard-decision' && typeof parsed.reqId === 'string') {
     const pending = state.pendingReads.get(parsed.reqId);

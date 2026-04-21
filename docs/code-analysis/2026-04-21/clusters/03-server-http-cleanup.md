@@ -1,6 +1,6 @@
 ---
-Status: open
-Resolved-in:
+Status: resolved
+Resolved-in: PENDING
 ---
 
 # Cluster 03 — server-http-cleanup

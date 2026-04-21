@@ -33,7 +33,7 @@ case "$1" in
     done
     echo -e "${panePid}\\tbash"
     ;;
-  list-windows) echo "0:one:1"; echo "1:two:0";;
+  list-windows) printf "0\\tone\\t1\\n1\\ttwo\\t0\\n";;
   list-sessions) echo "main: 1 windows"; echo "dev: 1 windows";;
   new-session)
     # Keep the PTY alive for integration tests, but exit on signals so

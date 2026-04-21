@@ -178,14 +178,30 @@ describe('http branches — harness-based', () => {
     expect(await r.json()).toEqual([]);
   });
 
-  test('GET /api/windows parses "idx:name:active" lines', async () => {
+  test('GET /api/windows parses tab-separated "idx\\tname\\tactive" lines', async () => {
     // /bin/echo echoes its args; we pass a tmuxBin that prints exactly one window line.
     const script = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'tw-fake-tmux-')), 'tmux');
-    fs.writeFileSync(script, '#!/bin/sh\necho "0:main:1"\n', { mode: 0o755 });
+    fs.writeFileSync(script, '#!/bin/sh\nprintf "0\\tmain\\t1\\n"\n', { mode: 0o755 });
     h = await startTestServer({ tmuxBin: script });
     const r = await httpReq(h.url + '/api/windows?session=main');
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual([{ index: '0', name: 'main', active: true }]);
+  });
+
+  test('GET /api/windows preserves colons in window names', async () => {
+    // The bug this test guards against: splitting on ':' used to truncate
+    // names containing a colon (e.g. `node:server` → name=`node`, active=`server`).
+    const script = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'tw-fake-tmux-')), 'tmux');
+    fs.writeFileSync(script, '#!/bin/sh\nprintf "3\\tnode:server\\t1\\n"\n', { mode: 0o755 });
+    h = await startTestServer({ tmuxBin: script });
+    const r = await httpReq(h.url + '/api/windows?session=main');
+    expect(await r.json()).toEqual([{ index: '3', name: 'node:server', active: true }]);
+  });
+
+  test('GET /api/windows returns 405 for non-GET', async () => {
+    h = await startTestServer();
+    const r = await httpReq(h.url + '/api/windows?session=main', { method: 'DELETE' });
+    expect(r.status).toBe(405);
   });
 
   test('GET /api/terminal-versions returns JSON object', async () => {

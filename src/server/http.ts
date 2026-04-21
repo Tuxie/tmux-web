@@ -195,6 +195,14 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
   }
   const packs: PackInfo[] = listPacks(opts.themesUserDir, bundledDir);
   const colourInfos = listColours(packs);
+  // Themes / fonts / terminal-versions are frozen at startup — `packs` is
+  // immutable for the process lifetime and the xterm bundle can't change
+  // without a rebuild. Cache once so the handlers don't re-run the
+  // multi-pass theme resolver + localeCompare sort + fs.readFileSync on
+  // every GET.
+  const themesCache = listThemes(packs);
+  const fontsCache = listFonts(packs);
+  const terminalVersionsCache = getTerminalVersions(opts.projectRoot);
 
   const makeHtml = () => {
     const clientConfig = { version: pkg.version, ...(config.testMode ? { testMode: true } : {}) };
@@ -239,18 +247,21 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
     const pathname = url.pathname;
 
     if (pathname === '/api/fonts') {
+      if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(listFonts(packs)));
+      res.end(JSON.stringify(fontsCache));
       return;
     }
 
     if (pathname === '/api/themes') {
+      if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(listThemes(packs)));
+      res.end(JSON.stringify(themesCache));
       return;
     }
 
     if (pathname === '/api/colours') {
+      if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(colourInfos.map(c => ({
         name: c.name, variant: c.variant, theme: c.theme,
@@ -298,6 +309,7 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
     }
 
     if (pathname === '/api/sessions') {
+      if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
       try {
         // tmux's #{session_id} is the `$N` internal id — monotonic
         // across the tmux server's lifetime, not 1-indexed per list.
@@ -318,13 +330,15 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
     }
 
     if (pathname === '/api/windows') {
+      if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
       const sess = url.searchParams.get('session') || 'main';
       try {
+        // Tab-separated — see matching comment in ws.ts sendWindowState.
         const { stdout } = await execFileAsync(config.tmuxBin, [
-          'list-windows', '-t', sess, '-F', '#{window_index}:#{window_name}:#{window_active}',
+          'list-windows', '-t', sess, '-F', '#{window_index}\t#{window_name}\t#{window_active}',
         ]);
         const windows = stdout.trim().split('\n').filter(Boolean).map(line => {
-          const [index, name, active] = line.split(':');
+          const [index, name, active] = line.split('\t');
           return { index, name, active: active === '1' };
         });
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -562,9 +576,9 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
     }
 
     if (pathname === '/api/terminal-versions') {
-      const versions = getTerminalVersions(opts.projectRoot);
+      if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(versions));
+      res.end(JSON.stringify(terminalVersionsCache));
       return;
     }
 

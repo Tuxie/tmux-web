@@ -223,9 +223,12 @@ async function applyColourVariant(
 
 async function sendWindowState(ws: WebSocket, sessionName: string, config: ServerConfig): Promise<void> {
   try {
+    // Tab-separated fields — window names can contain any Unicode code
+    // point including `:`, so `\t` is the unambiguous separator (tmux
+    // window names cannot contain `\t`).
     const [winResult, titleResult] = await Promise.allSettled([
       execFileAsync(config.tmuxBin, [
-        'list-windows', '-t', sessionName, '-F', '#{window_index}:#{window_name}:#{window_active}',
+        'list-windows', '-t', sessionName, '-F', '#{window_index}\t#{window_name}\t#{window_active}',
       ]),
       execFileAsync(config.tmuxBin, [
         'display-message', '-t', sessionName, '-p', '#{pane_title}',
@@ -233,7 +236,7 @@ async function sendWindowState(ws: WebSocket, sessionName: string, config: Serve
     ]);
     const windows: WindowInfo[] = winResult.status === 'fulfilled'
       ? winResult.value.stdout.trim().split('\n').filter(Boolean).map(line => {
-          const [index, name, active] = line.split(':');
+          const [index, name, active] = line.split('\t');
           return { index: index!, name: name!, active: active === '1' };
         })
       : [];
