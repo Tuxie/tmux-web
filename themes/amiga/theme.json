@@ -20,7 +20,7 @@
       "defaultThemeLtn": 62,
       "defaultThemeContrast": 0,
       "defaultDepth": 100,
-      "defaultBackgroundSaturation": 0,
+      "defaultBackgroundSaturation": -100,
       "defaultFgContrastStrength": 25,
       "defaultBackgroundBrightest": 72,
       "defaultBackgroundDarkest": 72
