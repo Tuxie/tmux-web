@@ -558,6 +558,13 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
       return;
     }
 
+    if (pathname === '/api/exit' && req.method === 'POST') {
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.end('exiting');
+      setTimeout(() => process.exit(0), 100);
+      return;
+    }
+
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(makeHtml());
   };

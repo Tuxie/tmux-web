@@ -77,9 +77,16 @@ export function parseConfig(argv: string[]): ConfigResult {
 
   if (args.version) return { config: null, host: '', port: 0, version: true };
   if (args.help) return { config: null, host: '', port: 0, help: true };
-  if (args.reset) return { config: null, host: '', port: 0, reset: true };
 
   const { host, port } = parseListenAddr(args.listen!);
+
+  if (args.reset) {
+    const useTls = !!args.tls && !args['no-tls'];
+    const username = args.username || process.env.TMUX_WEB_USERNAME || userInfo().username;
+    const password = args.password || process.env.TMUX_WEB_PASSWORD;
+    const noAuth = !!args['no-auth'];
+    return { config: null, host, port, reset: true, resetTls: useTls, resetAuth: noAuth ? undefined : { username, password } };
+  }
 
   const authEnabled = !args['no-auth'];
   const username = args.username || process.env.TMUX_WEB_USERNAME || userInfo().username;
@@ -136,7 +143,7 @@ async function startServer() {
     a => a === '--password' || a === '-p' || a.startsWith('--password=') || a.startsWith('-p='),
   );
 
-  const { config, host, port, help, version, reset } = parseConfig(process.argv.slice(2));
+  const { config, host, port, help, version, reset, resetTls, resetAuth } = parseConfig(process.argv.slice(2));
 
   if (version) {
     console.log(`tmux-web ${VERSION}`);
@@ -179,21 +186,18 @@ Options:
       if (err?.code === 'ENOENT') console.log('No saved settings to reset.');
       else throw err;
     }
-    const myPid = process.pid;
+    const scheme = resetTls ? 'https' : 'http';
+    const connectHost = (host === '0.0.0.0' || host === '::') ? '127.0.0.1' : host;
+    const url = `${scheme}://${connectHost}:${port}/api/exit`;
+    const headers: Record<string, string> = {};
+    if (resetAuth?.password) {
+      headers['Authorization'] = 'Basic ' + btoa(`${resetAuth.username}:${resetAuth.password}`);
+    }
     try {
-      const pgrep = Bun.spawnSync(['pgrep', '-f', 'tmux-web']);
-      const pids = new TextDecoder().decode(pgrep.stdout).trim().split('\n')
-        .map(s => parseInt(s, 10))
-        .filter(pid => pid > 0 && pid !== myPid);
-      for (const pid of pids) {
-        try {
-          process.kill(pid, 'SIGTERM');
-          console.log(`Sent SIGTERM to tmux-web (pid ${pid})`);
-        } catch {}
-      }
-      if (pids.length === 0) console.log('No running tmux-web instances found.');
+      await fetch(url, { method: 'POST', headers, tls: { rejectUnauthorized: false } } as any);
+      console.log(`Sent exit to ${url} — process manager will restart it.`);
     } catch {
-      console.log('Could not check for running instances (pgrep unavailable).');
+      console.log(`No running instance at ${connectHost}:${port} (or not reachable).`);
     }
     process.exit(0);
   }
