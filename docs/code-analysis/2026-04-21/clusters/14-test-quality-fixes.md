@@ -1,15 +1,16 @@
 ---
-Status: partial
-Resolved-in: ce38d29 (partial)
+Status: resolved
+Resolved-in: ce38d29, PENDING
 ---
 
-> **Partial resolution (2026-04-21):** The tautological assertion
-> (headline), the recentOriginRejects state-leak fix (option a —
-> added `_resetRecentOriginRejects` + `beforeEach`), and the live-dir
-> comment on `bundled-themes.test.ts` (option a) are landed. The
-> pty.test.ts / pty-argv.test.ts dedup remains open as a deferred
-> decision — the overlap is not harmful, and splitting or merging
-> affects ~2 files of test structure choice.
+> **Resolution (2026-04-21):** All four findings closed. The initial
+> commit (`ce38d29`) landed the tautological-assertion fix, the
+> `_resetRecentOriginRejects` reset hook (+ `beforeEach`), and the
+> live-dir comment on `bundled-themes.test.ts`. Follow-up commit below
+> completes the maintainer's decision on the last item: merge
+> `pty-argv.test.ts` into `pty.test.ts` (remove the sibling file,
+> preserve every distinct case, deduplicate overlapping
+> `sanitizeSession` / `buildPtyCommand` ones).
 
 
 # Cluster 14 — test-quality-fixes
