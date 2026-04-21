@@ -180,7 +180,7 @@ body {
 #topbar .tb-btn.open,
 #topbar .tb-btn-session.open {
   background: color-mix(in srgb, var(--tw-chrome), white 20%);
-  border-color: var(--tw-bevel-hi);
+  border-color: color-mix(in srgb, var(--tw-chrome), white 10%);
 }
 
 /* New-window button appended to #win-tabs */
