@@ -1,6 +1,6 @@
 ---
 Status: resolved
-Resolved-in: 99de150, 3fd4dd7, PENDING
+Resolved-in: 99de150, 3fd4dd7, d72dd41
 ---
 
 > **Resolution (2026-04-21):** Four of the five untested client
