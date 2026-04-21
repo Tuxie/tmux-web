@@ -1,7 +1,25 @@
 ---
-Status: open
-Resolved-in:
+Status: resolved
+Resolved-in: PENDING
 ---
+
+> **Resolution (2026-04-21) — maintainer decisions:**
+> 1. Framework: `fast-check@4.7.0` as a devDependency.
+> 2. All 9 targets landed in one session (not the staged rollout the
+>    cluster suggested). Each parser has its own `tests/fuzz/*.test.ts`
+>    with invariant-level assertions. 58 property tests total.
+> 3. CI budget: fuzz pass is excluded from `bun test` (bunfig pins
+>    root to `tests/unit`). New `make fuzz` target runs them locally.
+>    CLAUDE.md release protocol updated: `act` first, then `make fuzz`,
+>    then tag push.
+>
+> **Real bug caught by the fuzz pass:** `sanitizeSession('%')` threw
+> because the internal `decodeURIComponent` rejects malformed
+> percent-escapes. Fixed in the same commit (try/catch fallback to
+> the raw input, which the charset filter then strips). Also
+> captured as a regression guard in `tests/unit/server/pty.test.ts`
+> so the fix is visible under the default `bun test` run too.
+
 
 # Cluster 15 — fuzz-gaps
 

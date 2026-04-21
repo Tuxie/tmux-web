@@ -7,7 +7,7 @@ SHAREDIR  = $(PREFIX)/share/tmux-web
 SRCS_CLIENT := $(shell find src/client src/shared -name "*.ts") bun-build.ts
 SRCS_SERVER := $(shell find src/server src/shared -name "*.ts")
 
-.PHONY: all dev clean test typecheck test-unit test-e2e test-e2e-headed vendor install build build-client build-server bench
+.PHONY: all dev clean test typecheck test-unit test-e2e test-e2e-headed vendor install build build-client build-server bench fuzz
 
 all: tmux-web
 
@@ -49,6 +49,14 @@ test-e2e-headed: dist/client/xterm.js
 
 bench:
 	$(BUN) run scripts/bench-render-math.ts
+
+# --- Property / fuzz tests ---
+# Not part of `make test` (the release path) — bunfig.toml pins the
+# default test root to tests/unit, so these are excluded unless invoked
+# explicitly. Run locally before tagging a release, after `act` has
+# verified the release workflow.
+fuzz:
+	$(BUN) test ./tests/fuzz/
 
 # --- Production binary ---
 

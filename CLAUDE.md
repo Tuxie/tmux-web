@@ -35,6 +35,21 @@ The upload-artifact step fails under `act` (no runtime token) — that
 is expected and fine. Everything preceding it, including unit tests
 and `verify-vendor-xterm.ts`, must succeed.
 
+After `act` is green, also run the property / fuzz pass before pushing
+the tag:
+
+```bash
+make fuzz
+```
+
+Fuzz tests live under `tests/fuzz/` and target the nine
+security-sensitive parsers (shell quoting, filename / session
+sanitisation, OSC 52 extraction, origin parsing, WS router, TOML
+colour parsing, `/proc/<pid>/stat` parsing, TT message extraction).
+They're excluded from `bun test` / the release CI path (bunfig's
+`root = "tests/unit"`) so the per-release cost is zero; the trade-off
+is that discovering a new fuzz regression is a manual pre-tag step.
+
 ---
 
 ## Architecture

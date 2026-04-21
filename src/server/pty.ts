@@ -13,7 +13,13 @@ export interface PtyCommandOptions {
 }
 
 export function sanitizeSession(raw: string): string {
-  const decoded = decodeURIComponent(raw || 'main');
+  // `decodeURIComponent` throws on malformed percent-escapes (a lone `%`,
+  // or `%` followed by non-hex). We promise callers a sanitised string
+  // and never a throw, so fall back to the raw input if decoding fails;
+  // the charset filter below strips any stray `%` anyway.
+  let decoded: string;
+  try { decoded = decodeURIComponent(raw || 'main'); }
+  catch { decoded = raw || 'main'; }
   const cleaned = decoded
     .replace(/[^a-zA-Z0-9_\-./]/g, '')
     .replace(/\.{2,}/g, '')

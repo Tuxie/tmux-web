@@ -42,6 +42,15 @@ describe('sanitizeSession', () => {
   it('decodes percent-encoded special chars and then strips them', () => {
     expect(sanitizeSession('foo%3Bbar')).toBe('foobar');
   });
+
+  it('does not throw on malformed percent-escapes (regression for %, %X, %%)', () => {
+    // These used to throw via the internal decodeURIComponent — caught by
+    // the fuzz pass under tests/fuzz/sanitize-session.test.ts.
+    expect(sanitizeSession('%')).toBe('main');
+    expect(sanitizeSession('%X')).toBe('X');
+    expect(sanitizeSession('%%')).toBe('main');
+    expect(sanitizeSession('foo%bar')).toBe('foobar');
+  });
 });
 
 describe('buildPtyCommand', () => {
