@@ -1,5 +1,3 @@
-PLATFORM := $(shell bun -e "process.stdout.write(process.platform)")
-ARCH     := $(shell bun -e "process.stdout.write(process.arch)")
 BUN      := bun
 
 PREFIX   ?= /usr/local

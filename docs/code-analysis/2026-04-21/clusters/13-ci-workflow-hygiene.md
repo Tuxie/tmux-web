@@ -1,7 +1,27 @@
 ---
-Status: open
-Resolved-in:
+Status: partial
+Resolved-in: PENDING
 ---
+
+> **Resolution (2026-04-21) — maintainer decisions:**
+> 1. E2E in CI: added a single `e2e` job on `ubuntu-latest` that
+>    runs Playwright (chromium only, with-deps install) before the
+>    4-leg build matrix. `build.needs: e2e` gates all legs.
+> 2. Homebrew tap bump: removed the inline `homebrew:` job from
+>    `release.yml`; `bump-homebrew-tap.yml` (release: published +
+>    workflow_dispatch) is now the sole source of the bump. No more
+>    race / "sometimes red" releases.
+> 3. `src/server/assets-embedded.ts`: gitignored and untracked.
+>    `make build` regenerates locally, CI regenerates in the build
+>    step that already exists. Diff noise on every theme/asset edit
+>    is gone.
+> 4. Dead `PLATFORM` / `ARCH` Makefile vars deleted.
+>
+> **Deferred:** `node node_modules/.bin/playwright` → `bunx playwright`
+> can't happen on Bun 1.3.x (fixed in 1.4). New E2E CI step uses
+> `bun run node node_modules/.bin/playwright` to match the
+> Makefile/package.json pattern. Revisit after the `.bun-version` bump.
+
 
 # Cluster 13 — ci-workflow-hygiene
 
