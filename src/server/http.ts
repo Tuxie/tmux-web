@@ -51,6 +51,23 @@ const MAX_DROP_BYTES = 50 * 1024 * 1024;
  *  per-session UI preferences but still finite. */
 const MAX_SESSION_SETTINGS_BYTES = 1 * 1024 * 1024;
 
+/** Detect whether a `PUT /api/session-settings` patch tries to write a
+ *  `clipboard` entry on any session. Clipboard grants are consent-only
+ *  (recorded via `recordGrant` from `clipboard-policy.ts`); any PUT
+ *  that carries one must be rejected. */
+function hasClipboardField(patch: unknown): boolean {
+  if (!patch || typeof patch !== 'object') return false;
+  const sessions = (patch as { sessions?: unknown }).sessions;
+  if (!sessions || typeof sessions !== 'object') return false;
+  for (const sessionPatch of Object.values(sessions)) {
+    if (sessionPatch && typeof sessionPatch === 'object'
+        && 'clipboard' in (sessionPatch as object)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Thin wrapper that resolves the foreground process (so we know
  *  whether to shell-quote) and hands off to the pure formatter. */
 async function formatDropPasteBytes(
@@ -394,8 +411,19 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
 
     if (pathname === '/api/drops') {
       if (req.method === 'GET') {
+        // Strip `absolutePath` from the public response — it leaks the
+        // runtime uid + `$XDG_RUNTIME_DIR` layout (/run/user/<uid>/…).
+        // The re-paste flow resolves paths server-side from `dropId`
+        // (see the /api/drops/paste handler), so the client doesn't
+        // need them.
+        const drops = listDrops(opts.dropStorage).map(d => ({
+          dropId: d.dropId,
+          filename: d.filename,
+          size: d.size,
+          mtime: d.mtime,
+        }));
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ drops: listDrops(opts.dropStorage) }));
+        res.end(JSON.stringify({ drops }));
         return;
       }
       if (req.method === 'DELETE') {
@@ -541,6 +569,19 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
         if (!patch || typeof patch !== 'object') {
           res.writeHead(400);
           res.end('Bad payload');
+          return;
+        }
+        // Clipboard grants are only writable via the consent-prompt
+        // pipeline (`recordGrant`, keyed by a live BLAKE3 of the
+        // requesting binary). Accepting them through this PUT would let
+        // an authenticated client pre-seed allow-grants for arbitrary
+        // `exePath` strings and bypass the prompt for any binary they
+        // control at that path. The client never sends this field —
+        // reject rather than silently drop so any future regression
+        // surfaces immediately.
+        if (hasClipboardField(patch)) {
+          res.writeHead(400);
+          res.end('clipboard entries are not writable via PUT — use the consent prompt');
           return;
         }
         try {

@@ -1,7 +1,24 @@
 ---
-Status: open
-Resolved-in:
+Status: resolved
+Resolved-in: PENDING
 ---
+
+> **Resolution (2026-04-21) — maintainer decisions:**
+> 1. TOCTOU between BLAKE3 pin and OSC 52 reply: accepted as a
+>    documented T2 limitation — added an explicit "TOCTOU assumption"
+>    subsection under Workaround 4 in CLAUDE.md, recording both the
+>    threat model ("attacker must already be the tmux user") and the
+>    rejected mitigations (rehash-before-send, pidfd routing).
+> 2. Clipboard sub-object in `PUT /api/session-settings`: rejected
+>    with 400 ("clipboard entries are not writable via PUT — use the
+>    consent prompt"). New `hasClipboardField` helper walks the patch
+>    body's `sessions.*` and refuses if any session patch carries a
+>    `clipboard` key. Legitimate traffic never sends this field.
+> 3. Absolute path in `GET /api/drops`: stripped from the API
+>    response. `drops-panel.ts`'s tooltip no longer shows the absolute
+>    path (which was the only consumer). Server still resolves paths
+>    from `dropId` server-side at paste time.
+
 
 # Cluster 06 — post-auth-data-handling
 

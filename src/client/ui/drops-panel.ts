@@ -9,7 +9,6 @@ import { formatBytes, showToast } from './toast.js';
 export interface DropInfo {
   dropId: string;
   filename: string;
-  absolutePath: string;
   size: number;
   mtime: string;
 }
@@ -43,7 +42,11 @@ export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promis
     for (const d of drops) {
       const row = document.createElement('div');
       row.className = 'tw-drops-row';
-      row.title = `Click to paste path into the terminal\n${d.absolutePath}\n${formatBytes(d.size)} · ${d.mtime}`;
+      // Server no longer discloses absolute paths in GET /api/drops —
+      // the path lives only on the server side and is resolved from
+      // dropId at paste time. Tooltip shows the name and the trailing
+      // size/mtime for context.
+      row.title = `Click to paste path into the terminal\n${d.filename}\n${formatBytes(d.size)} · ${d.mtime}`;
 
       const label = document.createElement('span');
       label.className = 'tw-drops-row-label';

@@ -249,6 +249,24 @@ BLAKE3 pinning (`src/server/hash.ts`) guards against binary swap. Reply is
 delivered to the tmux pane via `tmux send-keys -H <hex>` (see
 `src/server/tmux-inject.ts` + `src/server/osc52-reply.ts`).
 
+**TOCTOU assumption.** The BLAKE3 pin is hashed at consent-decision
+time via `/proc/<pid>/exe`, and the reply lands back at the same pid
+via `tmux send-keys -H`. Between the two the process could `exec` a
+different binary (same pid), receiving a clipboard grant the consent
+prompt granted to the previously-hashed image. We accept this gap at
+T2: the attacker must already have code execution as the tmux user,
+in which case they already control the consent-prompting session and
+the on-disk `sessions.json`. The pin defends against accidental
+binary replacement and unrelated processes; it is not a kernel-level
+isolation boundary. See cluster 06 (docs/code-analysis/2026-04-21)
+for the rejected mitigations (re-hash-before-send, pidfd routing).
+
+**Clipboard grants are consent-only.** The server rejects any
+`clipboard` sub-object on `PUT /api/session-settings` with 400 —
+grants flow exclusively through `recordGrant` driven by the consent
+prompt. This preserves the invariant that `sessions.json.clipboard`
+entries map 1:1 to prompt accepts.
+
 ### 4b. File drop & clipboard paste
 
 `POST /api/drop?session=<name>` persists an uploaded file under a stable

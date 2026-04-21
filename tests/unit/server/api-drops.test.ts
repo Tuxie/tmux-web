@@ -83,6 +83,23 @@ describe("/api/drops", () => {
     expect(body.drops[1]!.dropId).toBe(a.dropId);
   });
 
+  test("GET response omits absolutePath (cluster 06 — path disclosure fix)", async () => {
+    writeDrop(storage, "secret.txt", Buffer.from("x"));
+    const h = await makeHandler();
+    const r = await call(h, { method: "GET", url: "/api/drops" });
+    const body = JSON.parse(r.body) as { drops: any[] };
+    expect(body.drops).toHaveLength(1);
+    const entry = body.drops[0]!;
+    // Field must be absent: a leaked absolute path discloses
+    // /run/user/<uid>/… layout. Server resolves from dropId at paste time.
+    expect('absolutePath' in entry).toBe(false);
+    // Regression guard: the rest of the shape is unchanged.
+    expect(entry.dropId).toBeDefined();
+    expect(entry.filename).toBe('secret.txt');
+    expect(entry.size).toBe(1);
+    expect(entry.mtime).toBeDefined();
+  });
+
   test("DELETE with ?id= removes one drop (whole subdir)", async () => {
     const a = writeDrop(storage, "f", Buffer.from("x"));
     const h = await makeHandler();

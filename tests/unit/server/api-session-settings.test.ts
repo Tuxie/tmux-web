@@ -108,4 +108,42 @@ describe("/api/session-settings", () => {
     });
     expect(fs.existsSync(storePath + ".part")).toBe(false);
   });
+
+  test("PUT with a clipboard field on a session patch is rejected with 400", async () => {
+    // Clipboard grants are consent-only (recorded server-side via
+    // recordGrant after the prompt accepts). Accepting them on PUT
+    // would let an authenticated client pre-seed allow-grants for any
+    // exePath they control. See cluster 06-post-auth-data-handling.
+    const handler = await makeHandler();
+    const r = await call(handler, {
+      method: "PUT", url: "/api/session-settings",
+      body: JSON.stringify({
+        sessions: {
+          main: {
+            ...SAMPLE,
+            clipboard: {
+              '/usr/bin/tmux': {
+                blake3: 'deadbeef'.repeat(8),
+                read: true,
+                write: true,
+              },
+            },
+          },
+        },
+      }),
+    });
+    expect(r.status).toBe(400);
+    expect(r.body).toContain('clipboard');
+    // Store file must not have been created: the patch never ran.
+    expect(fs.existsSync(storePath)).toBe(false);
+  });
+
+  test("PUT without clipboard still succeeds (regression guard)", async () => {
+    const handler = await makeHandler();
+    const r = await call(handler, {
+      method: "PUT", url: "/api/session-settings",
+      body: JSON.stringify({ sessions: { main: SAMPLE } }),
+    });
+    expect(r.status).toBe(200);
+  });
 });
