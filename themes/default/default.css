@@ -133,6 +133,7 @@ body {
 
 #topbar .tb-btn {
   border-radius: 3px;
+  border-color: transparent;
   padding: 2px 8px;
   cursor: pointer;
   font-family: inherit;
@@ -170,6 +171,7 @@ body {
 #topbar .win-tab {
   background: none;
   border-radius: 3px;
+  border-color: transparent;
   padding: 2px 8px;
   cursor: pointer;
   font-family: inherit;
