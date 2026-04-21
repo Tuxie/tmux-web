@@ -66,7 +66,7 @@ body {
   min-width: 100%;
   border-radius: 4px;
   z-index: 200;
-  padding: 4px 0;
+  padding: 2px 0;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   background: linear-gradient(to bottom,
     color-mix(in srgb, var(--tw-chrome-bg), white calc(5% * var(--tw-theme-contrast))),
@@ -74,7 +74,7 @@ body {
   /* max-height / overflow-y live in base.css. */
 }
 .tw-dropdown-item {
-  padding: 4px 12px;
+  padding: 1px 8px;
   cursor: pointer;
   white-space: nowrap;
   font-family: inherit;

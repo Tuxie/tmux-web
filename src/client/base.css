@@ -78,8 +78,8 @@ html, body { height: 100%; overflow: hidden; }
 #menu-dropdown .tw-dropdown,
 #menu-dropdown input[type="range"] { flex: 1; }
 
-.menu-row { display: flex; align-items: center; gap: 8px; padding: 5px 12px; cursor: pointer; font-size: 13px; white-space: nowrap; }
-.menu-row-static { cursor: default; gap: 6px; }
+.menu-row { display: flex; align-items: center; gap: 4px; padding: 1px 8px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+.menu-row-static { cursor: default; gap: 4px; }
 .menu-label { color: var(--tw-text-muted); min-width: 72px; }
 .menu-label-clickable { cursor: pointer; }
 .menu-input-select, .menu-input-number {
@@ -87,7 +87,7 @@ html, body { height: 100%; overflow: hidden; }
   border-radius: 2px; padding: 1px 4px; font-family: inherit; font-size: 12px;
 }
 .menu-input-number { width: 46px; }
-.menu-hr { border: none; border-top: 1px solid var(--tw-muted); margin: 4px 0; }
+.menu-hr { border: none; border-top: 1px solid var(--tw-muted); margin: 2px 0; }
 
 /* Labelled section divider: rule — label — rule, in the same colour
  * as the plain .menu-hr. Themes can override font / tint by targeting
@@ -101,7 +101,7 @@ html, body { height: 100%; overflow: hidden; }
   color: var(--tw-muted);
   text-transform: uppercase;
   letter-spacing: 1px;
-  padding: 6px 12px 2px;
+  padding: 3px 8px 1px;
   user-select: none;
 }
 .menu-section::before,
