@@ -87,7 +87,7 @@ html, body { height: 100%; overflow: hidden; }
   border-radius: 2px; padding: 1px 4px; font-family: inherit; font-size: 12px;
 }
 .menu-input-number { width: 46px; }
-.menu-hr { border: none; height: 1px; background: var(--tw-muted); margin: 5px 8px 3px; }
+.menu-hr, .tw-dropdown-sep { border: none; height: 1px; background: var(--tw-muted); margin: 5px 8px 3px; }
 
 /* Labelled section divider: rule — label — rule, in the same colour
  * as the plain .menu-hr. Themes can override font / tint by targeting
@@ -302,7 +302,6 @@ body {
 :where(.tw-dropdown-item:hover) { background: var(--tw-gadget-hover); }
 :where(.tw-dropdown-item.selected) { background: var(--tw-gadget-active); }
 
-:where(.tw-dropdown-sep) { border-top-color: var(--tw-muted); }
 
 :where(.tw-dd-input) {
   background: var(--tw-gadget-bg);
