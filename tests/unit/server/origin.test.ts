@@ -1,10 +1,11 @@
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'bun:test';
 import {
   parseOriginHeader,
   parseAllowOriginFlag,
   isIpLiteral,
   isOriginAllowed,
   logOriginReject,
+  _resetRecentOriginRejects,
 } from '../../../src/server/origin.js';
 
 describe('parseOriginHeader', () => {
@@ -182,18 +183,25 @@ describe('isOriginAllowed', () => {
 });
 
 describe('logOriginReject', () => {
+  beforeEach(() => {
+    _resetRecentOriginRejects();
+  });
+
   it('evicts the oldest entry once the 256-cap is exceeded', () => {
     const origErr = console.error;
     console.error = () => {};
     try {
-      // Fill well past 256 distinct origins; ensure no throw and eviction path fires.
+      // Fill well past 256 distinct origins — the first ~44 are evicted
+      // as the map tops out at 256 (Map preserves insertion order; oldest
+      // key goes first).
       for (let i = 0; i < 300; i++) {
         logOriginReject(`https://h${i}.example.com`, '1.2.3.4');
       }
     } finally {
       console.error = origErr;
     }
-    // Rate-limited: second call within 60s is a no-op (covers early-return branch).
+    // h0 is now gone from the rate-limit map. Calling again must log
+    // (no 60 s suppression since the prior timestamp was evicted).
     let called = 0;
     const err2 = console.error;
     console.error = () => { called++; };
@@ -202,8 +210,20 @@ describe('logOriginReject', () => {
     } finally {
       console.error = err2;
     }
-    // h0 was evicted (oldest, after adding 300), so next call logs — or not,
-    // depending on eviction order. We only assert the function didn't throw.
-    expect(typeof called).toBe('number');
+    expect(called).toBe(1);
+  });
+
+  it('rate-limits duplicate logs within 60 seconds', () => {
+    let called = 0;
+    const origErr = console.error;
+    console.error = () => { called++; };
+    try {
+      logOriginReject('https://same.example.com', '1.2.3.4');
+      logOriginReject('https://same.example.com', '1.2.3.4');
+      logOriginReject('https://same.example.com', '1.2.3.4');
+    } finally {
+      console.error = origErr;
+    }
+    expect(called).toBe(1);
   });
 });

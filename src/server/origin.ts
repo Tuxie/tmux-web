@@ -94,6 +94,12 @@ export function isOriginAllowed(
 
 const recentOriginRejects = new Map<string, number>();
 
+/** Test-only: reset the rate-limit map so tests don't inherit state
+ *  from sibling cases in the same file. */
+export function _resetRecentOriginRejects(): void {
+  recentOriginRejects.clear();
+}
+
 /**
  * Emit a rate-limited stderr line for a rejected Origin. At most one line
  * per distinct origin per minute; capped at 256 entries to avoid unbounded

@@ -2,6 +2,10 @@ import { describe, expect, test } from "bun:test";
 import path from "path";
 import { listFonts, listPacks, listThemes } from "../../../src/server/themes";
 
+// This test is an intentional live snapshot of the bundled theme
+// directory (unlike the hermetic fixture at tests/fixtures/themes-
+// bundled/). Renaming a shipped theme variant will fail this test by
+// design — update the assertions together with the rename.
 const THEMES = path.resolve(import.meta.dir, "../../../themes");
 
 describe("bundled themes", () => {

@@ -1,7 +1,16 @@
 ---
-Status: open
-Resolved-in:
+Status: partial
+Resolved-in: PENDING
 ---
+
+> **Partial resolution (2026-04-21):** The tautological assertion
+> (headline), the recentOriginRejects state-leak fix (option a —
+> added `_resetRecentOriginRejects` + `beforeEach`), and the live-dir
+> comment on `bundled-themes.test.ts` (option a) are landed. The
+> pty.test.ts / pty-argv.test.ts dedup remains open as a deferred
+> decision — the overlap is not harmful, and splitting or merging
+> affects ~2 files of test structure choice.
+
 
 # Cluster 14 — test-quality-fixes
 
