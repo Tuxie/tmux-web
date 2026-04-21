@@ -134,6 +134,7 @@ body {
 #topbar .tb-btn {
   border-radius: 3px;
   border-color: transparent;
+  background: transparent;
   padding: 2px 8px;
   cursor: pointer;
   font-family: inherit;
@@ -181,7 +182,9 @@ body {
 #topbar .win-tab.active,
 #topbar .tb-btn.open,
 #topbar .tb-btn-session.open {
-  background: color-mix(in srgb, var(--tw-chrome), white 20%);
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))));
   border-color: color-mix(in srgb, var(--tw-chrome), white 10%);
 }
 
