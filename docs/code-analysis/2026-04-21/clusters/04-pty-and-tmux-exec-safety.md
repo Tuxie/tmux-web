@@ -1,6 +1,6 @@
 ---
 Status: resolved
-Resolved-in: PENDING
+Resolved-in: 2edee6f
 ---
 
 # Cluster 04 — pty-and-tmux-exec-safety
