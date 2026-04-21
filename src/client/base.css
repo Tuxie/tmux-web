@@ -78,7 +78,7 @@ html, body { height: 100%; overflow: hidden; }
 #menu-dropdown .tw-dropdown,
 #menu-dropdown input[type="range"] { flex: 1; }
 
-.menu-row { display: flex; align-items: center; gap: 4px; padding: 1px 8px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+.menu-row { display: flex; align-items: center; gap: 4px; padding: 1px; cursor: pointer; font-size: 13px; white-space: nowrap; }
 .menu-row-static { cursor: default; gap: 4px; }
 .menu-label { color: var(--tw-text-muted); min-width: 72px; }
 .menu-label-clickable { cursor: pointer; }
