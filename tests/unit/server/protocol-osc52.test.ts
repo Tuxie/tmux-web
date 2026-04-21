@@ -99,4 +99,23 @@ describe("OSC 52 write interceptor — adversarial inputs", () => {
     expect(clipMessages).toHaveLength(1);
     expect(clipMessages[0]!.clipboard).toBe(small);
   });
+
+  test("caps OSC 52 write frames per chunk (keeps last N)", () => {
+    // Build 20 distinct OSC 52 writes in a single chunk. Only the last 8
+    // should reach the client — earlier clipboard writes are superseded
+    // on the browser side anyway.
+    const frames: string[] = [];
+    for (let i = 0; i < 20; i++) {
+      const payload = Buffer.from(`n${i}`).toString("base64");
+      frames.push(`\x1b]52;c;${payload}\x07`);
+    }
+    const { messages } = processData(frames.join(""), "main");
+    const clips = messages.filter(m => "clipboard" in m).map(m => m.clipboard as string);
+    expect(clips).toHaveLength(8);
+    // Last 8 payloads correspond to i=12..19.
+    const expected = Array.from({ length: 8 }, (_, k) =>
+      Buffer.from(`n${k + 12}`).toString("base64"),
+    );
+    expect(clips).toEqual(expected);
+  });
 });

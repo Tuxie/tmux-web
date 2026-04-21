@@ -1,7 +1,4 @@
-import { execFile as rawExecFile } from 'child_process';
-import { promisify } from 'util';
-
-const defaultExecFile = promisify(rawExecFile);
+import { execFileAsync as defaultExecFile } from './exec.js';
 
 export type ExecFileAsync = (
   file: string,
@@ -14,7 +11,7 @@ export interface SendBytesOpts {
   target: string;
   /** Raw byte string (one char = one byte). */
   bytes: string;
-  /** Injectable for tests; defaults to promisified child_process.execFile. */
+  /** Injectable for tests; defaults to shared `execFileAsync` (5 s timeout). */
   execFileAsync?: ExecFileAsync;
 }
 

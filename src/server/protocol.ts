@@ -28,6 +28,12 @@ const OSC_52_READ_RE = /\x1b\]52;([^;]*);\?(?:\x07|\x1b\\)/g;
  *  Matches the 1 MiB cap on the read path in ws.ts. */
 const MAX_OSC52_WRITE_BYTES = 1 * 1024 * 1024;
 
+/** Only the last N OSC 52 write frames in a single PTY chunk are forwarded
+ *  to the WS client — prior writes are superseded on the browser side
+ *  anyway (each one overwrites the clipboard), so a rogue TUI can't flood
+ *  the socket with an unbounded burst. */
+const MAX_OSC52_WRITES_PER_CHUNK = 8;
+
 const _osc52WarnTimes = new Map<string, number>();
 
 function warnTooLargeOsc52Write(length: number): void {
@@ -61,6 +67,7 @@ export function processData(data: string, _currentSession: string): ProcessResul
   }
 
   OSC_52_WRITE_RE.lastIndex = 0;
+  const writes: string[] = [];
   while ((match = OSC_52_WRITE_RE.exec(data)) !== null) {
     const b64 = match[1];
     if (!b64) continue;
@@ -68,6 +75,9 @@ export function processData(data: string, _currentSession: string): ProcessResul
       warnTooLargeOsc52Write(b64.length);
       continue;
     }
+    writes.push(b64);
+  }
+  for (const b64 of writes.slice(-MAX_OSC52_WRITES_PER_CHUNK)) {
     messages.push({ clipboard: b64 });
   }
 

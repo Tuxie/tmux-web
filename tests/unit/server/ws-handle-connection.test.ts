@@ -401,6 +401,60 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
       } catch { return null; }
     }, 8000);
     expect(logOk).toBeTruthy();
+    expect(logOk as string).toContain('rename-session -t main -- newname');
+
+    o.ws.close();
+  }, 15000);
+
+  test('session rename rejects names starting with - or containing : / .', async () => {
+    const { path: tmuxBin, logFile } = makeFakeTmux();
+    h = await startTestServer({ testMode: false, tmuxBin });
+    const o = openWs(h.wsUrl);
+    await o.opened;
+
+    o.ws.send(JSON.stringify({ type: 'session', action: 'rename', name: '-evil' }));
+    o.ws.send(JSON.stringify({ type: 'session', action: 'rename', name: 'bad:name' }));
+    o.ws.send(JSON.stringify({ type: 'session', action: 'rename', name: 'bad.name' }));
+    o.ws.send(JSON.stringify({ type: 'session', action: 'rename', name: '   ' }));
+    // Follow with a valid rename so we can assert only the valid one landed.
+    o.ws.send(JSON.stringify({ type: 'session', action: 'rename', name: 'allowed' }));
+
+    const logOk = await waitFor(() => {
+      try {
+        const s = fs.readFileSync(logFile, 'utf8');
+        return s.includes('rename-session -t main -- allowed') ? s : null;
+      } catch { return null; }
+    }, 8000);
+    expect(logOk).toBeTruthy();
+    expect(logOk as string).not.toContain('-evil');
+    expect(logOk as string).not.toContain('bad:name');
+    expect(logOk as string).not.toContain('bad.name');
+
+    o.ws.close();
+  }, 15000);
+
+  test('window rename + new reject unsafe names; -- separator used on positional', async () => {
+    const { path: tmuxBin, logFile } = makeFakeTmux();
+    h = await startTestServer({ testMode: false, tmuxBin });
+    const o = openWs(h.wsUrl);
+    await o.opened;
+
+    o.ws.send(JSON.stringify({ type: 'window', action: 'rename', index: '0', name: '-dash' }));
+    o.ws.send(JSON.stringify({ type: 'window', action: 'rename', index: '0', name: 'ok' }));
+    o.ws.send(JSON.stringify({ type: 'window', action: 'new', name: '-also' }));
+    o.ws.send(JSON.stringify({ type: 'window', action: 'new', name: 'fresh' }));
+
+    const logOk = await waitFor(() => {
+      try {
+        const s = fs.readFileSync(logFile, 'utf8');
+        return s.includes('rename-window -t main:0 -- ok')
+          && s.includes('new-window -t main -n fresh')
+          ? s : null;
+      } catch { return null; }
+    }, 8000);
+    expect(logOk).toBeTruthy();
+    expect(logOk as string).not.toContain('-dash');
+    expect(logOk as string).not.toContain('-also');
 
     o.ws.close();
   }, 15000);

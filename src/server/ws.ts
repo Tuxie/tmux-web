@@ -124,6 +124,18 @@ export function createWsServer(
  * session. Bypasses the PTY so it works regardless of the user's tmux
  * prefix binding.
  */
+/** tmux treats a leading `-` as an option even at positional slots, and
+ *  `:` / `.` are interpreted as session/window separators. Reject those
+ *  shapes up-front so the server error (not tmux's parser) surfaces the
+ *  problem and an empty name or literal `-foo` can't reach tmux. */
+function isSafeTmuxName(name: string): boolean {
+  const trimmed = name.trim();
+  if (!trimmed) return false;
+  if (trimmed.startsWith('-')) return false;
+  if (trimmed.includes(':') || trimmed.includes('.')) return false;
+  return true;
+}
+
 async function applySessionAction(
   sessionName: string,
   msg: { action: string; name?: string },
@@ -134,8 +146,8 @@ async function applySessionAction(
   try {
     switch (msg.action) {
       case 'rename':
-        if (typeof msg.name !== 'string' || !msg.name.trim()) return;
-        await execFileAsync(bin, ['rename-session', '-t', sessionName, msg.name]);
+        if (typeof msg.name !== 'string' || !isSafeTmuxName(msg.name)) return;
+        await execFileAsync(bin, ['rename-session', '-t', sessionName, '--', msg.name.trim()]);
         break;
       case 'kill':
         await execFileAsync(bin, ['kill-session', '-t', sessionName]);
@@ -166,7 +178,7 @@ async function applyWindowAction(
         break;
       case 'new': {
         const args = ['new-window', '-t', sessionName];
-        if (typeof msg.name === 'string' && msg.name.trim()) {
+        if (typeof msg.name === 'string' && isSafeTmuxName(msg.name)) {
           args.push('-n', msg.name.trim());
         }
         await execFileAsync(bin, args);
@@ -178,7 +190,8 @@ async function applyWindowAction(
         break;
       case 'rename':
         if (typeof msg.index !== 'string' || typeof msg.name !== 'string') return;
-        await execFileAsync(bin, ['rename-window', '-t', target, msg.name]);
+        if (!isSafeTmuxName(msg.name)) return;
+        await execFileAsync(bin, ['rename-window', '-t', target, '--', msg.name.trim()]);
         break;
     }
   } catch { /* ignore — window may have already been closed, etc. */ }
