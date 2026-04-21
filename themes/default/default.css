@@ -74,7 +74,7 @@ body {
   /* max-height / overflow-y live in base.css. */
 }
 .tw-dropdown-item {
-  padding: 1px 8px;
+  padding: 2px 8px;
   cursor: pointer;
   white-space: nowrap;
   font-family: inherit;
