@@ -421,7 +421,6 @@ body {
 .menu-row { display: flex; align-items: center; gap: 3px; padding: 2px 12px;
             cursor: pointer; white-space: nowrap; font-size: 15px; }
 .menu-row-static { cursor: default; gap: 3px; }
-.menu-label { min-width: 120px; }
 /* AmigaOS 3.1 GadTools-style checkbox. Raised sunken well when unchecked,
  * sunken bevel with a filled square when checked — mirrors the look of
  * the Workbench 3.1 installer's radio group. */
