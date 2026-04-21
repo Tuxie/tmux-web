@@ -66,7 +66,7 @@ export class Topbar {
   private winTabs!: HTMLElement;
   private tbTitle!: HTMLElement;
   private autohideChk!: HTMLInputElement;
-  private autohide = true;
+  private autohide = false;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
   private lastActiveWindowIndex: string | null = null;
   private syncSettingsUi?: (s: SessionSettings) => void;

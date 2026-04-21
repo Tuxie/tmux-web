@@ -38,9 +38,9 @@ export function getTopbarAutohide(): boolean {
       return legacyValue;
     }
 
-    return true;
+    return false;
   } catch {
-    return true;
+    return false;
   }
 }
 

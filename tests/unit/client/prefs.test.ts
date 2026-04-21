@@ -34,8 +34,8 @@ describe("prefs", () => {
   });
 
   // --- topbar autohide ---
-  test("getTopbarAutohide defaults to true when unset and no cookie", () => {
-    expect(getTopbarAutohide()).toBe(true);
+  test("getTopbarAutohide defaults to false when unset and no cookie", () => {
+    expect(getTopbarAutohide()).toBe(false);
   });
 
   test("getTopbarAutohide honors '1' in storage", () => {
@@ -64,22 +64,22 @@ describe("prefs", () => {
 
   test("getTopbarAutohide ignores cookies with other names", () => {
     setCookie('foo=bar; unrelated=xyz');
-    expect(getTopbarAutohide()).toBe(true);
+    expect(getTopbarAutohide()).toBe(false);
   });
 
   test("getTopbarAutohide ignores legacy cookie with non-boolean value", () => {
     setCookie('tmux-web-settings=' + encodeURIComponent(JSON.stringify({ topbarAutohide: 'yes' })));
-    expect(getTopbarAutohide()).toBe(true);
+    expect(getTopbarAutohide()).toBe(false);
   });
 
   test("getTopbarAutohide tolerates malformed cookie JSON", () => {
     setCookie('tmux-web-settings=not-json');
-    expect(getTopbarAutohide()).toBe(true);
+    expect(getTopbarAutohide()).toBe(false);
   });
 
-  test("getTopbarAutohide returns true when storage throws", () => {
+  test("getTopbarAutohide returns false when storage throws", () => {
     installLocalStorage({}, { throwOnGet: true });
-    expect(getTopbarAutohide()).toBe(true);
+    expect(getTopbarAutohide()).toBe(false);
   });
 
   test("setTopbarAutohide writes '1' or '0'", () => {
