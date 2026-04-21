@@ -176,7 +176,12 @@ body {
   font-size: 13px;
   line-height: 1.4;
 }
-#topbar .win-tab.active { border-color: var(--tw-bevel-hi); }
+#topbar .win-tab.active,
+#topbar .tb-btn.open,
+#topbar .tb-btn-session.open {
+  background: color-mix(in srgb, var(--tw-chrome), white 20%);
+  border-color: var(--tw-bevel-hi);
+}
 
 /* New-window button appended to #win-tabs */
 #topbar .tb-btn-new-window { margin-left: 2px; font-weight: bold; }
