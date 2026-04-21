@@ -1,6 +1,6 @@
 ---
 Status: resolved
-Resolved-in: 19ff3b4, PENDING
+Resolved-in: 19ff3b4, c7508ad
 ---
 
 > **Resolution (2026-04-21):** Clamp consistency landed in `19ff3b4`.
