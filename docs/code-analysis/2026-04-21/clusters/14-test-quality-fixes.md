@@ -1,6 +1,6 @@
 ---
 Status: resolved
-Resolved-in: ce38d29, PENDING
+Resolved-in: ce38d29, c51cc88
 ---
 
 > **Resolution (2026-04-21):** All four findings closed. The initial
