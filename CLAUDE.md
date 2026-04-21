@@ -115,7 +115,7 @@ Use `bun`. No `pnpm`, `npm`, `tsx`, or `vitest`.
     --tmux-conf <path>         Alternative tmux.conf
     --themes-dir <path>        User theme-pack directory override
     --test                     Test mode: cat PTY, bypass IP/Origin allowlists
-    --reset                    Delete saved session settings and exit
+    --reset                    Delete saved settings and restart running instances
 -d, --debug                    Log debug messages to stderr
 -V, --version                  Print version and exit
 -h, --help                     Show this help

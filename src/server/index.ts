@@ -161,7 +161,7 @@ Options:
       --tmux-conf <path>       Alternative tmux.conf to load instead of user default
       --themes-dir <path>      User theme-pack directory override
       --test                   Test mode: use cat PTY, bypass IP/Origin allowlists
-      --reset                  Delete saved session settings and exit
+      --reset                  Delete saved settings and restart running instances
   -d, --debug                  Log debug messages to stderr
   -V, --version                Print version and exit
   -h, --help                   Show this help`);
@@ -178,6 +178,22 @@ Options:
     } catch (err: any) {
       if (err?.code === 'ENOENT') console.log('No saved settings to reset.');
       else throw err;
+    }
+    const myPid = process.pid;
+    try {
+      const pgrep = Bun.spawnSync(['pgrep', '-f', 'tmux-web']);
+      const pids = new TextDecoder().decode(pgrep.stdout).trim().split('\n')
+        .map(s => parseInt(s, 10))
+        .filter(pid => pid > 0 && pid !== myPid);
+      for (const pid of pids) {
+        try {
+          process.kill(pid, 'SIGTERM');
+          console.log(`Sent SIGTERM to tmux-web (pid ${pid})`);
+        } catch {}
+      }
+      if (pids.length === 0) console.log('No running tmux-web instances found.');
+    } catch {
+      console.log('Could not check for running instances (pgrep unavailable).');
     }
     process.exit(0);
   }
