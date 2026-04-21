@@ -1,6 +1,6 @@
 ---
 Status: resolved
-Resolved-in: PENDING
+Resolved-in: c7affc0
 ---
 
 # Cluster 16 — bench-and-stale-artifacts
