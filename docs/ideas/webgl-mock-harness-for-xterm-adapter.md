@@ -34,10 +34,23 @@ duplicates the e2e suite's job.
 
 Three layers, smallest first:
 
-1. **Pure-helper carve-outs**: lift any leaf function in `xterm.ts`
-   that doesn't read from `gl` (e.g. cell-bg resolution given an
-   `IBufferLine`-shaped fixture, foreground blending math) into its
-   own file — `oklab.ts` is the precedent. Test those directly.
+1. **Pure-helper carve-outs** — **LANDED**. Cluster 09 extracted the
+   OKLab math to `src/client/oklab.ts`. A follow-up session hoisted
+   the per-cell attribute / colour-resolution pipeline to
+   `src/client/adapters/xterm-cell-math.ts`:
+     - `effectiveBackgroundAttr(fg, bg)`
+     - `resolveAttrRgba(attr, defaultRgba, ansi)`
+     - `blendRgbaOverDefaultBackground(rgba, baseRgba, α)`
+     - `resolveCellBgRgb(fg, bg, theme, tuiBgAlpha)`
+     - `blendFgTowardCellBg(origFgAttr, cellBgRgb, fgDefault, state, ansi)`
+     - `withBlendedEffectiveBackground(fg, bg, theme, state)`
+   `xterm.ts` now keeps only two tiny snapshot lambdas (`themeSnapshot`,
+   `stateSnapshot`) that bundle live `renderer._themeService` and
+   adapter-settings state into `XtermCellTheme` / `XtermCellState` bags
+   for each call. The cell-math module is at 95%+ line coverage under
+   `tests/unit/client/adapters/xterm-cell-math.test.ts` — 28 cases
+   covering every branch (CM_DEFAULT / P16 / P256 / RGB × inverse ×
+   alpha / contrast / saturation).
 2. **A `WebGL2RenderingContext` stub** that records every method
    call and returns the smallest non-null token each call expects. The
    stub doesn't render anything; its job is to let the addon boot
@@ -50,26 +63,35 @@ Three layers, smallest first:
    expect for the input cell + current `tuiBgOpacity` /
    `fgContrastStrength` / `tuiSaturation` settings.
 
-(1) is small; we already did one round of it in cluster 09. (2) is
-the bulk of the work — probably one focused session to write and one
-more to harden when xterm.js is updated. (3) is a pattern that scales
-once (2) exists.
+(2) is the remaining bulk of the work — probably one focused session
+to write and one more to harden when xterm.js is updated. (3) is a
+pattern that scales once (2) exists. Now that Layer 1 is in place,
+(3) is already partly covered at the unit level — any future (3)
+test would be exercising the patcher glue, not the math.
 
-## Why we're not doing this now
+## Why we're not doing Layer 2 now
 
 A real WebGL stub takes a day or two of careful work and the safety
 gain is limited as long as the e2e suite catches the visible
 regressions (every cluster fix during the 2026-04-21 analysis was
 caught by either unit tests or the existing `tests/e2e/theming.spec.ts`).
-The pragmatic alternative for now: extract more pure leaves a la
-`oklab.ts` whenever cluster 09-style refactors come up, and let the
-EXCLUDES entry stay with a pointer back to this idea file.
+With Layer 1 landed, the untested residue in `xterm.ts` is mostly:
+- `_patchWebglLineHeightOverflow` (metrics plumbing)
+- `_patchWebglAtlasFilter` (texture filter mode)
+- The actual monkey-patching glue around `rectangleRenderer` /
+  `glyphRenderer` (what it decides to wrap, in what order)
+
+None of those are pixel-math bugs — they're integration-wiring bugs
+that a WebGL stub (Layer 2) or e2e snapshot would catch equally well.
 
 ## Pointers
 
-- `scripts/check-coverage.ts:11-17` — current EXCLUDES set
-- `src/client/adapters/xterm.ts:175` — `_patchWebglExplicitBackgroundOpacity`
-- `src/client/oklab.ts` — the carve-out shape we'd extend
+- `scripts/check-coverage.ts` — `EXCLUDES` set (xterm.ts still excluded)
+- `src/client/adapters/xterm.ts` — `_patchWebglExplicitBackgroundOpacity`
+- `src/client/adapters/xterm-cell-math.ts` — **Layer 1 output**; pure
+  cell-math with its own unit tests
+- `src/client/oklab.ts` — the original carve-out pattern (cluster 09)
 - `tests/unit/client/_dom.ts` — JSDOM wiring used by other client tests
+- `tests/unit/client/adapters/xterm-cell-math.test.ts` — Layer 1 tests
 - `docs/code-analysis/2026-04-21/clusters/02-client-unit-test-coverage.md`
   — the cluster that surfaced this gap

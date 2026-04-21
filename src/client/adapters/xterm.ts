@@ -3,13 +3,11 @@ import type { CellMetrics, TerminalOptions, TerminalTheme } from '../../shared/t
 
 import { pushLightness, rgbToOklabL } from '../fg-contrast.js';
 import { adjustSaturation } from '../tui-saturation.js';
-
-const XTERM_COLOR_MODE_MASK = 0x3000000;
-const XTERM_COLOR_MODE_P16 = 0x1000000;
-const XTERM_COLOR_MODE_P256 = 0x2000000;
-const XTERM_COLOR_MODE_RGB = 0x3000000;
-const XTERM_FG_FLAG_INVERSE = 0x4000000;
-const XTERM_RGB_MASK = 0xffffff;
+import {
+  withBlendedEffectiveBackground,
+  type XtermCellTheme,
+  type XtermCellState,
+} from './xterm-cell-math.js';
 
 export class XtermAdapter implements TerminalAdapter {
   private term!: any;
@@ -303,158 +301,25 @@ export class XtermAdapter implements TerminalAdapter {
       return true;
     };
 
-    const effectiveBackgroundAttr = (fg: number, bg: number): number => {
-      return (fg & XTERM_FG_FLAG_INVERSE) ? fg : bg;
-    };
-
-    const resolveAttrRgba = (attr: number, defaultRgba: number): number => {
-      switch (attr & XTERM_COLOR_MODE_MASK) {
-        case XTERM_COLOR_MODE_P16:
-        case XTERM_COLOR_MODE_P256:
-          return renderer._themeService?.colors?.ansi?.[attr & 0xff]?.rgba ?? defaultRgba;
-        case XTERM_COLOR_MODE_RGB:
-          return ((attr & XTERM_RGB_MASK) << 8) | 0xff;
-        default:
-          return defaultRgba;
-      }
-    };
-
-    const blendRgbaOverDefaultBackground = (rgba: number): number => {
-      const base = renderer._themeService?.colors?.background?.rgba ?? 0x000000ff;
-      const a = adapter.tuiBgAlpha;
-      const r = Math.round(((rgba >> 24) & 0xff) * a + ((base >> 24) & 0xff) * (1 - a));
-      const g = Math.round(((rgba >> 16) & 0xff) * a + ((base >> 16) & 0xff) * (1 - a));
-      const b = Math.round(((rgba >> 8) & 0xff) * a + ((base >> 8) & 0xff) * (1 - a));
-      return (r << 16) | (g << 8) | b;
-    };
-
-    /** Resolve the RGB bytes (no alpha) for what the cell's effective bg
-     *  visually ends up at, after our BG-opacity pre-blend. For default-bg
-     *  cells that's just the theme bg (already composeTheme-blended with
-     *  body). For explicit-bg cells it's ansi × tuiBgα + theme × (1-tuiBgα)
-     *  — same colour the rect rasterises to. */
-    const resolveCellBgRgb = (fg: number, bg: number): number => {
-      const inverse = (fg & XTERM_FG_FLAG_INVERSE) !== 0;
-      const effectiveBg = effectiveBackgroundAttr(fg, bg);
-      const colorMode = effectiveBg & XTERM_COLOR_MODE_MASK;
-      const known =
-        colorMode === XTERM_COLOR_MODE_P16 ||
-        colorMode === XTERM_COLOR_MODE_P256 ||
-        colorMode === XTERM_COLOR_MODE_RGB;
-      if (!known && !inverse) {
-        const base = renderer._themeService?.colors?.background?.rgba ?? 0x000000ff;
-        return ((base >> 8) & 0xffffff);
-      }
-      const defaultRgba = inverse
-        ? (renderer._themeService?.colors?.foreground?.rgba ?? 0xffffffff)
-        : (renderer._themeService?.colors?.background?.rgba ?? 0x000000ff);
-      return blendRgbaOverDefaultBackground(resolveAttrRgba(effectiveBg, defaultRgba));
-    };
-
-    /** Transform and blend the "visible fg" colour:
-     *
-     *    fg_transformed = pushLightness(fg, strength, bias, bgL)
-     *    fg_final       = fg_transformed × α + cellBg × (1-α)
-     *
-     *  Returns an attribute word (CM_RGB | blended) suitable for either
-     *  the fg slot (non-inverse) or the bg slot (inverse, where bg
-     *  carries the fg colour xterm renders). The contrast transform
-     *  always runs first so the user's "push text away from bg" reshape
-     *  happens before TUI FG Opacity fades it; at strength=0 the
-     *  transform is identity. */
-    const blendFgTowardCellBg = (origFgAttr: number, cellBgRgb: number, fgDefaultRgba: number): number => {
-      const α = adapter.tuiFgAlpha;
-      const fgRgba = resolveAttrRgba(origFgAttr, fgDefaultRgba);
-      let fgR = (fgRgba >> 24) & 0xff;
-      let fgG = (fgRgba >> 16) & 0xff;
-      let fgB = (fgRgba >> 8) & 0xff;
-      let bgR = (cellBgRgb >> 16) & 0xff;
-      let bgG = (cellBgRgb >> 8) & 0xff;
-      let bgB = cellBgRgb & 0xff;
-      if (adapter.fgContrastStrength !== 0 || adapter.fgContrastBias !== 0) {
-        [fgR, fgG, fgB] = pushLightness(
-          fgR, fgG, fgB,
-          adapter.fgContrastStrength,
-          adapter.fgContrastBias,
-          adapter.bgOklabL,
-        );
-      }
-      // Saturate FG and cellBg before the alpha lerp so the glyph
-      // pre-blends against the same saturated backdrop the rect path
-      // actually rasterises — otherwise at tuiFgAlpha < 1 the atlas
-      // halo would sit at the un-saturated bg while the visible rect
-      // is saturated, and the two wouldn't meet cleanly.
-      if (adapter.tuiSaturation !== 0) {
-        [fgR, fgG, fgB] = adjustSaturation(fgR, fgG, fgB, adapter.tuiSaturation);
-        [bgR, bgG, bgB] = adjustSaturation(bgR, bgG, bgB, adapter.tuiSaturation);
-      }
-      const r = Math.round(fgR * α + bgR * (1 - α));
-      const g = Math.round(fgG * α + bgG * (1 - α));
-      const b = Math.round(fgB * α + bgB * (1 - α));
-      return (r << 16) | (g << 8) | b;
-    };
-
-    /** Compute the (fg, bg) attribute pair to hand to the atlas,
-     *  applying both:
-     *    - TUI BG Opacity: bg (or fg, when inverse) pre-blended against
-     *      theme.background so the rect's alpha-faded colour matches
-     *      the atlas's halo backdrop.
-     *    - TUI FG Opacity: the glyph colour (fg non-inverse, bg inverse)
-     *      pre-blended toward the cell's effective bg so at α=0 the
-     *      glyph collapses to bg (invisible) and at α=1 stays at its
-     *      original fg.
-     *  Inverse cells use the swapped role assignment per xterm
-     *  convention: the fg attribute carries the visible bg colour. */
-    const withBlendedEffectiveBackground = (fg: number, bg: number): { fg: number; bg: number } => {
-      const inverse = (fg & XTERM_FG_FLAG_INVERSE) !== 0;
-      const bgDefaultRgba = renderer._themeService?.colors?.background?.rgba ?? 0x000000ff;
-      const fgDefaultRgba = renderer._themeService?.colors?.foreground?.rgba ?? 0xffffffff;
-      const effectiveBg = effectiveBackgroundAttr(fg, bg);
-      const colorMode = effectiveBg & XTERM_COLOR_MODE_MASK;
-      const known =
-        colorMode === XTERM_COLOR_MODE_P16 ||
-        colorMode === XTERM_COLOR_MODE_P256 ||
-        colorMode === XTERM_COLOR_MODE_RGB;
-      // BG pre-blend. For non-inverse + CM_DEFAULT there's no rect to
-      // rasterise against; leave bg as-is and only do the FG blend path.
-      let outFg = fg;
-      let outBg = bg;
-      if (known || inverse) {
-        let blendedBgRgb = blendRgbaOverDefaultBackground(
-          resolveAttrRgba(effectiveBg, inverse ? fgDefaultRgba : bgDefaultRgba),
-        );
-        if (adapter.fgContrastStrength !== 0 || adapter.fgContrastBias !== 0) {
-          let cR = (blendedBgRgb >> 16) & 0xff;
-          let cG = (blendedBgRgb >> 8) & 0xff;
-          let cB = blendedBgRgb & 0xff;
-          [cR, cG, cB] = pushLightness(cR, cG, cB, adapter.fgContrastStrength, adapter.fgContrastBias, adapter.bgOklabL);
-          blendedBgRgb = (cR << 16) | (cG << 8) | cB;
-        }
-        if (inverse) {
-          outFg = (fg & ~(XTERM_RGB_MASK | XTERM_COLOR_MODE_MASK)) | XTERM_COLOR_MODE_RGB | blendedBgRgb;
-        } else {
-          outBg = (bg & ~(XTERM_RGB_MASK | XTERM_COLOR_MODE_MASK)) | XTERM_COLOR_MODE_RGB | blendedBgRgb;
-        }
-      }
-      // FG pre-blend. Skip only when neither TUI FG Opacity nor FG
-      // Contrast is doing anything — at α=1 with strength=0 the whole
-      // path collapses to identity. `cellBgRgb` is what the glyph atlas
-      // will visually sit on (a default-bg cell shows theme bg; an
-      // explicit-bg cell shows the blended ansi colour).
-      if (adapter.tuiFgAlpha < 1 || adapter.fgContrastStrength !== 0 || adapter.fgContrastBias !== 0 || adapter.tuiSaturation !== 0) {
-        const cellBgRgb = resolveCellBgRgb(fg, bg);
-        if (inverse) {
-          // Inverse: bg slot carries the glyph colour. Blend that toward
-          // the rect's visible colour (which is already in outFg here).
-          const blendedFgRgb = blendFgTowardCellBg(bg, cellBgRgb, bgDefaultRgba);
-          outBg = (bg & ~(XTERM_RGB_MASK | XTERM_COLOR_MODE_MASK)) | XTERM_COLOR_MODE_RGB | blendedFgRgb;
-        } else {
-          const blendedFgRgb = blendFgTowardCellBg(fg, cellBgRgb, fgDefaultRgba);
-          outFg = (fg & ~(XTERM_RGB_MASK | XTERM_COLOR_MODE_MASK)) | XTERM_COLOR_MODE_RGB | blendedFgRgb;
-        }
-      }
-      return { fg: outFg, bg: outBg };
-    };
+    // Cell-math itself lives in `./xterm-cell-math.ts` as a set of
+    // pure functions (no WebGL, no adapter coupling) so it can be
+    // unit-tested without a WebGL context. These two thin snapshots
+    // build a typed `theme` / `state` bag from live adapter + renderer
+    // state each call — the cost is one tiny object allocation per
+    // cell; identical to the previous closure-capture shape.
+    const themeSnapshot = (): XtermCellTheme => ({
+      bgDefaultRgba: renderer._themeService?.colors?.background?.rgba ?? 0x000000ff,
+      fgDefaultRgba: renderer._themeService?.colors?.foreground?.rgba ?? 0xffffffff,
+      ansi: renderer._themeService?.colors?.ansi,
+    });
+    const stateSnapshot = (): XtermCellState => ({
+      tuiFgAlpha: adapter.tuiFgAlpha,
+      tuiBgAlpha: adapter.tuiBgAlpha,
+      fgContrastStrength: adapter.fgContrastStrength,
+      fgContrastBias: adapter.fgContrastBias,
+      bgOklabL: adapter.bgOklabL,
+      tuiSaturation: adapter.tuiSaturation,
+    });
 
     const patchGlyphRenderer = (glyphRenderer: any): void => {
       if (!glyphRenderer || glyphRenderer.__tmuxWebBgOpacityPatched) return;
@@ -473,8 +338,10 @@ export class XtermAdapter implements TerminalAdapter {
         lastBg: number,
       ) {
         if (shouldApplyBackgroundOpacity(this, fg, bg, x, x + Math.max(width || 1, 1), y)) {
-          const current = withBlendedEffectiveBackground(fg, bg);
-          const previous = withBlendedEffectiveBackground(fg, lastBg);
+          const theme = themeSnapshot();
+          const state = stateSnapshot();
+          const current = withBlendedEffectiveBackground(fg, bg, theme, state);
+          const previous = withBlendedEffectiveBackground(fg, lastBg, theme, state);
           return orig(x, y, code, current.bg, current.fg, ext, chars, width, previous.bg);
         }
         return orig(x, y, code, bg, fg, ext, chars, width, lastBg);

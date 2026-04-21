@@ -66,15 +66,18 @@ through is bounded. Cluster 02 landed the testable public surface
 `renderWinTabs`, `show`, `toggleFullscreen`) plus a passing init()
 smoke; the rest of this is a pure tests-quality investment.
 
-The file currently carries a per-file line-coverage override in
-`scripts/check-coverage.ts` that pins the floor at cluster-02's
-achieved percentage + a small safety margin. When this work is
-picked up, raise that floor toward 95% as each section of the file
-becomes covered.
+The file currently sits in the `EXCLUDES` set in
+`scripts/check-coverage.ts` alongside `src/client/adapters/xterm.ts`
+— fully exempt from both per-file and global coverage. (The cluster-
+02 session briefly tried per-file overrides of 40%/30% but swapped
+to a blanket exclusion for consistency with xterm.ts and to keep
+the override table clean.) When this work is picked up, the migration
+is: delete the `EXCLUDES` entry and raise coverage section-by-section,
+using `PER_FILE_LINE_OVERRIDES` as an interim staircase if needed.
 
 ## Pointers
 
-- `scripts/check-coverage.ts` — `PER_FILE_LINE_OVERRIDES['src/client/ui/topbar.ts']`
+- `scripts/check-coverage.ts:11-22` — `EXCLUDES` set (topbar.ts currently lives here)
 - `tests/unit/client/ui/topbar.test.ts` — existing test scaffold
 - `src/client/ui/topbar.ts:486` — `updateSliderFill`
 - `src/client/ui/topbar.ts:526` — `sliders: SliderSpec[]` (cluster 11)
