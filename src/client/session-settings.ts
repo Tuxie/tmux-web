@@ -112,11 +112,18 @@ interface SessionsCache {
 
 let cache: SessionsCache = { sessions: {} };
 
-/** Fetch the persisted settings map from the server. Call once on startup. */
+/** Fetch the persisted settings map from the server. Call once on startup.
+ *  Failures (non-ok response or network error) are recorded through
+ *  `boot-errors.ts` so `main()` can surface a single combined toast
+ *  instead of silently starting with empty settings. */
 export async function initSessionStore(): Promise<void> {
+  const { recordBootError } = await import('./boot-errors.js');
   try {
     const res = await fetch('/api/session-settings');
-    if (!res.ok) return;
+    if (!res.ok) {
+      recordBootError('settings', `HTTP ${res.status}`);
+      return;
+    }
     const cfg = await res.json();
     if (cfg && typeof cfg === 'object' && cfg.sessions) {
       cache = {
@@ -124,7 +131,9 @@ export async function initSessionStore(): Promise<void> {
         sessions: cfg.sessions,
       };
     }
-  } catch {}
+  } catch (err) {
+    recordBootError('settings', err);
+  }
 }
 
 function persist(patch: { lastActive?: string; sessions?: Record<string, SessionSettings> }): void {

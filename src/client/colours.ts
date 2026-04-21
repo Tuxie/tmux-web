@@ -65,7 +65,16 @@ export function composeTheme(
 }
 
 export async function fetchColours(): Promise<Array<{ name: string; variant?: string; theme: ITheme }>> {
-  const res = await fetch('/api/colours');
-  if (!res.ok) return [];
-  return res.json();
+  const { recordBootError } = await import('./boot-errors.js');
+  try {
+    const res = await fetch('/api/colours');
+    if (!res.ok) {
+      recordBootError('colours', `HTTP ${res.status}`);
+      return [];
+    }
+    return res.json();
+  } catch (err) {
+    recordBootError('colours', err);
+    return [];
+  }
 }

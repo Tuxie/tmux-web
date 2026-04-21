@@ -5,6 +5,12 @@ export interface ConnectionOptions {
   onMessage: (data: string) => void;
   onOpen: () => void;
   onClose: () => void;
+  /** Optional: invoked when the underlying WebSocket fires `onerror`.
+   *  Browsers deliver this before `onclose` on connection failures; the
+   *  caller typically logs it and/or shows a rate-limited toast so the
+   *  user notices CORS / protocol errors that would otherwise only
+   *  surface as a generic "disconnected" message from `onclose`. */
+  onError?: (ev: Event) => void;
 }
 
 export class Connection {
@@ -26,7 +32,7 @@ export class Connection {
       this.opts.onClose();
       this.reconnectTimer = setTimeout(() => this.connect(), 2000);
     };
-    this.ws.onerror = () => {};
+    this.ws.onerror = (ev) => this.opts.onError?.(ev);
   }
 
   get isOpen(): boolean {

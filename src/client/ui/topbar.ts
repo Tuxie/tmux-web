@@ -330,7 +330,7 @@ export class Topbar {
     const footerLeft = document.getElementById('menu-footer-left');
     const footerRight = document.getElementById('menu-footer-right');
     if (footerLeft && footerRight) {
-      const version = (window as any).__TMUX_WEB_CONFIG?.version ?? '';
+      const version = window.__TMUX_WEB_CONFIG?.version ?? '';
       // Anchor to the project repo. .tw-menu-footer-link inherits colour /
       // text-decoration from #menu-footer so appearance is unchanged.
       const link = document.createElement('a');
@@ -350,8 +350,8 @@ export class Topbar {
     this.menuBtn = menuBtn;
     this.menuDropdown = dropdown;
 
-    if ((window as any).__menuReopen) {
-      (window as any).__menuReopen = false;
+    if (window.__menuReopen) {
+      window.__menuReopen = false;
       this.setConfigMenuOpen(true);
       const chkFs = document.getElementById('chk-fullscreen') as HTMLInputElement;
       if (chkFs) chkFs.checked = !!document.fullscreenElement;

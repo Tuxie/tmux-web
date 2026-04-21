@@ -9,6 +9,7 @@ import { handleClipboard } from './ui/clipboard.js';
 import { showClipboardPrompt } from './ui/clipboard-prompt.js';
 import { installFileDropHandler } from './ui/file-drop.js';
 import { showToast, formatBytes } from './ui/toast.js';
+import { consumeBootErrors } from './boot-errors.js';
 import { installDropsPanel } from './ui/drops-panel.js';
 import { getTopbarAutohide } from './prefs.js';
 import { applyTheme, loadAllFonts, listThemes } from './theme.js';
@@ -40,6 +41,16 @@ declare global {
     __TMUX_WEB_CONFIG: ClientConfig;
     __adapter?: TerminalAdapter;
     __twInjectMessage?: (data: string) => void;
+    /** Set by the sessionStorage-consuming snippet in `index.html` before
+     *  the deferred module script runs. `topbar.setupMenu()` reads it to
+     *  decide whether to re-open the settings menu after a reload (e.g.
+     *  after a font switch that forced `location.reload()`). */
+    __menuReopen?: boolean;
+    /** Teardown for `main()`'s subscriptions (window/document listeners,
+     *  observers, child-handler disposers, connection + dropsPanel).
+     *  Production never calls this — it exists so multi-mount test
+     *  harnesses can clean up without leaking listeners across runs. */
+    __twDispose?: () => void;
   }
 }
 
@@ -53,6 +64,19 @@ async function main() {
   const [themes, colours] = await Promise.all([listThemes(), fetchColours()]);
   await initSessionStore();
   await loadAllFonts();
+
+  // If any of the three boot fetches failed, collapse the labels into
+  // one user-visible toast. Individual console.warn entries are already
+  // written by `recordBootError` — the toast only exists so a user
+  // without devtools open notices the degraded state.
+  const bootErrors = consumeBootErrors();
+  if (bootErrors.length > 0) {
+    const unique = [...new Set(bootErrors)];
+    showToast(
+      'Failed to load some UI data (' + unique.join(', ') + ') — settings menu may be incomplete.',
+      { variant: 'error', durationMs: 6000 },
+    );
+  }
 
   // Read from the URL every time we need it — the URL is rewritten in place
   // via history.replaceState when tmux switches sessions, so saves must follow.
@@ -137,7 +161,7 @@ async function main() {
     }
     return getComputedStyle(document.body).backgroundColor;
   };
-  page.style.backgroundColor = composeBgColor(coloursOrDefault(settings.colours), settings.opacity);
+  page.style.setProperty('--tw-page-bg', composeBgColor(coloursOrDefault(settings.colours), settings.opacity));
   await adapter.init(container, {
     fontFamily: `"${settings.fontFamily}", monospace`,
     fontSize: settings.fontSize,
@@ -197,7 +221,7 @@ async function main() {
       applyThemeContrast(s.themeContrast);
       applyDepth(s.depth);
 
-      page.style.backgroundColor = composeBgColor(coloursOrDefault(s.colours), s.opacity);
+      page.style.setProperty('--tw-page-bg', composeBgColor(coloursOrDefault(s.colours), s.opacity));
       adapter.setTheme(composeTheme(coloursOrDefault(s.colours), s.opacity, getBodyBg()));
 
       if (fontChanged && adapter.requiresReloadForFontChange) {
@@ -279,7 +303,7 @@ async function main() {
       if (msg.clipboard) handleClipboard(msg.clipboard);
       if (msg.session) topbar.updateSession(msg.session);
       if (msg.windows) topbar.updateWindows(msg.windows);
-      if (msg.title !== undefined) topbar.updateTitle(msg.title);
+      if (msg.title !== undefined) topbar.updateTitle(String(msg.title ?? ''));
       if (msg.clipboardReadRequest) {
         void sendClipboardForRead(msg.clipboardReadRequest.reqId);
       }
@@ -296,6 +320,12 @@ async function main() {
     }
   }
 
+  // Once-per-reconnect-burst toast: a single failing open fires
+  // onerror + onclose + onopen (retry) repeatedly during backoff. A
+  // toast per attempt would spam; toast once when we first notice
+  // trouble, then reset on the next successful open.
+  let wsErrorToasted = false;
+
   connection = new Connection({
     getUrl: () => {
       const currentSession = location.pathname.replace(/^\/+|\/+$/g, '') || 'main';
@@ -303,11 +333,19 @@ async function main() {
     },
     onMessage: handleMessage,
     onOpen: () => {
+      wsErrorToasted = false;
       connection.sendResize(adapter.cols, adapter.rows);
       sendColourVariant(settings.colours);
     },
     onClose: () => {
       adapter.write('\r\n\x1b[33mDisconnected. Reconnecting...\x1b[0m\r\n');
+    },
+    onError: (ev) => {
+      console.warn('WebSocket error', ev);
+      if (!wsErrorToasted) {
+        wsErrorToasted = true;
+        showToast('WebSocket connection error — check network / server', { variant: 'error' });
+      }
     },
   });
   connection.connect();
@@ -321,7 +359,16 @@ async function main() {
 
   adapter.onData((data) => connection.send(data));
   adapter.onResize(({ cols, rows }) => connection.sendResize(cols, rows));
-  window.addEventListener('resize', () => adapter.fit());
+
+  // Collect teardown hooks. Production only ever calls `main()` once
+  // per page load, but exposing a dispose path lets multi-mount tests
+  // (and any future hot-reload idea) clean up without listener leaks.
+  const disposers: Array<() => void> = [];
+
+  const onWindowResize = () => adapter.fit();
+  window.addEventListener('resize', onWindowResize);
+  disposers.push(() => window.removeEventListener('resize', onWindowResize));
+
   // A theme swap changes #topbar height, #terminal insets, and CSS font
   // metrics — none of which fire a `resize` event on window. Observe the
   // terminal container directly so we re-fit whenever its own box
@@ -329,9 +376,10 @@ async function main() {
   if (typeof ResizeObserver !== 'undefined') {
     const ro = new ResizeObserver(() => adapter.fit());
     ro.observe(container);
+    disposers.push(() => ro.disconnect());
   }
 
-  document.addEventListener('keydown', (ev) => {
+  const onDocKeydown = (ev: KeyboardEvent) => {
     const target = ev.target as HTMLElement | null;
     const tag = target?.tagName;
     // Don't snap focus back to the terminal while the user is typing in a
@@ -340,9 +388,11 @@ async function main() {
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
     if (target?.isContentEditable) return;
     adapter.focus();
-  });
+  };
+  document.addEventListener('keydown', onDocKeydown);
+  disposers.push(() => document.removeEventListener('keydown', onDocKeydown));
 
-  document.addEventListener('paste', (ev) => {
+  const onDocPaste = (ev: ClipboardEvent) => {
     const text = ev.clipboardData?.getData('text/plain');
     if (!text) return;
     if (!connection.isOpen) {
@@ -352,9 +402,11 @@ async function main() {
     connection.send(text);
     ev.preventDefault();
     ev.stopPropagation();
-  });
+  };
+  document.addEventListener('paste', onDocPaste);
+  disposers.push(() => document.removeEventListener('paste', onDocPaste));
 
-  installMouseHandler({
+  const uninstallMouse = installMouseHandler({
     getMetrics: () => adapter.metrics,
     getCanvasRect: () => {
       const canvas = document.querySelector('#terminal canvas') as HTMLElement;
@@ -363,6 +415,7 @@ async function main() {
     getTerminalElement: () => container,
     send: (data) => connection.send(data),
   });
+  disposers.push(uninstallMouse);
 
   adapter.attachCustomWheelEventHandler((ev) => {
     if (ev.shiftKey) return false;
@@ -377,15 +430,17 @@ async function main() {
     return true;
   });
 
-  installKeyboardHandler({
+  const uninstallKeyboard = installKeyboardHandler({
     terminalElement: container,
     send: (data) => connection.send(data),
     toggleFullscreen: () => topbar.toggleFullscreen(),
   });
+  disposers.push(uninstallKeyboard);
 
   dropsPanel = installDropsPanel({ getSession });
+  disposers.push(() => dropsPanel?.dispose());
 
-  installFileDropHandler({
+  const uninstallFileDrop = installFileDropHandler({
     terminal: container,
     getSession,
     onDropped: (info) => {
@@ -400,6 +455,24 @@ async function main() {
       showToast(`Upload failed: ${file.name}`, { variant: 'error' });
     },
   });
+  disposers.push(uninstallFileDrop);
+
+  // Connection + adapter own their own internal state; calling their
+  // `.dispose()` lives at the tail so handlers higher up run first.
+  disposers.push(() => connection.dispose());
+
+  // Expose a single teardown entry point. Never called in production;
+  // documented for multi-mount test harnesses (see
+  // docs/ideas/topbar-full-coverage-harness.md for the bigger picture).
+  window.__twDispose = () => {
+    for (const d of disposers.reverse()) {
+      try { d(); } catch (err) { console.warn('dispose handler threw:', err); }
+    }
+    disposers.length = 0;
+    delete window.__twDispose;
+    delete window.__twInjectMessage;
+    delete window.__adapter;
+  };
 
   // (drops-panel handles auto-refresh itself via a MutationObserver on
   // #menu-dropdown, polling while the settings menu is visible.)

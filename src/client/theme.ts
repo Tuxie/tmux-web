@@ -39,16 +39,38 @@ let activeTheme = 'Default';
 
 export async function listThemes(): Promise<ThemeInfo[]> {
   if (!cachedThemes) {
-    const response = await fetch('/api/themes');
-    cachedThemes = response.ok ? await response.json() : [];
+    const { recordBootError } = await import('./boot-errors.js');
+    try {
+      const response = await fetch('/api/themes');
+      if (!response.ok) {
+        recordBootError('themes', `HTTP ${response.status}`);
+        cachedThemes = [];
+      } else {
+        cachedThemes = await response.json();
+      }
+    } catch (err) {
+      recordBootError('themes', err);
+      cachedThemes = [];
+    }
   }
   return cachedThemes!;
 }
 
 export async function listFonts(): Promise<FontInfo[]> {
   if (!cachedFonts) {
-    const response = await fetch('/api/fonts');
-    cachedFonts = response.ok ? await response.json() : [];
+    const { recordBootError } = await import('./boot-errors.js');
+    try {
+      const response = await fetch('/api/fonts');
+      if (!response.ok) {
+        recordBootError('fonts', `HTTP ${response.status}`);
+        cachedFonts = [];
+      } else {
+        cachedFonts = await response.json();
+      }
+    } catch (err) {
+      recordBootError('fonts', err);
+      cachedFonts = [];
+    }
   }
   return cachedFonts!;
 }

@@ -1,7 +1,24 @@
 ---
-Status: open
-Resolved-in:
+Status: resolved
+Resolved-in: PENDING
 ---
+
+> **Resolution (2026-04-21) — maintainer decisions:**
+> 1. Boot-fetch failures: per-resource `console.warn` (`recordBootError`
+>    in `src/client/boot-errors.ts`) **plus** a single combined toast
+>    in `main()` after all three fetches settle, listing the failed
+>    labels.
+> 2. `main()` now returns a dispose path via `window.__twDispose` that
+>    walks an internal `disposers[]` array — window resize listener,
+>    ResizeObserver, document keydown/paste, mouse/keyboard/file-drop
+>    uninstall handles, drops-panel dispose, and finally the WebSocket
+>    connection. Production never calls it; it exists for multi-mount
+>    test harnesses.
+> 3. `ws.onerror` now fires an optional `onError` callback (via a new
+>    `ConnectionOptions.onError` field). `main()` wires it to
+>    `console.warn` + a one-shot toast per reconnect burst, reset on
+>    the next successful `onopen`.
+
 
 # Cluster 10 — client-robustness-cleanup
 

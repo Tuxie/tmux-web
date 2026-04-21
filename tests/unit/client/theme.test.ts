@@ -136,6 +136,24 @@ describe('theme module', () => {
     expect(await listFonts()).toEqual([]);
   });
 
+  test('listThemes records a boot error on fetch rejection', async () => {
+    stubFetch(() => { throw new Error('network'); });
+    clearCaches();
+    const { consumeBootErrors } = await import('../../../src/client/boot-errors.ts');
+    consumeBootErrors();
+    expect(await listThemes()).toEqual([]);
+    expect(consumeBootErrors()).toContain('themes');
+  });
+
+  test('listFonts records a boot error on fetch rejection', async () => {
+    stubFetch(() => { throw new Error('network'); });
+    clearCaches();
+    const { consumeBootErrors } = await import('../../../src/client/boot-errors.ts');
+    consumeBootErrors();
+    expect(await listFonts()).toEqual([]);
+    expect(consumeBootErrors()).toContain('fonts');
+  });
+
   test('listFonts returns parsed body and caches', async () => {
     let calls = 0;
     stubFetch(() => {

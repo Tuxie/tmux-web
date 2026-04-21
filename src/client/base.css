@@ -60,7 +60,15 @@ html, body { height: 100%; overflow: hidden; }
   pointer-events: none;
 }
 
-#page { position: absolute; inset: 0; }
+#page {
+  position: absolute; inset: 0;
+  /* Backing colour for the terminal viewport; written via
+   * `page.style.setProperty('--tw-page-bg', …)` by the boot path and
+   * onSettingsChange. A dynamic value that varies with the active
+   * colour scheme + opacity, so the custom-property write is the
+   * carve-out endorsed by CLAUDE.md "CSS" rule. */
+  background-color: var(--tw-page-bg);
+}
 #terminal { background-color: #0000; position: absolute; }
 #terminal .terminal,
 .xterm-scrollable-element { background-color: #0000 !important; }
