@@ -144,59 +144,127 @@ No flag was wrong in hindsight.
 
 ## Part B — Fix coordinator retrospective
 
-_To be filled when the last cluster from this report is closed, deferred, or stalled. If fix work is ongoing at the next invocation of the skill on this repo, write what you have and flag the rest as open._
+Fix work ran to completion in a single session, same-day as the audit. All 16 clusters touched; 15 closed outright, 1 partial with a named external blocker.
 
 ### Run identity (carry from Part A)
 
 ```
-(re-state Part A identity block with same anonymization, plus:)
-Skill revision at report time: UNKNOWN — see Part A
-Skill revision at fix time: {short SHA or identifier at time fix work concluded}
-Report directory: docs/code-analysis/{stem}/
+Repo, stack, tier, size, velocity, etc.: unchanged from Part A.
+Skill revision at report time: UNKNOWN — see Part A.
+Skill revision at fix time: n/a — the skill was only consulted for
+  its `scripts/render-status.sh` helper during fix work; no new
+  skill invocations occurred.
+Report directory: docs/code-analysis/2026-04-21/
 Clusters at start: 16
-Clusters closed: _
-Clusters in-progress: _
-Clusters deferred: _
-Clusters resolved-by-dep: _
-Span of fix work: {first commit date} → {last commit date}
+Clusters closed (resolved):     15  (01, 02, 03, 04, 05, 06, 07, 08,
+                                      09, 10, 11, 12, 14, 15, 16)
+Clusters closed (partial):       1  (13 — `bunx playwright` swap
+                                      blocked on Bun 1.4; all other
+                                      findings in the cluster landed)
+Clusters in-progress:            0
+Clusters deferred whole:         0
+Clusters resolved-by-dep:        0  (no cluster turned out to be
+                                      entirely subsumed by another's
+                                      fix; cluster 16 did become
+                                      tractable only because cluster
+                                      09 landed first, but 16 still
+                                      required its own bench script)
+Span of fix work: 2026-04-21 → 2026-04-21 (59 commits same-day,
+  following roughly the cluster recommended order 01 → 04 → 07 →
+  08 → 09 → 11 → 12 → 14 → 16 → 02 → 03 → 05 → 06 → 10 → 13 → 15,
+  with the order driven by a maintainer-chosen "batch the mechanical
+  ones first" heuristic rather than the report's ordering)
 ```
 
 ### Did the TL;DR block tell the truth?
 
-_TBD at fix-work conclusion._
+Mostly yes. Each cluster's TL;DR goal + impact wording survived contact with the code. Two specific calibration notes:
+
+- **Cluster 01's "one-line fix" framing was accurate but incomplete.** Flipping `bun test` → `bun run coverage:check` in `release.yml` is literally one line, but the release CI would have gone red immediately because `src/client/fg-contrast.ts` sat at 87.5% func coverage pre-existing — below the 90% gate. I had to absorb one autofix-ready item from cluster 02 (add `clampFgContrastStrength` test) and one from cluster 09 (delete the dead `pushFgLightness` alias) in the same commit to make the gate pass. The cluster's Suggested Session Approach said nothing about this. V-next auditors flipping a gate should verify the gate passes locally before proposing the flip, or at minimum add a **Pre-conditions:** front-matter field listing any in-scope files currently below the new threshold.
+- **Cluster 02's COV-2b listed two untested HTTP routes: `GET /api/terminal-versions` and `POST /api/exit`.** `/api/terminal-versions` was already tested in `http-branches.test.ts:191` — a grep would have caught this. `POST /api/exit` was genuinely untested. Half-wrong finding; the wrong half was easy to verify.
+
+Everything else — slider-listener count (17), line counts, bug severities, field-by-field counts on specific modules — matched reality to within a few lines.
 
 ### Cluster sizing honesty
 
-_TBD at fix-work conclusion._
+All 16 size calls held up against actual time spent. Highlights:
+
+- **Cluster 02 (Large, full day+)** was the most accurate. Four modules × real test coverage + deferring the 5th (topbar) to a new `docs/ideas/` file + the xterm.ts adapter decision genuinely ate most of a session.
+- **Cluster 15 (Medium, pattern-first then expand)** was accurate *if* you stage the work. Maintainer opted for all 9 targets in one sitting, which was ~45 min of implementation + 1 real bug fix. The "pattern-first" recommendation was the safe voice but the whole cluster was tractable in one pass once fast-check was wired.
+- **Cluster 11 (Medium, half-day)** split cleanly in two. The autofix-ready clamp fix was ~30 min; the four needs-decision items (after an interview) took another ~2 hours including the data-driven slider-table refactor.
+
+No cluster turned out to be larger than its Small / Medium / Large label. One (13) was smaller than advertised because one of its five findings became a 2-line deferral instead of a Makefile + package.json rewrite (external blocker, see "Tooling reality").
 
 ### Was the `Suggested session approach` useful?
 
-_TBD at fix-work conclusion._
+Yes, with one shape of exception. The block was most useful when it **named sub-sessions explicitly** — cluster 02's "(a) smoke imports, (b) real-assertion dropdown+topbar, (c) xterm plan" mapped directly onto how fix work actually went. Cluster 11's and cluster 14's multi-item breakdowns were similarly load-bearing.
+
+Less useful when generic: "Mechanical — dispatch to a subagent" (clusters 03, 04, 07, 09) doesn't say much, and papers over non-trivial differences. Cluster 04 needed `isSafeTmuxName` designed from scratch (not mentioned in the cluster notes) while cluster 03 was closer to pure substitution.
+
+Clusters with four-plus needs-decision items (06, 10, 11, 13) benefited from the "run as a short brainstorm" note. Those absolutely required a maintainer interview before any code change.
 
 ### `Depends-on` edges in practice
 
-_TBD at fix-work conclusion._ (Note at render time: only one explicit `Depends-on:` edge exists — cluster 16 depends on cluster 09. Cluster 02 has an informal dependency on cluster 01 for progress visibility. Cluster 02's xterm.ts work has an informal dependency on cluster 09's OKLab extract.)
+The one explicit edge (16 → 09) held: cluster 09 extracted `src/client/oklab.ts`, and cluster 16's `bench-render-math.ts` imports from it cleanly. Doing 16 first would have required either importing from the unextracted location or writing a duplicate bench — the edge correctly flagged the ordering.
+
+Informal dependencies that the cluster files mentioned in prose but didn't formalize:
+
+- **Cluster 02 ↔ cluster 01.** Cluster 02's header says "Depends on: cluster 01 (enabling the gate first makes the numerical progress visible in CI)". True but weaker than `Depends-on:`; the fixes are useful even if cluster 01 lands later.
+- **Cluster 02 xterm.ts ↔ cluster 09.** Cluster 02 called this out. At fix time the carve-out helped: the new `src/client/adapters/xterm-cell-math.ts` (Layer 1 of the WebGL harness idea file) built on the same pattern `oklab.ts` established.
+
+V-next should formalize both: an `informally-unblocks:` field for the weaker "lands easier after X" relationship would read more honestly than burying the dependency in prose.
 
 ### Scope-expansion events
 
-_TBD at fix-work conclusion._
+Four genuine cluster-boundary bleeds:
+
+1. **Cluster 01 picked up fg-contrast.ts work from clusters 02 and 09** to make the CI gate go green — see "Did the TL;DR block tell the truth?". Commit used the cluster file's own "Incidental fixes" recipe (one-line reason per extra file). Pattern held.
+2. **Cluster 10 added `_resetForTest` + self-repair container-attachment logic to `src/client/ui/toast.ts`.** Strictly the cluster's scope was "six small hygiene fixes", but these were required for the cluster-02 toast test file to isolate between cases. They're genuine production improvements (not tests-only shims), so no harm — but worth noting that cluster-02's test-writing created pressure for cluster-10-shaped production changes.
+3. **Cluster 12's `tw-` class-name sweep accidentally renamed a filename import** (`./ui/drops-panel.js` → `./ui/tw-drops-panel.js`) because my regex matched both the CSS class `.drops-panel` and the module-relative filename `drops-panel`. Caught by the build failure. Cross-file renames of bare identifiers need a shape-aware tool (AST rewrite) or very defensive regexes; the cluster file said "one-time sweep" and did not flag the regex-scope hazard.
+4. **Cluster 15 (fuzz-gaps) retroactively caught a real bug in cluster 04's scope.** `sanitizeSession('%')` threw via internal `decodeURIComponent`. Cluster 04 (pty/tmux exec safety) did not include `sanitizeSession` hardening — its scope was the tmux argv path, not the session-name parser. Fix landed in cluster 15's commit with a regression guard in `tests/unit/server/pty.test.ts` so it's visible under `bun test`. V-next should note that fuzz findings often retroactively belong in other clusters' commits for attribution hygiene.
 
 ### Deferred items
 
-_No items deferred this run._ (If fix work surfaces items that warrant deferral, record here.)
+Three entries landed in `docs/ideas/` rather than as in-scope fixes:
+
+- **`docs/ideas/webgl-mock-harness-for-xterm-adapter.md`** — Layers 2 and 3 of the WebGL stub. Layer 1 (pure-helper carve-out → `src/client/adapters/xterm-cell-math.ts`) landed as a follow-up task after the cluster closed. Maintainer picked this path during the cluster 02 interview.
+- **`docs/ideas/topbar-full-coverage-harness.md`** — ~150-case mechanical harness to bring `src/client/ui/topbar.ts` up to the 95/90 gate. Public-surface tests landed; the rest is deferred. Paired with the WebGL file in the "deferred-but-documented-not-dropped" pattern.
+- **Cluster 13's `bunx playwright`** swap is blocked on a Bun 1.4 bump (Bun 1.3.x's `bunx` can't resolve `@playwright/test`). Cluster stayed `partial` with the deferral recorded in the front-matter plus a CI step comment.
+
+Two observations for v-next:
+
+- The status lifecycle documented in the report template is `open` / `resolved`. Cluster 13 wanted a `partial` status. I used `partial` with a split `Resolved-in: SHA (partial — reason)` form. V-next should document `partial` as a first-class value.
+- Deferring via `docs/ideas/` (a maintainer-owned directory, not the cluster's scratch space) turned out to be the right shape — the idea files survive the report directory's retention and can be picked up by future sessions without archeology. V-next might recommend this pattern explicitly.
 
 ### Findings the report missed entirely
 
-_TBD at fix-work conclusion._
+**One.** `sanitizeSession('%')` crashes via `decodeURIComponent`'s refusal of malformed percent-escapes. Found by cluster 15's fuzz pass on first run (fast-check counterexample: `["%"]`). The Test + Security analysts both walked this module and didn't catch it — they relied on code-inspection reasoning and handwritten payloads rather than generative testing. Exactly the kind of miss fuzz is designed to catch, so the audit's cluster 15 recommendation (add fuzz framework) was itself the mitigation. Nice closure.
+
+No other silent misses surfaced during fix work. No "we also needed to fix X that nobody flagged" emergencies.
 
 ### Findings the report had that didn't matter
 
-_TBD at fix-work conclusion._
+- **Cluster 02 COV-2b: `GET /api/terminal-versions` untested.** Already tested. False alarm, noted above.
+- **Cluster 11: "speculative race between `refreshCachedSessions` and sessions dropdown render".** Real race, real fix (promise-dedup with an `inFlight` guard), but described as Medium-effort "needs-decision" when it was actually a 10-line autofix once the maintainer confirmed the dedup shape.
+- **Cluster 04's "`--` separator on `new-window -n`".** The cluster recommended `--` before the user-controlled positional on all three rename/new-window call sites. For `rename-session` / `rename-window`, the positional is genuinely positional; `--` helps. For `new-window -n NAME`, NAME is the VALUE of the `-n` option, not a positional — `--` would be misplaced. I added it, then reverted after checking tmux's argv parser. V-next analysts adding `--` guards should distinguish option-value positions from true positional slots.
 
 ### Tooling reality
 
-_TBD at fix-work conclusion._
+- **`scripts/render-status.sh` lives in the skill package**, not the analyzed repo. Fix coordinator has to invoke via absolute path to the plugin cache: `~/.claude/plugins/marketplaces/.../scripts/render-status.sh`. Flagged in Part A; fix-phase experience confirms the friction. Every cluster close required the absolute-path invocation — ~40 times total this session.
+- **Hook-based front-matter auto-stamping raced my manual fills.** Some CLAUDE-adjacent hook auto-filled cluster `Resolved-in:` SHAs. Sometimes it won, sometimes I did; required an extra edit + amend cycle on the first two clusters until I saw the pattern.
+- **Bun 1.3.12 path-handling.** `bun test tests/fuzz/` treats the path as a filter and fails to match; `bun test ./tests/fuzz/` (leading `./`) works as a path. Not a skill problem; worth mentioning because it tripped me up mid-cluster-15.
+- **`bunx playwright` doesn't work on Bun 1.3.x.** Discovered mid-cluster-13 after the cluster confidently recommended the swap. Cluster's "Severity: Low · Confidence: Verified · Effort: Small · Autonomy: autofix-ready" verified the recommendation against the `package.json` pattern, not against the project's pinned toolchain. V-next: verify recommended invocations actually work on the project's pinned Bun / Node / whatever version before marking autofix-ready.
+- **Maintainer interviews via plain Q&A** (numbered / lettered options, pick per-item) worked well for the four decision-heavy clusters (06, 10, 11, 13). No need for `AskUserQuestion`-tool formalism; normal prompts were enough.
 
 ### Instructions to the v-next author
 
-_TBD at fix-work conclusion._
+1. **Distinguish "autofix-ready" from "needs-decision" in the cluster headline, not just in the per-finding severity block.** Four of 16 clusters (06, 10, 11, 13) required a maintainer interview before any code change. Knowing this at the cluster index level lets the fix coordinator batch interviews rather than re-entering the back-and-forth shape once per cluster.
+2. **Verify recommended invocations at the project's pinned toolchain version.** Clusters should check `.bun-version` / `.nvmrc` / etc. before assuming `bunx X` / `pnpm X` / equivalent works. Cluster 13's bunx miss is the pattern.
+3. **Add a `Pre-conditions:` front-matter field for clusters that flip gates.** Cluster 01's gate-flip was blocked by cluster 02's coverage gap; a `Pre-conditions:` line naming any in-scope files currently below the new threshold would make the implicit dependency explicit.
+4. **Document `partial` as a first-class status.** `open` / `resolved` / `deferred` covers the clean cases; `partial` is what cluster 13 wanted. `Resolved-in: SHA (partial — reason)` turned out to be a readable format; consider codifying it.
+5. **Fuzz-gap clusters often retroactively attribute bugs to other clusters.** When fuzz finds a real bug, the fix is obvious; the question is which cluster's commit trail should carry it. This run landed in cluster 15's commit with a pointer back to cluster 04 / pty.ts. V-next could add an `attribution:` field, or just document the pattern.
+6. **Ship `scripts/render-status.sh` alongside the report directory.** Part A called this out. Fix-phase experience reinforces it heavily — ~40 absolute-path invocations per session is enough friction to be worth the one-time copy at Step 5.
+7. **For "mechanical" clusters with >3 findings, pre-think the implementation corners.** Cluster 03 was nominally 4 autofix-ready findings; inside the implementation, the `any → unknown` finding needed non-trivial narrowing logic (the cluster's fix note didn't anticipate the `Record<string, unknown>` + typeof-guards on each property access). V-next should encourage analysts to walk one concrete implementation sketch for "mechanical" findings and flag any rabbit-holes up-front.
+8. **Informal-unblock edges are real and worth naming.** `Depends-on:` is a hard edge; there's a softer "X lands easier after Y" relationship (cluster 02 xterm.ts ↔ cluster 09 OKLab extract; cluster 16 ↔ cluster 09). Adding an `informally-unblocks:` field would capture this without forcing a hard ordering.
+9. **Commit-message guidance that names the slug and date was perfect.** Every one of the 59 commits from this run has `cluster NN-slug, YYYY-MM-DD` in the first line. `git log --grep='cluster 02'` now navigates the report trivially. Keep this rule.
+10. **The `docs/ideas/` directory is a clean place to retire "deferred-but-shaped" work.** Cluster 02's WebGL harness and topbar full-coverage harness landed as idea files; both outlive the report directory's retention model and are discoverable by future sessions without archeology. V-next could explicitly recommend this pattern for work the maintainer wants to preserve but not commit to scheduling.
