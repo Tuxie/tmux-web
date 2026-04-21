@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.6.3 — 2026-04-21
+
+### Added
+
+- Themes can now set `defaultFgContrastStrength` and `defaultFgContrastBias` in theme.json to provide terminal contrast defaults.
+
+### Changed
+
+- AmigaOS 3.1 defaults: Background Saturation −100 (pure grey), Terminal Contrast 25.
+
 ## 1.6.2 — 2026-04-21
 
 ### Changed
