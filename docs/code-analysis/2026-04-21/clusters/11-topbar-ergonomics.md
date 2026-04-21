@@ -1,6 +1,6 @@
 ---
 Status: partial
-Resolved-in: PENDING
+Resolved-in: 19ff3b4 (partial)
 ---
 
 > **Partial resolution (2026-04-21):** The autofix-ready clamping
