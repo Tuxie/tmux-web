@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.2 — 2026-04-21
+
+### Changed
+
+- GUI slider labels shortened: "Theme Hue" → "Hue", "Theme Sat" → "Saturation", "Theme Light" → "Brightness", "Theme Contrast" → "Contrast".
+- "Colour Scheme" label shortened to "Scheme".
+- Menu label column (`min-width`) set to 100px in base.css — all themes inherit, no per-theme overrides.
+
 ## 1.6.1 — 2026-04-21
 
 ### Added
