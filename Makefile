@@ -9,7 +9,7 @@ SHAREDIR  = $(PREFIX)/share/tmux-web
 SRCS_CLIENT := $(shell find src/client src/shared -name "*.ts") bun-build.ts
 SRCS_SERVER := $(shell find src/server src/shared -name "*.ts")
 
-.PHONY: all dev clean test typecheck test-unit test-e2e test-e2e-headed vendor install build build-client build-server
+.PHONY: all dev clean test typecheck test-unit test-e2e test-e2e-headed vendor install build build-client build-server bench
 
 all: tmux-web
 
@@ -46,6 +46,11 @@ test-e2e: dist/client/xterm.js
 
 test-e2e-headed: dist/client/xterm.js
 	node node_modules/.bin/playwright test --headed
+
+# --- Benchmarks ---
+
+bench:
+	$(BUN) run scripts/bench-render-math.ts
 
 # --- Production binary ---
 
@@ -101,3 +106,4 @@ vendor: dist/client/vendor-xterm.js dist/client/vendor-xterm-addon-fit.js
 
 clean:
 	rm -rf dist tmux-web banner.cjs pkg.config.json _bundle.cjs src/server/assets-embedded.ts tmp/.vendor-xterm-built
+	rm -f coverage/.lcov.info.*.tmp
