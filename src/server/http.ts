@@ -559,9 +559,11 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
     }
 
     if (pathname === '/api/exit' && req.method === 'POST') {
+      const action = url.searchParams.get('action') ?? 'quit';
+      const code = action === 'restart' ? 2 : 0;
       res.writeHead(200, { 'Content-Type': 'text/plain' });
-      res.end('exiting');
-      setTimeout(() => process.exit(0), 100);
+      res.end(action === 'restart' ? 'restarting' : 'quitting');
+      setTimeout(() => process.exit(code), 100);
       return;
     }
 

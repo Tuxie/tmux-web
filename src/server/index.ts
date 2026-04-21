@@ -188,7 +188,7 @@ Options:
     }
     const scheme = resetTls ? 'https' : 'http';
     const connectHost = (host === '0.0.0.0' || host === '::') ? '127.0.0.1' : host;
-    const url = `${scheme}://${connectHost}:${port}/api/exit`;
+    const url = `${scheme}://${connectHost}:${port}/api/exit?action=restart`;
     const headers: Record<string, string> = {};
     if (resetAuth?.password) {
       headers['Authorization'] = 'Basic ' + btoa(`${resetAuth.username}:${resetAuth.password}`);
