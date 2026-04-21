@@ -68,10 +68,15 @@ async function main() {
     tuiBgOpacity: currentTheme.defaultTuiBgOpacity,
     tuiFgOpacity: currentTheme.defaultTuiFgOpacity,
     tuiSaturation: currentTheme.defaultTuiSaturation,
+    themeHue: currentTheme.defaultThemeHue,
     themeSat: currentTheme.defaultThemeSat,
     themeLtn: currentTheme.defaultThemeLtn,
     themeContrast: currentTheme.defaultThemeContrast,
     depth: currentTheme.defaultDepth,
+    backgroundHue: currentTheme.defaultBackgroundHue,
+    backgroundSaturation: currentTheme.defaultBackgroundSaturation,
+    backgroundBrightest: currentTheme.defaultBackgroundBrightest,
+    backgroundDarkest: currentTheme.defaultBackgroundDarkest,
   } : undefined;
 
   const liveSettings = getLiveSessionSettings(sessionName);
