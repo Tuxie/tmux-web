@@ -15,6 +15,7 @@ export type ThemeInfo = {
   defaultThemeSat?: number;
   defaultThemeLtn?: number;
   defaultThemeContrast?: number;
+  defaultDepth?: number;
   defaultBackgroundHue?: number;
   defaultBackgroundSaturation?: number;
   defaultBackgroundBrightest?: number;

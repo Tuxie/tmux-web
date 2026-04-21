@@ -1,11 +1,47 @@
 # Changelog
 
-## Unreleased
+## 1.6.0 — 2026-04-21
+
+Major theming overhaul: all GUI chrome colours derive from a small set of CSS variables and slider-driven values. Themes set defaults; users tune everything at runtime.
+
+### Added
+
+- **Depth slider** (0–100): controls bevel opacity globally. 0 = flat/invisible, 100 = opaque black-and-white. All bevels in base.css use `rgba(255,255,255,depth)` / `rgba(0,0,0,depth)` — themes just set `defaultDepth` in theme.json.
+- **Theme Contrast slider** (−100 to +100): scales gradient spread. 0 = theme default, +100 = full black-to-white gradient endpoints, −100 = flat. Piecewise mapping: negative fades to zero, positive amplifies up to 20× the base percentage.
+- **Theme Saturation, Theme Lightness sliders**: now work across all themes (previously Default-only). Chrome derives from `--tw-primary = hsl(hue, sat, ltn)`.
+- **Bias slider** (−100 to +100): independent brightness shift for all terminal colours (FG + explicit cell BG). +100 = all white, −100 = all black, works at any Contrast setting including zero.
+- **TUI FG Opacity slider**: fades terminal text independently of background opacity.
+- **TUI Saturation slider**: OKLab chroma scale for both FG and BG.
+- **BG Brightest / BG Darkest sliders**: replace the old single BG Brightness. Body background is now a top-to-bottom gradient (brightest → darkest).
+- **`--tw-ui-font` CSS variable**: themes set it once in `:root`; topbar, dropdowns, and context menus all inherit. Fixes font inheritance for menus appended to `document.body`.
+- Scene 2000 frame sides now have a top-to-bottom gradient matching the toolbar.
+- Default theme topbar has a subtle gradient (bright top, dark bottom).
+- Double-click any slider to reset to its theme default.
+
+### Changed
+
+- **Contrast transform rewritten**: cutoff auto-centers on the rendered background's OKLab luminance. The exclusion zone pushes colours away from the background so nothing blends in — the original implementation could push colours *closer*.
+- **WebGL renderer is now mandatory**. The DOM renderer fallback, `getWebglEnabled()` toggle, and all skip-guards have been removed. All colour transforms (contrast, bias, saturation, opacity, depth) are WebGL-only.
+- Amiga 3.1 and Scene 2000 themes no longer hardcode `--tw-chrome` or bevel colours — they inherit from base.css and respond to all sliders.
+- Button symbols (close-gadget, depth-gadget, settings-gadget icons) use opaque borders unaffected by the Depth slider.
+- `--tw-chrome-bg` is a fixed 5% offset from `--tw-chrome` (no longer scales with contrast).
+- Form controls (`input`, `select`, `button`) now inherit `font-family` globally.
 
 ### Fixed
 
-- TUI Opacity slider now fades ANSI / palette / RGB background cells linearly all the way through to the real page + body backdrop — including `<body>` gradients and images that `getComputedStyle(body).backgroundColor` returns as transparent (Scene theme, etc.). The old patch fed the slider value to the rectangle's vertex alpha, but the WebGL canvas uses `premultipliedAlpha: true` with a non-premultiplied shader and its framebuffer accumulates across in-task draws — so alpha 0.5 rendered as roughly 0.88 opaque and grey palette colours looked like they never faded at all. The RectangleRenderer now: clears the framebuffer per frame, uses `ONE × ONE_MINUS_SRC_ALPHA` for the bg pass, premultiplies rect RGB by `tuiα`, and neuters the viewport rect so default-bg cells stay transparent. Visible result is now exactly `ansi × tuiα + page_visible × (1-tuiα)`, regardless of what's behind #page.
-- Inverse + default-fg rects (the "boxed highlight" pattern used by Codex, fzf previews, etc., rendered at `theme.foreground.rgba`) now fade with the TUI Opacity slider instead of staying stuck opaque — the shouldApplyBackgroundOpacity / withBlendedEffectiveBackground gates previously rejected `CM_DEFAULT`, missing this case.
+- Terminal Contrast + Bias calculations: colours no longer get pushed closer to the background luminance.
+- Contrast transform now affects explicit cell background colours (rectangle renderer), not just foreground glyphs.
+- Scene 2000 menu/context fonts: all dropdown menus inherit `--tw-ui-font` regardless of DOM attachment point.
+- TUI Opacity slider now fades ANSI / palette / RGB background cells linearly through to the real page backdrop (including gradients/images). Premultiplied-alpha pipeline fixed.
+- Inverse + default-fg rects now fade with TUI Opacity instead of staying opaque.
+
+### Internal
+
+- CSS variable tree in base.css: `--tw-primary` → `--tw-chrome` → `--tw-chrome-bg` → bevels/gadgets. Themes override variables, base.css `:where()` rules consume them.
+- Theme packs declare all slider defaults in `theme.json` (`defaultDepth`, `defaultThemeContrast`, `defaultThemeSat`, `defaultThemeLtn`, etc.).
+- `pushFgLightness` → `pushLightness` (applies to both FG and BG). New `rgbToOklabL` utility exported.
+
+## 1.5.1 — 2026-04-18
 
 ## 1.5.1 — 2026-04-18
 
