@@ -1,6 +1,6 @@
 ---
 Status: resolved
-Resolved-in: PENDING
+Resolved-in: 2d75f65
 ---
 
 # Cluster 08 — claude-md-refresh
