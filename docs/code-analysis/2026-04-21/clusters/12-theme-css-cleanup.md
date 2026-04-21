@@ -1,6 +1,6 @@
 ---
 Status: resolved
-Resolved-in: PENDING
+Resolved-in: 7623231
 ---
 
 > **Resolution (2026-04-21):** Per maintainer direction, both findings
