@@ -1,6 +1,6 @@
 ---
 Status: partial
-Resolved-in: PENDING
+Resolved-in: db63166 (partial — bunx deferred to Bun 1.4)
 ---
 
 > **Resolution (2026-04-21) — maintainer decisions:**
