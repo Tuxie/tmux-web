@@ -29,7 +29,7 @@ test('window tabs render with correct labels', async ({ page }) => {
 });
 
 test('active window tab has class "active", inactive does not', async ({ page }) => {
-  const tabs = page.locator('#win-tabs .win-tab');
+  const tabs = page.locator('#win-tabs .tw-win-tab');
   await expect(tabs.nth(0)).toHaveClass(/active/);
   await expect(tabs.nth(1)).not.toHaveClass(/active/);
 });
@@ -57,7 +57,7 @@ test('left-click on the windows button opens the rich windows menu', async ({ pa
   await expect(sessionItems.nth(0)).toHaveText('0: zsh');
   await expect(sessionItems.nth(1)).toHaveText('1: vim');
   // Name + New window input rows
-  const labels = await menu.locator('.menu-label').allTextContents();
+  const labels = await menu.locator('.tw-menu-label').allTextContents();
   expect(labels).toEqual(['Name:', 'New window:']);
   // Show-windows-as-tabs checkbox
   await expect(menu.locator('input[type="checkbox"]')).toBeChecked();
@@ -68,7 +68,7 @@ test('left-click on the windows button opens the rich windows menu', async ({ pa
 test('New window input in the menu creates a named window', async ({ page }) => {
   await page.locator('#win-tabs button').nth(2).click();
   const menu = page.locator('.tw-dd-windows-menu');
-  const input = menu.locator('.menu-row', { hasText: 'New window:' }).locator('input');
+  const input = menu.locator('.tw-menu-row', { hasText: 'New window:' }).locator('input');
   await input.fill('logs');
   await input.press('Enter');
   const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
@@ -78,7 +78,7 @@ test('New window input in the menu creates a named window', async ({ page }) => 
 test('Name input in the menu renames the current window', async ({ page }) => {
   await page.locator('#win-tabs button').nth(2).click();
   const menu = page.locator('.tw-dd-windows-menu');
-  const nameInput = menu.locator('.menu-row', { hasText: 'Name:' }).locator('input');
+  const nameInput = menu.locator('.tw-menu-row', { hasText: 'Name:' }).locator('input');
   await expect(nameInput).toHaveValue('zsh');
   await nameInput.fill('shell');
   await nameInput.press('Enter');
@@ -88,7 +88,7 @@ test('Name input in the menu renames the current window', async ({ page }) => {
 
 test('unchecking Show windows as tabs hides the tab buttons', async ({ page }) => {
   // Start in tabs mode — tabs present and windows-menu button at the end.
-  await expect(page.locator('#win-tabs .win-tab')).toHaveCount(2);
+  await expect(page.locator('#win-tabs .tw-win-tab')).toHaveCount(2);
   await expect(page.locator('#win-tabs .tb-btn-window-compact')).toHaveCount(1);
 
   // Open the windows menu and uncheck the toggle.
@@ -96,14 +96,14 @@ test('unchecking Show windows as tabs hides the tab buttons', async ({ page }) =
   await page.locator('.tw-dd-windows-menu input[type="checkbox"]').click();
 
   // Tabs gone; only the windows-menu button remains.
-  await expect(page.locator('#win-tabs .win-tab')).toHaveCount(0);
+  await expect(page.locator('#win-tabs .tw-win-tab')).toHaveCount(0);
   await expect(page.locator('#win-tabs .tb-btn-window-compact')).toHaveCount(1);
   await expect(page.locator('.tb-window-compact-label')).toHaveText('0: zsh');
 
   // Re-check to bring tabs back.
   await page.locator('.tb-btn-window-compact').click();
   await page.locator('.tw-dd-windows-menu input[type="checkbox"]').click();
-  await expect(page.locator('#win-tabs .win-tab')).toHaveCount(2);
+  await expect(page.locator('#win-tabs .tw-win-tab')).toHaveCount(2);
   await expect(page.locator('#win-tabs .tb-btn-window-compact')).toHaveCount(1);
 });
 
@@ -111,7 +111,7 @@ test('right-click on a window tab opens a Name input + Close window item', async
   await page.locator('#win-tabs button').nth(1).click({ button: 'right' });
   const menu = page.locator('.tw-dropdown-menu.tw-dd-context-win-menu');
   await expect(menu).toBeVisible();
-  await expect(menu.locator('.menu-label')).toHaveText('Name:');
+  await expect(menu.locator('.tw-menu-label')).toHaveText('Name:');
   // Name input is pre-filled with the current window name.
   await expect(menu.locator('.tw-dd-input')).toHaveValue('vim');
   const items = menu.locator('.tw-dropdown-item');

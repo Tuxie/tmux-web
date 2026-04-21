@@ -35,28 +35,28 @@ export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promis
     list.innerHTML = '';
     if (drops.length === 0) {
       const empty = document.createElement('div');
-      empty.className = 'drops-empty';
+      empty.className = 'tw-drops-empty';
       empty.textContent = 'No files. Drag one onto the terminal.';
       list.appendChild(empty);
       return;
     }
     for (const d of drops) {
       const row = document.createElement('div');
-      row.className = 'drops-row';
+      row.className = 'tw-drops-row';
       row.title = `Click to paste path into the terminal\n${d.absolutePath}\n${formatBytes(d.size)} · ${d.mtime}`;
 
       const label = document.createElement('span');
-      label.className = 'drops-row-label';
+      label.className = 'tw-drops-row-label';
       label.textContent = d.filename;
       row.appendChild(label);
 
       const meta = document.createElement('span');
-      meta.className = 'drops-row-meta';
+      meta.className = 'tw-drops-row-meta';
       meta.textContent = formatBytes(d.size);
       row.appendChild(meta);
 
       const revoke = document.createElement('button');
-      revoke.className = 'tb-btn drops-revoke';
+      revoke.className = 'tb-btn tw-drops-revoke';
       // Nerd Font nf-cod-trash (U+EA81). Topaz8 NF ships this glyph.
       revoke.textContent = '\uEA81';
       revoke.title = `Remove ${d.filename} from disk`;

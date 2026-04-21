@@ -145,9 +145,9 @@ export class Topbar {
     onSubmit: (value: string) => void;
   }): HTMLElement {
     const row = document.createElement('div');
-    row.className = 'menu-row menu-row-static';
+    row.className = 'tw-menu-row tw-menu-row-static';
     const label = document.createElement('span');
-    label.className = 'menu-label';
+    label.className = 'tw-menu-label';
     label.textContent = opts.label;
     row.appendChild(label);
 
@@ -167,7 +167,7 @@ export class Topbar {
       }
     });
     if (opts.submitOnLabelClick) {
-      label.classList.add('menu-label-clickable');
+      label.classList.add('tw-menu-label-clickable');
       label.addEventListener('click', submit);
     }
     row.appendChild(input);
@@ -208,9 +208,9 @@ export class Topbar {
           if (!isRunning) {
             const del = document.createElement('button');
             del.type = 'button';
-            // `tb-btn drops-revoke` mirror the drops-section trashcan — themes
+            // `tb-btn tw-drops-revoke` mirror the drops-section trashcan — themes
             // that style those classes (e.g. Amiga) pick up the same look.
-            del.className = 'tb-btn drops-revoke tw-dd-session-delete';
+            del.className = 'tb-btn tw-drops-revoke tw-dd-session-delete';
             del.title = `Delete session "${s.name}".`;
             del.textContent = '\uEA81';
             del.addEventListener('click', async (ev) => {
@@ -322,13 +322,13 @@ export class Topbar {
     const footerRight = document.getElementById('menu-footer-right');
     if (footerLeft && footerRight) {
       const version = (window as any).__TMUX_WEB_CONFIG?.version ?? '';
-      // Anchor to the project repo. .menu-footer-link inherits colour /
+      // Anchor to the project repo. .tw-menu-footer-link inherits colour /
       // text-decoration from #menu-footer so appearance is unchanged.
       const link = document.createElement('a');
       link.href = 'https://github.com/tuxie/tmux-web';
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
-      link.className = 'menu-footer-link';
+      link.className = 'tw-menu-footer-link';
       link.textContent = `tmux-web v${version}`;
       footerLeft.replaceChildren(link);
       footerRight.textContent = '© Per Wigren <per@wigren.eu>';
@@ -795,14 +795,14 @@ export class Topbar {
     this.opts.send(JSON.stringify({ type: 'window', ...msg }));
   }
 
-  /** Build a `.menu-row` containing a labelled checkbox. */
+  /** Build a `.tw-menu-row` containing a labelled checkbox. */
   private buildMenuCheckboxRow(opts: {
     label: string;
     checked: boolean;
     onChange: (checked: boolean) => void;
   }): HTMLElement {
     const row = document.createElement('label');
-    row.className = 'menu-row';
+    row.className = 'tw-menu-row';
     const chk = document.createElement('input');
     chk.type = 'checkbox';
     chk.checked = opts.checked;
@@ -972,7 +972,7 @@ export class Topbar {
       // at the end.
       for (const w of windows) {
         const btn = document.createElement('button');
-        btn.className = 'win-tab' + (w.active ? ' active' : '');
+        btn.className = 'tw-win-tab' + (w.active ? ' active' : '');
         btn.textContent = w.index + ':' + w.name;
         btn.addEventListener('click', () => {
           this.sendWindowMsg({ action: 'select', index: w.index });

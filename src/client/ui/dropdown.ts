@@ -194,9 +194,9 @@ export function showContextMenu(opts: ContextMenuOptions): void {
   } else if (opts.input) {
     const inputConfig = opts.input;
     const row = document.createElement('div');
-    row.className = 'menu-row menu-row-static';
+    row.className = 'tw-menu-row tw-menu-row-static';
     const label = document.createElement('span');
-    label.className = 'menu-label';
+    label.className = 'tw-menu-label';
     label.textContent = inputConfig.label;
     row.appendChild(label);
 

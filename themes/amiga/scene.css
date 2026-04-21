@@ -156,10 +156,10 @@ body {
   justify-content: center;
 }
 #topbar .tb-btn:hover,
-#topbar .win-tab:hover {
+#topbar .tw-win-tab:hover {
   background: rgba(255, 255, 255, 0.1);
 }
-#topbar .win-tab:not(.active):hover {
+#topbar .tw-win-tab:not(.active):hover {
   color: color-mix(in srgb, var(--tw-muted), white 10%);
 }
 #topbar .tb-btn:active {
@@ -192,7 +192,7 @@ body {
 #topbar .tb-btn-session.open,
 #topbar .tb-btn-session-plus.open,
 #topbar .tb-btn-window-compact.open,
-#topbar .win-tab.open,
+#topbar .tw-win-tab.open,
 #btn-menu.open {
   border-color: var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-lo);
   background: linear-gradient(to bottom,
@@ -249,7 +249,7 @@ body {
 }
 
 /* Window tabs in #tb-windows. */
-#topbar .win-tab {
+#topbar .tw-win-tab {
   background: transparent;
   padding: 0 6px;
   margin: 0;
@@ -259,7 +259,7 @@ body {
   border: 2px solid;
   border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
 }
-#topbar .win-tab.active {
+#topbar .tw-win-tab.active {
   background: linear-gradient(to bottom,
     color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))),
     color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))));
@@ -278,7 +278,7 @@ body {
 #topbar .tb-btn-session-plus,
 #topbar .tb-btn-window-compact .tb-window-compact-label,
 #topbar .tb-btn-window-compact .tb-window-compact-plus,
-#topbar .win-tab,
+#topbar .tw-win-tab,
 #tb-title {
   padding-bottom: 2px;
   padding-top: 0;
@@ -401,7 +401,7 @@ body {
   border-color: var(--tw-bevel-lo) var(--tw-menu-bevel-hi) var(--tw-menu-bevel-hi) var(--tw-bevel-lo);
   border-radius: 0;
 }
-.tw-dd-context-win .menu-label { min-width: auto; padding-right: 6px; }
+.tw-dd-context-win .tw-menu-label { min-width: auto; padding-right: 6px; }
 .tw-dd-context-win .tw-dd-input { min-width: 130px; }
 
 /* ---------------------------------------------------------------------
@@ -418,9 +418,9 @@ body {
   min-width: 270px;
   padding: 4px 0;
 }
-.menu-row { display: flex; align-items: center; gap: 3px; padding: 2px 12px;
+.tw-menu-row { display: flex; align-items: center; gap: 3px; padding: 2px 12px;
             cursor: pointer; white-space: nowrap; font-size: 15px; }
-.menu-row-static { cursor: default; gap: 3px; }
+.tw-menu-row-static { cursor: default; gap: 3px; }
 /* AmigaOS 3.1 GadTools-style checkbox. Raised sunken well when unchecked,
  * sunken bevel with a filled square when checked — mirrors the look of
  * the Workbench 3.1 installer's radio group. */
@@ -456,7 +456,7 @@ body {
 }
 
 /* Selects and number inputs — Amiga sunken bevel. */
-.menu-input-select {
+.tw-menu-input-select {
   background: var(--tw-gadget-bg);
   border: 2px solid;
   border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-menu-bevel-hi);
@@ -467,7 +467,7 @@ body {
   font-size: 15px;
   outline: none;
 }
-.menu-input-number {
+.tw-menu-input-number {
   background: var(--tw-gadget-bg);
   border: 2px solid;
   border-color: var(--tw-bevel-lo) var(--tw-menu-bevel-hi) var(--tw-menu-bevel-hi) var(--tw-bevel-lo);
@@ -494,9 +494,9 @@ body {
 }
 /* Per-row trash uses a Nerd Font glyph (U+EA81) with a cosmetic
  * offset — the glyph has a hair of trailing whitespace baked in. */
-.drops-revoke { font-size: 18px; padding: 0 7px 0 5px; }
+.tw-drops-revoke { font-size: 18px; padding: 0 7px 0 5px; }
 
-/* Session-delete button: mirror the drops-revoke look (grey .tb-btn
+/* Session-delete button: mirror the tw-drops-revoke look (grey .tb-btn
  * in a dropdown context) inside the session menu. The session menu is
  * inserted as a child of #topbar, so the `#topbar .tb-btn` blue rule
  * otherwise wins — scope this one to the same id to outrank it. */
@@ -509,13 +509,13 @@ body {
 /* Plain HR: section header without the title. Same 1px muted line,
  * same 12px horizontal inset so the ruler length matches the
  * flanking-rule length of a section header. */
-.menu-hr { border: none; border-top: 1px solid var(--tw-muted); margin: 6px 12px 2px; }
+.tw-menu-hr { border: none; border-top: 1px solid var(--tw-muted); margin: 6px 12px 2px; }
 
 /* Section headers: muted label + flanking rules, all at the same
- * visual weight as the plain .menu-hr. */
-.menu-section { color: var(--tw-muted); }
-.menu-section::before,
-.menu-section::after { border-top-color: var(--tw-muted); }
+ * visual weight as the plain .tw-menu-hr. */
+.tw-menu-section { color: var(--tw-muted); }
+.tw-menu-section::before,
+.tw-menu-section::after { border-top-color: var(--tw-muted); }
 
 #menu-footer {
   display: flex;
@@ -527,65 +527,16 @@ body {
 }
 #menu-footer:hover { background: none; }
 
-/* ---------------------------------------------------------------------
- * Range sliders (settings menu).
- * Flat bevelled track, tall rectangular Amiga-gadget-style thumb.
- * ------------------------------------------------------------------- */
-#menu-dropdown input[type="range"] {
-  -webkit-appearance: none;
-  appearance: none;
-  background: transparent;
-  height: 22px;
-  padding: 0;
-  margin: 0 2px;
-  cursor: pointer;
-}
-/* Chromium: track with a linear-gradient split at --tw-slider-val so
- * the left side shows the fill colour. */
-#menu-dropdown input[type="range"]::-webkit-slider-runnable-track {
-  height: 6px;
-  background:
-    linear-gradient(to right,
-      rgba(255, 255, 255, 0.55) 0, rgba(255, 255, 255, 0.55) var(--tw-slider-val, 0%),
-      var(--tw-gadget-bg) var(--tw-slider-val, 0%), var(--tw-gadget-bg) 100%);
-  border: 2px solid;
-  border-color: var(--tw-bevel-lo) var(--tw-menu-bevel-hi) var(--tw-menu-bevel-hi) var(--tw-bevel-lo);
-}
-/* Firefox: separate ::-moz-range-track + ::-moz-range-progress. */
-#menu-dropdown input[type="range"]::-moz-range-track {
-  height: 6px;
-  background: var(--tw-gadget-bg);
-  border: 2px solid;
-  border-color: var(--tw-bevel-lo) var(--tw-menu-bevel-hi) var(--tw-menu-bevel-hi) var(--tw-bevel-lo);
-}
-#menu-dropdown input[type="range"]::-moz-range-progress {
-  height: 6px;
-  background: rgba(255, 255, 255, 0.55);
-}
-#menu-dropdown input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 10px; height: 18px;
-  background: hsl(var(--tw-theme-hue, 222) 15% 42%);
-  border: 2px solid;
-  border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-menu-bevel-hi);
-  box-sizing: border-box;
-  margin-top: -6px;
-}
-#menu-dropdown input[type="range"]::-moz-range-thumb {
-  width: 10px; height: 18px;
-  background: hsl(var(--tw-theme-hue, 222) 15% 42%);
-  border: 2px solid;
-  border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-menu-bevel-hi);
-  box-sizing: border-box;
-}
-#menu-dropdown input[type="range"]:active::-webkit-slider-thumb {
-  border-color: var(--tw-bevel-lo) var(--tw-menu-bevel-hi) var(--tw-menu-bevel-hi) var(--tw-bevel-lo);
-  background: hsl(var(--tw-theme-hue, 222) 15% 52%);
-}
-#menu-dropdown input[type="range"]:active::-moz-range-thumb {
-  border-color: var(--tw-bevel-lo) var(--tw-menu-bevel-hi) var(--tw-menu-bevel-hi) var(--tw-bevel-lo);
-  background: hsl(var(--tw-theme-hue, 222) 15% 52%);
+/* Slider structure lives in base.css. Scene only overrides the
+ * material: glassy white fill on a theme-hued thumb, with the
+ * menu-specific bevel-hi tone. Dimensions, active-press bevel flip,
+ * and pseudo-element layout inherit from base. */
+#menu-dropdown {
+  --tw-slider-fill: rgba(255, 255, 255, 0.55);
+  --tw-slider-track-bevel-hi: var(--tw-menu-bevel-hi);
+  --tw-slider-thumb-bg: hsl(var(--tw-theme-hue, 222) 15% 42%);
+  --tw-slider-thumb-bg-active: hsl(var(--tw-theme-hue, 222) 15% 52%);
+  --tw-slider-thumb-bevel-hi: var(--tw-menu-bevel-hi);
 }
 
 /* ---------------------------------------------------------------------

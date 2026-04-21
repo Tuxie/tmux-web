@@ -29,7 +29,7 @@ test('opening session button lists sessions with the current one checked + Kill 
   await expect(items.nth(1)).toHaveClass(/\bcurrent\b/);
   await expect(items.nth(2)).not.toHaveClass(/\bcurrent\b/);
   // Input rows for Name and New session
-  const labels = await menu.locator('.menu-label').allTextContents();
+  const labels = await menu.locator('.tw-menu-label').allTextContents();
   expect(labels).toEqual(['Name:', 'New session:']);
 });
 
@@ -104,7 +104,7 @@ test('Name input in session menu renames the current session on Enter', async ({
   await waitForWsOpen(page);
   await page.evaluate(() => { (window as any).__wsSent = []; });
   await page.click('#btn-session-menu');
-  const nameInput = page.locator('.tw-dd-sessions-menu .menu-row', { hasText: 'Name:' }).locator('input');
+  const nameInput = page.locator('.tw-dd-sessions-menu .tw-menu-row', { hasText: 'Name:' }).locator('input');
   await expect(nameInput).toHaveValue('main');
   await nameInput.fill('project');
   await nameInput.press('Enter');
@@ -118,7 +118,7 @@ test('New session input navigates to the entered name', async ({ page }) => {
   await page.goto('/main');
   await waitForWsOpen(page);
   await page.click('#btn-session-menu');
-  const newInput = page.locator('.tw-dd-sessions-menu .menu-row', { hasText: 'New session:' }).locator('input');
+  const newInput = page.locator('.tw-dd-sessions-menu .tw-menu-row', { hasText: 'New session:' }).locator('input');
   await newInput.fill('scratch');
   await Promise.all([
     page.waitForURL('**/scratch'),
@@ -152,7 +152,7 @@ test('right-click on session button opens the same session menu as left-click', 
   await expect(menu).toBeVisible();
   // Rich menu body: session list + Name/New session inputs + Kill row.
   await expect(menu.locator('.tw-dropdown-item')).toHaveCount(3); // 2 sessions + kill
-  expect(await menu.locator('.menu-label').allTextContents()).toEqual(['Name:', 'New session:']);
+  expect(await menu.locator('.tw-menu-label').allTextContents()).toEqual(['Name:', 'New session:']);
 
   // No legacy .tw-dd-context-session popup exists.
   await expect(page.locator('.tw-dd-context-session')).toHaveCount(0);

@@ -107,29 +107,107 @@ input[type="range"]::-moz-range-thumb {
 #menu-dropdown input[type="number"]::-webkit-inner-spin-button,
 #menu-dropdown input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 
+/* --------------------------------------------------------------------
+ * Menu-scoped slider structure (shared by every theme).
+ *
+ * The dimensions, pseudo-element layout, and active-press bevel flip
+ * are identical across themes; only the *material* (fill colour, track
+ * colour, thumb colour, bevel highlights) varies. Themes set the
+ * `--tw-slider-*` custom properties on `#menu-dropdown` to change the
+ * look — all rules below read from those properties with sensible
+ * fallbacks to the existing `--tw-chrome` / `--tw-gadget-bg` /
+ * `--tw-bevel-*` family, so a minimal theme that sets nothing still
+ * produces a usable slider.
+ * ------------------------------------------------------------------ */
+#menu-dropdown {
+  --tw-slider-fill: var(--tw-chrome);
+  --tw-slider-track-bg: var(--tw-gadget-bg);
+  --tw-slider-track-bevel-hi: var(--tw-bevel-hi);
+  --tw-slider-track-bevel-lo: var(--tw-bevel-lo);
+  --tw-slider-thumb-bg: var(--tw-gadget-bg);
+  --tw-slider-thumb-bg-active: color-mix(in srgb, var(--tw-gadget-bg), black 8%);
+  --tw-slider-thumb-bevel-hi: var(--tw-bevel-hi);
+  --tw-slider-thumb-bevel-lo: var(--tw-bevel-lo);
+}
+#menu-dropdown input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 22px;
+  padding: 0;
+  margin: 0 2px;
+  cursor: pointer;
+}
+/* Chromium: track with linear-gradient split at --tw-slider-val. */
+#menu-dropdown input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  background: linear-gradient(to right,
+    var(--tw-slider-fill) 0, var(--tw-slider-fill) var(--tw-slider-val, 0%),
+    var(--tw-slider-track-bg) var(--tw-slider-val, 0%), var(--tw-slider-track-bg) 100%);
+  border: 2px solid;
+  border-color: var(--tw-slider-track-bevel-lo) var(--tw-slider-track-bevel-hi) var(--tw-slider-track-bevel-hi) var(--tw-slider-track-bevel-lo);
+}
+/* Firefox: separate ::-moz-range-track + ::-moz-range-progress. */
+#menu-dropdown input[type="range"]::-moz-range-track {
+  height: 6px;
+  background: var(--tw-slider-track-bg);
+  border: 2px solid;
+  border-color: var(--tw-slider-track-bevel-lo) var(--tw-slider-track-bevel-hi) var(--tw-slider-track-bevel-hi) var(--tw-slider-track-bevel-lo);
+}
+#menu-dropdown input[type="range"]::-moz-range-progress {
+  height: 6px;
+  background: var(--tw-slider-fill);
+}
+#menu-dropdown input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px; height: 18px;
+  background: var(--tw-slider-thumb-bg);
+  border: 2px solid;
+  border-color: var(--tw-slider-thumb-bevel-hi) var(--tw-slider-thumb-bevel-lo) var(--tw-slider-thumb-bevel-lo) var(--tw-slider-thumb-bevel-hi);
+  box-sizing: border-box;
+  margin-top: -6px;
+}
+#menu-dropdown input[type="range"]::-moz-range-thumb {
+  width: 10px; height: 18px;
+  background: var(--tw-slider-thumb-bg);
+  border: 2px solid;
+  border-color: var(--tw-slider-thumb-bevel-hi) var(--tw-slider-thumb-bevel-lo) var(--tw-slider-thumb-bevel-lo) var(--tw-slider-thumb-bevel-hi);
+  box-sizing: border-box;
+}
+/* Active press flips the bevel direction (inset look). */
+#menu-dropdown input[type="range"]:active::-webkit-slider-thumb {
+  border-color: var(--tw-slider-thumb-bevel-lo) var(--tw-slider-thumb-bevel-hi) var(--tw-slider-thumb-bevel-hi) var(--tw-slider-thumb-bevel-lo);
+  background: var(--tw-slider-thumb-bg-active);
+}
+#menu-dropdown input[type="range"]:active::-moz-range-thumb {
+  border-color: var(--tw-slider-thumb-bevel-lo) var(--tw-slider-thumb-bevel-hi) var(--tw-slider-thumb-bevel-hi) var(--tw-slider-thumb-bevel-lo);
+  background: var(--tw-slider-thumb-bg-active);
+}
+
 #menu-wrap { position: relative; }
 
 /* Stretch selects / sliders / custom-dropdown elements inside a menu row. */
-#menu-dropdown .menu-input-select,
+#menu-dropdown .tw-menu-input-select,
 #menu-dropdown .tw-dropdown,
 #menu-dropdown input[type="range"] { flex: 1; }
 
-.menu-row { display: flex; align-items: center; gap: 4px; padding: 2px 8px; cursor: pointer; font-size: 13px; white-space: nowrap; }
-.menu-row-static { cursor: default; gap: 4px; }
-.menu-label { color: var(--tw-text-muted); min-width: 100px; }
-.menu-label-clickable { cursor: pointer; }
-.menu-input-select, .menu-input-number {
+.tw-menu-row { display: flex; align-items: center; gap: 4px; padding: 2px 8px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+.tw-menu-row-static { cursor: default; gap: 4px; }
+.tw-menu-label { color: var(--tw-text-muted); min-width: 100px; }
+.tw-menu-label-clickable { cursor: pointer; }
+.tw-menu-input-select, .tw-menu-input-number {
   background: var(--tw-gadget-bg); border: 1px solid var(--tw-bevel-lo); color: var(--tw-text);
   border-radius: 2px; padding: 1px 4px; font-family: inherit; font-size: 12px;
 }
-.menu-input-number { width: 46px; }
-.menu-hr, .tw-dropdown-sep { border: none; height: 1px; background: var(--tw-muted); margin: 5px 8px 3px; }
+.tw-menu-input-number { width: 46px; }
+.tw-menu-hr, .tw-dropdown-sep { border: none; height: 1px; background: var(--tw-muted); margin: 5px 8px 3px; }
 
 /* Labelled section divider: rule — label — rule, in the same colour
- * as the plain .menu-hr. Themes can override font / tint by targeting
- * .menu-section directly; the line colour flows through `currentColor`
+ * as the plain .tw-menu-hr. Themes can override font / tint by targeting
+ * .tw-menu-section directly; the line colour flows through `currentColor`
  * via the pseudo-elements' border-top. */
-.menu-section {
+.tw-menu-section {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -140,8 +218,8 @@ input[type="range"]::-moz-range-thumb {
   padding: 3px 8px 1px;
   user-select: none;
 }
-.menu-section::before,
-.menu-section::after {
+.tw-menu-section::before,
+.tw-menu-section::after {
   content: '';
   flex: 1;
   border-top: 1px solid currentColor;
@@ -151,21 +229,21 @@ input[type="range"]::-moz-range-thumb {
 #menu-footer { justify-content: space-between; color: var(--tw-muted); font-size: 11px; }
 
 /* "Dropped files" row: stacked header + list. Selector is double-classed
- * so the column + stretch beats any theme .menu-row rule with
+ * so the column + stretch beats any theme .tw-menu-row rule with
  * align-items: center / flex-direction: row. */
-.menu-row.menu-row-drops { flex-direction: column; align-items: stretch; gap: 4px; }
-.drops-header { display: flex; align-items: center; gap: 8px; }
+.tw-menu-row.tw-menu-row-drops { flex-direction: column; align-items: stretch; gap: 4px; }
+.tw-drops-header { display: flex; align-items: center; gap: 8px; }
 #drops-count { flex: 1; }
 #drops-list { max-height: 140px; overflow-y: auto; font-size: 13px; }
-#drops-list .drops-empty { font-style: italic; color: var(--tw-muted); padding: 4px 0; }
-#drops-list .drops-row {
+#drops-list .tw-drops-empty { font-style: italic; color: var(--tw-muted); padding: 4px 0; }
+#drops-list .tw-drops-row {
   display: flex; align-items: center; gap: 6px;
   padding: 2px 0; cursor: pointer;
 }
-#drops-list .drops-row-label {
+#drops-list .tw-drops-row-label {
   flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-#drops-list .drops-row-meta { font-size: 10px; opacity: 0.65; }
+#drops-list .tw-drops-row-meta { font-size: 10px; opacity: 0.65; }
 
 /* Drag-and-drop overlay across the terminal area. */
 .tw-drop-overlay {
@@ -268,8 +346,8 @@ input[type="range"]::-moz-range-thumb {
 
 /* Footer link looks like plain text — inherit colour/decoration
  * from the surrounding #menu-footer so it blends in. */
-.menu-footer-link { color: inherit; text-decoration: none; }
-.menu-footer-link:hover { text-decoration: underline; }
+.tw-menu-footer-link { color: inherit; text-decoration: none; }
+.tw-menu-footer-link:hover { text-decoration: underline; }
 
 /* Context dropdown menu (positioned imperatively via top/left). */
 .tw-dropdown-menu {
@@ -313,12 +391,12 @@ body {
 :where(#topbar .tb-btn:hover) { background: var(--tw-gadget-hover); }
 :where(#topbar .tb-btn:active) { background: var(--tw-gadget-active); }
 
-:where(#topbar .win-tab) {
+:where(#topbar .tw-win-tab) {
   color: var(--tw-muted);
   border: 1px solid transparent;
 }
-:where(#topbar .win-tab:hover) { background: var(--tw-gadget-hover); color: var(--tw-text); }
-:where(#topbar .win-tab.active) { color: var(--tw-text); }
+:where(#topbar .tw-win-tab:hover) { background: var(--tw-gadget-hover); color: var(--tw-text); }
+:where(#topbar .tw-win-tab.active) { color: var(--tw-text); }
 
 :where(.tw-dropdown-trigger) {
   background: var(--tw-gadget-bg);
@@ -347,7 +425,7 @@ body {
 
 :where(.tw-dd-session-status.running) { background: var(--tw-status-active); }
 
-:where(.menu-row:hover) { background: var(--tw-gadget-hover); }
+:where(.tw-menu-row:hover) { background: var(--tw-gadget-hover); }
 
 :where(#menu-dropdown .tb-btn) {
   background: var(--tw-gadget-bg);

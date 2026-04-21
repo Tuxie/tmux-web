@@ -1,16 +1,21 @@
 ---
-Status: deferred
-Resolved-in:
+Status: resolved
+Resolved-in: PENDING
 ---
 
-> **Deferred (2026-04-21):** Both findings are Low/needs-decision with
-> no runtime impact. The cluster's own "suggested session approach"
-> flags the likely outcome as "defer both", and that is what's
-> happening here — the duplicated slider CSS is the accepted trade-off
-> of the self-contained-theme model, and the class-naming inconsistency
-> is pending a maintainer call between (a) document the mixed
-> convention in CLAUDE.md, (b) one-time sweep to add `tw-` everywhere,
-> or (c) accept both and rule for new code only.
+> **Resolution (2026-04-21):** Per maintainer direction, both findings
+> closed with concrete fixes:
+>
+> 1. Slider CSS structure hoisted to `src/client/base.css`, with each
+>    theme driving only the material via `--tw-slider-*` CSS custom
+>    properties on `#menu-dropdown`. Amiga inherits the base defaults
+>    outright (zero overrides); Scene sets five variables instead of
+>    duplicating a 55-line pseudo-element block.
+> 2. One-time sweep to add `tw-` prefix to every bare project-owned
+>    class (`menu-row`, `menu-section`, `drops-row`, `win-tab`, and the
+>    13 others in the same family). IDs stay bare per existing
+>    convention. CLAUDE.md gains a "Class naming" rule so future code
+>    doesn't reintroduce the mix.
 
 
 # Cluster 12 — theme-css-cleanup

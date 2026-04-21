@@ -130,7 +130,7 @@ body {
 }
 /* Shared label width so input fields align across rows in a menu. */
 /* Window-tab context menu is a single-row editor; keep it compact. */
-.tw-dd-context-win .menu-label { min-width: auto; padding-right: 6px; }
+.tw-dd-context-win .tw-menu-label { min-width: auto; padding-right: 6px; }
 .tw-dd-context-win .tw-dd-input { min-width: 120px; }
 
 #topbar .tb-btn {
@@ -171,7 +171,7 @@ body {
 
 #topbar .tb-sep { width: 12px; }
 
-#topbar .win-tab {
+#topbar .tw-win-tab {
   background: none;
   border-radius: 3px;
   border-color: transparent;
@@ -181,7 +181,7 @@ body {
   font-size: 13px;
   line-height: 1.4;
 }
-#topbar .win-tab.active,
+#topbar .tw-win-tab.active,
 #topbar .tb-btn.open,
 #topbar .tb-btn-session.open {
   background: linear-gradient(to bottom,

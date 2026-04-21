@@ -359,6 +359,37 @@ which forces every theme override to use `!important` and turns the
 cascade into a shouting match. Keeping rules in files means themes can
 override any base style with a plain selector.
 
+### Class naming
+
+Project-owned classes carry a `tw-` prefix (`tw-menu-row`, `tw-dropdown`,
+`tw-drops-row`, `tw-win-tab`, `tw-toast`, …). This separates them at a
+glance from browser / library defaults (xterm's `.xterm-*`, state flags
+like `.active` / `.open` / `.selected` applied alongside a prefixed
+base class, etc.). IDs stay bare (`#topbar`, `#menu-dropdown`,
+`#win-tabs` …) because there's no ambiguity with third-party markup
+there. When adding a new dynamic class from TypeScript, prefix it with
+`tw-` unless you're flipping a state flag on an element that already
+carries a `tw-*` base class.
+
+### Slider styling contract
+
+The menu-scoped range-input structure (dimensions, pseudo-element
+layout, active-press bevel flip) lives in `src/client/base.css`. Themes
+vary only the *material* via CSS custom properties declared on
+`#menu-dropdown`:
+
+- `--tw-slider-fill` — left-of-thumb track colour
+- `--tw-slider-track-bg` — right-of-thumb track colour
+- `--tw-slider-track-bevel-hi` / `--tw-slider-track-bevel-lo`
+- `--tw-slider-thumb-bg` / `--tw-slider-thumb-bg-active`
+- `--tw-slider-thumb-bevel-hi` / `--tw-slider-thumb-bevel-lo`
+
+All fall back to the existing `--tw-chrome` / `--tw-gadget-bg` /
+`--tw-bevel-hi` / `--tw-bevel-lo` family, so a minimal theme can set
+nothing and still get a usable slider. If your theme needs a different
+track height or thumb shape, override the structural rules directly
+instead of forcing the custom-property path.
+
 ## Development methodology
 
 TDD: Test verify behavior → verify fail → implement → verify pass.
