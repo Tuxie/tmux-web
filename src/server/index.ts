@@ -67,6 +67,7 @@ export function parseConfig(argv: string[]): ConfigResult {
       // Remove in a future major if the flag is definitely gone from the wild.
       'theme':        { type: 'string' },
       test:           { type: 'boolean', default: false },
+      reset:          { type: 'boolean', default: false },
       debug:          { type: 'boolean', short: 'd', default: false },
       help:           { type: 'boolean', short: 'h', default: false },
       version:        { type: 'boolean', short: 'V', default: false },
@@ -76,6 +77,7 @@ export function parseConfig(argv: string[]): ConfigResult {
 
   if (args.version) return { config: null, host: '', port: 0, version: true };
   if (args.help) return { config: null, host: '', port: 0, help: true };
+  if (args.reset) return { config: null, host: '', port: 0, reset: true };
 
   const { host, port } = parseListenAddr(args.listen!);
 
@@ -134,7 +136,7 @@ async function startServer() {
     a => a === '--password' || a === '-p' || a.startsWith('--password=') || a.startsWith('-p='),
   );
 
-  const { config, host, port, help, version } = parseConfig(process.argv.slice(2));
+  const { config, host, port, help, version, reset } = parseConfig(process.argv.slice(2));
 
   if (version) {
     console.log(`tmux-web ${VERSION}`);
@@ -159,9 +161,24 @@ Options:
       --tmux-conf <path>       Alternative tmux.conf to load instead of user default
       --themes-dir <path>      User theme-pack directory override
       --test                   Test mode: use cat PTY, bypass IP/Origin allowlists
+      --reset                  Delete saved session settings and exit
   -d, --debug                  Log debug messages to stderr
   -V, --version                Print version and exit
   -h, --help                   Show this help`);
+    process.exit(0);
+  }
+
+  if (reset) {
+    const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(process.env.HOME ?? '', '.config');
+    const sessionsPath = process.env.TMUX_WEB_SESSIONS_FILE
+      ?? path.join(xdgConfigHome, 'tmux-web', 'sessions.json');
+    try {
+      fs.unlinkSync(sessionsPath);
+      console.log(`Deleted ${sessionsPath}`);
+    } catch (err: any) {
+      if (err?.code === 'ENOENT') console.log('No saved settings to reset.');
+      else throw err;
+    }
     process.exit(0);
   }
 
