@@ -105,17 +105,29 @@ export class Topbar {
   }
 
   private cachedSessions: Array<{ id: string; name: string }> = [];
+  private refreshInFlight: Promise<void> | null = null;
 
-  private async refreshCachedSessions(): Promise<void> {
-    try {
-      const [running] = await Promise.all([
-        fetch('/api/sessions').then(r =>
-          r.ok ? r.json() as Promise<Array<{ id: string; name: string }>> : null
-        ),
-        initSessionStore(),
-      ]);
-      if (running) this.cachedSessions = running;
-    } catch { /* keep previous cache */ }
+  /** Returned promise resolves once `cachedSessions` reflects a fresh
+   *  `/api/sessions` response (or the existing cache stays, on error).
+   *  Concurrent callers share the in-flight request so two rapid
+   *  dropdown opens can't interleave two fetches and leave the cache
+   *  pointing at the slower response's payload. */
+  private refreshCachedSessions(): Promise<void> {
+    if (this.refreshInFlight) return this.refreshInFlight;
+    const p = (async () => {
+      try {
+        const [running] = await Promise.all([
+          fetch('/api/sessions').then(r =>
+            r.ok ? r.json() as Promise<Array<{ id: string; name: string }>> : null
+          ),
+          initSessionStore(),
+        ]);
+        if (running) this.cachedSessions = running;
+      } catch { /* keep previous cache */ }
+      finally { this.refreshInFlight = null; }
+    })();
+    this.refreshInFlight = p;
+    return p;
   }
 
   private buildMenuInputRow(opts: {
@@ -292,9 +304,11 @@ export class Topbar {
       }
     });
 
-    // Plus button is intentionally decoupled from the session dropdown —
-    // it's a separate topbar button and will get its own action wired up
-    // in a follow-up change.
+    // `#btn-session-plus` is the left half of the `[ + | name ]` control.
+    // Intentionally decoupled from the session dropdown: it's reserved for
+    // its own upcoming menu (a separate UI from the sessions list). Keeping
+    // the element in the DOM today so theme CSS and the DOM contract stay
+    // stable while the menu is designed.
     void btnPlus;
   }
 
@@ -476,71 +490,6 @@ export class Topbar {
       const pct = max === min ? 0 : ((val - min) / (max - min)) * 100;
       slider.style.setProperty('--tw-slider-val', pct + '%');
     };
-    const refreshAllSliderFills = (): void => {
-      updateSliderFill(sldSize);
-      updateSliderFill(sldHeight);
-      updateSliderFill(sldTuiBgOpacity);
-      updateSliderFill(sldTuiFgOpacity);
-      updateSliderFill(sldOpacity);
-      updateSliderFill(sldBackgroundHue);
-      updateSliderFill(sldBackgroundSaturation);
-      updateSliderFill(sldBackgroundBrightest);
-      updateSliderFill(sldBackgroundDarkest);
-      updateSliderFill(sldFgContrastStrength);
-      updateSliderFill(sldFgContrastBias);
-      updateSliderFill(sldTuiSaturation);
-      updateSliderFill(sldThemeHue);
-      updateSliderFill(sldThemeSat);
-      updateSliderFill(sldThemeLtn);
-      updateSliderFill(sldThemeContrast);
-      updateSliderFill(sldDepth);
-    };
-    sldSize.addEventListener('input', () => updateSliderFill(sldSize));
-    sldHeight.addEventListener('input', () => updateSliderFill(sldHeight));
-    sldTuiBgOpacity.addEventListener('input', () => updateSliderFill(sldTuiBgOpacity));
-    sldTuiFgOpacity.addEventListener('input', () => updateSliderFill(sldTuiFgOpacity));
-    sldOpacity.addEventListener('input', () => updateSliderFill(sldOpacity));
-    sldBackgroundHue.addEventListener('input', () => updateSliderFill(sldBackgroundHue));
-    sldBackgroundSaturation.addEventListener('input', () => updateSliderFill(sldBackgroundSaturation));
-    sldBackgroundBrightest.addEventListener('input', () => updateSliderFill(sldBackgroundBrightest));
-    sldBackgroundDarkest.addEventListener('input', () => updateSliderFill(sldBackgroundDarkest));
-    sldFgContrastStrength.addEventListener('input', () => updateSliderFill(sldFgContrastStrength));
-    sldFgContrastBias.addEventListener('input', () => updateSliderFill(sldFgContrastBias));
-    sldTuiSaturation.addEventListener('input', () => updateSliderFill(sldTuiSaturation));
-    sldThemeHue.addEventListener('input', () => updateSliderFill(sldThemeHue));
-    sldThemeSat.addEventListener('input', () => updateSliderFill(sldThemeSat));
-    sldThemeLtn.addEventListener('input', () => updateSliderFill(sldThemeLtn));
-    sldThemeContrast.addEventListener('input', () => updateSliderFill(sldThemeContrast));
-    sldDepth.addEventListener('input', () => updateSliderFill(sldDepth));
-
-    const syncUi = (s: SessionSettings) => {
-      ddTheme.setValue(s.theme);
-      ddColours.setValue(s.colours);
-      ddFont.setValue(s.fontFamily);
-      sldSize.value = inpSize.value = String(s.fontSize);
-      sldHeight.value = inpHeight.value = String(s.spacing);
-      sldTuiBgOpacity.value = inpTuiBgOpacity.value = String(s.tuiBgOpacity);
-      sldTuiFgOpacity.value = inpTuiFgOpacity.value = String(s.tuiFgOpacity);
-      sldOpacity.value = inpOpacity.value = String(s.opacity);
-      sldBackgroundHue.value = inpBackgroundHue.value = String(s.backgroundHue);
-      sldBackgroundSaturation.value = inpBackgroundSaturation.value = String(s.backgroundSaturation);
-      sldBackgroundBrightest.value = inpBackgroundBrightest.value = String(s.backgroundBrightest);
-      sldBackgroundDarkest.value = inpBackgroundDarkest.value = String(s.backgroundDarkest);
-      sldFgContrastStrength.value = inpFgContrastStrength.value = String(s.fgContrastStrength);
-      sldFgContrastBias.value = inpFgContrastBias.value = String(s.fgContrastBias);
-      sldTuiSaturation.value = inpTuiSaturation.value = String(s.tuiSaturation);
-      sldThemeHue.value = inpThemeHue.value = String(s.themeHue);
-      sldThemeSat.value = inpThemeSat.value = String(s.themeSat);
-      sldThemeLtn.value = inpThemeLtn.value = String(s.themeLtn);
-      sldThemeContrast.value = inpThemeContrast.value = String(s.themeContrast);
-      sldDepth.value = inpDepth.value = String(s.depth);
-      refreshAllSliderFills();
-    };
-    // Expose so updateSession() can refresh the visible controls when tmux
-    // switches sessions underneath us.
-    this.syncSettingsUi = syncUi;
-
-    syncUi(getSettings());
 
     const commit = (patch: Partial<SessionSettings>) => {
       const current = getSettings();
@@ -548,6 +497,105 @@ export class Topbar {
       saveSessionSettings(this.currentSession, updated);
       this.opts.onSettingsChange?.(updated);
     };
+
+    /** Single source of truth for every numeric slider + number-input
+     *  pair in the settings menu. `parse` + `clamp` run on every commit
+     *  path; `getDefault` resolves the current active-theme default (or
+     *  the hard-coded fallback) for the dblclick-to-reset gesture.
+     *  Also drives `syncUi` and `refreshAllSliderFills` so adding a new
+     *  slider only requires one entry here + one HTML row. */
+    type SliderSpec = {
+      slider: HTMLInputElement;
+      input: HTMLInputElement;
+      key: keyof SessionSettings;
+      parse: (s: string) => number;
+      clamp: (v: number) => number;
+      getDefault: () => number;
+    };
+    const activeTheme = () => themes.find(t => t.name === getSettings().theme);
+    const parseInt10 = (s: string): number => parseInt(s, 10);
+    const sliders: SliderSpec[] = [
+      { slider: sldSize, input: inpSize, key: 'fontSize', parse: parseFloat, clamp: clampFontSize,
+        getDefault: () => activeTheme()?.defaultFontSize ?? DEFAULT_SESSION_SETTINGS.fontSize },
+      { slider: sldHeight, input: inpHeight, key: 'spacing', parse: parseFloat, clamp: clampSpacing,
+        getDefault: () => activeTheme()?.defaultSpacing ?? DEFAULT_SESSION_SETTINGS.spacing },
+      { slider: sldTuiBgOpacity, input: inpTuiBgOpacity, key: 'tuiBgOpacity', parse: parseInt10, clamp: clampPercent0to100,
+        getDefault: () => activeTheme()?.defaultTuiBgOpacity ?? DEFAULT_SESSION_SETTINGS.tuiBgOpacity },
+      { slider: sldTuiFgOpacity, input: inpTuiFgOpacity, key: 'tuiFgOpacity', parse: parseInt10, clamp: clampPercent0to100,
+        getDefault: () => activeTheme()?.defaultTuiFgOpacity ?? DEFAULT_SESSION_SETTINGS.tuiFgOpacity },
+      { slider: sldOpacity, input: inpOpacity, key: 'opacity', parse: parseInt10, clamp: clampPercent0to100,
+        getDefault: () => activeTheme()?.defaultOpacity ?? DEFAULT_SESSION_SETTINGS.opacity },
+      { slider: sldFgContrastStrength, input: inpFgContrastStrength, key: 'fgContrastStrength', parse: parseInt10, clamp: clampFgContrastStrength,
+        getDefault: () => DEFAULT_FG_CONTRAST_STRENGTH },
+      { slider: sldFgContrastBias, input: inpFgContrastBias, key: 'fgContrastBias', parse: parseInt10, clamp: clampFgContrastBias,
+        getDefault: () => DEFAULT_FG_CONTRAST_BIAS },
+      { slider: sldTuiSaturation, input: inpTuiSaturation, key: 'tuiSaturation', parse: parseInt10, clamp: clampTuiSaturation,
+        getDefault: () => activeTheme()?.defaultTuiSaturation ?? DEFAULT_TUI_SATURATION },
+      { slider: sldThemeHue, input: inpThemeHue, key: 'themeHue', parse: parseInt10, clamp: clampThemeHue,
+        getDefault: () => activeTheme()?.defaultThemeHue ?? DEFAULT_THEME_HUE },
+      { slider: sldThemeSat, input: inpThemeSat, key: 'themeSat', parse: parseInt10, clamp: clampThemeSat,
+        getDefault: () => activeTheme()?.defaultThemeSat ?? DEFAULT_THEME_SAT },
+      { slider: sldThemeLtn, input: inpThemeLtn, key: 'themeLtn', parse: parseInt10, clamp: clampThemeLtn,
+        getDefault: () => activeTheme()?.defaultThemeLtn ?? DEFAULT_THEME_LTN },
+      { slider: sldThemeContrast, input: inpThemeContrast, key: 'themeContrast', parse: parseInt10, clamp: clampThemeContrast,
+        getDefault: () => activeTheme()?.defaultThemeContrast ?? DEFAULT_THEME_CONTRAST },
+      { slider: sldDepth, input: inpDepth, key: 'depth', parse: parseInt10, clamp: clampDepth,
+        getDefault: () => activeTheme()?.defaultDepth ?? DEFAULT_DEPTH },
+      { slider: sldBackgroundHue, input: inpBackgroundHue, key: 'backgroundHue', parse: parseInt10, clamp: clampBackgroundHue,
+        getDefault: () => activeTheme()?.defaultBackgroundHue ?? DEFAULT_BACKGROUND_HUE },
+      { slider: sldBackgroundSaturation, input: inpBackgroundSaturation, key: 'backgroundSaturation', parse: parseInt10, clamp: clampBackgroundSaturation,
+        getDefault: () => activeTheme()?.defaultBackgroundSaturation ?? DEFAULT_BACKGROUND_SATURATION },
+      { slider: sldBackgroundBrightest, input: inpBackgroundBrightest, key: 'backgroundBrightest', parse: parseInt10, clamp: clampBackgroundBrightest,
+        getDefault: () => activeTheme()?.defaultBackgroundBrightest ?? DEFAULT_BACKGROUND_BRIGHTEST },
+      { slider: sldBackgroundDarkest, input: inpBackgroundDarkest, key: 'backgroundDarkest', parse: parseInt10, clamp: clampBackgroundDarkest,
+        getDefault: () => activeTheme()?.defaultBackgroundDarkest ?? DEFAULT_BACKGROUND_DARKEST },
+    ];
+
+    const refreshAllSliderFills = (): void => {
+      for (const sp of sliders) updateSliderFill(sp.slider);
+    };
+
+    for (const sp of sliders) {
+      // 1. Slider drag (input event): clamp, mirror into number input, commit.
+      sp.slider.addEventListener('input', () => {
+        const v = sp.clamp(sp.parse(sp.slider.value));
+        sp.input.value = String(v);
+        commit({ [sp.key]: v } as Partial<SessionSettings>);
+      });
+      // 2. Number input edit (change event): same, plus slider track fill refresh.
+      sp.input.addEventListener('change', () => {
+        const v = sp.clamp(sp.parse(sp.input.value));
+        sp.slider.value = sp.input.value = String(v);
+        updateSliderFill(sp.slider);
+        commit({ [sp.key]: v } as Partial<SessionSettings>);
+      });
+      // 3. Double-click-to-reset (on either half): resolve active-theme
+      //    default lazily so a theme switch doesn't stale-capture.
+      const reset = () => {
+        const def = sp.getDefault();
+        sp.slider.value = sp.input.value = String(def);
+        updateSliderFill(sp.slider);
+        commit({ [sp.key]: def } as Partial<SessionSettings>);
+      };
+      sp.slider.addEventListener('dblclick', reset);
+      sp.input.addEventListener('dblclick', reset);
+    }
+
+    const syncUi = (s: SessionSettings) => {
+      ddTheme.setValue(s.theme);
+      ddColours.setValue(s.colours);
+      ddFont.setValue(s.fontFamily);
+      for (const sp of sliders) {
+        const v = String(s[sp.key]);
+        sp.slider.value = sp.input.value = v;
+      }
+      refreshAllSliderFills();
+    };
+    // Expose so updateSession() can refresh the visible controls when tmux
+    // switches sessions underneath us.
+    this.syncSettingsUi = syncUi;
+
+    syncUi(getSettings());
 
     themeSelect.addEventListener('change', async () => {
       const name = themeSelect.value;
@@ -663,267 +711,9 @@ export class Topbar {
       if (Object.keys(patch).length) commit(patch);
     });
 
-    sldSize.addEventListener('input', () => {
-      const v = clampFontSize(parseFloat(sldSize.value));
-      inpSize.value = String(v);
-      commit({ fontSize: v });
-    });
-    inpSize.addEventListener('change', () => {
-      const v = clampFontSize(parseFloat(inpSize.value));
-      sldSize.value = inpSize.value = String(v);
-      updateSliderFill(sldSize);
-      commit({ fontSize: v });
-    });
-
-    sldHeight.addEventListener('input', () => {
-      const v = clampSpacing(parseFloat(sldHeight.value));
-      inpHeight.value = String(v);
-      commit({ spacing: v });
-    });
-    inpHeight.addEventListener('change', () => {
-      const v = clampSpacing(parseFloat(inpHeight.value));
-      sldHeight.value = inpHeight.value = String(v);
-      updateSliderFill(sldHeight);
-      commit({ spacing: v });
-    });
-
-    sldTuiBgOpacity.addEventListener('input', () => {
-      const v = clampPercent0to100(parseInt(sldTuiBgOpacity.value, 10));
-      inpTuiBgOpacity.value = String(v);
-      commit({ tuiBgOpacity: v });
-    });
-    inpTuiBgOpacity.addEventListener('change', () => {
-      const v = clampPercent0to100(parseInt(inpTuiBgOpacity.value, 10));
-      sldTuiBgOpacity.value = inpTuiBgOpacity.value = String(v);
-      updateSliderFill(sldTuiBgOpacity);
-      commit({ tuiBgOpacity: v });
-    });
-
-    sldTuiFgOpacity.addEventListener('input', () => {
-      const v = clampPercent0to100(parseInt(sldTuiFgOpacity.value, 10));
-      inpTuiFgOpacity.value = String(v);
-      commit({ tuiFgOpacity: v });
-    });
-    inpTuiFgOpacity.addEventListener('change', () => {
-      const v = clampPercent0to100(parseInt(inpTuiFgOpacity.value, 10));
-      sldTuiFgOpacity.value = inpTuiFgOpacity.value = String(v);
-      updateSliderFill(sldTuiFgOpacity);
-      commit({ tuiFgOpacity: v });
-    });
-
-    sldOpacity.addEventListener('input', () => {
-      const v = clampPercent0to100(parseInt(sldOpacity.value, 10));
-      inpOpacity.value = String(v);
-      commit({ opacity: v });
-    });
-    inpOpacity.addEventListener('change', () => {
-      const v = clampPercent0to100(parseInt(inpOpacity.value, 10));
-      sldOpacity.value = inpOpacity.value = String(v);
-      updateSliderFill(sldOpacity);
-      commit({ opacity: v });
-    });
-
-    sldBackgroundHue.addEventListener('input', () => {
-      const hue = clampBackgroundHue(parseInt(sldBackgroundHue.value, 10));
-      inpBackgroundHue.value = String(hue);
-      commit({ backgroundHue: hue });
-    });
-    inpBackgroundHue.addEventListener('change', () => {
-      const hue = clampBackgroundHue(parseInt(inpBackgroundHue.value, 10));
-      sldBackgroundHue.value = inpBackgroundHue.value = String(hue);
-      updateSliderFill(sldBackgroundHue);
-      commit({ backgroundHue: hue });
-    });
-
-    sldBackgroundSaturation.addEventListener('input', () => {
-      const v = clampBackgroundSaturation(parseInt(sldBackgroundSaturation.value, 10));
-      inpBackgroundSaturation.value = String(v);
-      commit({ backgroundSaturation: v });
-    });
-    inpBackgroundSaturation.addEventListener('change', () => {
-      const v = clampBackgroundSaturation(parseInt(inpBackgroundSaturation.value, 10));
-      sldBackgroundSaturation.value = inpBackgroundSaturation.value = String(v);
-      updateSliderFill(sldBackgroundSaturation);
-      commit({ backgroundSaturation: v });
-    });
-
-    sldBackgroundBrightest.addEventListener('input', () => {
-      const v = clampBackgroundBrightest(parseInt(sldBackgroundBrightest.value, 10));
-      inpBackgroundBrightest.value = String(v);
-      commit({ backgroundBrightest: v });
-    });
-    inpBackgroundBrightest.addEventListener('change', () => {
-      const v = clampBackgroundBrightest(parseInt(inpBackgroundBrightest.value, 10));
-      sldBackgroundBrightest.value = inpBackgroundBrightest.value = String(v);
-      updateSliderFill(sldBackgroundBrightest);
-      commit({ backgroundBrightest: v });
-    });
-
-    sldBackgroundDarkest.addEventListener('input', () => {
-      const v = clampBackgroundDarkest(parseInt(sldBackgroundDarkest.value, 10));
-      inpBackgroundDarkest.value = String(v);
-      commit({ backgroundDarkest: v });
-    });
-    inpBackgroundDarkest.addEventListener('change', () => {
-      const v = clampBackgroundDarkest(parseInt(inpBackgroundDarkest.value, 10));
-      sldBackgroundDarkest.value = inpBackgroundDarkest.value = String(v);
-      updateSliderFill(sldBackgroundDarkest);
-      commit({ backgroundDarkest: v });
-    });
-
-    sldFgContrastStrength.addEventListener('input', () => {
-      const v = clampFgContrastStrength(parseInt(sldFgContrastStrength.value, 10));
-      inpFgContrastStrength.value = String(v);
-      commit({ fgContrastStrength: v });
-    });
-    inpFgContrastStrength.addEventListener('change', () => {
-      const v = clampFgContrastStrength(parseInt(inpFgContrastStrength.value, 10));
-      sldFgContrastStrength.value = inpFgContrastStrength.value = String(v);
-      updateSliderFill(sldFgContrastStrength);
-      commit({ fgContrastStrength: v });
-    });
-
-    sldFgContrastBias.addEventListener('input', () => {
-      const v = clampFgContrastBias(parseInt(sldFgContrastBias.value, 10));
-      inpFgContrastBias.value = String(v);
-      commit({ fgContrastBias: v });
-    });
-    inpFgContrastBias.addEventListener('change', () => {
-      const v = clampFgContrastBias(parseInt(inpFgContrastBias.value, 10));
-      sldFgContrastBias.value = inpFgContrastBias.value = String(v);
-      updateSliderFill(sldFgContrastBias);
-      commit({ fgContrastBias: v });
-    });
-
-    sldTuiSaturation.addEventListener('input', () => {
-      const v = clampTuiSaturation(parseInt(sldTuiSaturation.value, 10));
-      inpTuiSaturation.value = String(v);
-      commit({ tuiSaturation: v });
-    });
-    inpTuiSaturation.addEventListener('change', () => {
-      const v = clampTuiSaturation(parseInt(inpTuiSaturation.value, 10));
-      sldTuiSaturation.value = inpTuiSaturation.value = String(v);
-      updateSliderFill(sldTuiSaturation);
-      commit({ tuiSaturation: v });
-    });
-
-    sldThemeHue.addEventListener('input', () => {
-      const v = clampThemeHue(parseInt(sldThemeHue.value, 10));
-      inpThemeHue.value = String(v);
-      commit({ themeHue: v });
-    });
-    inpThemeHue.addEventListener('change', () => {
-      const v = clampThemeHue(parseInt(inpThemeHue.value, 10));
-      sldThemeHue.value = inpThemeHue.value = String(v);
-      updateSliderFill(sldThemeHue);
-      commit({ themeHue: v });
-    });
-
-    sldThemeSat.addEventListener('input', () => {
-      const v = clampThemeSat(parseInt(sldThemeSat.value, 10));
-      inpThemeSat.value = String(v);
-      commit({ themeSat: v });
-    });
-    inpThemeSat.addEventListener('change', () => {
-      const v = clampThemeSat(parseInt(inpThemeSat.value, 10));
-      sldThemeSat.value = inpThemeSat.value = String(v);
-      updateSliderFill(sldThemeSat);
-      commit({ themeSat: v });
-    });
-
-    sldThemeLtn.addEventListener('input', () => {
-      const v = clampThemeLtn(parseInt(sldThemeLtn.value, 10));
-      inpThemeLtn.value = String(v);
-      commit({ themeLtn: v });
-    });
-    inpThemeLtn.addEventListener('change', () => {
-      const v = clampThemeLtn(parseInt(inpThemeLtn.value, 10));
-      sldThemeLtn.value = inpThemeLtn.value = String(v);
-      updateSliderFill(sldThemeLtn);
-      commit({ themeLtn: v });
-    });
-
-    sldThemeContrast.addEventListener('input', () => {
-      const v = clampThemeContrast(parseInt(sldThemeContrast.value, 10));
-      inpThemeContrast.value = String(v);
-      commit({ themeContrast: v });
-    });
-    inpThemeContrast.addEventListener('change', () => {
-      const v = clampThemeContrast(parseInt(inpThemeContrast.value, 10));
-      sldThemeContrast.value = inpThemeContrast.value = String(v);
-      updateSliderFill(sldThemeContrast);
-      commit({ themeContrast: v });
-    });
-
-    sldDepth.addEventListener('input', () => {
-      const v = clampDepth(parseInt(sldDepth.value, 10));
-      inpDepth.value = String(v);
-      commit({ depth: v });
-    });
-    inpDepth.addEventListener('change', () => {
-      const v = clampDepth(parseInt(inpDepth.value, 10));
-      sldDepth.value = inpDepth.value = String(v);
-      updateSliderFill(sldDepth);
-      commit({ depth: v });
-    });
-
-    // Double-click-to-reset wiring. Each entry maps a slider / number
-    // input pair to a function that resolves the *current* default
-    // (some defaults track the active theme, so we look them up lazily
-    // rather than capturing a value at setup time).
-    type SliderReset = {
-      slider: HTMLInputElement;
-      input: HTMLInputElement;
-      getDefault: () => number;
-      key: keyof SessionSettings;
-    };
-    const activeTheme = () => themes.find(t => t.name === getSettings().theme);
-    const resets: SliderReset[] = [
-      { slider: sldSize, input: inpSize, key: 'fontSize',
-        getDefault: () => activeTheme()?.defaultFontSize ?? DEFAULT_SESSION_SETTINGS.fontSize },
-      { slider: sldHeight, input: inpHeight, key: 'spacing',
-        getDefault: () => activeTheme()?.defaultSpacing ?? DEFAULT_SESSION_SETTINGS.spacing },
-      { slider: sldTuiBgOpacity, input: inpTuiBgOpacity, key: 'tuiBgOpacity',
-        getDefault: () => activeTheme()?.defaultTuiBgOpacity ?? DEFAULT_SESSION_SETTINGS.tuiBgOpacity },
-      { slider: sldTuiFgOpacity, input: inpTuiFgOpacity, key: 'tuiFgOpacity',
-        getDefault: () => activeTheme()?.defaultTuiFgOpacity ?? DEFAULT_SESSION_SETTINGS.tuiFgOpacity },
-      { slider: sldOpacity, input: inpOpacity, key: 'opacity',
-        getDefault: () => activeTheme()?.defaultOpacity ?? DEFAULT_SESSION_SETTINGS.opacity },
-      { slider: sldFgContrastStrength, input: inpFgContrastStrength, key: 'fgContrastStrength',
-        getDefault: () => DEFAULT_FG_CONTRAST_STRENGTH },
-      { slider: sldFgContrastBias, input: inpFgContrastBias, key: 'fgContrastBias',
-        getDefault: () => DEFAULT_FG_CONTRAST_BIAS },
-      { slider: sldTuiSaturation, input: inpTuiSaturation, key: 'tuiSaturation',
-        getDefault: () => activeTheme()?.defaultTuiSaturation ?? DEFAULT_TUI_SATURATION },
-      { slider: sldThemeHue, input: inpThemeHue, key: 'themeHue',
-        getDefault: () => activeTheme()?.defaultThemeHue ?? DEFAULT_THEME_HUE },
-      { slider: sldThemeSat, input: inpThemeSat, key: 'themeSat',
-        getDefault: () => activeTheme()?.defaultThemeSat ?? DEFAULT_THEME_SAT },
-      { slider: sldThemeLtn, input: inpThemeLtn, key: 'themeLtn',
-        getDefault: () => activeTheme()?.defaultThemeLtn ?? DEFAULT_THEME_LTN },
-      { slider: sldThemeContrast, input: inpThemeContrast, key: 'themeContrast',
-        getDefault: () => activeTheme()?.defaultThemeContrast ?? DEFAULT_THEME_CONTRAST },
-      { slider: sldDepth, input: inpDepth, key: 'depth',
-        getDefault: () => activeTheme()?.defaultDepth ?? DEFAULT_DEPTH },
-      { slider: sldBackgroundHue, input: inpBackgroundHue, key: 'backgroundHue',
-        getDefault: () => activeTheme()?.defaultBackgroundHue ?? DEFAULT_BACKGROUND_HUE },
-      { slider: sldBackgroundSaturation, input: inpBackgroundSaturation, key: 'backgroundSaturation',
-        getDefault: () => activeTheme()?.defaultBackgroundSaturation ?? DEFAULT_BACKGROUND_SATURATION },
-      { slider: sldBackgroundBrightest, input: inpBackgroundBrightest, key: 'backgroundBrightest',
-        getDefault: () => activeTheme()?.defaultBackgroundBrightest ?? DEFAULT_BACKGROUND_BRIGHTEST },
-      { slider: sldBackgroundDarkest, input: inpBackgroundDarkest, key: 'backgroundDarkest',
-        getDefault: () => activeTheme()?.defaultBackgroundDarkest ?? DEFAULT_BACKGROUND_DARKEST },
-    ];
-    for (const { slider, input, getDefault, key } of resets) {
-      const reset = () => {
-        const def = getDefault();
-        slider.value = input.value = String(def);
-        updateSliderFill(slider);
-        commit({ [key]: def } as Partial<SessionSettings>);
-      };
-      slider.addEventListener('dblclick', reset);
-      input.addEventListener('dblclick', reset);
-    }
+    // Per-slider input / change / dblclick wiring is data-driven from
+    // the `sliders` table above. Reset-to-default lookup is lazy so a
+    // theme switch between dblclicks picks up the new default.
   }
 
   toggleFullscreen(): void {

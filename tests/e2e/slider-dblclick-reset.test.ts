@@ -12,9 +12,9 @@
  *   - font size / spacing / BG Opacity / TUI BG / TUI FG Opacity →
  *     the active theme's corresponding `default*` field, falling back
  *     to DEFAULT_SESSION_SETTINGS when the theme doesn't declare one.
- *   - BG Hue / Saturation / Brightest / Darkest, Theme Hue, FG
- *     Contrast / Bias → their respective DEFAULT_* constants (no
- *     per-theme knob today).
+ *   - BG Hue / Saturation / Top / Bottom (gradient endpoints),
+ *     Theme Hue, FG Contrast / Bias → their respective DEFAULT_*
+ *     constants (no per-theme knob today).
  */
 import { test, expect, type Page } from '@playwright/test';
 import { mockSessionStore, type SessionStoreMock } from './helpers.js';

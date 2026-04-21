@@ -1,13 +1,15 @@
 ---
-Status: partial
-Resolved-in: 19ff3b4 (partial)
+Status: resolved
+Resolved-in: 19ff3b4, PENDING
 ---
 
-> **Partial resolution (2026-04-21):** The autofix-ready clamping
-> inconsistency is fixed (commit below). The four needs-decision items
-> — `#btn-session-plus` fate, 17-slider-listener refactor scope, label
-> rephrases ("Brightest"/"Darkest"/"Depth"), and the speculative
-> refreshCachedSessions race — remain open pending maintainer input.
+> **Resolution (2026-04-21):** Clamp consistency landed in `19ff3b4`.
+> Follow-up commit (referenced below) closes the four needs-decision
+> items per maintainer direction: keep `#btn-session-plus` for its
+> own upcoming menu (comment clarified); collapse the 17 per-slider
+> listeners into a data-driven loop over a single `sliders: SliderSpec[]`
+> table; rename labels to "Top" / "Bottom" / "Bevel"; address the
+> `refreshCachedSessions` race by deduping the in-flight promise.
 
 
 # Cluster 11 — topbar-ergonomics
