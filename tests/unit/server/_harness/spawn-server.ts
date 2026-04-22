@@ -5,9 +5,29 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHttpHandler } from '../../../../src/server/http.ts';
 import { createWsServer } from '../../../../src/server/ws.ts';
-import { createNullTmuxControl } from '../../../../src/server/tmux-control.ts';
+import { createNullTmuxControl, type TmuxControl } from '../../../../src/server/tmux-control.ts';
+import { execFileAsync } from '../../../../src/server/exec.ts';
 import type { DropStorage } from '../../../../src/server/file-drop.ts';
 import type { ServerConfig } from '../../../../src/shared/types.ts';
+
+/** Build a fake TmuxControl that dispatches `run()` calls through
+ *  execFileAsync against the given binary. Good enough for tests that
+ *  use the fake-tmux shell-script harness: the command path (display-
+ *  message, list-windows, rename-session, send-keys -H …) is exercised,
+ *  but notification subscriptions are no-ops (tests don't rely on %-
+ *  events inside the unit harness). */
+export function tmuxControlFromBin(tmuxBin: string): TmuxControl {
+  return {
+    attachSession: async () => {},
+    detachSession: () => {},
+    run: async (args) => {
+      const { stdout } = await execFileAsync(tmuxBin, args);
+      return stdout;
+    },
+    on: () => () => {},
+    close: async () => {},
+  };
+}
 
 export interface Harness {
   url: string;
@@ -24,6 +44,10 @@ export interface HarnessOpts {
   allowedIps?: Set<string>;
   auth?: ServerConfig['auth'];
   testMode?: boolean;
+  /** Optional override. Defaults to a bin-backed TmuxControl when
+   *  `tmuxBin` is set and `testMode` is false (so `getForegroundProcess`
+   *  / `send-keys -H` paths reach the fake binary), else the null impl. */
+  tmuxControl?: TmuxControl;
 }
 
 export async function startTestServer(opts: HarnessOpts = {}): Promise<Harness> {
@@ -56,6 +80,11 @@ export async function startTestServer(opts: HarnessOpts = {}): Promise<Harness> 
     autoUnlinkOnClose: false,
   };
 
+  const tmuxControl = opts.tmuxControl
+    ?? (!config.testMode && opts.tmuxBin
+      ? tmuxControlFromBin(opts.tmuxBin)
+      : createNullTmuxControl());
+
   const handler = await createHttpHandler({
     config,
     htmlTemplate: '<html></html>',
@@ -66,10 +95,11 @@ export async function startTestServer(opts: HarnessOpts = {}): Promise<Harness> 
     isCompiled: false,
     sessionsStorePath,
     dropStorage,
+    tmuxControl,
   });
 
   const server = createServer((req, res) => { void handler(req as any, res as any); });
-  createWsServer(server, { config, tmuxConfPath, sessionsStorePath, tmuxControl: createNullTmuxControl() });
+  createWsServer(server, { config, tmuxConfPath, sessionsStorePath, tmuxControl });
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address() as AddressInfo;
