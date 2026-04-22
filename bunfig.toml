@@ -2,3 +2,9 @@
 root = "tests/unit"
 include = ["**/*.test.ts"]
 exclude = ["vendor/**", "**/vendor/**", "tests/e2e/**", "node_modules/**"]
+# Silence console.* from modules under test — see the preload file
+# header for the rationale and the test-side capture helpers. Tests
+# that assert on console output keep working because the per-test
+# swap pattern (`console.warn = …; afterEach(() => console.warn =
+# orig)`) captures the silencer as `orig` and restores it.
+preload = ["./tests/unit/_setup/silence-console.ts"]
