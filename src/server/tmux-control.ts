@@ -352,3 +352,55 @@ export class ControlPool implements TmuxControl {
     for (const cb of subs) cb(n);
   }
 }
+
+export interface CreateTmuxControlOpts {
+  tmuxBin: string;
+  tmuxConfPath: string;
+}
+
+/** Real-world factory. Production code uses this; tests use `new ControlPool`
+ *  with an injected spawn. */
+export function createTmuxControl(opts: CreateTmuxControlOpts): TmuxControl {
+  const spawn = (session: string): ControlProc => {
+    const proc = Bun.spawn(
+      [opts.tmuxBin, '-f', opts.tmuxConfPath, '-C', 'attach-session', '-t', session],
+      { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' },
+    );
+    // Bun.spawn stdout is a ReadableStream in newer versions; adapt to
+    // the on('data', ...) contract ControlClient expects.
+    const stdout = adaptReadable(proc.stdout);
+    return {
+      stdin: {
+        write: (data: string) => {
+          proc.stdin.write(data);
+          return true;
+        },
+        end: () => proc.stdin.end(),
+      },
+      stdout,
+      exited: proc.exited,
+      kill: () => proc.kill(),
+    };
+  };
+  return new ControlPool({ spawn });
+}
+
+function adaptReadable(stream: unknown): ControlProc['stdout'] {
+  // Bun.spawn stdout type varies; we accept either a ReadableStream<Uint8Array>
+  // or a Node-style stream with .on('data', ...). Return an object with the
+  // narrow `on('data', cb)` surface ControlClient uses.
+  type DataCb = (chunk: Buffer | string) => void;
+  const listeners: DataCb[] = [];
+  const readable = stream as ReadableStream<Uint8Array>;
+  (async () => {
+    const reader = readable.getReader();
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) return;
+        if (value) for (const cb of listeners) cb(Buffer.from(value));
+      }
+    } catch { /* stream errored; exited promise will resolve */ }
+  })();
+  return { on: (_e, cb) => { listeners.push(cb); } };
+}
