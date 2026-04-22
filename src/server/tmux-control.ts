@@ -285,11 +285,16 @@ export class ControlPool implements TmuxControl {
     // Forward-reference: the notification callback captures `client`. Safe
     // because stdout 'data' is async; `client` is always bound when it fires.
     const client = new ControlClient(proc, (n) => this.onNotification(client, n));
+    // Guard: detachSession called before probe resolves must not leak the
+    // child. Check cancellation after each await and kill the client if so.
+    const wasCancelled = () => this.readyPromises.get(session) === undefined;
     // Size-negotiation guard (§3.5). Swallow errors — older tmux without
     // -C WxH for refresh-client falls back to window-size latest.
     try { await client.run(['refresh-client', '-C', '10000x10000']); } catch { /* best-effort */ }
+    if (wasCancelled()) { client.kill(); return; }
     // Readiness probe. If it fails, the client is dead/unusable; propagate.
     await client.run(['display-message', '-p', 'ok']);
+    if (wasCancelled()) { client.kill(); return; }
     this.clients.set(session, client);
     this.insertionOrder.push(client);
     // When the process exits unexpectedly, evict it from the pool so that

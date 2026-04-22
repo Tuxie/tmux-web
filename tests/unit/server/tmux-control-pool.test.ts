@@ -99,4 +99,36 @@ describe('ControlPool', () => {
     pool.detachSession('main');
     await expect(pool.run(['list-sessions'])).rejects.toBeInstanceOf(NoControlClientError);
   });
+
+  test('detach-before-probe kills the spawned client rather than leaking it', async () => {
+    let killed = false;
+    const spawns: ReturnType<typeof fakeProc>[] = [];
+    const pool = new ControlPool({
+      spawn: () => {
+        const p = fakeProc();
+        const origKill = p.proc.kill;
+        p.proc.kill = () => { killed = true; origKill(); };
+        spawns.push(p);
+        return p.proc;
+      },
+    });
+
+    // Begin attach. Resolve the refresh-client probe only — then detach
+    // BEFORE the display-message probe has fired.
+    const attach = pool.attachSession('main');
+    await Promise.resolve();
+    spawns[0]!.stdout.emit('%begin 1 1 0\n%end 1 1 0\n');
+    await Promise.resolve();
+
+    // Detach while startSession is awaiting the display-message probe.
+    pool.detachSession('main');
+
+    // Resolve the probe. The cancellation guard should kill the client
+    // instead of inserting it into the pool.
+    spawns[0]!.stdout.emit('%begin 2 2 0\nok\n%end 2 2 0\n');
+    await attach;
+
+    expect(killed).toBe(true);
+    await expect(pool.run(['list-sessions'])).rejects.toBeInstanceOf(NoControlClientError);
+  });
 });
