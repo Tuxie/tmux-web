@@ -253,3 +253,100 @@ export class ControlClient {
 
   isAlive(): boolean { return this.alive; }
 }
+
+export interface ControlPoolOpts {
+  /** Spawn a tmux -C control-mode child for the given session. Returns
+   *  the proc-like handle ControlClient wraps. Injectable for tests. */
+  spawn: (session: string) => ControlProc;
+}
+
+export class ControlPool implements TmuxControl {
+  private clients = new Map<string, ControlClient>();
+  private insertionOrder: ControlClient[] = [];
+  private readyPromises = new Map<string, Promise<void>>();
+  private listeners: { [K in TmuxNotification['type']]: Array<(n: any) => void> } = {
+    sessionsChanged: [], sessionRenamed: [], sessionClosed: [],
+    windowAdd: [], windowClose: [], windowRenamed: [],
+  };
+
+  constructor(private opts: ControlPoolOpts) {}
+
+  attachSession(session: string): Promise<void> {
+    const existing = this.readyPromises.get(session);
+    if (existing) return existing;
+    const ready = this.startSession(session);
+    this.readyPromises.set(session, ready);
+    ready.catch(() => this.readyPromises.delete(session));
+    return ready;
+  }
+
+  private async startSession(session: string): Promise<void> {
+    const proc = this.opts.spawn(session);
+    const client = new ControlClient(proc, (n) => this.onNotification(client, n));
+    // Size-negotiation guard (§3.5). Swallow errors — older tmux without
+    // -C WxH for refresh-client falls back to window-size latest.
+    try { await client.run(['refresh-client', '-C', '10000x10000']); } catch { /* best-effort */ }
+    // Readiness probe. If it fails, the client is dead/unusable; propagate.
+    await client.run(['display-message', '-p', 'ok']);
+    this.clients.set(session, client);
+    this.insertionOrder.push(client);
+    // When the process exits unexpectedly, evict it from the pool so that
+    // the next-oldest entry can promote to primary.
+    void proc.exited.then(() => this.evictClient(client, session));
+  }
+
+  private evictClient(client: ControlClient, session: string): void {
+    // Remove from insertionOrder (primary promotion happens automatically
+    // since insertionOrder[0] is checked at notification-dispatch time).
+    const idx = this.insertionOrder.indexOf(client);
+    if (idx >= 0) this.insertionOrder.splice(idx, 1);
+    // Remove from clients map only if this client is still the one tracked
+    // for this session (detachSession may have already replaced it).
+    if (this.clients.get(session) === client) {
+      this.clients.delete(session);
+      this.readyPromises.delete(session);
+    }
+  }
+
+  detachSession(session: string): void {
+    const client = this.clients.get(session);
+    if (!client) { this.readyPromises.delete(session); return; }
+    this.clients.delete(session);
+    const idx = this.insertionOrder.indexOf(client);
+    if (idx >= 0) this.insertionOrder.splice(idx, 1);
+    this.readyPromises.delete(session);
+    client.kill();
+  }
+
+  run = (args: readonly string[]): Promise<string> => {
+    const primary = this.insertionOrder[0];
+    if (!primary) return Promise.reject(new NoControlClientError());
+    return primary.run(args);
+  };
+
+  on<T extends TmuxNotification['type']>(
+    event: T,
+    cb: (n: Extract<TmuxNotification, { type: T }>) => void,
+  ): () => void {
+    (this.listeners[event] as Array<(n: Extract<TmuxNotification, { type: T }>) => void>).push(cb);
+    return () => {
+      const arr = this.listeners[event];
+      const idx = (arr as any).indexOf(cb);
+      if (idx >= 0) (arr as any).splice(idx, 1);
+    };
+  }
+
+  async close(): Promise<void> {
+    for (const c of this.insertionOrder.splice(0)) c.kill();
+    this.clients.clear();
+    this.readyPromises.clear();
+  }
+
+  private onNotification(from: ControlClient, n: TmuxNotification): void {
+    // Only the primary's notifications are fanned out; others are
+    // parsed-and-dropped to avoid N-copies of each global event.
+    if (this.insertionOrder[0] !== from) return;
+    const subs = this.listeners[n.type] as Array<(n: any) => void>;
+    for (const cb of subs) cb(n);
+  }
+}
