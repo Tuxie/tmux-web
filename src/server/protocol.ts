@@ -92,10 +92,6 @@ export function processData(data: string, _currentSession: string): ProcessResul
     .replace(OSC_52_WRITE_RE, '')
     .replace(OSC_52_READ_RE, '');
 
-  if (titleChanged && detectedSession) {
-    messages.push({ session: detectedSession });
-  }
-
   return { output, messages, titleChanged, detectedSession, detectedTitle, readRequests };
 }
 

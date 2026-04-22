@@ -8,25 +8,25 @@ describe('processData', () => {
     expect(result.messages).toEqual([]);
   });
 
-  it('detects OSC 0 title sequence (BEL terminated)', () => {
+  it('detects OSC 0 title sequence without pushing a session message', () => {
     const data = '\x1b]0;mysession:1:vim - hello\x07rest';
     const result = processData(data, 'main');
-    expect(result.messages).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ session: 'mysession' }),
-      ])
-    );
+    // Session push is now %-event driven (tmux-control.ts). The OSC
+    // sniff still exposes titleChanged + detectedSession so ws.ts can
+    // update `title` on the connection, but messages[] no longer
+    // carries a {session} entry from this path.
+    expect(result.titleChanged).toBe(true);
+    expect(result.detectedSession).toBe('mysession');
+    expect(result.messages.filter(m => m.session !== undefined)).toEqual([]);
     expect(result.output).toContain('\x1b]0;');
   });
 
-  it('detects OSC 2 title sequence (ST terminated)', () => {
+  it('detects OSC 2 title sequence without pushing a session message', () => {
     const data = '\x1b]2;dev:0:zsh - test\x1b\\rest';
     const result = processData(data, 'main');
-    expect(result.messages).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ session: 'dev' }),
-      ])
-    );
+    expect(result.titleChanged).toBe(true);
+    expect(result.detectedSession).toBe('dev');
+    expect(result.messages.filter(m => m.session !== undefined)).toEqual([]);
   });
 
   it('detects OSC 52 clipboard and strips from output', () => {
@@ -61,7 +61,9 @@ describe('processData', () => {
     const data = '\x1b]0;work:0:zsh\x07some output\x1b]52;c;dGVzdA==\x07more';
     const result = processData(data, 'main');
     expect(result.output).toBe('\x1b]0;work:0:zsh\x07some outputmore');
-    expect(result.messages.some(m => m.session === 'work')).toBe(true);
+    // Session push moved off the OSC path; still only OSC 52 clipboard
+    // messages are emitted from processData under the new contract.
+    expect(result.messages.some(m => m.session === 'work')).toBe(false);
     expect(result.messages.some(m => m.clipboard === 'dGVzdA==')).toBe(true);
   });
 
