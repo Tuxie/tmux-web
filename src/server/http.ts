@@ -28,7 +28,7 @@ import { sendBytesToPane } from './tmux-inject.js';
 import { formatBracketedPasteForDrop } from './drop-paste.js';
 import { sanitizeSession } from './pty.js';
 import { execFileAsync } from './exec.js';
-import type { TmuxControl } from './tmux-control.js';
+import { NoControlClientError, type TmuxControl } from './tmux-control.js';
 import pkg from '../../package.json' with { type: 'json' };
 
 export interface HttpHandlerOptions {
@@ -330,22 +330,38 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
 
     if (pathname === '/api/sessions') {
       if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
+      let stdout: string;
       try {
-        // tmux's #{session_id} is the `$N` internal id — monotonic
-        // across the tmux server's lifetime, not 1-indexed per list.
-        // Strip the `$` so the client can render it like window ids.
-        const { stdout } = await execFileAsync(config.tmuxBin, ['list-sessions', '-F', '#{session_id}:#{session_name}']);
-        const sessions = stdout.trim().split('\n').filter(Boolean).map((line) => {
-          const [rawId, ...rest] = line.split(':');
-          const name = rest.join(':');
-          return { id: rawId.replace(/^\$/, ''), name };
-        });
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(sessions));
-      } catch {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end('[]');
+        stdout = await opts.tmuxControl.run(['list-sessions', '-F', '#{session_id}:#{session_name}']);
+      } catch (err) {
+        if (err instanceof NoControlClientError) {
+          // Cold path: no control client yet (first page load before any
+          // WS tab is open). Fall back to execFileAsync — one fork-per-op
+          // here is acceptable since it's a one-time-per-boot path.
+          try {
+            const r = await execFileAsync(config.tmuxBin, ['list-sessions', '-F', '#{session_id}:#{session_name}']);
+            stdout = r.stdout;
+          } catch {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end('[]');
+            return;
+          }
+        } else {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end('[]');
+          return;
+        }
       }
+      // tmux's #{session_id} is the `$N` internal id — monotonic
+      // across the tmux server's lifetime, not 1-indexed per list.
+      // Strip the `$` so the client can render it like window ids.
+      const sessions = stdout.trim().split('\n').filter(Boolean).map((line) => {
+        const [rawId, ...rest] = line.split(':');
+        const name = rest.join(':');
+        return { id: (rawId ?? '').replace(/^\$/, ''), name };
+      });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(sessions));
       return;
     }
 
@@ -354,8 +370,9 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
       const sess = url.searchParams.get('session') || 'main';
       try {
         // Tab-separated — see matching comment in ws.ts sendWindowState.
-        const { stdout } = await execFileAsync(config.tmuxBin, [
-          'list-windows', '-t', sess, '-F', '#{window_index}\t#{window_name}\t#{window_active}',
+        const stdout = await opts.tmuxControl.run([
+          'list-windows', '-t', sess, '-F',
+          '#{window_index}\t#{window_name}\t#{window_active}',
         ]);
         const windows = stdout.trim().split('\n').filter(Boolean).map(line => {
           const [index, name, active] = line.split('\t');
