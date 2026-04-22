@@ -123,3 +123,127 @@ export interface TmuxControl {
   ): () => void;
   close(): Promise<void>;
 }
+
+/** Minimum shape of the spawned tmux -C child process that ControlClient
+ *  needs. Matches the subset of `Bun.spawn` + Node child-process streams
+ *  we actually touch, so tests can inject a plain object. */
+export interface ControlProc {
+  stdin: { write(data: string): unknown; end(): unknown };
+  stdout: { on(event: 'data', cb: (chunk: Buffer | string) => void): unknown };
+  exited: Promise<unknown>;
+  kill(): unknown;
+}
+
+interface Pending {
+  cmdnum: number;
+  args: readonly string[];
+  resolve: (stdout: string) => void;
+  reject: (err: unknown) => void;
+  timer: ReturnType<typeof setTimeout> | null;
+}
+
+const DEFAULT_COMMAND_TIMEOUT_MS = 5_000;
+
+export interface ControlClientOpts {
+  /** Override the per-command soft timeout. Default 5 s. Tests use
+   *  short values to exercise the timeout path without wall-clock wait. */
+  commandTimeoutMs?: number;
+}
+
+export class ControlClient {
+  private parser: ControlParser;
+  private nextCmdnum = 1;
+  /** Head of the FIFO = in-flight; rest = backlog. */
+  private queue: Pending[] = [];
+  private alive = true;
+  private readonly notifyCb: (n: TmuxNotification) => void;
+  private readonly commandTimeoutMs: number;
+
+  constructor(
+    private proc: ControlProc,
+    onNotification: (n: TmuxNotification) => void = () => {},
+    opts: ControlClientOpts = {},
+  ) {
+    this.notifyCb = onNotification;
+    this.commandTimeoutMs = opts.commandTimeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS;
+    this.parser = new ControlParser({
+      onResponse: (cmdnum, output) => this.handleResponse(cmdnum, output),
+      onError: (cmdnum, stderr) => this.handleError(cmdnum, stderr),
+      onNotification: (n) => this.notifyCb(n),
+    });
+    proc.stdout.on('data', (chunk: Buffer | string) => {
+      const s = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+      this.parser.push(s);
+    });
+    void proc.exited.then(() => this.onExit());
+  }
+
+  run(args: readonly string[]): Promise<string> {
+    if (!this.alive) return Promise.reject(new TmuxCommandError(args, 'control client exited'));
+    return new Promise((resolve, reject) => {
+      const pending: Pending = {
+        cmdnum: this.nextCmdnum++,
+        args, resolve, reject,
+        timer: null,
+      };
+      this.queue.push(pending);
+      if (this.queue.length === 1) this.dispatch();
+    });
+  }
+
+  private dispatch(): void {
+    const head = this.queue[0];
+    if (!head) return;
+    this.proc.stdin.write(head.args.join(' ') + '\n');
+    head.timer = setTimeout(() => this.handleTimeout(head.cmdnum), this.commandTimeoutMs);
+  }
+
+  private handleResponse(cmdnum: number, output: string): void {
+    const head = this.queue[0];
+    if (!head) return;
+    if (head.cmdnum !== cmdnum) {
+      // Stale response for a timed-out command: drop silently.
+      return;
+    }
+    if (head.timer) clearTimeout(head.timer);
+    this.queue.shift();
+    head.resolve(output);
+    this.dispatch();
+  }
+
+  private handleError(cmdnum: number, stderr: string): void {
+    const head = this.queue[0];
+    if (!head) return;
+    if (head.cmdnum !== cmdnum) return;
+    if (head.timer) clearTimeout(head.timer);
+    this.queue.shift();
+    head.reject(new TmuxCommandError(head.args, stderr));
+    this.dispatch();
+  }
+
+  private handleTimeout(cmdnum: number): void {
+    const head = this.queue[0];
+    if (!head || head.cmdnum !== cmdnum) return;
+    // Soft timeout: advance the queue but do NOT tear down the client.
+    // A late %end/%error will be ignored via the cmdnum mismatch guard.
+    this.queue.shift();
+    head.reject(new TmuxCommandError(head.args, 'timeout'));
+    this.dispatch();
+  }
+
+  private onExit(): void {
+    if (!this.alive) return;
+    this.alive = false;
+    const queued = this.queue.splice(0);
+    for (const p of queued) {
+      if (p.timer) clearTimeout(p.timer);
+      p.reject(new TmuxCommandError(p.args, 'control client exited'));
+    }
+  }
+
+  kill(): void {
+    this.proc.kill();
+  }
+
+  isAlive(): boolean { return this.alive; }
+}
