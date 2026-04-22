@@ -1,31 +1,22 @@
-import { execFileAsync as defaultExecFile } from './exec.js';
+import type { RunCmd } from './tmux-control.js';
 
-export type ExecFileAsync = (
-  file: string,
-  args: readonly string[],
-) => Promise<{ stdout: string; stderr: string }>;
+export type { RunCmd };
 
 export interface SendBytesOpts {
-  tmuxBin: string;
+  run: RunCmd;
   /** tmux `-t` target (session, session:window, pane id …). */
   target: string;
   /** Raw byte string (one char = one byte). */
   bytes: string;
-  /** Injectable for tests; defaults to shared `execFileAsync` (5 s timeout). */
-  execFileAsync?: ExecFileAsync;
 }
 
 /** Inject raw bytes into the active pane of a tmux target via
- *  `send-keys -H <hex bytes>`. `-H` bypasses tmux's key-binding parser
- *  and writes the bytes literally to the pane's stdin — which is how
- *  OSC 52 replies, bracketed-paste delivery of file-drop paths, and any
- *  other "pretend the user typed this" flow reach the app reading
- *  /dev/tty, regardless of what tmux thinks those bytes mean. */
+ *  `send-keys -H <hex bytes>`. See the design spec §4.5 for why
+ *  this goes through control mode now. */
 export async function sendBytesToPane(opts: SendBytesOpts): Promise<void> {
-  const exec = opts.execFileAsync ?? defaultExecFile;
   const hex: string[] = [];
   for (let i = 0; i < opts.bytes.length; i++) {
     hex.push(opts.bytes.charCodeAt(i).toString(16).padStart(2, '0'));
   }
-  await exec(opts.tmuxBin, ['send-keys', '-H', '-t', opts.target, ...hex]);
+  await opts.run(['send-keys', '-H', '-t', opts.target, ...hex]);
 }

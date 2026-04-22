@@ -394,7 +394,7 @@ function handleConnection(
   const replyToRead = async (selection: string, base64: string): Promise<void> => {
     try {
       await deliverOsc52Reply({
-        tmuxBin: config.tmuxBin,
+        run: opts.tmuxControl.run,
         target: lastSession,
         selection,
         base64,

@@ -396,7 +396,7 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
       if (!config.testMode) {
         try {
           await sendBytesToPane({
-            tmuxBin: config.tmuxBin,
+            run: opts.tmuxControl.run,
             target: session,
             bytes: await formatDropPasteBytes(opts, session, hit.absolutePath),
           });
@@ -508,7 +508,7 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
       if (!config.testMode) {
         try {
           await sendBytesToPane({
-            tmuxBin: config.tmuxBin,
+            run: opts.tmuxControl.run,
             target: session,
             bytes: await formatDropPasteBytes(opts, session, absolutePath),
           });

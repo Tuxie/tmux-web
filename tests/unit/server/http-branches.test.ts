@@ -435,6 +435,14 @@ describe('http branches — direct handler (fake req/res)', () => {
   async function mkHandler(configOverrides: any = {}): Promise<any> {
     const sessionsStorePath = path.join(tmp, 'sessions.json');
     fs.writeFileSync(sessionsStorePath, JSON.stringify({ version: 1, sessions: {} }));
+    const effectiveBin: string = configOverrides.tmuxBin ?? '/bin/true';
+    // Stub tmuxControl.run: succeed for /bin/true, reject for /bin/false (mirrors
+    // execFileAsync behaviour that the inject-path tests relied on pre-RunCmd).
+    const stubRun = async (_args: readonly string[]): Promise<string> => {
+      if (effectiveBin === '/bin/false') throw new Error('stub: non-zero exit');
+      return '';
+    };
+    const stubTmuxControl: any = { run: stubRun };
     return await createHttpHandler({
       config: {
         host: '127.0.0.1', port: 0, allowedIps: new Set(['127.0.0.1']),
@@ -447,6 +455,7 @@ describe('http branches — direct handler (fake req/res)', () => {
       isCompiled: false,
       sessionsStorePath,
       dropStorage: storage,
+      tmuxControl: stubTmuxControl,
     });
   }
 
