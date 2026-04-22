@@ -22,6 +22,16 @@ jobs:
         with:
           submodules: true
 
+      # tmux + inotify-tools are pre-installed on GitHub's ubuntu-latest
+      # runner image, but minimal `act` containers ship without them.
+      # origin-check.test.ts runs the server without `--test` mode so
+      # `tmux -V` must succeed at startup; the file-drop auto-unlink
+      # path uses `inotifywait` and its tests don't run when the binary
+      # is absent, which drops `src/server/file-drop.ts` below the 95%
+      # coverage gate.
+      - name: Install tmux and inotify-tools (linux CI helpers)
+        run: sudo apt-get update && sudo apt-get install -y tmux inotify-tools
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
@@ -72,6 +82,15 @@ jobs:
         with:
           submodules: true
 
+      # Linux runner only: tmux + inotify-tools are pre-installed on
+      # GitHub's ubuntu-latest image but absent from minimal `act`
+      # containers. Coverage gate on `src/server/file-drop.ts` depends
+      # on inotifywait being probeable. macOS runners skip the
+      # auto-unlink tests via the same probe, which is fine.
+      - name: Install tmux and inotify-tools (linux CI helpers)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y tmux inotify-tools
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
@@ -98,8 +117,18 @@ jobs:
         if: runner.os == 'macOS'
         run: codesign --sign - --force tmux-web
 
-      - name: Run unit tests with coverage gate
+      # Coverage gate runs on linux only: the macOS legs skip 9
+      # linux-specific tests (inotify-driven auto-unlink in
+      # file-drop.ts, /proc/<pid>/exe → BLAKE3 pinning in
+      # foreground-process.ts + ws.ts OSC 52 flows) which drops those
+      # three files below their per-file thresholds on macOS. Tests
+      # still run on macOS; they just don't gate coverage.
+      - name: Run unit tests with coverage gate (linux)
+        if: runner.os == 'Linux'
         run: bun run coverage:check
+      - name: Run unit tests (macOS)
+        if: runner.os == 'macOS'
+        run: bun test
 
       # Post-compile verification: block release if the compiled binary
       # serves the npm @xterm/xterm bundle instead of vendor/xterm.js.

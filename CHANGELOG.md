@@ -1,11 +1,12 @@
 # Changelog
 
-## 1.7.0 — 2026-04-21
+## 1.7.0 — 2026-04-22
 
-Closes the 16-cluster codebase audit from `docs/code-analysis/2026-04-21/`. 15 clusters fully resolved, 1 partial (cluster 13's `bunx playwright` swap deferred to Bun 1.4). No breaking API changes; a few label renames, one accessibility overhaul, and one CSS class-name sweep are the biggest surface changes.
+Closes the 16-cluster codebase audit from `docs/code-analysis/2026-04-21/`. 15 clusters fully resolved, 1 partial (cluster 13's `bunx playwright` swap deferred to Bun 1.4). No breaking API changes; a few label renames, one accessibility overhaul, and one CSS class-name sweep are the biggest surface changes. Also ships a couple of post-audit colour-pipeline fixes and one new user-facing toggle (Subpixel AA per font).
 
 ### Added
 
+- **Subpixel AA per-font toggle** — new checkbox at the bottom of the Text section of the settings menu (under Line Spacing). Flips xterm's `allowTransparency` under the hood: on (default) keeps canvas-2D's LCD subpixel-AA path for crisp edges on smooth vector fonts; off switches the atlas to a transparent backdrop (grayscale AA, no halo-bg baked into edge pixels) — useful for bitmap fonts at extreme Contrast/Bias combinations where the opaque-atlas halo can mismatch a gradient body. Choice is persisted per font family in localStorage (key `tmux-web-subpixel-aa:<family>`). Toggling reloads the page because the atlas bakes the choice in at construction.
 - **Keyboard navigation for every custom dropdown** (theme / colours / font / sessions / windows). ArrowDown / ArrowUp move the active option with wrap at both ends; Enter or Space selects; Escape closes. Focus stays on the trigger; the active option is tracked via `aria-activedescendant`. Listbox / option ARIA roles applied throughout, including the context-menu popup. (Cluster 05.)
 - **Status-dot accessible names** — session-running indicators carry `aria-label="Running"` / `"Not running"` alongside the existing colour cue, so screen readers announce them instead of relying on the `title` attribute (which isn't reliably surfaced). (Cluster 05.)
 - **Boot-fetch error surfacing** — if any of `/api/session-settings`, `/api/colours`, `/api/themes`, `/api/fonts` fails at page load, each writes a labelled `console.warn`, and `main()` shows one combined user toast listing the failed resources. Previously silent. (Cluster 10.)
@@ -29,6 +30,7 @@ Closes the 16-cluster codebase audit from `docs/code-analysis/2026-04-21/`. 15 c
 
 ### Fixed
 
+- **OKLab → sRGB now gamut-maps instead of clipping per channel.** `oklabToSrgbByte` used to rely on the final `linearToSrgb` clamp to handle out-of-gamut points, which broke hue preservation asymmetrically: at Contrast = -100 with a dark background, red faded visibly darker than yellow / cyan / blue / white at the same requested OKLab L, because red's chroma can't survive at that L in sRGB and per-channel clipping turned the mismatch into a muddy dim red. Out-of-gamut points now binary-search for the largest in-gamut chroma scale along the OKLab a / b direction, preserving L and hue; at extreme contrast every hue lands at the same perceived lightness as the OKLab model promises. Also fixes `adjustSaturation` transitively — pushing Saturation > 0 on already-saturated colours previously clipped asymmetrically too.
 - **`sanitizeSession('%')` used to throw** via internal `decodeURIComponent` on malformed percent-escapes. Now falls back to the raw input (the charset filter strips the stray `%` anyway). Found by the new `fast-check` fuzz pass on first run.
 - **`safeStringEqual` is actually constant-time now.** The previous length-mismatch short-circuit leaked "wrong-length credential" through wall time — the function's name and comment promised timing safety that the implementation didn't deliver. Both buffers now pad to the longer length before `timingSafeEqual`; length mismatch still returns false via the residual equality check. (Cluster 07.)
 - **Coverage gate is enforced in release CI.** `release.yml` used to run `bun test` bare; now runs `bun run coverage:check`, so a per-file regression below 95% line / 90% func blocks a tag push. (Cluster 01.)

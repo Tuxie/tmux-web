@@ -17,7 +17,7 @@ const bundledThemesFixtureDir = path.resolve(helpersDir, '../fixtures/themes-bun
  * so test runs never read or write the developer's real
  * ~/.config/tmux-web/sessions.json.
  */
-export function startServer(cmd: string, args: string[], timeoutMs = 20_000): Promise<ChildProcess> {
+export function startServer(cmd: string, args: string[], timeoutMs = 60_000): Promise<ChildProcess> {
   return new Promise((resolve, reject) => {
     const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-e2e-store-'));
     const dropsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-e2e-drops-'));

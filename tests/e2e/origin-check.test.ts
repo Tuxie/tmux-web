@@ -7,6 +7,11 @@ const PORT = 4112;
 let server: ChildProcess | undefined;
 
 test.beforeAll(async () => {
+  // `startServer` has its own 60s timeout, but Playwright's default
+  // hook timeout is 15s — lose the race on a cold-start `act` runner
+  // where bun's first spawn is very slow. Extend so the inner timeout
+  // wins instead of Playwright cutting us off.
+  test.setTimeout(90_000);
   server = await startServer(
     'bun',
     [
