@@ -13,7 +13,6 @@ import { isOriginAllowed, logOriginReject } from './origin.js';
 import { getForegroundProcess } from './foreground-process.js';
 import { resolvePolicy, recordGrant } from './clipboard-policy.js';
 import { onDropsChange } from './file-drop.js';
-import { execFileAsync } from './exec.js';
 import { routeClientMessage, type WsAction, type PendingRead as RouterPendingRead } from './ws-router.js';
 import type { TmuxControl } from './tmux-control.js';
 
@@ -169,18 +168,17 @@ function isSafeTmuxName(name: string): boolean {
 async function applySessionAction(
   sessionName: string,
   msg: { action: string; name?: string },
-  config: ServerConfig,
+  opts: WsServerOptions,
 ): Promise<void> {
-  if (config.testMode) return;
-  const bin = config.tmuxBin;
+  if (opts.config.testMode) return;
   try {
     switch (msg.action) {
       case 'rename':
         if (typeof msg.name !== 'string' || !isSafeTmuxName(msg.name)) return;
-        await execFileAsync(bin, ['rename-session', '-t', sessionName, '--', msg.name.trim()]);
+        await opts.tmuxControl.run(['rename-session', '-t', sessionName, '--', msg.name.trim()]);
         break;
       case 'kill':
-        await execFileAsync(bin, ['kill-session', '-t', sessionName]);
+        await opts.tmuxControl.run(['kill-session', '-t', sessionName]);
         break;
     }
   } catch { /* ignore */ }
@@ -195,33 +193,32 @@ async function applySessionAction(
 async function applyWindowAction(
   sessionName: string,
   msg: { action: string; index?: string; name?: string },
-  config: ServerConfig,
+  opts: WsServerOptions,
 ): Promise<void> {
-  if (config.testMode) return;
-  const bin = config.tmuxBin;
+  if (opts.config.testMode) return;
   const target = typeof msg.index === 'string' ? `${sessionName}:${msg.index}` : sessionName;
   try {
     switch (msg.action) {
       case 'select':
         if (typeof msg.index !== 'string') return;
-        await execFileAsync(bin, ['select-window', '-t', target]);
+        await opts.tmuxControl.run(['select-window', '-t', target]);
         break;
       case 'new': {
         const args = ['new-window', '-t', sessionName];
         if (typeof msg.name === 'string' && isSafeTmuxName(msg.name)) {
           args.push('-n', msg.name.trim());
         }
-        await execFileAsync(bin, args);
+        await opts.tmuxControl.run(args);
         break;
       }
       case 'close':
         if (typeof msg.index !== 'string') return;
-        await execFileAsync(bin, ['kill-window', '-t', target]);
+        await opts.tmuxControl.run(['kill-window', '-t', target]);
         break;
       case 'rename':
         if (typeof msg.index !== 'string' || typeof msg.name !== 'string') return;
         if (!isSafeTmuxName(msg.name)) return;
-        await execFileAsync(bin, ['rename-window', '-t', target, '--', msg.name.trim()]);
+        await opts.tmuxControl.run(['rename-window', '-t', target, '--', msg.name.trim()]);
         break;
     }
   } catch { /* ignore — window may have already been closed, etc. */ }
@@ -236,13 +233,13 @@ async function applyWindowAction(
 async function applyColourVariant(
   sessionName: string,
   variant: 'dark' | 'light',
-  config: ServerConfig,
+  opts: WsServerOptions,
 ): Promise<void> {
-  if (config.testMode) return;
+  if (opts.config.testMode) return;
   const colorFgBg = variant === 'dark' ? '15;0' : '0;15';
   const run = () => Promise.all([
-    execFileAsync(config.tmuxBin, ['set-environment', '-t', sessionName, 'COLORFGBG', colorFgBg]),
-    execFileAsync(config.tmuxBin, ['set-environment', '-t', sessionName, 'CLITHEME', variant]),
+    opts.tmuxControl.run(['set-environment', '-t', sessionName, 'COLORFGBG', colorFgBg]),
+    opts.tmuxControl.run(['set-environment', '-t', sessionName, 'CLITHEME', variant]),
   ]);
   try {
     await run();
@@ -251,27 +248,27 @@ async function applyColourVariant(
   }
 }
 
-async function sendWindowState(ws: WebSocket, sessionName: string, config: ServerConfig): Promise<void> {
+async function sendWindowState(ws: WebSocket, sessionName: string, opts: WsServerOptions): Promise<void> {
   try {
     // Tab-separated fields — window names can contain any Unicode code
     // point including `:`, so `\t` is the unambiguous separator (tmux
     // window names cannot contain `\t`).
     const [winResult, titleResult] = await Promise.allSettled([
-      execFileAsync(config.tmuxBin, [
+      opts.tmuxControl.run([
         'list-windows', '-t', sessionName, '-F', '#{window_index}\t#{window_name}\t#{window_active}',
       ]),
-      execFileAsync(config.tmuxBin, [
+      opts.tmuxControl.run([
         'display-message', '-t', sessionName, '-p', '#{pane_title}',
       ]),
     ]);
     const windows: WindowInfo[] = winResult.status === 'fulfilled'
-      ? winResult.value.stdout.trim().split('\n').filter(Boolean).map(line => {
+      ? winResult.value.trim().split('\n').filter(Boolean).map(line => {
           const [index, name, active] = line.split('\t');
           return { index: index!, name: name!, active: active === '1' };
         })
       : [];
     const title = titleResult.status === 'fulfilled'
-      ? titleResult.value.stdout.trim()
+      ? titleResult.value.trim()
       : undefined;
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(frameTTMessage({ session: sessionName, windows, title }));
@@ -468,7 +465,7 @@ function handleConnection(
     if (result.titleChanged && result.detectedTitle !== lastTitle) {
       lastTitle = result.detectedTitle || '';
       if (result.detectedSession) lastSession = result.detectedSession;
-      void sendWindowState(ws, lastSession, config);
+      void sendWindowState(ws, lastSession, opts);
     }
   });
 
@@ -480,17 +477,17 @@ function handleConnection(
     switch (act.type) {
       case 'pty-write': ptyProcess.write(act.data); return;
       case 'pty-resize': ptyProcess.resize(act.cols, act.rows); return;
-      case 'colour-variant': void applyColourVariant(lastSession, act.variant, config); return;
+      case 'colour-variant': void applyColourVariant(lastSession, act.variant, opts); return;
       case 'window':
         // After the action completes, refresh the window list. tmux only
         // emits an OSC title change when the *active* window changes, so
         // closing/renaming a non-current window would otherwise leave the
         // client showing a stale tab until the user switched windows.
-        void applyWindowAction(lastSession, { action: act.action, index: act.index, name: act.name }, config)
-          .then(() => sendWindowState(ws, lastSession, config));
+        void applyWindowAction(lastSession, { action: act.action, index: act.index, name: act.name }, opts)
+          .then(() => sendWindowState(ws, lastSession, opts));
         return;
       case 'session':
-        void applySessionAction(lastSession, { action: act.action, name: act.name }, config);
+        void applySessionAction(lastSession, { action: act.action, name: act.name }, opts);
         return;
       case 'clipboard-deny':
         void replyToRead(act.selection, '');
