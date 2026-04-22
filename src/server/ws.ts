@@ -90,9 +90,15 @@ export function createWsServer(
     const s = await sessionForWindow(n.window, opts);
     if (s) void broadcastWindowsForSession(s, opts);
   }));
-  unsubscribers.push(opts.tmuxControl.on('windowClose', async (n) => {
-    const s = await sessionForWindow(n.window, opts);
-    if (s) void broadcastWindowsForSession(s, opts);
+  unsubscribers.push(opts.tmuxControl.on('windowClose', async () => {
+    // display-message against the just-closed window id returns an error
+    // (the window is already gone), so we can't resolve its owning
+    // session. Fan out windows refreshes to every live tmux-web session
+    // instead — cheap at typical session counts and guarantees external
+    // window kills don't leave the tab bar stale.
+    for (const sessionName of wsClientsBySession.keys()) {
+      void broadcastWindowsForSession(sessionName, opts);
+    }
   }));
   unsubscribers.push(opts.tmuxControl.on('windowRenamed', async (n) => {
     const s = await sessionForWindow(n.window, opts);
