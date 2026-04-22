@@ -9,9 +9,9 @@
   "scripts": {
     "dev": "bun run bun-build.ts --watch & bun run --watch src/server/index.ts",
     "build": "bun run bun-build.ts",
-    "test": "bun test && node node_modules/.bin/playwright test",
+    "test": "bun test && bunx playwright test",
     "test:unit": "bun test",
-    "test:e2e": "node node_modules/.bin/playwright test",
+    "test:e2e": "bunx playwright test",
     "coverage": "bun test --coverage --coverage-reporter=lcov --coverage-reporter=text",
     "coverage:check": "bun test --coverage --coverage-reporter=lcov && bun run scripts/check-coverage.ts",
     "start": "bun src/server/index.ts"

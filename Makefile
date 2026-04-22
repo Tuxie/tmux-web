@@ -40,10 +40,10 @@ typecheck: src/server/assets-embedded.ts
 	$(BUN) x tsc --noEmit -p tsconfig.client.json
 
 test-e2e: dist/client/xterm.js
-	node node_modules/.bin/playwright test
+	$(BUN) x playwright test
 
 test-e2e-headed: dist/client/xterm.js
-	node node_modules/.bin/playwright test --headed
+	$(BUN) x playwright test --headed
 
 # --- Benchmarks ---
 
