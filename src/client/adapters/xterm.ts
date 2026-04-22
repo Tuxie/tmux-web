@@ -51,20 +51,33 @@ export class XtermAdapter implements TerminalAdapter {
       import('@xterm/addon-image'),
     ]);
 
-    // Keep allowTransparency OFF so xterm's WebGL atlas uses subpixel AA
-    // (opaque tmpCanvas + clearColor). composeTheme feeds xterm a
-    // theme.background pre-blended with the body backdrop at the current
-    // opacity, so glyph halos come out of the atlas already matching
-    // what's behind the terminal: no coloured fringing at any opacity.
-    // RectangleRenderer skips default-bg cells, so the #page alpha slider
-    // keeps driving the visible transparency.
+    // allowTransparency: false keeps xterm's WebGL atlas on the subpixel-AA
+    // path (opaque tmpCanvas + clearColor) — canvas-2D draws each glyph
+    // with LCD-stripe subpixel AA against the atlas's opaque backdrop,
+    // giving crisp edges on smooth vector fonts. composeTheme pre-blends
+    // theme.background with the body backdrop at the current opacity so
+    // the rasterised halo-bg matches what's visible behind default-bg
+    // cells — RectangleRenderer skips those, so the #page alpha slider
+    // keeps driving visible transparency.
+    //
+    // Bitmap fonts (Amiga Topaz, mOsOul, ...) don't have AA edges at all —
+    // each glyph pixel is either fully-on or fully-off. The subpixel-AA
+    // trick gives them nothing but costs halo-correctness at extreme
+    // contrast/bias settings (the opaque atlas halo bakes in a single
+    // reference colour that can mismatch the actual visible bg at a
+    // given glyph's position, producing fringing). `subpixelAA: false`
+    // flips xterm to the transparent-backdrop path (grayscale AA, edge
+    // pixels carry real alpha) so there's nothing baked in for the
+    // composite to fight. See `getFontSubpixelAA(fontFamily)` for the
+    // per-font pref + bitmap-font default-off list.
+    const useSubpixelAA = options.subpixelAA !== false;
     this.term = new Terminal({
       fontFamily: options.fontFamily,
       // xterm throws for lineHeight < 1; clamp to 1 here, patched below after open()
       fontSize: options.fontSize,
       lineHeight: Math.max(1, options.lineHeight),
       theme: options.theme,
-      allowTransparency: false,
+      allowTransparency: !useSubpixelAA,
       allowProposedApi: true,
       scrollback: 0,
       // @ts-expect-error: scrollbar is a vendored extension not in @xterm/xterm npm types

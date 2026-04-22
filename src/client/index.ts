@@ -11,7 +11,7 @@ import { installFileDropHandler } from './ui/file-drop.js';
 import { showToast, formatBytes } from './ui/toast.js';
 import { consumeBootErrors } from './boot-errors.js';
 import { installDropsPanel } from './ui/drops-panel.js';
-import { getTopbarAutohide } from './prefs.js';
+import { getTopbarAutohide, getFontSubpixelAA } from './prefs.js';
 import { applyTheme, loadAllFonts, listThemes } from './theme.js';
 import { fetchColours, composeBgColor, composeTheme, type ITheme } from './colours.js';
 import {
@@ -173,6 +173,7 @@ async function main() {
     fgContrastStrength: settings.fgContrastStrength,
     fgContrastBias: settings.fgContrastBias,
     tuiSaturation: settings.tuiSaturation,
+    subpixelAA: getFontSubpixelAA(settings.fontFamily),
   });
   adapter.focus();
   window.__adapter = adapter;

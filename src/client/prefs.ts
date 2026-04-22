@@ -50,6 +50,41 @@ export function setTopbarAutohide(value: boolean): void {
   } catch {}
 }
 
+/** Subpixel AA toggle, stored per font family. Smooth vector fonts
+ *  (Iosevka, etc.) benefit from xterm's `allowTransparency: false`
+ *  atlas rasterisation — canvas-2D uses LCD subpixel AA against the
+ *  opaque atlas backdrop, giving crisp edges. Bitmap fonts (the Amiga
+ *  pack) don't have AA edges at all; the opaque-atlas trick only
+ *  costs them halo-correctness (atlas halo bg ≠ actual visible bg →
+ *  fringing) without any benefit. This pref lets the user (or a
+ *  known-bitmap default below) opt out of the subpixel-AA path per
+ *  font.
+ *
+ *  LocalStorage key: `tmux-web-subpixel-aa:<fontFamily>`. Absent key
+ *  → fall through to `BITMAP_FONT_DEFAULT_OFF` → default true. */
+const SUBPIXEL_AA_KEY_PREFIX = 'tmux-web-subpixel-aa:';
+
+const BITMAP_FONT_DEFAULT_OFF: ReadonlySet<string> = new Set([
+  'Topaz8 Amiga1200 Nerd Font',
+  'MicroKnight Nerd Font',
+  'mOsOul Nerd Font',
+]);
+
+export function getFontSubpixelAA(fontFamily: string): boolean {
+  try {
+    const raw = localStorage.getItem(SUBPIXEL_AA_KEY_PREFIX + fontFamily);
+    if (raw === '1') return true;
+    if (raw === '0') return false;
+  } catch {}
+  return !BITMAP_FONT_DEFAULT_OFF.has(fontFamily);
+}
+
+export function setFontSubpixelAA(fontFamily: string, value: boolean): void {
+  try {
+    localStorage.setItem(SUBPIXEL_AA_KEY_PREFIX + fontFamily, value ? '1' : '0');
+  } catch {}
+}
+
 const SHOW_WINDOW_TABS_KEY = 'tmux-web-show-window-tabs';
 
 /** Default: true (classic one-button-per-window tab strip). */

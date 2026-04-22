@@ -1,6 +1,7 @@
 import {
   getTopbarAutohide, setTopbarAutohide,
   getShowWindowTabs, setShowWindowTabs,
+  getFontSubpixelAA, setFontSubpixelAA,
 } from '../prefs.js';
 import { applyTheme, listFonts, listThemes } from '../theme.js';
 import { fetchColours } from '../colours.js';
@@ -411,6 +412,7 @@ export class Topbar {
     const btnResetColours = document.getElementById('btn-reset-colours') as HTMLButtonElement;
     const fontSelect = document.getElementById('inp-font-bundled') as HTMLSelectElement;
     const btnResetFont = document.getElementById('btn-reset-font') as HTMLButtonElement;
+    const chkSubpixelAA = document.getElementById('chk-subpixel-aa') as HTMLInputElement;
     const sldSize = document.getElementById('sld-fontsize') as HTMLInputElement;
     const inpSize = document.getElementById('inp-fontsize') as HTMLInputElement;
     const sldHeight = document.getElementById('sld-spacing') as HTMLInputElement;
@@ -594,6 +596,7 @@ export class Topbar {
       ddTheme.setValue(s.theme);
       ddColours.setValue(s.colours);
       ddFont.setValue(s.fontFamily);
+      chkSubpixelAA.checked = getFontSubpixelAA(s.fontFamily);
       for (const sp of sliders) {
         const v = String(s[sp.key]);
         sp.slider.value = sp.input.value = v;
@@ -697,6 +700,21 @@ export class Topbar {
 
     fontSelect.addEventListener('change', () => {
       commit({ fontFamily: fontSelect.value });
+      chkSubpixelAA.checked = getFontSubpixelAA(fontSelect.value);
+    });
+
+    // Subpixel AA toggle is per-font, persisted in localStorage by
+    // `setFontSubpixelAA`. xterm's `allowTransparency` is effectively
+    // init-only (the TextureAtlas bakes the opaque vs transparent
+    // choice into its canvas-2D rasterisation path), so applying a
+    // change means reloading the page — same pattern font changes use
+    // via `requiresReloadForFontChange` in the xterm adapter.
+    chkSubpixelAA.addEventListener('change', () => {
+      const current = getSettings();
+      setFontSubpixelAA(current.fontFamily, chkSubpixelAA.checked);
+      const dd = document.getElementById('menu-dropdown') as HTMLElement | null;
+      if (dd && !dd.hidden) sessionStorage.setItem('tmux-web:menu-reopen', '1');
+      location.reload();
     });
 
     btnResetFont.addEventListener('click', () => {
