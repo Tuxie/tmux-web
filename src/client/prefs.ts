@@ -50,33 +50,23 @@ export function setTopbarAutohide(value: boolean): void {
   } catch {}
 }
 
-/** Subpixel AA toggle, stored per font family. Smooth vector fonts
- *  (Iosevka, etc.) benefit from xterm's `allowTransparency: false`
- *  atlas rasterisation — canvas-2D uses LCD subpixel AA against the
- *  opaque atlas backdrop, giving crisp edges. Bitmap fonts (the Amiga
- *  pack) don't have AA edges at all; the opaque-atlas trick only
- *  costs them halo-correctness (atlas halo bg ≠ actual visible bg →
- *  fringing) without any benefit. This pref lets the user (or a
- *  known-bitmap default below) opt out of the subpixel-AA path per
- *  font.
+/** Subpixel AA toggle, stored per font family. Default on for every
+ *  font: canvas-2D's LCD subpixel AA path noticeably improves even
+ *  bitmap fonts at non-native sizes, and at native sizes there are
+ *  no AA edges to degrade either way. Users who prefer the
+ *  transparent-atlas path for a specific font (e.g. to chase halo
+ *  fringing at extreme Contrast/Bias) can opt out via the Subpixel
+ *  AA checkbox; the choice persists here, keyed by font family.
  *
- *  LocalStorage key: `tmux-web-subpixel-aa:<fontFamily>`. Absent key
- *  → fall through to `BITMAP_FONT_DEFAULT_OFF` → default true. */
+ *  LocalStorage key: `tmux-web-subpixel-aa:<fontFamily>`. */
 const SUBPIXEL_AA_KEY_PREFIX = 'tmux-web-subpixel-aa:';
-
-const BITMAP_FONT_DEFAULT_OFF: ReadonlySet<string> = new Set([
-  'Topaz8 Amiga1200 Nerd Font',
-  'MicroKnight Nerd Font',
-  'mOsOul Nerd Font',
-]);
 
 export function getFontSubpixelAA(fontFamily: string): boolean {
   try {
     const raw = localStorage.getItem(SUBPIXEL_AA_KEY_PREFIX + fontFamily);
-    if (raw === '1') return true;
     if (raw === '0') return false;
   } catch {}
-  return !BITMAP_FONT_DEFAULT_OFF.has(fontFamily);
+  return true;
 }
 
 export function setFontSubpixelAA(fontFamily: string, value: boolean): void {

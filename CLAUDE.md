@@ -376,7 +376,7 @@ IDs (do not rename):
   `tui-fg-opacity`, `fg-contrast-strength`, `fg-contrast-bias`,
   `tui-saturation`.
 - `#btn-reset-colours` / `#btn-reset-font` — reset to theme defaults
-- `#chk-subpixel-aa` — Subpixel AA checkbox (inside settings menu, under Line Spacing). Persisted per fontFamily via `getFontSubpixelAA` / `setFontSubpixelAA` in `prefs.ts` — bitmap fonts (Amiga Topaz/mOsOul/MicroKnight) default to off, everything else defaults to on. Toggling reloads the page because `allowTransparency` is effectively init-only in xterm.
+- `#chk-subpixel-aa` — Subpixel AA checkbox (inside settings menu, under Line Spacing). Persisted per fontFamily via `getFontSubpixelAA` / `setFontSubpixelAA` in `prefs.ts`; default is on for every font. Toggling reloads the page because `allowTransparency` is effectively init-only in xterm.
 
 ## Tests
 
