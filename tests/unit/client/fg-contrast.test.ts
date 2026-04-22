@@ -99,6 +99,33 @@ describe('pushLightness', () => {
     expect(Math.abs(rBright - 220)).toBeGreaterThan(50);
   });
 
+  // Regression: at strength=-100 toward a dark bgL, every hue should
+  // land at the same perceptual L (the requested bgL). Before the
+  // gamut-mapping fix in oklab.ts, per-channel sRGB clipping turned
+  // high-chroma hues (notably red) much darker than low-chroma hues
+  // (yellow, cyan, blue) at the same requested L — the user saw red
+  // fade harder than everything else at Contrast=-100.
+  test('strength=-100 lands every hue at the same output OKLab L (gamut-mapped)', async () => {
+    const { pushLightness, rgbToOklabL } = await import('../../../src/client/fg-contrast.js');
+    const bgL = 0.18;
+    const swatches: Array<[string, [number, number, number]]> = [
+      ['red',     [255, 85, 85]],
+      ['yellow',  [241, 250, 140]],
+      ['cyan',    [139, 233, 253]],
+      ['blue',    [98, 114, 164]],
+      ['white',   [248, 248, 242]],
+    ];
+    const outLs = swatches.map(([, rgb]) => {
+      const [r, g, b] = pushLightness(rgb[0]!, rgb[1]!, rgb[2]!, -100, 0, bgL);
+      return rgbToOklabL(r, g, b);
+    });
+    for (const L of outLs) {
+      expect(Math.abs(L - bgL)).toBeLessThan(0.03);
+    }
+    const spread = Math.max(...outLs) - Math.min(...outLs);
+    expect(spread).toBeLessThan(0.04);
+  });
+
   test('strength=+100, bias=0 produces hard cutoff at bgL', async () => {
     const { pushLightness } = await import('../../../src/client/fg-contrast.js');
     const bgL = 0.5;
