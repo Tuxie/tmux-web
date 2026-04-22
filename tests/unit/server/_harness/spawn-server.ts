@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHttpHandler } from '../../../../src/server/http.ts';
 import { createWsServer } from '../../../../src/server/ws.ts';
+import { createNullTmuxControl } from '../../../../src/server/tmux-control.ts';
 import type { DropStorage } from '../../../../src/server/file-drop.ts';
 import type { ServerConfig } from '../../../../src/shared/types.ts';
 
@@ -68,7 +69,7 @@ export async function startTestServer(opts: HarnessOpts = {}): Promise<Harness> 
   });
 
   const server = createServer((req, res) => { void handler(req as any, res as any); });
-  createWsServer(server, { config, tmuxConfPath, sessionsStorePath });
+  createWsServer(server, { config, tmuxConfPath, sessionsStorePath, tmuxControl: createNullTmuxControl() });
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address() as AddressInfo;

@@ -391,6 +391,18 @@ export function createTmuxControl(opts: CreateTmuxControlOpts): TmuxControl {
   return new ControlPool({ spawn });
 }
 
+/** No-op TmuxControl for `--test` mode (and anywhere else tmux must
+ *  not be touched). Every method resolves / returns the empty case. */
+export function createNullTmuxControl(): TmuxControl {
+  return {
+    attachSession: async () => {},
+    detachSession: () => {},
+    run: () => Promise.reject(new NoControlClientError()),
+    on: () => () => {},
+    close: async () => {},
+  };
+}
+
 function adaptReadable(
   stream: ReadableStream<Uint8Array>,
   onStreamError: () => void,

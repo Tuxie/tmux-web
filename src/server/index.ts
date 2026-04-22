@@ -6,6 +6,7 @@ import { parseArgs } from 'util';
 import { tmpdir, userInfo } from 'os';
 import { createHttpHandler } from './http.js';
 import { createWsServer } from './ws.js';
+import { createTmuxControl, createNullTmuxControl } from './tmux-control.js';
 import { defaultDropStorage, cleanupAll as cleanupDrops } from './file-drop.js';
 import { generateSelfSignedCert } from './tls.js';
 import type { ServerConfig } from '../shared/types.js';
@@ -341,6 +342,11 @@ Options:
   const dropStorage = defaultDropStorage();
   process.on('exit', () => { cleanupDrops(dropStorage); });
 
+  const tmuxControl = config.testMode
+    ? null
+    : createTmuxControl({ tmuxBin: config.tmuxBin, tmuxConfPath: effectiveTmuxConfPath });
+  process.on('exit', () => { void tmuxControl?.close(); });
+
   const handler = await createHttpHandler({
     config,
     htmlTemplate,
@@ -385,6 +391,7 @@ Options:
     config,
     tmuxConfPath: effectiveTmuxConfPath,
     sessionsStorePath,
+    tmuxControl: tmuxControl ?? createNullTmuxControl(),
   });
 
   const scheme = config.tls ? 'https' : 'http';

@@ -15,6 +15,7 @@ import { resolvePolicy, recordGrant } from './clipboard-policy.js';
 import { onDropsChange } from './file-drop.js';
 import { execFileAsync } from './exec.js';
 import { routeClientMessage, type WsAction, type PendingRead as RouterPendingRead } from './ws-router.js';
+import type { TmuxControl } from './tmux-control.js';
 
 export interface WsServerOptions {
   config: ServerConfig;
@@ -22,7 +23,13 @@ export interface WsServerOptions {
   /** Path to sessions.json; used for reading & writing the per-binary
    *  OSC 52 clipboard policy. */
   sessionsStorePath: string;
+  tmuxControl: TmuxControl;
 }
+
+// Counts WS clients per session name. When the count drops to zero we
+// detach the control client — no live tabs means no need for the pool
+// to hold a live tmux -C attach on that session.
+const sessionRefs = new Map<string, number>();
 
 function debug(config: ServerConfig, ...args: unknown[]): void {
   if (config.debug) process.stderr.write(`[debug] ${args.join(' ')}\n`);
@@ -69,7 +76,7 @@ export function createWsServer(
   httpServer: HttpServer | HttpsServer,
   opts: WsServerOptions,
 ): WebSocketServer {
-  const { config, tmuxConfPath, sessionsStorePath } = opts;
+  const { config } = opts;
   const wss = new WebSocketServer({ noServer: true });
 
   httpServer.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
@@ -113,7 +120,7 @@ export function createWsServer(
   });
 
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
-    handleConnection(ws, req, config, tmuxConfPath, sessionsStorePath);
+    handleConnection(ws, req, opts);
   });
 
   return wss;
@@ -256,10 +263,9 @@ async function sendWindowState(ws: WebSocket, sessionName: string, config: Serve
 function handleConnection(
   ws: WebSocket,
   req: IncomingMessage,
-  config: ServerConfig,
-  tmuxConfPath: string,
-  sessionsStorePath: string,
+  opts: WsServerOptions,
 ): void {
+  const { config, tmuxConfPath, sessionsStorePath } = opts;
   // safe: Duplex does not declare remoteAddress but the underlying socket does; see https://nodejs.org/api/net.html#socketremoteaddress
   const remoteIp = (req.socket as any).remoteAddress || '';
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
@@ -273,6 +279,13 @@ function handleConnection(
   const env = buildPtyEnv();
   const ptyProcess = spawnPty({ command, env, cols, rows });
   debug(config, `PTY spawned for session=${session} cmd=${command.file}`);
+
+  if (!config.testMode) {
+    void opts.tmuxControl.attachSession(session).catch((err) => {
+      debug(config, `attachSession(${session}) failed: ${(err as Error).message}`);
+    });
+  }
+  sessionRefs.set(session, (sessionRefs.get(session) ?? 0) + 1);
 
   let lastSession = session;
   let lastTitle = '';
@@ -429,6 +442,13 @@ function handleConnection(
   ws.on('close', () => {
     debug(config, `WS closed from ${remoteIp} session=${session}`);
     unsubscribeDrops();
+    const next = (sessionRefs.get(session) ?? 1) - 1;
+    if (next <= 0) {
+      sessionRefs.delete(session);
+      if (!config.testMode) opts.tmuxControl.detachSession(session);
+    } else {
+      sessionRefs.set(session, next);
+    }
     ptyProcess.kill();
   });
   ws.on('error', () => {});
