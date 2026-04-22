@@ -357,6 +357,7 @@ Options:
     isCompiled,
     sessionsStorePath,
     dropStorage,
+    tmuxControl: tmuxControl ?? createNullTmuxControl(),
   });
 
   let server: http.Server | https.Server;

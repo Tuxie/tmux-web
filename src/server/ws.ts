@@ -415,7 +415,7 @@ function handleConnection(
 
   const handleReadRequest = async (selection: string): Promise<void> => {
     // Find who asked so we can gate policy on the exe path.
-    const fg = await getForegroundProcess(config.tmuxBin, lastSession);
+    const fg = await getForegroundProcess(opts.tmuxControl.run, lastSession);
     const exePath = fg.exePath;
     if (!exePath) {
       // Can't identify the caller — deny silently. Most apps handle an

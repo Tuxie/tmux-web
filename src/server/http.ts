@@ -28,6 +28,7 @@ import { sendBytesToPane } from './tmux-inject.js';
 import { formatBracketedPasteForDrop } from './drop-paste.js';
 import { sanitizeSession } from './pty.js';
 import { execFileAsync } from './exec.js';
+import type { TmuxControl } from './tmux-control.js';
 import pkg from '../../package.json' with { type: 'json' };
 
 export interface HttpHandlerOptions {
@@ -40,6 +41,7 @@ export interface HttpHandlerOptions {
   isCompiled?: boolean;
   sessionsStorePath: string;
   dropStorage: DropStorage;
+  tmuxControl: TmuxControl;
 }
 
 /** Per-session upload cap. 50 MiB — comfortably larger than typical
@@ -71,14 +73,15 @@ function hasClipboardField(patch: unknown): boolean {
 /** Thin wrapper that resolves the foreground process (so we know
  *  whether to shell-quote) and hands off to the pure formatter. */
 async function formatDropPasteBytes(
-  config: ServerConfig,
+  opts: HttpHandlerOptions,
   session: string,
   absolutePath: string,
 ): Promise<string> {
+  const config = opts.config;
   let exePath: string | null = null;
   if (!config.testMode) {
     try {
-      const fg = await getForegroundProcess(config.tmuxBin, session);
+      const fg = await getForegroundProcess(opts.tmuxControl.run, session);
       exePath = fg.exePath;
     } catch { /* foreground lookup failed — raw path */ }
   }
@@ -395,7 +398,7 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
           await sendBytesToPane({
             tmuxBin: config.tmuxBin,
             target: session,
-            bytes: await formatDropPasteBytes(config, session, hit.absolutePath),
+            bytes: await formatDropPasteBytes(opts, session, hit.absolutePath),
           });
         } catch (err) {
           debug(config, `drop re-paste send-keys failed: ${err}`);
@@ -507,7 +510,7 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
           await sendBytesToPane({
             tmuxBin: config.tmuxBin,
             target: session,
-            bytes: await formatDropPasteBytes(config, session, absolutePath),
+            bytes: await formatDropPasteBytes(opts, session, absolutePath),
           });
         } catch (err) {
           debug(config, `drop send-keys failed: ${err}`);
