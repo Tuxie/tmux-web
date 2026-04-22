@@ -15,6 +15,7 @@ Playwright's current config runs test files serially per project (no `fullyParal
 | 4115  | tests/e2e/file-drop.test.ts                | file-drop upload pipeline |
 | 4116  | reserved                                   | OSC 52 read-consent E2E (deferred) |
 | 4117  | tests/e2e/control-mode-notifications.spec.ts | real-tmux rename-session push |
-| 4118+ | new tests                                  | pick the next unused port here |
+| 4118  | tests/e2e/control-mode-window-size.spec.ts | control client window-size regression guard |
+| 4119+ | new tests                                  | pick the next unused port here |
 
 If you add a new e2e test that spawns its own server, append a row and use the next free port.
