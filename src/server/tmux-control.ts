@@ -282,6 +282,8 @@ export class ControlPool implements TmuxControl {
 
   private async startSession(session: string): Promise<void> {
     const proc = this.opts.spawn(session);
+    // Forward-reference: the notification callback captures `client`. Safe
+    // because stdout 'data' is async; `client` is always bound when it fires.
     const client = new ControlClient(proc, (n) => this.onNotification(client, n));
     // Size-negotiation guard (§3.5). Swallow errors — older tmux without
     // -C WxH for refresh-client falls back to window-size latest.
