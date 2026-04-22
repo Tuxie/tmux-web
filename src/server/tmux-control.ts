@@ -362,19 +362,25 @@ export interface CreateTmuxControlOpts {
  *  with an injected spawn. */
 export function createTmuxControl(opts: CreateTmuxControlOpts): TmuxControl {
   const spawn = (session: string): ControlProc => {
+    // stderr is `'ignore'` rather than `'pipe'` because errors surface via
+    // the `%error` envelope on stdout — stderr would just buffer
+    // unboundedly inside Bun until the child exits.
     const proc = Bun.spawn(
       [opts.tmuxBin, '-f', opts.tmuxConfPath, '-C', 'attach-session', '-t', session],
-      { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' },
+      { stdin: 'pipe', stdout: 'pipe', stderr: 'ignore' },
     );
-    // Bun.spawn stdout is a ReadableStream in newer versions; adapt to
-    // the on('data', ...) contract ControlClient expects.
-    const stdout = adaptReadable(proc.stdout);
+    // Bun.spawn stdout is a ReadableStream<Uint8Array>; adapt to the
+    // `on('data', ...)` contract ControlClient expects. On a stream-side
+    // error (rare — usually means the child died), `proc.kill()` makes
+    // sure `proc.exited` resolves so ControlClient.onExit fires and
+    // drains the in-flight queue instead of waiting on per-command
+    // soft timeouts.
+    const stdout = adaptReadable(proc.stdout, () => proc.kill());
     return {
       stdin: {
-        write: (data: string) => {
-          proc.stdin.write(data);
-          return true;
-        },
+        // tmux in -C mode reads stdin line-by-line and eagerly; FileSink.write
+        // is effectively fire-and-forget here, so we don't await its Promise.
+        write: (data: string) => { proc.stdin.write(data); return true; },
         end: () => proc.stdin.end(),
       },
       stdout,
@@ -385,22 +391,23 @@ export function createTmuxControl(opts: CreateTmuxControlOpts): TmuxControl {
   return new ControlPool({ spawn });
 }
 
-function adaptReadable(stream: unknown): ControlProc['stdout'] {
-  // Bun.spawn stdout type varies; we accept either a ReadableStream<Uint8Array>
-  // or a Node-style stream with .on('data', ...). Return an object with the
-  // narrow `on('data', cb)` surface ControlClient uses.
+function adaptReadable(
+  stream: ReadableStream<Uint8Array>,
+  onStreamError: () => void,
+): ControlProc['stdout'] {
   type DataCb = (chunk: Buffer | string) => void;
   const listeners: DataCb[] = [];
-  const readable = stream as ReadableStream<Uint8Array>;
   (async () => {
-    const reader = readable.getReader();
+    const reader = stream.getReader();
     try {
       for (;;) {
         const { value, done } = await reader.read();
         if (done) return;
         if (value) for (const cb of listeners) cb(Buffer.from(value));
       }
-    } catch { /* stream errored; exited promise will resolve */ }
+    } catch {
+      onStreamError();
+    }
   })();
   return { on: (_e, cb) => { listeners.push(cb); } };
 }
