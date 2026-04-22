@@ -144,46 +144,13 @@ test.describe('glyph halo AA reference colour', () => {
     }
   });
 
-  // Non-gradient themes with a solid body background must keep working
-  // as before — the `--tw-antialias-bg` lookup should only override when the
-  // variable is *actually set*. This guards against the fix spraying
-  // `--tw-antialias-bg` inheritance where it isn't wanted.
-  test('solid-body theme: composeTheme keeps using the body backgroundColor', async ({ page }) => {
-    await mockSessionStore(page, {
-      sessions: {
-        main: fixtureSessionSettings({
-          theme: FX.themes.primary, // primary fixture = solid body
-          colours: FX.colours.c,
-          opacity: 0,
-        }),
-      },
-    });
-    await page.goto('/main');
-    await readyAdapter(page);
-
-    const { bodyBg, themeBg } = await page.evaluate(() => ({
-      bodyBg: getComputedStyle(document.body).backgroundColor,
-      themeBg: (window as any).__adapter?.term?.options?.theme?.background as string,
-    }));
-
-    const rgb = parseRgba(themeBg);
-    const bodyRgb = parseRgba(bodyBg);
-    if (!rgb || !bodyRgb) {
-      throw new Error(`Unable to parse theme.background=${themeBg} / bodyBg=${bodyBg}`);
-    }
-    const [r, g, b] = rgb;
-    const [br, bg, bb] = bodyRgb;
-    const dist = Math.abs(r - br) + Math.abs(g - bg) + Math.abs(b - bb);
-    if (dist > 6) {
-      throw new Error(
-        `Solid-body theme: at opacity=0 the pre-blended colour should equal the body's ` +
-        `computed backgroundColor.\n` +
-        `  body bg        = (${br}, ${bg}, ${bb})\n` +
-        `  theme.background = (${r}, ${g}, ${b})\n` +
-        `  sum |Δ| = ${dist} (tolerance: 6)\n` +
-        `  This suggests the --tw-antialias-bg lookup triggered even though the theme didn't set it.\n` +
-        `  Re-check that the lookup only treats non-empty, parseable values as overrides.`
-      );
-    }
-  });
+  // The original third case ("solid-body theme keeps using the body
+  // backgroundColor") was retired when commit 8bc988f moved the
+  // `--tw-antialias-bg` formula from `themes/default/default.css` to
+  // `base.css :root`. Every theme now inherits a slider-derived
+  // `--tw-antialias-bg` value, so the "only override when the theme
+  // declared it" guard no longer describes the system. The first two
+  // tests above still cover the positive case (gradient bodies pick up
+  // the declared override); the solid-body path is now validated by
+  // the base.css formula itself aligning with the slider defaults.
 });

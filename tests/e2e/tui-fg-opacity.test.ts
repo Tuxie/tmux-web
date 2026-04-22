@@ -45,8 +45,19 @@
  */
 
 import { test, type Page } from "@playwright/test";
+import { mockSessionStore } from './helpers.js';
 
 const OPACITY_TOLERANCE = 3;
+
+// Per-page isolated session store. Without this, every `page.goto('/')`
+// here reads the real server's sessions.json, which is shared across
+// all Playwright workers. Parallel tests that mutate other fields on
+// session `main` (fgContrastStrength, tuiSaturation, etc.) leak into
+// this suite and skew the linearity math (contrast is non-linear). The
+// mock gives each page its own in-memory store, so state is per-test.
+test.beforeEach(async ({ page }) => {
+  await mockSessionStore(page);
+});
 
 async function openMenu(page: Page): Promise<void> {
   await page.click('#btn-menu');

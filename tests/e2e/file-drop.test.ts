@@ -61,14 +61,19 @@ test.describe('file-drop upload pipeline', () => {
     expect(uploadRes.status()).toBe(200);
     const uploaded = await uploadRes.json();
 
-    // List drops and verify the uploaded file appears
+    // List drops and verify the uploaded file appears. `/api/drops`
+    // intentionally omits `absolutePath` (cluster 06 hardening) — match
+    // by filename + size instead.
     const listRes = await request.get(`http://127.0.0.1:${PORT}/api/drops`, {
       failOnStatusCode: false,
     });
     expect(listRes.status()).toBe(200);
     const { drops } = await listRes.json();
     expect(Array.isArray(drops)).toBe(true);
-    const found = drops.some((d: { absolutePath?: string }) => d.absolutePath === uploaded.path);
+    const found = drops.some(
+      (d: { filename?: string; size?: number }) =>
+        d.filename === uploaded.filename && d.size === uploaded.size,
+    );
     expect(found).toBe(true);
   });
 
@@ -84,14 +89,18 @@ test.describe('file-drop upload pipeline', () => {
       failOnStatusCode: false,
     });
     expect(uploadRes.status()).toBe(200);
+    const uploaded = await uploadRes.json();
 
-    // Get the dropId from the listing
+    // Get the dropId from the listing. `/api/drops` omits `absolutePath`
+    // (cluster 06 hardening); match by filename + size.
     const listRes = await request.get(`http://127.0.0.1:${PORT}/api/drops`, {
       failOnStatusCode: false,
     });
     const { drops } = await listRes.json();
-    const uploaded = await uploadRes.json();
-    const drop = drops.find((d: { absolutePath?: string }) => d.absolutePath === uploaded.path);
+    const drop = drops.find(
+      (d: { filename?: string; size?: number }) =>
+        d.filename === uploaded.filename && d.size === uploaded.size,
+    );
     expect(drop).toBeTruthy();
 
     // Delete it
@@ -108,7 +117,10 @@ test.describe('file-drop upload pipeline', () => {
       failOnStatusCode: false,
     });
     const { drops: drops2 } = await listRes2.json();
-    const stillThere = drops2.some((d: { absolutePath?: string }) => d.absolutePath === uploaded.path);
+    const stillThere = drops2.some(
+      (d: { filename?: string; size?: number }) =>
+        d.filename === uploaded.filename && d.size === uploaded.size,
+    );
     expect(stillThere).toBe(false);
   });
 });
