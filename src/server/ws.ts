@@ -13,8 +13,8 @@ import { isOriginAllowed, logOriginReject } from './origin.js';
 import { getForegroundProcess } from './foreground-process.js';
 import { resolvePolicy, recordGrant } from './clipboard-policy.js';
 import { onDropsChange } from './file-drop.js';
-import { execFileAsync } from './exec.js';
 import { routeClientMessage, type WsAction, type PendingRead as RouterPendingRead } from './ws-router.js';
+import type { TmuxControl } from './tmux-control.js';
 
 export interface WsServerOptions {
   config: ServerConfig;
@@ -22,7 +22,17 @@ export interface WsServerOptions {
   /** Path to sessions.json; used for reading & writing the per-binary
    *  OSC 52 clipboard policy. */
   sessionsStorePath: string;
+  tmuxControl: TmuxControl;
 }
+
+// Counts WS clients per session name. When the count drops to zero we
+// detach the control client — no live tabs means no need for the pool
+// to hold a live tmux -C attach on that session.
+const sessionRefs = new Map<string, number>();
+
+/** WS connection registry keyed by session name. Used to fan out
+ *  \x00TT notifications driven by tmux %-events. */
+const wsClientsBySession = new Map<string, Set<WebSocket>>();
 
 function debug(config: ServerConfig, ...args: unknown[]): void {
   if (config.debug) process.stderr.write(`[debug] ${args.join(' ')}\n`);
@@ -69,8 +79,33 @@ export function createWsServer(
   httpServer: HttpServer | HttpsServer,
   opts: WsServerOptions,
 ): WebSocketServer {
-  const { config, tmuxConfPath, sessionsStorePath } = opts;
+  const { config } = opts;
   const wss = new WebSocketServer({ noServer: true });
+
+  const unsubscribers: Array<() => void> = [];
+  unsubscribers.push(opts.tmuxControl.on('sessionsChanged', () => { broadcastSessionRefresh(); }));
+  unsubscribers.push(opts.tmuxControl.on('sessionRenamed',  () => { broadcastSessionRefresh(); }));
+  unsubscribers.push(opts.tmuxControl.on('sessionClosed',   () => { broadcastSessionRefresh(); }));
+  unsubscribers.push(opts.tmuxControl.on('windowAdd', async (n) => {
+    const s = await sessionForWindow(n.window, opts);
+    if (s) void broadcastWindowsForSession(s, opts);
+  }));
+  unsubscribers.push(opts.tmuxControl.on('windowClose', async () => {
+    // display-message against the just-closed window id returns an error
+    // (the window is already gone), so we can't resolve its owning
+    // session. Fan out windows refreshes to every live tmux-web session
+    // instead — cheap at typical session counts and guarantees external
+    // window kills don't leave the tab bar stale.
+    for (const sessionName of wsClientsBySession.keys()) {
+      void broadcastWindowsForSession(sessionName, opts);
+    }
+  }));
+  unsubscribers.push(opts.tmuxControl.on('windowRenamed', async (n) => {
+    const s = await sessionForWindow(n.window, opts);
+    if (s) void broadcastWindowsForSession(s, opts);
+  }));
+
+  wss.on('close', () => { for (const u of unsubscribers) u(); });
 
   httpServer.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
     // safe: Duplex does not declare remoteAddress but the underlying socket does; see https://nodejs.org/api/net.html#socketremoteaddress
@@ -113,7 +148,7 @@ export function createWsServer(
   });
 
   wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
-    handleConnection(ws, req, config, tmuxConfPath, sessionsStorePath);
+    handleConnection(ws, req, opts);
   });
 
   return wss;
@@ -139,18 +174,17 @@ function isSafeTmuxName(name: string): boolean {
 async function applySessionAction(
   sessionName: string,
   msg: { action: string; name?: string },
-  config: ServerConfig,
+  opts: WsServerOptions,
 ): Promise<void> {
-  if (config.testMode) return;
-  const bin = config.tmuxBin;
+  if (opts.config.testMode) return;
   try {
     switch (msg.action) {
       case 'rename':
         if (typeof msg.name !== 'string' || !isSafeTmuxName(msg.name)) return;
-        await execFileAsync(bin, ['rename-session', '-t', sessionName, '--', msg.name.trim()]);
+        await opts.tmuxControl.run(['rename-session', '-t', sessionName, '--', msg.name.trim()]);
         break;
       case 'kill':
-        await execFileAsync(bin, ['kill-session', '-t', sessionName]);
+        await opts.tmuxControl.run(['kill-session', '-t', sessionName]);
         break;
     }
   } catch { /* ignore */ }
@@ -165,33 +199,32 @@ async function applySessionAction(
 async function applyWindowAction(
   sessionName: string,
   msg: { action: string; index?: string; name?: string },
-  config: ServerConfig,
+  opts: WsServerOptions,
 ): Promise<void> {
-  if (config.testMode) return;
-  const bin = config.tmuxBin;
+  if (opts.config.testMode) return;
   const target = typeof msg.index === 'string' ? `${sessionName}:${msg.index}` : sessionName;
   try {
     switch (msg.action) {
       case 'select':
         if (typeof msg.index !== 'string') return;
-        await execFileAsync(bin, ['select-window', '-t', target]);
+        await opts.tmuxControl.run(['select-window', '-t', target]);
         break;
       case 'new': {
         const args = ['new-window', '-t', sessionName];
         if (typeof msg.name === 'string' && isSafeTmuxName(msg.name)) {
           args.push('-n', msg.name.trim());
         }
-        await execFileAsync(bin, args);
+        await opts.tmuxControl.run(args);
         break;
       }
       case 'close':
         if (typeof msg.index !== 'string') return;
-        await execFileAsync(bin, ['kill-window', '-t', target]);
+        await opts.tmuxControl.run(['kill-window', '-t', target]);
         break;
       case 'rename':
         if (typeof msg.index !== 'string' || typeof msg.name !== 'string') return;
         if (!isSafeTmuxName(msg.name)) return;
-        await execFileAsync(bin, ['rename-window', '-t', target, '--', msg.name.trim()]);
+        await opts.tmuxControl.run(['rename-window', '-t', target, '--', msg.name.trim()]);
         break;
     }
   } catch { /* ignore — window may have already been closed, etc. */ }
@@ -206,13 +239,13 @@ async function applyWindowAction(
 async function applyColourVariant(
   sessionName: string,
   variant: 'dark' | 'light',
-  config: ServerConfig,
+  opts: WsServerOptions,
 ): Promise<void> {
-  if (config.testMode) return;
+  if (opts.config.testMode) return;
   const colorFgBg = variant === 'dark' ? '15;0' : '0;15';
   const run = () => Promise.all([
-    execFileAsync(config.tmuxBin, ['set-environment', '-t', sessionName, 'COLORFGBG', colorFgBg]),
-    execFileAsync(config.tmuxBin, ['set-environment', '-t', sessionName, 'CLITHEME', variant]),
+    opts.tmuxControl.run(['set-environment', '-t', sessionName, 'COLORFGBG', colorFgBg]),
+    opts.tmuxControl.run(['set-environment', '-t', sessionName, 'CLITHEME', variant]),
   ]);
   try {
     await run();
@@ -221,27 +254,27 @@ async function applyColourVariant(
   }
 }
 
-async function sendWindowState(ws: WebSocket, sessionName: string, config: ServerConfig): Promise<void> {
+async function sendWindowState(ws: WebSocket, sessionName: string, opts: WsServerOptions): Promise<void> {
   try {
     // Tab-separated fields — window names can contain any Unicode code
     // point including `:`, so `\t` is the unambiguous separator (tmux
     // window names cannot contain `\t`).
     const [winResult, titleResult] = await Promise.allSettled([
-      execFileAsync(config.tmuxBin, [
+      opts.tmuxControl.run([
         'list-windows', '-t', sessionName, '-F', '#{window_index}\t#{window_name}\t#{window_active}',
       ]),
-      execFileAsync(config.tmuxBin, [
+      opts.tmuxControl.run([
         'display-message', '-t', sessionName, '-p', '#{pane_title}',
       ]),
     ]);
     const windows: WindowInfo[] = winResult.status === 'fulfilled'
-      ? winResult.value.stdout.trim().split('\n').filter(Boolean).map(line => {
+      ? winResult.value.trim().split('\n').filter(Boolean).map(line => {
           const [index, name, active] = line.split('\t');
           return { index: index!, name: name!, active: active === '1' };
         })
       : [];
     const title = titleResult.status === 'fulfilled'
-      ? titleResult.value.stdout.trim()
+      ? titleResult.value.trim()
       : undefined;
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(frameTTMessage({ session: sessionName, windows, title }));
@@ -253,13 +286,64 @@ async function sendWindowState(ws: WebSocket, sessionName: string, config: Serve
   }
 }
 
+/** Fire a {session: name} push to every connected WS client. The client's
+ *  on-session handler re-fetches /api/sessions and /api/windows, so this
+ *  push is just a "refresh your session list" signal. */
+function broadcastSessionRefresh(): void {
+  if (wsClientsBySession.size === 0) return;
+  for (const [sessionName, clients] of wsClientsBySession) {
+    for (const ws of clients) {
+      if (ws.readyState !== WebSocket.OPEN) continue;
+      ws.send(frameTTMessage({ session: sessionName }));
+    }
+  }
+}
+
+async function broadcastWindowsForSession(
+  sessionName: string,
+  opts: WsServerOptions,
+): Promise<void> {
+  const clients = wsClientsBySession.get(sessionName);
+  if (!clients || clients.size === 0) return;
+  try {
+    const stdout = await opts.tmuxControl.run([
+      'list-windows', '-t', sessionName, '-F',
+      '#{window_index}\t#{window_name}\t#{window_active}',
+    ]);
+    const windows: WindowInfo[] = stdout.split('\n').filter(Boolean).map(line => {
+      const [index, name, active] = line.split('\t');
+      return { index: index!, name: name!, active: active === '1' };
+    });
+    for (const ws of clients) {
+      if (ws.readyState !== WebSocket.OPEN) continue;
+      ws.send(frameTTMessage({ session: sessionName, windows }));
+    }
+  } catch { /* non-fatal — command might fail while session dying */ }
+}
+
+/** Resolve a tmux window id (e.g., "@17") to its owning session name
+ *  by running display-message through the primary. */
+async function sessionForWindow(
+  windowId: string,
+  opts: WsServerOptions,
+): Promise<string | null> {
+  try {
+    const stdout = await opts.tmuxControl.run([
+      'display-message', '-p', '-t', windowId, '#{session_name}',
+    ]);
+    const name = stdout.trim();
+    return name || null;
+  } catch {
+    return null;
+  }
+}
+
 function handleConnection(
   ws: WebSocket,
   req: IncomingMessage,
-  config: ServerConfig,
-  tmuxConfPath: string,
-  sessionsStorePath: string,
+  opts: WsServerOptions,
 ): void {
+  const { config, tmuxConfPath, sessionsStorePath } = opts;
   // safe: Duplex does not declare remoteAddress but the underlying socket does; see https://nodejs.org/api/net.html#socketremoteaddress
   const remoteIp = (req.socket as any).remoteAddress || '';
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
@@ -273,6 +357,16 @@ function handleConnection(
   const env = buildPtyEnv();
   const ptyProcess = spawnPty({ command, env, cols, rows });
   debug(config, `PTY spawned for session=${session} cmd=${command.file}`);
+
+  if (!config.testMode) {
+    void opts.tmuxControl.attachSession(session).catch((err) => {
+      debug(config, `attachSession(${session}) failed: ${(err as Error).message}`);
+    });
+  }
+  sessionRefs.set(session, (sessionRefs.get(session) ?? 0) + 1);
+  let sessionSet = wsClientsBySession.get(session);
+  if (!sessionSet) { sessionSet = new Set(); wsClientsBySession.set(session, sessionSet); }
+  sessionSet.add(ws);
 
   let lastSession = session;
   let lastTitle = '';
@@ -303,7 +397,7 @@ function handleConnection(
   const replyToRead = async (selection: string, base64: string): Promise<void> => {
     try {
       await deliverOsc52Reply({
-        tmuxBin: config.tmuxBin,
+        run: opts.tmuxControl.run,
         target: lastSession,
         selection,
         base64,
@@ -324,7 +418,7 @@ function handleConnection(
 
   const handleReadRequest = async (selection: string): Promise<void> => {
     // Find who asked so we can gate policy on the exe path.
-    const fg = await getForegroundProcess(config.tmuxBin, lastSession);
+    const fg = await getForegroundProcess(opts.tmuxControl.run, lastSession);
     const exePath = fg.exePath;
     if (!exePath) {
       // Can't identify the caller — deny silently. Most apps handle an
@@ -377,7 +471,7 @@ function handleConnection(
     if (result.titleChanged && result.detectedTitle !== lastTitle) {
       lastTitle = result.detectedTitle || '';
       if (result.detectedSession) lastSession = result.detectedSession;
-      void sendWindowState(ws, lastSession, config);
+      void sendWindowState(ws, lastSession, opts);
     }
   });
 
@@ -389,17 +483,17 @@ function handleConnection(
     switch (act.type) {
       case 'pty-write': ptyProcess.write(act.data); return;
       case 'pty-resize': ptyProcess.resize(act.cols, act.rows); return;
-      case 'colour-variant': void applyColourVariant(lastSession, act.variant, config); return;
+      case 'colour-variant': void applyColourVariant(lastSession, act.variant, opts); return;
       case 'window':
         // After the action completes, refresh the window list. tmux only
         // emits an OSC title change when the *active* window changes, so
         // closing/renaming a non-current window would otherwise leave the
         // client showing a stale tab until the user switched windows.
-        void applyWindowAction(lastSession, { action: act.action, index: act.index, name: act.name }, config)
-          .then(() => sendWindowState(ws, lastSession, config));
+        void applyWindowAction(lastSession, { action: act.action, index: act.index, name: act.name }, opts)
+          .then(() => sendWindowState(ws, lastSession, opts));
         return;
       case 'session':
-        void applySessionAction(lastSession, { action: act.action, name: act.name }, config);
+        void applySessionAction(lastSession, { action: act.action, name: act.name }, opts);
         return;
       case 'clipboard-deny':
         void replyToRead(act.selection, '');
@@ -429,6 +523,15 @@ function handleConnection(
   ws.on('close', () => {
     debug(config, `WS closed from ${remoteIp} session=${session}`);
     unsubscribeDrops();
+    sessionSet?.delete(ws);
+    if (sessionSet && sessionSet.size === 0) wsClientsBySession.delete(session);
+    const next = (sessionRefs.get(session) ?? 1) - 1;
+    if (next <= 0) {
+      sessionRefs.delete(session);
+      if (!config.testMode) opts.tmuxControl.detachSession(session);
+    } else {
+      sessionRefs.set(session, next);
+    }
     ptyProcess.kill();
   });
   ws.on('error', () => {});

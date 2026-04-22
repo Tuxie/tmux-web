@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import { Readable } from 'node:stream';
-import { startTestServer, type Harness } from './_harness/spawn-server.ts';
+import { startTestServer, tmuxControlFromBin, type Harness } from './_harness/spawn-server.ts';
 import { createHttpHandler } from '../../../src/server/http.ts';
 import { writeDrop, type DropStorage } from '../../../src/server/file-drop.ts';
 
@@ -184,10 +184,10 @@ describe('http branches — harness-based', () => {
   });
 
   test('GET /api/windows parses tab-separated "idx\\tname\\tactive" lines', async () => {
-    // /bin/echo echoes its args; we pass a tmuxBin that prints exactly one window line.
+    // Provide a TmuxControl stub backed by a script that prints exactly one window line.
     const script = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'tw-fake-tmux-')), 'tmux');
     fs.writeFileSync(script, '#!/bin/sh\nprintf "0\\tmain\\t1\\n"\n', { mode: 0o755 });
-    h = await startTestServer({ tmuxBin: script });
+    h = await startTestServer({ tmuxBin: script, tmuxControl: tmuxControlFromBin(script) });
     const r = await httpReq(h.url + '/api/windows?session=main');
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual([{ index: '0', name: 'main', active: true }]);
@@ -198,7 +198,7 @@ describe('http branches — harness-based', () => {
     // names containing a colon (e.g. `node:server` → name=`node`, active=`server`).
     const script = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'tw-fake-tmux-')), 'tmux');
     fs.writeFileSync(script, '#!/bin/sh\nprintf "3\\tnode:server\\t1\\n"\n', { mode: 0o755 });
-    h = await startTestServer({ tmuxBin: script });
+    h = await startTestServer({ tmuxBin: script, tmuxControl: tmuxControlFromBin(script) });
     const r = await httpReq(h.url + '/api/windows?session=main');
     expect(await r.json()).toEqual([{ index: '3', name: 'node:server', active: true }]);
   });
@@ -435,6 +435,14 @@ describe('http branches — direct handler (fake req/res)', () => {
   async function mkHandler(configOverrides: any = {}): Promise<any> {
     const sessionsStorePath = path.join(tmp, 'sessions.json');
     fs.writeFileSync(sessionsStorePath, JSON.stringify({ version: 1, sessions: {} }));
+    const effectiveBin: string = configOverrides.tmuxBin ?? '/bin/true';
+    // Stub tmuxControl.run: succeed for /bin/true, reject for /bin/false (mirrors
+    // execFileAsync behaviour that the inject-path tests relied on pre-RunCmd).
+    const stubRun = async (_args: readonly string[]): Promise<string> => {
+      if (effectiveBin === '/bin/false') throw new Error('stub: non-zero exit');
+      return '';
+    };
+    const stubTmuxControl: any = { run: stubRun };
     return await createHttpHandler({
       config: {
         host: '127.0.0.1', port: 0, allowedIps: new Set(['127.0.0.1']),
@@ -447,6 +455,7 @@ describe('http branches — direct handler (fake req/res)', () => {
       isCompiled: false,
       sessionsStorePath,
       dropStorage: storage,
+      tmuxControl: stubTmuxControl,
     });
   }
 
