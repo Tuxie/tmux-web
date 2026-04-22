@@ -31,6 +31,10 @@ export interface WsServerOptions {
 // to hold a live tmux -C attach on that session.
 const sessionRefs = new Map<string, number>();
 
+/** WS connection registry keyed by session name. Used to fan out
+ *  \x00TT notifications driven by tmux %-events. */
+const wsClientsBySession = new Map<string, Set<WebSocket>>();
+
 function debug(config: ServerConfig, ...args: unknown[]): void {
   if (config.debug) process.stderr.write(`[debug] ${args.join(' ')}\n`);
 }
@@ -78,6 +82,25 @@ export function createWsServer(
 ): WebSocketServer {
   const { config } = opts;
   const wss = new WebSocketServer({ noServer: true });
+
+  const unsubscribers: Array<() => void> = [];
+  unsubscribers.push(opts.tmuxControl.on('sessionsChanged', () => { broadcastSessionRefresh(); }));
+  unsubscribers.push(opts.tmuxControl.on('sessionRenamed',  () => { broadcastSessionRefresh(); }));
+  unsubscribers.push(opts.tmuxControl.on('sessionClosed',   () => { broadcastSessionRefresh(); }));
+  unsubscribers.push(opts.tmuxControl.on('windowAdd', async (n) => {
+    const s = await sessionForWindow(n.window, opts);
+    if (s) void broadcastWindowsForSession(s, opts);
+  }));
+  unsubscribers.push(opts.tmuxControl.on('windowClose', async (n) => {
+    const s = await sessionForWindow(n.window, opts);
+    if (s) void broadcastWindowsForSession(s, opts);
+  }));
+  unsubscribers.push(opts.tmuxControl.on('windowRenamed', async (n) => {
+    const s = await sessionForWindow(n.window, opts);
+    if (s) void broadcastWindowsForSession(s, opts);
+  }));
+
+  wss.on('close', () => { for (const u of unsubscribers) u(); });
 
   httpServer.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
     // safe: Duplex does not declare remoteAddress but the underlying socket does; see https://nodejs.org/api/net.html#socketremoteaddress
@@ -260,6 +283,58 @@ async function sendWindowState(ws: WebSocket, sessionName: string, config: Serve
   }
 }
 
+/** Fire a {session: name} push to every connected WS client. The client's
+ *  on-session handler re-fetches /api/sessions and /api/windows, so this
+ *  push is just a "refresh your session list" signal. */
+function broadcastSessionRefresh(): void {
+  if (wsClientsBySession.size === 0) return;
+  for (const [sessionName, clients] of wsClientsBySession) {
+    for (const ws of clients) {
+      if (ws.readyState !== WebSocket.OPEN) continue;
+      ws.send(frameTTMessage({ session: sessionName }));
+    }
+  }
+}
+
+async function broadcastWindowsForSession(
+  sessionName: string,
+  opts: WsServerOptions,
+): Promise<void> {
+  const clients = wsClientsBySession.get(sessionName);
+  if (!clients || clients.size === 0) return;
+  try {
+    const stdout = await opts.tmuxControl.run([
+      'list-windows', '-t', sessionName, '-F',
+      '#{window_index}\t#{window_name}\t#{window_active}',
+    ]);
+    const windows: WindowInfo[] = stdout.split('\n').filter(Boolean).map(line => {
+      const [index, name, active] = line.split('\t');
+      return { index: index!, name: name!, active: active === '1' };
+    });
+    for (const ws of clients) {
+      if (ws.readyState !== WebSocket.OPEN) continue;
+      ws.send(frameTTMessage({ session: sessionName, windows }));
+    }
+  } catch { /* non-fatal — command might fail while session dying */ }
+}
+
+/** Resolve a tmux window id (e.g., "@17") to its owning session name
+ *  by running display-message through the primary. */
+async function sessionForWindow(
+  windowId: string,
+  opts: WsServerOptions,
+): Promise<string | null> {
+  try {
+    const stdout = await opts.tmuxControl.run([
+      'display-message', '-p', '-t', windowId, '#{session_name}',
+    ]);
+    const name = stdout.trim();
+    return name || null;
+  } catch {
+    return null;
+  }
+}
+
 function handleConnection(
   ws: WebSocket,
   req: IncomingMessage,
@@ -286,6 +361,9 @@ function handleConnection(
     });
   }
   sessionRefs.set(session, (sessionRefs.get(session) ?? 0) + 1);
+  let sessionSet = wsClientsBySession.get(session);
+  if (!sessionSet) { sessionSet = new Set(); wsClientsBySession.set(session, sessionSet); }
+  sessionSet.add(ws);
 
   let lastSession = session;
   let lastTitle = '';
@@ -442,6 +520,8 @@ function handleConnection(
   ws.on('close', () => {
     debug(config, `WS closed from ${remoteIp} session=${session}`);
     unsubscribeDrops();
+    sessionSet?.delete(ws);
+    if (sessionSet && sessionSet.size === 0) wsClientsBySession.delete(session);
     const next = (sessionRefs.get(session) ?? 1) - 1;
     if (next <= 0) {
       sessionRefs.delete(session);
