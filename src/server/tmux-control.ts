@@ -202,7 +202,10 @@ export class ControlClient {
     const head = this.queue[0];
     if (!head) return;
     if (head.cmdnum !== cmdnum) {
-      // Stale response for a timed-out command: drop silently.
+      // Stale response for a force-advanced cmdnum (timeout). Drop
+      // silently. Spec §4.2's "protocol desync → tear down primary"
+      // branch is deferred to Task 3 so the soft-timeout path can't
+      // kill a live primary just because a slow tmux finally answered.
       return;
     }
     if (head.timer) clearTimeout(head.timer);
@@ -214,6 +217,9 @@ export class ControlClient {
   private handleError(cmdnum: number, stderr: string): void {
     const head = this.queue[0];
     if (!head) return;
+    // Same rationale as in handleResponse: stale %error for a
+    // force-advanced cmdnum is dropped silently (desync tear-down
+    // deferred to Task 3).
     if (head.cmdnum !== cmdnum) return;
     if (head.timer) clearTimeout(head.timer);
     this.queue.shift();
