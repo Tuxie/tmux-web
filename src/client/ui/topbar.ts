@@ -361,7 +361,9 @@ export class Topbar {
     const toggleConfigMenu = (ev: Event): void => {
       ev.preventDefault();
       ev.stopPropagation();
-      const nextOpen = dropdown.hidden;
+      // TS 6's lib.dom widens `HTMLElement.hidden` to `boolean | "until-found"`.
+      // We only toggle between true and false, so coerce.
+      const nextOpen = dropdown.hidden === true;
       this.setConfigMenuOpen(nextOpen);
       if (nextOpen) {
         // Sync fullscreen checkbox state on open
