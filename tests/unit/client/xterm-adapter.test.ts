@@ -6,6 +6,7 @@ describe('XtermAdapter', () => {
   const xtermP16PreviousBackground = 0x1000000 | 3;
   const xtermRgbBackground = 0x3000000 | 0x123456;
   const xtermInverseForeground = 0x4000000 | 0x1000000 | 7;
+  const xtermDimDefaultBackground = 0x8000000;
   const xtermRgbBlendedRedBackground = 0x3000000 | 0x460000;
 
   test('writes theme through to the underlying terminal options', async () => {
@@ -210,6 +211,41 @@ describe('XtermAdapter', () => {
     // Inverse fg path still goes through the blend
     expect(vertices.attributes[4]).toBeCloseTo(0.7, 5);
     expect(vertices.attributes[7]).toBeCloseTo(0.7, 5);
+  });
+
+  test('clears style-only default background rectangles so dim text stays transparent', async () => {
+    const { XtermAdapter } = await import('../../../src/client/adapters/xterm.ts');
+    const adapter = new XtermAdapter();
+    (adapter as any).tuiBgAlpha = 0.7;
+    const vertices = { attributes: new Float32Array(16) };
+    const rectangleRenderer = {
+      _updateRectangle(v: { attributes: Float32Array }, offset: number) {
+        v.attributes[offset + 4] = 0.2;
+        v.attributes[offset + 5] = 0.2;
+        v.attributes[offset + 6] = 0.2;
+        v.attributes[offset + 7] = 1;
+      },
+    };
+    const renderer = {
+      _rectangleRenderer: { value: rectangleRenderer },
+      _themeService: { colors: { background: { rgba: 0x333333ff } } },
+      _initializeWebGLState: mock(() => [rectangleRenderer, {}]),
+    };
+    (adapter as any).term = {
+      _core: {
+        _renderService: {
+          _renderer: { value: renderer },
+        },
+      },
+    };
+
+    (adapter as any)._patchWebglExplicitBackgroundOpacity();
+
+    rectangleRenderer._updateRectangle(vertices, 0, 0, xtermDimDefaultBackground, 0, 2, 0);
+    expect(vertices.attributes[4]).toBe(0);
+    expect(vertices.attributes[5]).toBe(0);
+    expect(vertices.attributes[6]).toBe(0);
+    expect(vertices.attributes[7]).toBe(0);
   });
 
   test('makes WebGL RGB and text-bearing app background rectangles translucent and rasterizes glyphs against the blended background', async () => {

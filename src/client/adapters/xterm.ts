@@ -5,6 +5,8 @@ import { pushLightness, rgbToOklabL } from '../fg-contrast.js';
 import { adjustSaturation } from '../tui-saturation.js';
 import {
   withBlendedEffectiveBackground,
+  XTERM_COLOR_MODE_MASK,
+  XTERM_FG_FLAG_INVERSE,
   type XtermCellTheme,
   type XtermCellState,
 } from './xterm-cell-math.js';
@@ -224,6 +226,20 @@ export class XtermAdapter implements TerminalAdapter {
         y: number,
       ) {
         orig(vertices, offset, fg, bg, startX, endX, y);
+        if (
+          vertices.attributes &&
+          offset + 7 < vertices.attributes.length &&
+          (fg & XTERM_FG_FLAG_INVERSE) === 0 &&
+          (bg & XTERM_COLOR_MODE_MASK) === 0 &&
+          bg !== 0
+        ) {
+          const attrs = vertices.attributes;
+          attrs[offset + 4] = 0;
+          attrs[offset + 5] = 0;
+          attrs[offset + 6] = 0;
+          attrs[offset + 7] = 0;
+          return;
+        }
         if (
           vertices.attributes &&
           offset + 7 < vertices.attributes.length &&
