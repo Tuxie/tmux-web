@@ -85,23 +85,14 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
   unsubscribers.push(opts.tmuxControl.on('sessionsChanged', () => { broadcastSessionRefresh(reg); }));
   unsubscribers.push(opts.tmuxControl.on('sessionRenamed',  () => { broadcastSessionRefresh(reg); }));
   unsubscribers.push(opts.tmuxControl.on('sessionClosed',   () => { broadcastSessionRefresh(reg); }));
-  unsubscribers.push(opts.tmuxControl.on('windowAdd', async (n) => {
-    const s = await sessionForWindow(n.window, opts);
-    if (s) void broadcastWindowsForSession(reg, s, opts);
+  unsubscribers.push(opts.tmuxControl.on('windowAdd', (n) => {
+    if (n.session) void broadcastWindowsForSession(reg, n.session, opts);
   }));
-  unsubscribers.push(opts.tmuxControl.on('windowClose', async () => {
-    // display-message against the just-closed window id returns an error
-    // (the window is already gone), so we can't resolve its owning
-    // session. Fan out windows refreshes to every live tmux-web session
-    // instead — cheap at typical session counts and guarantees external
-    // window kills don't leave the tab bar stale.
-    for (const sessionName of reg.wsClientsBySession.keys()) {
-      void broadcastWindowsForSession(reg, sessionName, opts);
-    }
+  unsubscribers.push(opts.tmuxControl.on('windowClose', (n) => {
+    if (n.session) void broadcastWindowsForSession(reg, n.session, opts);
   }));
-  unsubscribers.push(opts.tmuxControl.on('windowRenamed', async (n) => {
-    const s = await sessionForWindow(n.window, opts);
-    if (s) void broadcastWindowsForSession(reg, s, opts);
+  unsubscribers.push(opts.tmuxControl.on('windowRenamed', (n) => {
+    if (n.session) void broadcastWindowsForSession(reg, n.session, opts);
   }));
 
   const upgrade = (req: Request, server: BunServer<WsData>): Response | undefined => {
@@ -676,21 +667,4 @@ async function broadcastWindowsForSession(
       ws.send(frameTTMessage({ session: sessionName, windows }));
     }
   } catch { /* non-fatal — command might fail while session dying */ }
-}
-
-/** Resolve a tmux window id (e.g., "@17") to its owning session name
- *  by running display-message through the primary. */
-async function sessionForWindow(
-  windowId: string,
-  opts: WsServerOptions,
-): Promise<string | null> {
-  try {
-    const stdout = await opts.tmuxControl.run([
-      'display-message', '-p', '-t', windowId, '#{session_name}',
-    ]);
-    const name = stdout.trim();
-    return name || null;
-  } catch {
-    return null;
-  }
 }

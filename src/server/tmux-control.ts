@@ -9,9 +9,9 @@ export type TmuxNotification =
   | { type: 'sessionsChanged' }
   | { type: 'sessionRenamed'; id: string; name: string }
   | { type: 'sessionClosed'; id: string }
-  | { type: 'windowAdd'; window: string }
-  | { type: 'windowClose'; window: string }
-  | { type: 'windowRenamed'; window: string; name: string };
+  | { type: 'windowAdd'; window: string; session?: string }
+  | { type: 'windowClose'; window: string; session?: string }
+  | { type: 'windowRenamed'; window: string; name: string; session?: string };
 
 export class TmuxCommandError extends Error {
   constructor(
@@ -352,7 +352,7 @@ export class ControlPool implements TmuxControl {
     const proc = this.opts.spawn(session);
     // Forward-reference: the notification callback captures `client`. Safe
     // because stdout 'data' is async; `client` is always bound when it fires.
-    const client = new ControlClient(proc, (n) => this.onNotification(client, n));
+    const client = new ControlClient(proc, (n) => this.onNotification(client, session, n));
     // Guard: detachSession called before probe resolves must not leak the
     // child. Check cancellation after each await and kill the client if so.
     const wasCancelled = () => this.readyPromises.get(session) === undefined;
@@ -429,10 +429,18 @@ export class ControlPool implements TmuxControl {
     this.readyPromises.clear();
   }
 
-  private onNotification(from: ControlClient, n: TmuxNotification): void {
-    // Only the primary's notifications are fanned out; others are
-    // parsed-and-dropped to avoid N-copies of each global event.
-    if (this.insertionOrder[0] !== from) return;
+  private onNotification(from: ControlClient, session: string, n: TmuxNotification): void {
+    if (n.type === 'sessionsChanged' || n.type === 'sessionRenamed' || n.type === 'sessionClosed') {
+      // Global notifications appear on every control client, so only the
+      // primary fans them out to avoid duplicate refreshes.
+      if (this.insertionOrder[0] !== from) return;
+    } else {
+      // Window notifications are scoped to the session this control client
+      // is attached to. Preserve events from every live client and annotate
+      // them so websocket broadcasters can refresh the affected tab set.
+      if (this.clients.get(session) !== from) return;
+      n = { ...n, session };
+    }
     const subs = this.listeners[n.type] as Array<(n: any) => void>;
     for (const cb of subs) cb(n);
   }

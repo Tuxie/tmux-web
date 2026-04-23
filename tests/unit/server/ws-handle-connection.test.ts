@@ -4,7 +4,7 @@ import http from 'node:http';
 import { startTestServer, type Harness } from './_harness/spawn-server.ts';
 import { makeFakeTmux } from './_harness/fake-tmux.ts';
 import { execFileAsync } from '../../../src/server/exec.ts';
-import type { TmuxControl } from '../../../src/server/tmux-control.ts';
+import type { TmuxControl, TmuxNotification } from '../../../src/server/tmux-control.ts';
 
 function postDrop(baseUrl: string, filename: string, body: Buffer): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -349,6 +349,59 @@ describe('ws handleConnection — OSC 52 write + title change from PTY', () => {
 });
 
 describe('ws handleConnection — non-testMode actions & sendWindowState', () => {
+  test('tmux-control window notifications refresh only the originating session', async () => {
+    const { path: tmuxBin } = makeFakeTmux();
+    const listeners = new Map<TmuxNotification['type'], Array<(n: any) => void>>();
+    const runCalls: string[][] = [];
+    const tmuxControl: TmuxControl = {
+      attachSession: async () => {},
+      detachSession: () => {},
+      run: async (args) => {
+        runCalls.push([...args]);
+        if (args[0] === 'list-windows') return '0\tone\t1\n1\ttwo\t0\n';
+        return '';
+      },
+      on: (event, cb) => {
+        const arr = listeners.get(event) ?? [];
+        arr.push(cb);
+        listeners.set(event, arr);
+        return () => {
+          const idx = arr.indexOf(cb);
+          if (idx >= 0) arr.splice(idx, 1);
+        };
+      },
+      close: async () => {},
+    };
+    h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
+    const main = openWs(h.wsUrl, '/ws?session=main&cols=80&rows=24');
+    const dev = openWs(h.wsUrl, '/ws?session=dev&cols=80&rows=24');
+    await Promise.all([main.opened, dev.opened]);
+
+    for (const cb of listeners.get('windowAdd') ?? []) {
+      cb({ type: 'windowAdd', window: '@7', session: 'dev' });
+    }
+
+    const got = await waitForMsg(dev.messages, m => m.session === 'dev' && 'windows' in m, 8000);
+    expect(got).toBeTruthy();
+    await new Promise(r => setTimeout(r, 50));
+    expect(runCalls.some(args => args[0] === 'display-message')).toBe(false);
+    const listWindowTargets = runCalls
+      .filter(args => args[0] === 'list-windows')
+      .map(args => args[2]);
+    expect(listWindowTargets).toEqual(['dev']);
+    expect(main.messages.some(raw => {
+      try {
+        const parsed = JSON.parse(raw);
+        return parsed.session === 'main' && 'windows' in parsed;
+      } catch {
+        return false;
+      }
+    })).toBe(false);
+
+    main.ws.close();
+    dev.ws.close();
+  }, 15000);
+
   test('switch-session reuses the open PTY and moves session bookkeeping', async () => {
     const { path: tmuxBin, logFile, dir } = makeFakeTmux();
     const attached: string[] = [];

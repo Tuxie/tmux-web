@@ -1,6 +1,6 @@
 # Window add / rename / close in non-primary sessions never reaches the client
 
-**Status:** observed empirically, not investigated beyond the surface.
+**Status:** fixed.
 **Date noticed:** 2026-04-23
 **Context:** answering the question "do we get notified about created, deleted and renamed windows in other sessions?" while reviewing the cmd-id and `-u` fixes from the same session.
 

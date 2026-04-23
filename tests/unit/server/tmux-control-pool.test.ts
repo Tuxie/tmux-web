@@ -87,6 +87,29 @@ describe('ControlPool', () => {
     expect(notes).toHaveLength(2);
   });
 
+  test('window notifications from non-primary sessions are delivered with their session name', async () => {
+    const spawns: ReturnType<typeof fakeProc>[] = [];
+    const pool = new ControlPool({ spawn: () => { const p = fakeProc(); spawns.push(p); return p.proc; } });
+
+    await attachHappy(pool, 'main', spawns);
+    await attachHappy(pool, 'dev', spawns);
+
+    const adds: TmuxNotification[] = [];
+    const closes: TmuxNotification[] = [];
+    const renames: TmuxNotification[] = [];
+    pool.on('windowAdd', (n) => adds.push(n));
+    pool.on('windowClose', (n) => closes.push(n));
+    pool.on('windowRenamed', (n) => renames.push(n));
+
+    spawns[1]!.stdout.emit('%window-add @7\n');
+    spawns[1]!.stdout.emit('%window-close @8\n');
+    spawns[1]!.stdout.emit('%window-renamed @9 devname\n');
+
+    expect(adds).toEqual([{ type: 'windowAdd', window: '@7', session: 'dev' }]);
+    expect(closes).toEqual([{ type: 'windowClose', window: '@8', session: 'dev' }]);
+    expect(renames).toEqual([{ type: 'windowRenamed', window: '@9', name: 'devname', session: 'dev' }]);
+  });
+
   test('run() rejects NoControlClientError when the pool is empty', async () => {
     const pool = new ControlPool({ spawn: () => fakeProc().proc });
     await expect(pool.run(['list-sessions'])).rejects.toBeInstanceOf(NoControlClientError);
