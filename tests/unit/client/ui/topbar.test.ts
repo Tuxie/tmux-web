@@ -455,6 +455,77 @@ describe('Topbar.show', () => {
   });
 });
 
+describe('Topbar menu and autohide DOM behaviour', () => {
+  it('right-click on the hamburger toggles the settings menu', async () => {
+    const t = await mountTopbar();
+    await t.init();
+    void t;
+    const btn = (globalThis.document as any).getElementById('btn-menu');
+    const menu = (globalThis.document as any).getElementById('menu-dropdown');
+    menu.hidden = true;
+
+    let prevented = 0;
+    let stopped = 0;
+    const event = {
+      target: btn,
+      preventDefault() { prevented++; },
+      stopPropagation() { stopped++; },
+    };
+
+    btn.dispatch('contextmenu', event);
+    expect(menu.hidden).toBe(false);
+    expect(btn.classList.has('open')).toBe(true);
+
+    btn.dispatch('contextmenu', event);
+    expect(menu.hidden).toBe(true);
+    expect(btn.classList.has('open')).toBe(false);
+    expect(prevented).toBe(2);
+    expect(stopped).toBe(2);
+  });
+
+  it('autohide hides the topbar after the scheduled inactivity timer', async () => {
+    const t = await mountTopbar();
+    await t.init();
+    (t as any).autohide = true;
+    const tb = (globalThis.document as any).getElementById('topbar');
+    const menu = (globalThis.document as any).getElementById('menu-dropdown');
+    menu.hidden = true;
+    const timers: Array<() => void> = [];
+    (globalThis as any).setTimeout = (fn: () => void) => {
+      timers.push(fn);
+      return timers.length;
+    };
+    (globalThis as any).clearTimeout = () => {};
+
+    (globalThis.document as any).dispatch('mousemove', { clientY: 10 });
+    expect(tb.classList.has('hidden')).toBe(false);
+
+    timers.forEach(fn => fn());
+    expect(tb.classList.has('hidden')).toBe(true);
+  });
+
+  it('autohide reappears when the mouse moves near the top', async () => {
+    const t = await mountTopbar();
+    await t.init();
+    (t as any).autohide = true;
+    const tb = (globalThis.document as any).getElementById('topbar');
+    const menu = (globalThis.document as any).getElementById('menu-dropdown');
+    menu.hidden = true;
+    const timers: Array<() => void> = [];
+    (globalThis as any).setTimeout = (fn: () => void) => {
+      timers.push(fn);
+      return timers.length;
+    };
+    (globalThis as any).clearTimeout = () => {};
+    tb.classList.add('hidden');
+
+    (globalThis.document as any).dispatch('mousemove', { clientY: 50 });
+
+    expect(tb.classList.has('hidden')).toBe(false);
+    expect(timers.length).toBe(1);
+  });
+});
+
 describe('Topbar fullscreen checkbox', () => {
   it('checking the fullscreen checkbox requests fullscreen and syncs checked state', async () => {
     const t = await mountTopbar();
