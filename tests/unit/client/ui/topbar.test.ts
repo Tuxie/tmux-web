@@ -1,5 +1,14 @@
 import { describe, it, expect, beforeEach, afterAll } from 'bun:test';
 import { setupDocument, el as stubEl, stubFetch, type StubDoc, type StubElement } from '../_dom.js';
+import {
+  DEFAULT_SESSION_SETTINGS,
+  loadSessionSettings,
+  _resetSessionStore,
+  type SessionSettings,
+} from '../../../../src/client/session-settings.ts';
+import { DEFAULT_BACKGROUND_HUE, DEFAULT_THEME_HUE } from '../../../../src/client/background-hue.ts';
+import { DEFAULT_FG_CONTRAST_STRENGTH } from '../../../../src/client/fg-contrast.ts';
+import { clearCaches, type ThemeInfo } from '../../../../src/client/theme.ts';
 
 /** Topbar orchestration tests.
  *
@@ -190,6 +199,39 @@ async function mountTopbar(overrides: Partial<Parameters<typeof freshTopbarCtor>
   return await freshTopbarCtor(overrides);
 }
 
+async function mountTopbarWithSettings(opts: {
+  themes?: ThemeInfo[];
+  sessions?: Record<string, Partial<SessionSettings>>;
+  onSettingsChange?: (s: SessionSettings) => void;
+} = {}) {
+  installGlobals();
+  makeDoc();
+  const sessions = opts.sessions ?? {};
+  _resetSessionStore({
+    sessions: Object.fromEntries(
+      Object.entries(sessions).map(([name, settings]) => [
+        name,
+        { ...DEFAULT_SESSION_SETTINGS, ...settings },
+      ]),
+    ),
+  });
+  stubFetch(async (url, init) => {
+    if (url.startsWith('/api/themes')) return { ok: true, json: async () => opts.themes ?? [] } as any;
+    if (url.startsWith('/api/fonts')) return { ok: true, json: async () => [] } as any;
+    if (url.startsWith('/api/colours')) return { ok: true, json: async () => [] } as any;
+    if (url.startsWith('/api/session-settings')) {
+      if (init?.method === 'PUT') return { ok: true, json: async () => ({}) } as any;
+      return { ok: true, json: async () => ({ version: 1, sessions }) } as any;
+    }
+    if (url.startsWith('/api/sessions')) return { ok: true, json: async () => [] } as any;
+    if (url.startsWith('/api/drops')) return { ok: true, json: async () => ({ drops: [] }) } as any;
+    return { ok: true, json: async () => ({}) } as any;
+  });
+  const t = await freshTopbarCtor({ onSettingsChange: opts.onSettingsChange as any });
+  await t.init();
+  return t;
+}
+
 async function freshTopbarCtor(overrides: {
   send?: (data: string) => void;
   focus?: () => void;
@@ -211,6 +253,8 @@ async function freshTopbarCtor(overrides: {
 }
 
 beforeEach(() => {
+  _resetSessionStore();
+  clearCaches();
   installGlobals();
 });
 
@@ -571,5 +615,92 @@ describe('Topbar fullscreen checkbox', () => {
 
     expect(calls).toEqual(['exit']);
     expect(chk.checked).toBe(false);
+  });
+});
+
+describe('Topbar slider double-click reset', () => {
+  function input(id: string): any {
+    return (globalThis.document as any).getElementById(id);
+  }
+
+  function changeValue(id: string, value: string): void {
+    const el = input(id);
+    el.value = value;
+    el.dispatch('change', { target: el });
+  }
+
+  function dblclick(id: string): void {
+    const el = input(id);
+    el.dispatch('dblclick', { target: el });
+  }
+
+  function storedMain(): SessionSettings {
+    return loadSessionSettings('main', null, { defaults: DEFAULT_SESSION_SETTINGS });
+  }
+
+  it('resets a theme-global slider to DEFAULT_THEME_HUE', async () => {
+    await mountTopbarWithSettings();
+
+    changeValue('inp-theme-hue', '60');
+    expect(storedMain().themeHue).toBe(60);
+
+    dblclick('sld-theme-hue');
+
+    expect(input('inp-theme-hue').value).toBe(String(DEFAULT_THEME_HUE));
+    expect(input('sld-theme-hue').value).toBe(String(DEFAULT_THEME_HUE));
+    expect(storedMain().themeHue).toBe(DEFAULT_THEME_HUE);
+  });
+
+  it('resets a theme-scoped slider to the active theme default', async () => {
+    const alt: ThemeInfo = {
+      name: 'E2E Alt Theme',
+      pack: 'e2e',
+      css: 'alt.css',
+      source: 'bundled',
+      defaultTuiBgOpacity: 70,
+    };
+    await mountTopbarWithSettings({
+      themes: [alt],
+      sessions: {
+        main: {
+          ...DEFAULT_SESSION_SETTINGS,
+          theme: alt.name,
+          tuiBgOpacity: 25,
+        },
+      },
+    });
+    expect(input('inp-tui-bg-opacity').value).toBe('25');
+
+    dblclick('inp-tui-bg-opacity');
+
+    expect(input('inp-tui-bg-opacity').value).toBe('70');
+    expect(input('sld-tui-bg-opacity').value).toBe('70');
+    expect(storedMain().tuiBgOpacity).toBe(70);
+  });
+
+  it('resets the number input half of a pair to the hard-coded default', async () => {
+    await mountTopbarWithSettings();
+
+    changeValue('inp-fg-contrast-strength', '80');
+    expect(storedMain().fgContrastStrength).toBe(80);
+
+    dblclick('inp-fg-contrast-strength');
+
+    expect(input('inp-fg-contrast-strength').value).toBe(String(DEFAULT_FG_CONTRAST_STRENGTH));
+    expect(input('sld-fg-contrast-strength').value).toBe(String(DEFAULT_FG_CONTRAST_STRENGTH));
+    expect(storedMain().fgContrastStrength).toBe(DEFAULT_FG_CONTRAST_STRENGTH);
+  });
+
+  it('resets background hue to DEFAULT_BACKGROUND_HUE', async () => {
+    await mountTopbarWithSettings();
+
+    changeValue('inp-background-hue', '45');
+    expect(storedMain().backgroundHue).toBe(45);
+
+    dblclick('sld-background-hue');
+
+    expect(input('inp-background-hue').value).toBe(String(DEFAULT_BACKGROUND_HUE));
+    expect(input('sld-background-hue').value).toBe(String(DEFAULT_BACKGROUND_HUE));
+    expect(storedMain().backgroundHue).toBe(DEFAULT_BACKGROUND_HUE);
   });
 });
