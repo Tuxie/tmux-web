@@ -17,9 +17,9 @@ export function makeFakeTmux(opts: { panePid?: number; failDisplayMessage?: bool
   writeFileSync(bin, `#!/usr/bin/env bash
 LOG="${logFile}"
 # Use flock-free append with single write() via printf; append mode is
-# atomic on POSIX for writes <= PIPE_BUF (4096 bytes).
+# atomic on POSIX for writes <= PIPE_BUF (4096 bytes). No sync needed —
+# the write is visible to readers on the same host via page cache immediately.
 printf '%s\\n' "$*" >> "$LOG"
-sync 2>/dev/null || true
 # Skip leading '-f <path>' so the command dispatcher sees the real verb.
 if [ "$1" = "-f" ]; then shift 2; fi
 case "$1" in
