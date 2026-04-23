@@ -732,3 +732,41 @@ describe('Topbar opacity slider wiring', () => {
     expect(storedMain().opacity).toBe(50);
   });
 });
+
+describe('Topbar font and spacing persistence', () => {
+  function input(id: string): any {
+    return (globalThis.document as any).getElementById(id);
+  }
+
+  function changeValue(id: string, value: string): void {
+    const el = input(id);
+    el.value = value;
+    el.dispatch('change', { target: el });
+  }
+
+  function storedMain(): SessionSettings {
+    return loadSessionSettings('main', null, { defaults: DEFAULT_SESSION_SETTINGS });
+  }
+
+  it('spacing change persists to session store', async () => {
+    await mountTopbarWithSettings();
+    changeValue('inp-spacing', '1.5');
+    expect(storedMain().spacing).toBeCloseTo(1.5, 2);
+  });
+
+  it('font and spacing changes both persist to session store', async () => {
+    await mountTopbarWithSettings();
+    changeValue('inp-font-bundled', 'TestFont');
+    changeValue('inp-spacing', '0.85');
+    expect(storedMain().fontFamily).toBe('TestFont');
+    expect(storedMain().spacing).toBeCloseTo(0.85, 2);
+  });
+
+  it('stored font and spacing are reflected in inputs on mount (survives reload)', async () => {
+    await mountTopbarWithSettings({
+      sessions: { main: { fontFamily: 'StoredFont', spacing: 1.2 } },
+    });
+    expect(input('inp-font-bundled').value).toBe('StoredFont');
+    expect(parseFloat(input('inp-spacing').value)).toBeCloseTo(1.2, 2);
+  });
+});
