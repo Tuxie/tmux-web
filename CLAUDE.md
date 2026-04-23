@@ -449,7 +449,9 @@ TDD: Test verify behavior → verify fail → implement → verify pass.
 
 ### Bug reporting
 
-Whenever coming across a bug unrelated to what you are currently working on, report it in a file in `docs/bugs/`. Write all details you already know about the bug and what you were doing when you encountered the bug. Don't do any further research about the bug, just leave that for a future bug fixing session.
+Whenever coming across a bug unrelated to what you are currently working on, automatically report it in a file in `docs/bugs/`. Write all details you already know about the bug and what you were doing when you encountered the bug. Don't do any further research about the bug, just leave the research for a future bug fixing session. When the bug report is filed, continue doing what you were supposed to do. If the bug you found affects the implementation of what you were working on, stop and ask for guidance.
+
+When explicitly asked to file a bug report, the audience of that bug report will be a much lesser capable language model. Include enough detail for a simple model to be able to implement the fix without first having to do a lot of research on things you already know.
 
 ### Bug fixing
 
