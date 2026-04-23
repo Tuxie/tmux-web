@@ -100,7 +100,7 @@ Consequence: if the user has sessions A and B in tmux but only opens a tmux-web 
 
 1. If a live client already exists for `name`, return its ready-promise.
 2. `Bun.spawn(['tmux', '-f', <conf>, '-C', 'attach-session', '-t', name], { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env: <tmux-web env> })`.
-3. Issue `refresh-client -C 10000x10000` through the client's own command queue and await its response frame. Size-negotiation guard (§3.5). On `%error` (e.g., an older tmux that doesn't support `-C <WxH>`), log at debug level and continue — `window-size latest` in the bundled `tmux.conf` is the sufficient fallback.
+3. If a size hint was passed, issue `refresh-client -C <cols>x<rows>` through the client's own command queue and await its response frame; the hint is the sibling PTY client's cols/rows. Size-negotiation guard (§3.5). With no hint, skip this step entirely (let tmux's `window-size` policy resolve the size). On `%error` (e.g., an older tmux that doesn't support `-C <WxH>`), log at debug level and continue — `window-size latest` in the bundled `tmux.conf` is the sufficient fallback.
 4. Issue a sync probe `display-message -p 'ok'` and await its response frame. On `%end`, join `insertionOrder` and resolve the `attachSession` promise. On `%error` or stdout close, reject the promise and do not join `insertionOrder`.
 5. Because `insertionOrder.push` happens only after a successful probe, a just-attached client is primary iff it is the only live client (i.e., `insertionOrder[0]` is itself). The pool's notification dispatcher always reads from `insertionOrder[0]`; no extra promotion step is needed here.
 
@@ -135,7 +135,7 @@ A `tmux -C` client participates in session size negotiation. With stdin piped (n
 Two mitigations, both required, both applied in this spec:
 
 - **`set -g window-size latest`** added to the bundled `tmux.conf`. tmux then follows whichever client most recently resized. The control client never resizes, so display clients always win size negotiation.
-- **`refresh-client -C 10000x10000`** issued immediately after attach (§3.2 step 3). The control client announces a huge view size; under any `window-size` policy, no display client will be bigger, so the session size follows display clients.
+- **`refresh-client -C <cols>x<rows>`** issued immediately after attach (§3.2 step 3), mirroring the sibling PTY client's size from the WS that triggered `attachSession`. Under `window-size latest` the session size tracks the PTY client (the control client and the PTY client both vote for the same size). Callers that don't supply a hint skip the refresh-client entirely — there's no honest size for a headless control client to claim — and rely on `window-size latest` plus the PTY client's own size to resolve the layout.
 
 Regression guard: `tests/e2e/control-mode-window-size.spec.ts`.
 

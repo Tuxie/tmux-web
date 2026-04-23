@@ -100,6 +100,32 @@ describe('ControlPool', () => {
     await expect(pool.run(['list-sessions'])).rejects.toBeInstanceOf(NoControlClientError);
   });
 
+  test('refresh-client uses the cols/rows hint from attachSession (regression: huge default bounced layout to 10000x10000 then back)', async () => {
+    const spawns: ReturnType<typeof fakeProc>[] = [];
+    const pool = new ControlPool({ spawn: () => { const p = fakeProc(); spawns.push(p); return p.proc; } });
+    const p = pool.attachSession('main', { cols: 200, rows: 60 });
+    await Promise.resolve();
+    // First write must be refresh-client -C 200x60 — matching the sibling
+    // PTY client's size — so under `window-size latest` the control
+    // client's attach doesn't make tmux jump the layout to a different
+    // size than the PTY client.
+    expect(spawns[0]!.writes[0]).toBe('refresh-client -C 200x60\n');
+    await driveHandshake(p, spawns[0]!);
+  });
+
+  test('attachSession without a size hint skips refresh-client entirely (lets tmux resolve size)', async () => {
+    const spawns: ReturnType<typeof fakeProc>[] = [];
+    const pool = new ControlPool({ spawn: () => { const p = fakeProc(); spawns.push(p); return p.proc; } });
+    const p = pool.attachSession('main');
+    await Promise.resolve();
+    // No `refresh-client` write — first command is the readiness probe.
+    expect(spawns[0]!.writes[0]).toBe('display-message -p ok\n');
+    // One-phase handshake now: only the display-message probe.
+    await Promise.resolve();
+    spawns[0]!.stdout.emit('%begin 1 1 0\nok\n%end 1 1 0\n');
+    await p;
+  });
+
   test('detach-before-probe kills the spawned client rather than leaking it', async () => {
     let killed = false;
     const spawns: ReturnType<typeof fakeProc>[] = [];

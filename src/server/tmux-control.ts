@@ -119,8 +119,17 @@ export function parseNotification(line: string): TmuxNotification | null {
   }
 }
 
+/** Size hint for `attachSession`. The control client `refresh-client -C`s
+ *  to this size so that under `window-size latest` (the policy our bundled
+ *  tmux.conf sets), the control client never makes the session jump to a
+ *  different size than the sibling PTY client. */
+export interface AttachSizeHint {
+  cols: number;
+  rows: number;
+}
+
 export interface TmuxControl {
-  attachSession(session: string): Promise<void>;
+  attachSession(session: string, hint?: AttachSizeHint): Promise<void>;
   detachSession(session: string): void;
   run: RunCmd;
   on<T extends TmuxNotification['type']>(
@@ -347,10 +356,22 @@ export class ControlPool implements TmuxControl {
     // Guard: detachSession called before probe resolves must not leak the
     // child. Check cancellation after each await and kill the client if so.
     const wasCancelled = () => this.readyPromises.get(session) === undefined;
-    // Size-negotiation guard (§3.5). Swallow errors — older tmux without
-    // -C WxH for refresh-client falls back to window-size latest.
-    try { await client.run(['refresh-client', '-C', '10000x10000']); } catch { /* best-effort */ }
-    if (wasCancelled()) { client.kill(); return; }
+    // Size-negotiation guard (§3.5). Mirror the sibling PTY client's
+    // size so under `window-size latest` the session tracks the browser
+    // and doesn't bounce. With no hint, skip the refresh-client step
+    // entirely and let tmux's own policy resolve the size — there's no
+    // honest size for a headless control client to claim. Swallow
+    // errors — older tmux without `-C <WxH>` falls back to the window-
+    // size policy alone.
+    //
+    // The wasCancelled check is paired with each await: cancellation
+    // can only happen DURING an await, and the no-hint path skips the
+    // refresh-client await entirely (so no check needed before it).
+    if (hint) {
+      try { await client.run(['refresh-client', '-C', `${hint.cols}x${hint.rows}`]); }
+      catch { /* best-effort */ }
+      if (wasCancelled()) { client.kill(); return; }
+    }
     // Readiness probe. If it fails, the client is dead/unusable; propagate.
     await client.run(['display-message', '-p', 'ok']);
     if (wasCancelled()) { client.kill(); return; }
@@ -459,7 +480,7 @@ export function createTmuxControl(opts: CreateTmuxControlOpts): TmuxControl {
  *  not be touched). Every method resolves / returns the empty case. */
 export function createNullTmuxControl(): TmuxControl {
   return {
-    attachSession: async () => {},
+    attachSession: async (_session: string, _hint?: AttachSizeHint) => {},
     detachSession: () => {},
     run: () => Promise.reject(new NoControlClientError()),
     on: () => () => {},

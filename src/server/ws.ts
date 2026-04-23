@@ -231,7 +231,12 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
   });
 
   if (!config.testMode) {
-    void opts.tmuxControl.attachSession(session).catch((err) => {
+    // Pass the WS's cols/rows so the control client's `refresh-client -C`
+    // mirrors the sibling PTY client's size — otherwise tmux's
+    // `window-size latest` policy briefly resizes the layout to the
+    // control client's size and then snaps back when the PTY client's
+    // size arrives, which the user sees as a flash + redraw on attach.
+    void opts.tmuxControl.attachSession(session, { cols, rows }).catch((err) => {
       debug(config, `attachSession(${session}) failed: ${(err as Error).message}`);
     });
   }
