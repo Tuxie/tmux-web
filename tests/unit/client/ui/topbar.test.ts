@@ -358,6 +358,28 @@ describe('Topbar.init + updateTitle / updateWindows / renderWinTabs', () => {
     expect(winRows.length).toBe(0);
   });
 
+  it('renderSessionsMenu does NOT render the tmux session id (id is internal-only, hidden from the user)', async () => {
+    const t = await mountTopbar();
+    await t.init();
+    (t as any).cachedSessions = [
+      { id: '0', name: 'main' },
+      { id: '7', name: 'dev' },
+    ];
+    const menu: any = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+    // No row contains a `.tw-dd-session-id` child.
+    const rows = menu.children.filter((c: any) =>
+      typeof c.className === 'string' && c.className.includes('tw-dd-session-item')
+    );
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      const idChildren = (row.children as any[]).filter((c: any) =>
+        typeof c.className === 'string' && c.className.includes('tw-dd-session-id')
+      );
+      expect(idChildren.length).toBe(0);
+    }
+  });
+
   it('clicking a row in the windows menu sends a `window select` message', async () => {
     const outgoing: string[] = [];
     const t = await mountTopbar({ send: (s) => outgoing.push(s) });

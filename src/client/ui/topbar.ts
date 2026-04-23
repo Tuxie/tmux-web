@@ -175,10 +175,7 @@ export class Topbar {
     return row;
   }
 
-  private setupSessionMenu(): void {
-    const btn = document.getElementById('btn-session-menu') as HTMLButtonElement;
-    const btnPlus = document.getElementById('btn-session-plus') as HTMLButtonElement | null;
-    const renderContent = (menu: HTMLElement, close: () => void): void => {
+  private renderSessionsMenu(menu: HTMLElement, close: () => void): void {
         const current = this.currentSession;
 
         // Union of running tmux sessions + persisted ones from sessions.json,
@@ -192,11 +189,9 @@ export class Topbar {
             .map(n => ({ id: null as string | null, name: n })),
         ].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 
-        // Each row: [ ✓ gutter | name | tmux session id | status dot ].
-        // The id sits in muted grey to the left of the status dot so it's
-        // unobtrusive but discoverable; stored-but-stopped sessions leave
-        // that slot empty. Stopped sessions also get a trashcan that
-        // deletes the stored settings entry from sessions.json.
+        // Each row: [ ✓ gutter | name | trashcan? | status dot ]. Stopped
+        // sessions also get a trashcan that deletes the stored settings
+        // entry from sessions.json.
         for (const s of ordered) {
           const isCurrent = s.name === current;
           const isRunning = runningByName.has(s.name);
@@ -224,13 +219,6 @@ export class Topbar {
               el.remove();
             });
             el.appendChild(del);
-          }
-          if (s.id !== null) {
-            const id = document.createElement('span');
-            id.className = 'tw-dd-session-id';
-            id.textContent = s.id;
-            id.title = 'session id: ' + s.id;
-            el.appendChild(id);
           }
           const dot = document.createElement('span');
           dot.className = 'tw-dd-session-status ' + (isRunning ? 'running' : 'stopped');
@@ -294,12 +282,16 @@ export class Topbar {
           this.opts.send(JSON.stringify({ type: 'session', action: 'kill' }));
         });
         menu.appendChild(killItem);
-    };
+  }
+
+  private setupSessionMenu(): void {
+    const btn = document.getElementById('btn-session-menu') as HTMLButtonElement;
+    const btnPlus = document.getElementById('btn-session-plus') as HTMLButtonElement | null;
 
     const sessionDropdown = Dropdown.custom(btn, {
       className: 'tw-dd-sessions',
       beforeOpen: () => this.refreshCachedSessions(),
-      renderContent,
+      renderContent: (menu, close) => this.renderSessionsMenu(menu, close),
     });
 
     // Right-click behaves like left-click — opens the same rich session
