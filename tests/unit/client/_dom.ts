@@ -15,6 +15,7 @@ export interface StubElement {
   dispatch(t: string, ev: any): void;
   setAttribute(k: string, v: string): void;
   getAttribute(k: string): string | null;
+  removeAttribute(k: string): void;
   remove(): void;
   contains(node: any): boolean;
   querySelector(sel: string): StubElement | null;
@@ -45,6 +46,7 @@ export function el(tag = 'div'): StubElement {
     dispatch(t: string, ev: any) { (listeners[t] || []).slice().forEach(f => f(ev)); },
     setAttribute(k: string, v: string) { self.attrs[k] = v; },
     getAttribute(k: string) { return self.attrs[k] ?? null; },
+    removeAttribute(k: string) { delete self.attrs[k]; },
     remove() { self.parentNode?.removeChild(self); },
     contains() { return true; },
     querySelector() { return null; },

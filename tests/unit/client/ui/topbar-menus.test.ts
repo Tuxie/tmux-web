@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll } from 'bun:test';
-import { setupDocument, el as stubEl, stubFetch, type StubDoc, type StubElement } from '../_dom.js';
+import { setupDocument, stubFetch, type StubDoc, type StubElement } from '../_dom.js';
 import { _resetSessionStore } from '../../../../src/client/session-settings.ts';
 
 /**
@@ -456,5 +456,349 @@ describe('sessions menu: running/stopped states and current marker', () => {
     expect(names).toContain('old');
     expect(names).toContain('backup');
     expect(rows.length).toBe(3);
+  });
+});
+
+// ─── shared interaction helpers ──────────────────────────────────────────────
+
+/** Yield to the microtask queue N times (lets async fetch chains settle). */
+async function flushAsync(n = 10) {
+  for (let i = 0; i < n; i++) await Promise.resolve();
+}
+
+/** Recursively find first child with className containing `cls`. */
+function deepFind(root: any, cls: string): any {
+  for (const child of root.children ?? []) {
+    if (typeof child.className === 'string' && child.className.includes(cls)) return child;
+    const found = deepFind(child, cls);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** Collect all descendants whose className contains `cls`. */
+function deepFindAll(root: any, cls: string, acc: any[] = []): any[] {
+  for (const child of root.children ?? []) {
+    if (typeof child.className === 'string' && child.className.includes(cls)) acc.push(child);
+    deepFindAll(child, cls, acc);
+  }
+  return acc;
+}
+
+// ─── windows compact button and tab context-menu interactions ─────────────────
+
+describe('windows: compact button and context-menu wiring', () => {
+  beforeEach(() => { _resetSessionStore(); });
+
+  const WINDOWS = [
+    { index: '0', name: 'zsh', active: true },
+    { index: '1', name: 'vim', active: false },
+  ];
+
+  async function setup(send?: (s: string) => void) {
+    const t = await mountTopbar({ send });
+    const { setShowWindowTabs } = await import('../../../../src/client/prefs.ts');
+    setShowWindowTabs(true);
+    (t as any).lastWinTabsKey = '';
+    t.updateWindows(WINDOWS);
+    return t;
+  }
+
+  function compact() {
+    const wt = winTabsEl();
+    return wt.children[wt.children.length - 1] as any;
+  }
+
+  function bodyMenu(cls: string) {
+    return (globalThis.document as any).body.children.find(
+      (c: any) => typeof c.className === 'string' && c.className.includes(cls),
+    );
+  }
+
+  it('right-click on compact button sends new-window message', async () => {
+    const sent: string[] = [];
+    await setup(s => sent.push(s));
+    compact().dispatch('contextmenu', { preventDefault() {}, stopPropagation() {} });
+    expect(sent).toContain(JSON.stringify({ type: 'window', action: 'new' }));
+  });
+
+  it('left-click on compact button opens the rich windows menu with window rows', async () => {
+    await setup();
+    compact().click();
+    const menu = bodyMenu('tw-dd-windows-menu');
+    expect(menu).toBeDefined();
+    const rows = sessionRows(menu);
+    expect(rows.length).toBe(2);
+    expect(rows[0].textContent).toBe('0: zsh');
+    expect(rows[1].textContent).toBe('1: vim');
+  });
+
+  it('New window input in the menu sends a new-window-with-name message', async () => {
+    const sent: string[] = [];
+    await setup(s => sent.push(s));
+    compact().click();
+    const menu = bodyMenu('tw-dd-windows-menu');
+    // Two tw-dd-input elements: [0]=Name, [1]=New window
+    const inputs = deepFindAll(menu, 'tw-dd-input');
+    inputs[1].value = 'logs';
+    inputs[1].dispatch('keydown', { key: 'Enter', preventDefault() {} });
+    expect(sent).toContain(JSON.stringify({ type: 'window', action: 'new', name: 'logs' }));
+  });
+
+  it('Name input in the menu renames the current window', async () => {
+    const sent: string[] = [];
+    await setup(s => sent.push(s));
+    compact().click();
+    const menu = bodyMenu('tw-dd-windows-menu');
+    const inputs = deepFindAll(menu, 'tw-dd-input');
+    inputs[0].value = 'shell';
+    inputs[0].dispatch('keydown', { key: 'Enter', preventDefault() {} });
+    expect(sent).toContain(JSON.stringify({ type: 'window', action: 'rename', index: '0', name: 'shell' }));
+  });
+
+  it('unchecking Show windows as tabs hides tab buttons', async () => {
+    await setup();
+    expect(tabs(winTabsEl()).length).toBe(2);
+    compact().click();
+    const menu = bodyMenu('tw-dd-windows-menu');
+    // Find the checkbox (type=checkbox input inside the menu)
+    let chk: any;
+    function findChk(el: any) {
+      for (const c of el.children ?? []) {
+        if ((c as any).type === 'checkbox') { chk = c; return; }
+        findChk(c);
+      }
+    }
+    findChk(menu);
+    expect(chk.checked).toBe(true);
+    chk.checked = false;
+    chk.dispatch('change', { target: chk });
+    expect(tabs(winTabsEl()).length).toBe(0);
+  });
+
+  it('right-click on a tab opens context menu with Name input pre-filled and Close item', async () => {
+    await setup();
+    tabs(winTabsEl())[1].dispatch('contextmenu', { preventDefault() {}, stopPropagation() {} });
+    const ctx = bodyMenu('tw-dd-context-win-menu');
+    expect(ctx).toBeDefined();
+    const labelEl = deepFind(ctx, 'tw-menu-label');
+    expect(labelEl?.textContent).toBe('Name:');
+    const inputEl = deepFind(ctx, 'tw-dd-input');
+    expect(inputEl?.value).toBe('vim');
+    const items = deepFindAll(ctx, 'tw-dropdown-item');
+    expect(items.length).toBe(1);
+    expect(items[0].textContent).toContain('Close window 1: vim');
+  });
+
+  it('editing Name in tab context menu sends rename-window', async () => {
+    const sent: string[] = [];
+    await setup(s => sent.push(s));
+    tabs(winTabsEl())[1].dispatch('contextmenu', { preventDefault() {}, stopPropagation() {} });
+    const ctx = bodyMenu('tw-dd-context-win-menu');
+    const inputEl = deepFind(ctx, 'tw-dd-input');
+    inputEl.value = 'editor';
+    inputEl.dispatch('keydown', { key: 'Enter', preventDefault() {} });
+    expect(sent).toContain(JSON.stringify({ type: 'window', action: 'rename', index: '1', name: 'editor' }));
+  });
+
+  it('pressing Enter with unchanged name in tab context menu does not send rename', async () => {
+    const sent: string[] = [];
+    await setup(s => sent.push(s));
+    tabs(winTabsEl())[1].dispatch('contextmenu', { preventDefault() {}, stopPropagation() {} });
+    const ctx = bodyMenu('tw-dd-context-win-menu');
+    const inputEl = deepFind(ctx, 'tw-dd-input');
+    // value is already 'vim' — don't change it
+    inputEl.dispatch('keydown', { key: 'Enter', preventDefault() {} });
+    expect(sent.some(s => s.includes('"rename"'))).toBe(false);
+  });
+
+  it('clicking Close window item in tab context menu sends close-window message', async () => {
+    const sent: string[] = [];
+    await setup(s => sent.push(s));
+    tabs(winTabsEl())[1].dispatch('contextmenu', { preventDefault() {}, stopPropagation() {} });
+    const ctx = bodyMenu('tw-dd-context-win-menu');
+    deepFind(ctx, 'tw-dropdown-item').click();
+    expect(sent).toContain(JSON.stringify({ type: 'window', action: 'close', index: '1' }));
+  });
+
+  it('context menu closes on Escape', async () => {
+    await setup();
+    tabs(winTabsEl())[0].dispatch('contextmenu', { preventDefault() {}, stopPropagation() {} });
+    expect(bodyMenu('tw-dd-context')).toBeDefined();
+    (globalThis.document as any).dispatch('keydown', { key: 'Escape' });
+    expect(bodyMenu('tw-dd-context')).toBeUndefined();
+  });
+});
+
+// ─── session button interactions ─────────────────────────────────────────────
+
+describe('session button: click and menu interactions', () => {
+  beforeEach(() => { _resetSessionStore(); });
+
+  function sessionBtn() {
+    return (globalThis.document as any).getElementById('btn-session-menu') as any;
+  }
+
+  function sessMenu() {
+    return (globalThis.document as any).body.children.find(
+      (c: any) => typeof c.className === 'string' && c.className.includes('tw-dd-sessions-menu'),
+    ) as any;
+  }
+
+  it('updateSession writes the session name to #tb-session-name', async () => {
+    const t = await mountTopbar({ session: 'work' });
+    const el = (globalThis.document as any).getElementById('tb-session-name');
+    expect(el.textContent).toBe('work');
+    t.updateSession('myproject');
+    expect(el.textContent).toBe('myproject');
+  });
+
+  it('session menu has Kill row plus Name and New session inputs', async () => {
+    const t = await mountTopbar({ session: 'main' });
+    (t as any).cachedSessions = [{ id: '1', name: 'main' }, { id: '2', name: 'dev' }];
+    const menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+    const rows = sessionRows(menu);
+    expect(rows.length).toBe(2);
+    // Kill row
+    const killItem = menu.children.find(
+      (c: any) => typeof c.className === 'string' && c.className.includes('tw-dropdown-item')
+        && !c.className.includes('tw-dd-session-item'),
+    );
+    expect(killItem?.textContent).toContain('Kill session main');
+    // Name and New session labels
+    const labels = deepFindAll(menu, 'tw-menu-label').map((l: any) => l.textContent);
+    expect(labels).toContain('Name:');
+    expect(labels).toContain('New session:');
+  });
+
+  it('clicking a session row calls onSwitchSession with that name', async () => {
+    const switched: string[] = [];
+    const t = await mountTopbar({ session: 'main' });
+    (t as any).opts.onSwitchSession = (name: string) => switched.push(name);
+    (t as any).cachedSessions = [{ id: '1', name: 'main' }, { id: '2', name: 'dev' }];
+    const menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+    rowByName(sessionRows(menu), 'dev').click();
+    expect(switched).toContain('dev');
+  });
+
+  it('Name input in session menu renames the current session on Enter', async () => {
+    const sent: string[] = [];
+    const t = await mountTopbar({ session: 'main', send: s => sent.push(s) });
+    (t as any).cachedSessions = [{ id: '1', name: 'main' }];
+    const menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+    const inputs = deepFindAll(menu, 'tw-dd-input');
+    inputs[0].value = 'project'; // Name input (first)
+    inputs[0].dispatch('keydown', { key: 'Enter', preventDefault() {} });
+    expect(sent).toContain(JSON.stringify({ type: 'session', action: 'rename', name: 'project' }));
+  });
+
+  it('New session input calls onSwitchSession with cleaned name', async () => {
+    const switched: string[] = [];
+    const t = await mountTopbar({ session: 'main' });
+    (t as any).opts.onSwitchSession = (name: string) => switched.push(name);
+    (t as any).cachedSessions = [{ id: '1', name: 'main' }];
+    const menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+    const inputs = deepFindAll(menu, 'tw-dd-input');
+    inputs[1].value = 'scratch'; // New session input (second)
+    inputs[1].dispatch('keydown', { key: 'Enter', preventDefault() {} });
+    expect(switched).toContain('scratch');
+  });
+
+  it('Kill session row sends kill message after confirm', async () => {
+    const sent: string[] = [];
+    const t = await mountTopbar({ session: 'main', send: s => sent.push(s) });
+    (t as any).cachedSessions = [{ id: '1', name: 'main' }];
+    const menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+    (globalThis as any).confirm = () => true;
+    const killItem = menu.children.find(
+      (c: any) => typeof c.className === 'string' && c.className.includes('tw-dropdown-item')
+        && !c.className.includes('tw-dd-session-item'),
+    );
+    killItem.click();
+    expect(sent).toContain(JSON.stringify({ type: 'session', action: 'kill' }));
+  });
+
+  it('left-click on session button opens the sessions dropdown menu', async () => {
+    await mountTopbar({ session: 'main' });
+    stubFetch(async (url: string) => {
+      if (url.startsWith('/api/sessions')) return { ok: true, json: async () => [{ id: '1', name: 'main' }] } as any;
+      return { ok: true, json: async () => ({}) } as any;
+    });
+    const menu = sessMenu();
+    expect(menu.hidden).toBe(true);
+    sessionBtn().click();
+    await flushAsync();
+    expect(menu.hidden).toBe(false);
+  });
+
+  it('session button gets .open class while menu is showing', async () => {
+    await mountTopbar({ session: 'main' });
+    stubFetch(async (url: string) => {
+      if (url.startsWith('/api/sessions')) return { ok: true, json: async () => [] } as any;
+      return { ok: true, json: async () => ({}) } as any;
+    });
+    const btn = sessionBtn();
+    expect(btn.classList.has('open')).toBe(false);
+    btn.click();
+    await flushAsync();
+    expect(btn.classList.has('open')).toBe(true);
+  });
+
+  it('right-click on session button opens the same sessions menu', async () => {
+    await mountTopbar({ session: 'main' });
+    stubFetch(async (url: string) => {
+      if (url.startsWith('/api/sessions')) return { ok: true, json: async () => [{ id: '1', name: 'main' }] } as any;
+      return { ok: true, json: async () => ({}) } as any;
+    });
+    const menu = sessMenu();
+    expect(menu.hidden).toBe(true);
+    sessionBtn().dispatch('contextmenu', { preventDefault() {}, stopPropagation() {} });
+    await flushAsync();
+    expect(menu.hidden).toBe(false);
+    // Second right-click closes
+    sessionBtn().dispatch('contextmenu', { preventDefault() {}, stopPropagation() {} });
+    expect(menu.hidden).toBe(true);
+  });
+
+  it('clicking delete button removes the session via DELETE fetch', async () => {
+    const deletedUrls: string[] = [];
+    const t = await mountTopbar({ session: 'main' });
+    stubFetch(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'DELETE') deletedUrls.push(url);
+      return { ok: true, json: async () => ({}) } as any;
+    });
+    (t as any).cachedSessions = [{ id: '1', name: 'main' }];
+    _resetSessionStore({ sessions: { archived: {} as any } });
+    const menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+    const rows = sessionRows(menu);
+    const archivedRow = rowByName(rows, 'archived');
+    expect(archivedRow).not.toBeNull();
+    const delBtn = deleteBtn(archivedRow);
+    delBtn.click();
+    await flushAsync();
+    expect(deletedUrls.some(u => u.includes('archived'))).toBe(true);
+    // Row removed from menu
+    expect(rowByName(sessionRows(menu), 'archived')).toBeNull();
+  });
+
+  it('delete button click does not switch to the deleted session', async () => {
+    const switched: string[] = [];
+    stubFetch(async () => ({ ok: true, json: async () => ({}) } as any));
+    const t = await mountTopbar({ session: 'main' });
+    (t as any).opts.onSwitchSession = (name: string) => switched.push(name);
+    (t as any).cachedSessions = [{ id: '1', name: 'main' }];
+    _resetSessionStore({ sessions: { archived: {} as any } });
+    const menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+    const archivedRow = rowByName(sessionRows(menu), 'archived');
+    deleteBtn(archivedRow).click();
+    await flushAsync();
+    expect(switched).not.toContain('archived');
   });
 });
