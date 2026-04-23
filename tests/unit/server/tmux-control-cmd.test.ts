@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { ControlClient, quoteTmuxArg } from '../../../src/server/tmux-control.ts';
+import { ControlClient, buildControlSpawnArgs, quoteTmuxArg } from '../../../src/server/tmux-control.ts';
 
 /** Scripted stdio pair: stdin is a MemoryWritable that records every
  *  write; stdout is a pushable readable the test drives frame-by-frame. */
@@ -157,5 +157,22 @@ describe('ControlClient', () => {
     await Promise.resolve();
     stdout.emit('%begin 9 42424 0\nunknown command: bogus\n%error 9 42424 0\n');
     await expect(p).rejects.toMatchObject({ name: 'TmuxCommandError', stderr: 'unknown command: bogus' });
+  });
+
+  test('buildControlSpawnArgs forces UTF-8 via -u (regression: LANG=C parents made tmux replace tabs and non-ASCII with "_")', () => {
+    // Without `-u`, tmux autodetects UTF-8 from LC_ALL / LC_CTYPE / LANG.
+    // A bun process started with LANG=C (systemd units, login shells with
+    // no locale configured) makes tmux fall back to safe-string output —
+    // tabs and any non-ASCII byte in a format-string result are replaced
+    // by `_`, which the browser sees as "1_claude_1: undefined" because
+    // `line.split('\t')` finds nothing to split on. `-u` is more robust
+    // than relying on the spawn-time environment.
+    const args = buildControlSpawnArgs('tmux', '/etc/tmux.conf', 'main');
+    expect(args).toContain('-u');
+    // Sanity: the rest of the invocation is intact.
+    expect(args[0]).toBe('tmux');
+    expect(args).toContain('-C');
+    expect(args).toContain('attach-session');
+    expect(args[args.length - 1]).toBe('main');
   });
 });

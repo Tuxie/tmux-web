@@ -443,6 +443,21 @@ export interface CreateTmuxControlOpts {
   tmuxConfPath: string;
 }
 
+/** Build the argv for `tmux -C attach-session -t <session>`. Exported so
+ *  the unit tests can assert the UTF-8 (`-u`) flag is present without
+ *  having to spawn a real tmux. */
+export function buildControlSpawnArgs(tmuxBin: string, tmuxConfPath: string, session: string): string[] {
+  // `-u` declares UTF-8 support to tmux. Without it, tmux's autodetect
+  // checks LC_ALL / LC_CTYPE / LANG for the substring "UTF-8"; a process
+  // started with LANG=C (e.g. systemd units, login shells with no locale
+  // configured) would fail that check, and tmux would then run every
+  // format-string output through `safe_string`, replacing tabs and any
+  // non-ASCII byte with `_`. That manifests in the browser as window
+  // tabs labelled "1_claude_1" instead of `1\tclaude\t1`. Forcing `-u`
+  // is more robust than trusting the spawn-time environment.
+  return [tmuxBin, '-f', tmuxConfPath, '-u', '-C', 'attach-session', '-t', session];
+}
+
 /** Real-world factory. Production code uses this; tests use `new ControlPool`
  *  with an injected spawn. */
 export function createTmuxControl(opts: CreateTmuxControlOpts): TmuxControl {
@@ -451,7 +466,7 @@ export function createTmuxControl(opts: CreateTmuxControlOpts): TmuxControl {
     // the `%error` envelope on stdout — stderr would just buffer
     // unboundedly inside Bun until the child exits.
     const proc = Bun.spawn(
-      [opts.tmuxBin, '-f', opts.tmuxConfPath, '-C', 'attach-session', '-t', session],
+      buildControlSpawnArgs(opts.tmuxBin, opts.tmuxConfPath, session),
       { stdin: 'pipe', stdout: 'pipe', stderr: 'ignore' },
     );
     // Bun.spawn stdout is a ReadableStream<Uint8Array>; adapt to the
