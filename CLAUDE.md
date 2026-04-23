@@ -457,6 +457,8 @@ When explicitly asked to file a bug report, the audience of that bug report will
 
 When fixing a bug, first run the related tests and note the result. If existing failed tests already confirm the bug, fix it and make sure the full test suite pass. If no tests existed to verify the bug, create tests confirming the bug, fix the bug and make sure the full test suite is still passing.
 
+If the bug you fixed was filed under `docs/bugs/`, move it to `docs/bugs/fixed/`.
+
 ### Git
 
 Commit after every change with descriptive message.
