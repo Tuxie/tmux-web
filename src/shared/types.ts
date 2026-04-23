@@ -101,6 +101,13 @@ export interface ResizeMessage {
   rows: number;
 }
 
+/** Client-to-server tmux session switch message. */
+export interface SwitchSessionMessage {
+  type: 'switch-session';
+  /** The target tmux session name. Server validates and sanitises. */
+  name: string;
+}
+
 /** Server configuration derived from CLI args. */
 export interface ServerConfig {
   host: string;

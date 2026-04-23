@@ -59,6 +59,7 @@ export interface SpawnPtyOptions {
 }
 
 export interface BunPty {
+  pid: number;
   onData: (cb: (data: string) => void) => void;
   onExit: (cb: () => void) => void;
   write: (data: string) => void;
@@ -89,6 +90,7 @@ export function spawnPty(opts: SpawnPtyOptions): BunPty {
   });
 
   return {
+    pid: proc.pid,
     onData: (cb: (data: string) => void) => {
       onDataCallback = cb;
     },

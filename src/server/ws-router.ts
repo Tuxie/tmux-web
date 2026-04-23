@@ -27,6 +27,7 @@ export type WsAction =
   | { type: 'pty-write'; data: string }
   | { type: 'pty-resize'; cols: number; rows: number }
   | { type: 'colour-variant'; variant: 'dark' | 'light' }
+  | { type: 'switch-session'; name: string }
   | { type: 'window'; action: string; index?: string; name?: string }
   | { type: 'session'; action: string; name?: string }
   | { type: 'clipboard-deny'; reqId: string; selection: string }
@@ -54,6 +55,9 @@ export function routeClientMessage(raw: string, state: RouterState): WsAction[] 
   }
   if (parsed?.type === 'colour-variant' && (parsed.variant === 'dark' || parsed.variant === 'light')) {
     return [{ type: 'colour-variant', variant: parsed.variant }];
+  }
+  if (parsed?.type === 'switch-session' && typeof parsed.name === 'string') {
+    return [{ type: 'switch-session', name: parsed.name }];
   }
   if (parsed?.type === 'window' && typeof parsed.action === 'string') {
     return [{

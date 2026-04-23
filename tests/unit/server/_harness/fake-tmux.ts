@@ -34,8 +34,14 @@ case "$1" in
     echo -e "${panePid}\\tbash"
     ;;
   list-windows) printf "0\\tone\\t1\\n1\\ttwo\\t0\\n";;
+  list-clients)
+    if [ -f "${dir}/client.pid" ]; then
+      printf "%s\\t/dev/pts/fake\\n" "$(cat "${dir}/client.pid")"
+    fi
+    ;;
   list-sessions) echo "main: 1 windows"; echo "dev: 1 windows";;
   new-session)
+    printf "%s" "$$" > "${dir}/client.pid"
     # Keep the PTY alive for integration tests, but exit on signals so
     # proc.kill() cleans up reliably.
     trap 'exit 0' TERM INT HUP
@@ -62,7 +68,7 @@ case "$1" in
     kill "$READER_PID" 2>/dev/null || true
     exit 0
     ;;
-  select-window|new-window|kill-window|rename-window|rename-session|kill-session|set-environment|send-keys) exit 0;;
+  select-window|new-window|kill-window|rename-window|rename-session|kill-session|set-environment|send-keys|switch-client) exit 0;;
   *) exit 0;;
 esac
 `);

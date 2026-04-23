@@ -1,5 +1,5 @@
 import type { TerminalAdapter } from './adapters/types.js';
-import type { ClientConfig } from '../shared/types.js';
+import type { ClientConfig, SwitchSessionMessage } from '../shared/types.js';
 import { extractTTMessages } from './protocol.js';
 import { Connection, buildWsUrl } from './connection.js';
 import { Topbar } from './ui/topbar.js';
@@ -195,11 +195,11 @@ async function main() {
       // Switch sessions without a full page navigation — full reloads
       // exit fullscreen and lose terminal state. updateSession runs the
       // existing in-place session-change flow (URL replaceState, load
-      // per-session settings, sync UI, fire onSettingsChange). Then
-      // reconnect the WebSocket so the server attaches to the new tmux
-      // session.
+      // per-session settings, sync UI, fire onSettingsChange). The server
+      // retargets the existing PTY tmux client, so the WebSocket stays open.
       topbar.updateSession(name);
-      connection.reconnect();
+      const msg: SwitchSessionMessage = { type: 'switch-session', name };
+      connection.send(JSON.stringify(msg));
     },
     onSettingsChange: async (s) => {
       const themeChanged = s.theme !== settings.theme;

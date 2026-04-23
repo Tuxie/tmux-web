@@ -34,6 +34,7 @@ export interface WsData {
 interface WsConnState {
   pty?: BunPty;
   sessionSet?: Set<ServerWebSocket<WsData>>;
+  registeredSession: string;
   lastSession: string;
   lastTitle: string;
   pendingReads: Map<string, RouterPendingRead>;
@@ -154,6 +155,7 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
       cols,
       rows,
       state: {
+        registeredSession: session,
         lastSession: session,
         lastTitle: '',
         pendingReads: new Map(),
@@ -173,7 +175,7 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
 
   const websocket: WebSocketHandler<WsData> = {
     open(ws) { handleOpen(ws, opts, reg); },
-    message(ws, msg) { handleMessage(ws, msg, opts); },
+    message(ws, msg) { handleMessage(ws, msg, opts, reg); },
     close(ws) { handleClose(ws, opts, reg); },
   };
 
@@ -269,18 +271,19 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
   });
 }
 
-function handleMessage(ws: ServerWebSocket<WsData>, msg: string | Buffer, opts: WsServerOptions): void {
+function handleMessage(ws: ServerWebSocket<WsData>, msg: string | Buffer, opts: WsServerOptions, reg: WsRegistry): void {
   const text = typeof msg === 'string' ? msg : Buffer.from(msg).toString('utf8');
   const actions = routeClientMessage(text, {
     currentSession: ws.data.state.lastSession,
     pendingReads: ws.data.state.pendingReads,
   });
-  for (const act of actions) dispatchAction(ws, act, opts);
+  for (const act of actions) dispatchAction(ws, act, opts, reg);
 }
 
 function handleClose(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsRegistry): void {
   const { config } = opts;
-  const { remoteIp, initialSession: session, state } = ws.data;
+  const { remoteIp, state } = ws.data;
+  const session = state.registeredSession;
   debug(config, `WS closed from ${remoteIp} session=${session}`);
   state.unsubscribeDrops?.();
   state.sessionSet?.delete(ws);
@@ -383,12 +386,15 @@ async function handleReadRequest(
   }));
 }
 
-function dispatchAction(ws: ServerWebSocket<WsData>, act: WsAction, opts: WsServerOptions): void {
+function dispatchAction(ws: ServerWebSocket<WsData>, act: WsAction, opts: WsServerOptions, reg: WsRegistry): void {
   const { state } = ws.data;
   switch (act.type) {
     case 'pty-write': state.pty?.write(act.data); return;
     case 'pty-resize': state.pty?.resize(act.cols, act.rows); return;
     case 'colour-variant': void applyColourVariant(state.lastSession, act.variant, opts); return;
+    case 'switch-session':
+      void switchSession(ws, act.name, opts, reg);
+      return;
     case 'window':
       // After the action completes, refresh the window list. tmux only
       // emits an OSC title change when the *active* window changes, so
@@ -416,6 +422,91 @@ function dispatchAction(ws: ServerWebSocket<WsData>, act: WsAction, opts: WsServ
       return;
     case 'clipboard-request-content': requestClipboardFromClient(ws, act.reqId); return;
     case 'clipboard-reply': void replyToRead(ws, act.selection, act.base64, opts); return;
+  }
+}
+
+function moveWsToSession(
+  ws: ServerWebSocket<WsData>,
+  oldSession: string,
+  newSession: string,
+  opts: WsServerOptions,
+  reg: WsRegistry,
+): void {
+  const { state } = ws.data;
+  state.sessionSet?.delete(ws);
+  if (state.sessionSet && state.sessionSet.size === 0) reg.wsClientsBySession.delete(oldSession);
+
+  const oldRefs = (reg.sessionRefs.get(oldSession) ?? 1) - 1;
+  if (oldRefs <= 0) {
+    reg.sessionRefs.delete(oldSession);
+    if (!opts.config.testMode) opts.tmuxControl.detachSession(oldSession);
+  } else {
+    reg.sessionRefs.set(oldSession, oldRefs);
+  }
+
+  reg.sessionRefs.set(newSession, (reg.sessionRefs.get(newSession) ?? 0) + 1);
+  let newSet = reg.wsClientsBySession.get(newSession);
+  if (!newSet) {
+    newSet = new Set();
+    reg.wsClientsBySession.set(newSession, newSet);
+  }
+  newSet.add(ws);
+  state.sessionSet = newSet;
+  state.registeredSession = newSession;
+  state.lastSession = newSession;
+}
+
+async function tmuxClientForPty(pty: BunPty | undefined, opts: WsServerOptions): Promise<string | null> {
+  if (!pty) return null;
+  const out = await opts.tmuxControl.run([
+    'list-clients',
+    '-F',
+    '#{client_pid}\t#{client_tty}\t#{client_name}',
+  ]);
+  const candidates: string[] = [];
+  for (const line of out.split('\n')) {
+    if (!line) continue;
+    const [pid, tty, name] = line.split('\t');
+    const candidate = tty || name || null;
+    if (candidate) candidates.push(candidate);
+    if (Number(pid) !== pty.pid) continue;
+    return candidate;
+  }
+  if (candidates.length === 1) return candidates[0]!;
+  return null;
+}
+
+async function switchSession(
+  ws: ServerWebSocket<WsData>,
+  rawName: string,
+  opts: WsServerOptions,
+  reg: WsRegistry,
+): Promise<void> {
+  const { state } = ws.data;
+  const oldSession = state.registeredSession;
+  const newSession = sanitizeSession(rawName);
+  if (newSession === oldSession) {
+    await sendWindowState(ws, newSession, opts);
+    return;
+  }
+
+  moveWsToSession(ws, oldSession, newSession, opts, reg);
+  if (opts.config.testMode) {
+    await sendWindowState(ws, newSession, opts);
+    return;
+  }
+
+  try {
+    await opts.tmuxControl.attachSession(newSession, { cols: ws.data.cols, rows: ws.data.rows });
+    const client = await tmuxClientForPty(state.pty, opts);
+    if (!client) {
+      debug(opts.config, `switch-session(${newSession}) failed: PTY tmux client not found`);
+      return;
+    }
+    await opts.tmuxControl.run(['switch-client', '-c', client, '-t', newSession]);
+    await sendWindowState(ws, newSession, opts);
+  } catch (err) {
+    debug(opts.config, `switch-session(${newSession}) failed: ${(err as Error).message}`);
   }
 }
 

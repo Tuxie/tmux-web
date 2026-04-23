@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import http from 'node:http';
 import { startTestServer, type Harness } from './_harness/spawn-server.ts';
 import { makeFakeTmux } from './_harness/fake-tmux.ts';
+import { execFileAsync } from '../../../src/server/exec.ts';
+import type { TmuxControl } from '../../../src/server/tmux-control.ts';
 
 function postDrop(baseUrl: string, filename: string, body: Buffer): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -347,6 +349,52 @@ describe('ws handleConnection — OSC 52 write + title change from PTY', () => {
 });
 
 describe('ws handleConnection — non-testMode actions & sendWindowState', () => {
+  test('switch-session reuses the open PTY and moves session bookkeeping', async () => {
+    const { path: tmuxBin, logFile, dir } = makeFakeTmux();
+    const attached: string[] = [];
+    const detached: string[] = [];
+    const tmuxControl: TmuxControl = {
+      attachSession: async (session) => { attached.push(session); },
+      detachSession: (session) => { detached.push(session); },
+      run: async (args) => {
+        const { stdout } = await execFileAsync(tmuxBin, args);
+        return stdout;
+      },
+      on: () => () => {},
+      close: async () => {},
+    };
+    h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
+    const o = openWs(h.wsUrl, '/ws?session=main&cols=80&rows=24');
+    await o.opened;
+    await waitFor(() => {
+      try { return fs.readFileSync(`${dir}/client.pid`, 'utf8').trim(); }
+      catch { return ''; }
+    }, 8000);
+
+    o.ws.send(JSON.stringify({ type: 'switch-session', name: 'dev' }));
+    await waitFor(() => attached.includes('dev'), 8000);
+
+    const switched = await waitFor(() => {
+      try {
+        const s = fs.readFileSync(logFile, 'utf8');
+        return s.includes('switch-client -c /dev/pts/fake -t dev') ? s : null;
+      } catch { return null; }
+    }, 8000);
+    expect(switched).toBeTruthy();
+    expect((switched as string).match(/new-session/g)?.length).toBe(1);
+    expect(attached).toEqual(['main', 'dev']);
+    expect(detached).toEqual(['main']);
+
+    o.messages.length = 0;
+    o.ws.send(JSON.stringify({ type: 'window', action: 'select', index: '1' }));
+    const got = await waitForMsg(o.messages, m => m.session === 'dev' && 'windows' in m, 8000);
+    expect(got).toBeTruthy();
+
+    o.ws.close();
+    await waitFor(() => detached.includes('dev'), 8000);
+    expect(detached).toEqual(['main', 'dev']);
+  }, 15000);
+
   test('window select triggers applyWindowAction + sendWindowState', async () => {
     const { path: tmuxBin, logFile } = makeFakeTmux();
     h = await startTestServer({ testMode: false, tmuxBin });

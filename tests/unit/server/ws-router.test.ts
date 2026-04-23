@@ -39,6 +39,16 @@ describe('routeClientMessage', () => {
       .toEqual([{ type: 'session', action: 'rename', name: 'dev' }]);
   });
 
+  test('switch-session action', () => {
+    expect(routeClientMessage('{"type":"switch-session","name":"dev"}', state()))
+      .toEqual([{ type: 'switch-session', name: 'dev' }]);
+  });
+
+  test('switch-session with invalid name falls through as pty write', () => {
+    const raw = '{"type":"switch-session","name":123}';
+    expect(routeClientMessage(raw, state())).toEqual([{ type: 'pty-write', data: raw }]);
+  });
+
   test('clipboard-decision deny removes pending and emits deny', () => {
     const st = state();
     st.pendingReads.set('r1', { selection: 'c', exePath: '/bin/vim', commandName: 'vim' });
