@@ -28,8 +28,10 @@ export class NoControlClientError extends Error {
 export interface ParserCallbacks {
   /** Optional — invoked when a `%begin` line is seen, before any envelope
    *  body lines arrive. ControlClient uses this to capture tmux's own
-   *  cmd-id (which is server-global, not derivable from write order). */
-  onBegin?: (cmdnum: number) => void;
+   *  cmd-id (which is server-global, not derivable from write order).
+   *  `flags` is the raw bitmask from the %begin line; bit 1 = CMDQ_INTERNAL
+   *  (tmux-generated command, not from our stdin). */
+  onBegin?: (cmdnum: number, flags: number) => void;
   onResponse: (cmdnum: number, output: string) => void;
   onError: (cmdnum: number, stderr: string) => void;
   onNotification: (n: TmuxNotification) => void;
@@ -73,8 +75,9 @@ export class ControlParser {
     if (line.startsWith('%begin ')) {
       const parts = line.split(' ');
       const cmdnum = Number(parts[2]);
+      const flags = Number(parts[3] ?? '0');
       this.inEnvelope = { cmdnum, lines: [] };
-      this.cb.onBegin?.(cmdnum);
+      this.cb.onBegin?.(cmdnum, flags);
       return;
     }
     // Outside an envelope: notification or unknown line.
@@ -208,7 +211,7 @@ export class ControlClient {
     this.notifyCb = onNotification;
     this.commandTimeoutMs = opts.commandTimeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS;
     this.parser = new ControlParser({
-      onBegin: (cmdnum) => this.handleBegin(cmdnum),
+      onBegin: (cmdnum, flags) => this.handleBegin(cmdnum, flags),
       onResponse: (cmdnum, output) => this.handleResponse(cmdnum, output),
       onError: (cmdnum, stderr) => this.handleError(cmdnum, stderr),
       onNotification: (n) => this.notifyCb(n),
@@ -260,7 +263,15 @@ export class ControlClient {
     head.timer = setTimeout(() => this.handleTimeout(head.id), this.commandTimeoutMs);
   }
 
-  private handleBegin(cmdnum: number): void {
+  private handleBegin(cmdnum: number, flags: number): void {
+    // Bit 1 of flags = CMDQ_INTERNAL: tmux emitted this envelope for an
+    // internal operation, not in response to a command we wrote to stdin.
+    // Treat it as stale unconditionally so it can never be attributed to
+    // a pending head — even if one is waiting for its %begin right now.
+    if (flags & 1) {
+      this.staleCmdnums.add(cmdnum);
+      return;
+    }
     // A %begin we owe to a previously-timed-out command: drop the entire
     // envelope (mark cmdnum stale so the matching %end/%error is also
     // dropped). Don't attribute it to the current queue head.

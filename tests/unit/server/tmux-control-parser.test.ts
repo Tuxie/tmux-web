@@ -16,6 +16,22 @@ describe('ControlParser', () => {
     expect(events).toEqual([{ kind: 'response', cmdnum: 5, output: 'hello world' }]);
   });
 
+  test('onBegin receives cmdnum and flags from the %begin line', () => {
+    const begins: Array<{ cmdnum: number; flags: number }> = [];
+    const parser = new ControlParser({
+      onBegin: (cmdnum, flags) => begins.push({ cmdnum, flags }),
+      onResponse: () => {},
+      onError: () => {},
+      onNotification: () => {},
+    });
+    parser.push('%begin 1 42 0\n%end 1 42 0\n');   // flags=0 (client command)
+    parser.push('%begin 1 43 1\n%end 1 43 0\n');   // flags=1 (CMDQ_INTERNAL)
+    expect(begins).toEqual([
+      { cmdnum: 42, flags: 0 },
+      { cmdnum: 43, flags: 1 },
+    ]);
+  });
+
   test('emits an error on %error', () => {
     const events: Array<{ kind: string; cmdnum?: number; stderr?: string }> = [];
     const parser = new ControlParser({

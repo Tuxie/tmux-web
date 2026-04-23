@@ -1,6 +1,6 @@
 # tmux -C emits an unattributed %begin/%end envelope after our last command
 
-**Status:** observed, not investigated.
+**Status:** fixed 2026-04-23.
 **Date noticed:** 2026-04-23
 **Context:** debugging the `cmdnum=1 vs server-global cmdnum` mismatch in `ControlClient` (commit `0eb1cd5`).
 
@@ -36,3 +36,17 @@ Set `bun src/server/index.ts --listen 127.0.0.1:4099 --no-auth --no-tls --debug`
 ## What I was doing when I noticed
 
 Investigating the bigger "window tabs aren't displayed" bug — the cmdnum=1-vs-server-global mismatch — by adding `process.stderr.write` lines to `dispatch` / `handleBegin` / `handleResponse` and running the server against the live `tmux-web` session. The stray envelope showed up in the same trace.
+
+## Root cause
+
+tmux sets `CMDQ_INTERNAL` (bit 1) on the flags field of `%begin` for internally-generated commands (not from our stdin). The `%begin` line format is `%begin <time> <cmdnum> <flags>`. The old `ControlParser` and `ControlClient.handleBegin` ignored the flags field entirely, so a stray envelope with `flags=1` arriving while a command had `tmuxCmdnum===null` would be attributed to that pending command and corrupt its response.
+
+## Fix
+
+- `ControlParser.consumeLine`: now extracts `parts[3]` as `flags` from `%begin` lines and passes it to the `onBegin(cmdnum, flags)` callback.
+- `ParserCallbacks.onBegin` signature updated to include `flags: number`.
+- `ControlClient.handleBegin(cmdnum, flags)`: if `flags & 1` (`CMDQ_INTERNAL`), immediately adds cmdnum to `staleCmdnums` and returns — no attribution to the queue head regardless of its state.
+
+The stray observed in the bug trace appeared between commands (handled correctly by the existing `!head` guard even before this fix). This fix closes the theoretical gap where a stray with `flags=1` could arrive while a command is in-flight (`tmuxCmdnum===null`), protecting the response → caller mapping in all queue states.
+
+The `probe()` correlation-token loop (added in the previous fix) remains as belt-and-suspenders for any flags=0 strays that might occur at attach time.

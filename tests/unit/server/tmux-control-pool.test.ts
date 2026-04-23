@@ -230,6 +230,29 @@ describe('ControlPool', () => {
     expect(await runP).toBe('window-data');
   });
 
+  test('CMDQ_INTERNAL (flags=1) %begin is treated as stale even when a command is in-flight', async () => {
+    // Regression: if a stray %begin with CMDQ_INTERNAL arrives while a
+    // command has tmuxCmdnum===null (dispatched, awaiting its own %begin),
+    // the old code would attribute the stray cmdnum to that command and then
+    // resolve it with the wrong output. The flags check must catch it first.
+    const spawns: ReturnType<typeof fakeProc>[] = [];
+    const pool = new ControlPool({ spawn: () => { const p = fakeProc(); spawns.push(p); return p.proc; } });
+    await attachHappy(pool, 'main', spawns);
+
+    const fake = spawns[0]!;
+    const runP = pool.run(['list-windows']);
+    await Promise.resolve();  // list-windows dispatched, tmuxCmdnum=null
+
+    // Internal tmux envelope (CMDQ_INTERNAL, flags=1) arrives before our
+    // command's %begin — e.g. triggered by the attach-session completing.
+    fake.stdout.emit('%begin 1 88259 1\nstray-content\n%end 1 88259 0\n');
+
+    // Our command's real %begin and response arrive after the stray.
+    fake.stdout.emit('%begin 1 88260 0\nwindow-data\n%end 1 88260 0\n');
+
+    expect(await runP).toBe('window-data');
+  });
+
   test('close kills clients that are still completing their attach probe', async () => {
     let killed = false;
     const spawns: ReturnType<typeof fakeProc>[] = [];
