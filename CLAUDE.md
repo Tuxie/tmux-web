@@ -447,9 +447,13 @@ instead of forcing the custom-property path.
 
 TDD: Test verify behavior → verify fail → implement → verify pass.
 
+### Bug reporting
+
+Whenever coming across a bug unrelated to what you are currently working on, report it in a file in `docs/bugs/`. Write all details you already know about the bug and what you were doing when you encountered the bug. Don't do any further research about the bug, just leave that for a future bug fixing session.
+
 ### Bug fixing
 
-When asked to fix a bug, first run the full test suite and note the result. If existing failed tests already confirm the bug, fix it and make sure the full test suite pass. If no tests existed to verify the bug, create tests confirming the bug, fix the bug and make sure the full test suite is still passing.
+When fixing a bug, first run the related tests and note the result. If existing failed tests already confirm the bug, fix it and make sure the full test suite pass. If no tests existed to verify the bug, create tests confirming the bug, fix the bug and make sure the full test suite is still passing.
 
 ### Git
 
