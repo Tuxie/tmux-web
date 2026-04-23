@@ -28,14 +28,6 @@ test.beforeEach(async ({ page }) => {
   await waitForWsOpen(page);
 });
 
-test('\\x00TT clipboard message decodes base64 and writes to navigator.clipboard', async ({ page }) => {
-  // btoa('Hello') === 'SGVsbG8='
-  await sendFromServer(page, { clipboard: 'SGVsbG8=' });
-  await page.waitForFunction(() => (window as any).__clipboardWrites.length > 0, { timeout: 3000 });
-  const writes: string[] = await page.evaluate(() => (window as any).__clipboardWrites);
-  expect(writes).toContain('Hello');
-});
-
 test('OSC 52 in PTY stream triggers server-side interception and clipboard write (integration)', async ({ page }) => {
   // Send an OSC 52 sequence over WebSocket. The server writes it to cat's stdin.
   // cat echoes it back on stdout. The server's PTY onData handler intercepts the

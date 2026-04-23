@@ -43,4 +43,18 @@ describe('handleServerData', () => {
 
     expect(title).toBe('short');
   });
+
+  test('routes TT clipboard messages to the clipboard handler without terminal output', () => {
+    const clips: string[] = [];
+    const writes: string[] = [];
+
+    handleServerData('\x00TT:' + JSON.stringify({ clipboard: 'SGVsbG8=' }), {
+      adapter: { write: (data: string) => writes.push(data) },
+      topbar: {},
+      onClipboard: (base64) => clips.push(base64),
+    });
+
+    expect(clips).toEqual(['SGVsbG8=']);
+    expect(writes).toEqual([]);
+  });
 });
