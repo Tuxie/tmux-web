@@ -136,6 +136,45 @@ export function warnIfDangerousOriginConfig(
   );
 }
 
+/** Extract the embedded tmux binary to a stable per-user cache path and
+ *  return that path, or null if no binary was bundled.
+ *
+ *  Bun's `with { type: "file" }` gives us an already-extracted path, but
+ *  whether it re-extracts on every invocation is an implementation detail we
+ *  can't rely on. We keep our own cached copy and only replace it when the
+ *  source differs (checked by size and mtime), so the common path is just two
+ *  stat(2) calls with no disk writes. */
+function resolveEmbeddedTmux(): string | null {
+  const src = embeddedAssets['dist/bin/tmux'];
+  if (!src) return null;
+
+  const uid = typeof process.getuid === 'function' ? process.getuid() : 0;
+  const dir = process.env.XDG_RUNTIME_DIR && fs.existsSync(process.env.XDG_RUNTIME_DIR)
+    ? path.join(process.env.XDG_RUNTIME_DIR, 'tmux-web')
+    : path.join(tmpdir(), `tmux-web-${uid}`);
+  const dest = path.join(dir, 'tmux');
+
+  try {
+    const srcStat = fs.statSync(src);
+    let stale = true;
+    try {
+      const destStat = fs.statSync(dest);
+      stale = destStat.size !== srcStat.size || destStat.mtimeMs !== srcStat.mtimeMs;
+    } catch { /* dest absent — first run */ }
+
+    if (stale) {
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+      fs.copyFileSync(src, dest);
+      fs.chmodSync(dest, 0o755);
+      // Stamp dest with src's mtime so the comparison is stable on the next run.
+      fs.utimesSync(dest, srcStat.atime, srcStat.mtime);
+    }
+    return dest;
+  } catch {
+    return null;
+  }
+}
+
 async function startServer() {
   // Check before parseConfig so we can detect CLI password usage before it's
   // merged into config (env var vs CLI flag indistinguishable afterwards).
@@ -164,7 +203,7 @@ Options:
       --no-tls                 Disable HTTPS
       --tls-cert <path>        TLS certificate file (use with --tls-key)
       --tls-key <path>         TLS private key file (use with --tls-cert)
-      --tmux <path>            Path to tmux executable (default: tmux)
+      --tmux <path>            Path to tmux executable (default: bundled binary, or 'tmux' in PATH)
       --tmux-conf <path>       Alternative tmux.conf to load instead of user default
       --themes-dir <path>      User theme-pack directory override
       --test                   Test mode: use cat PTY, bypass IP/Origin allowlists
@@ -229,6 +268,16 @@ Options:
   }
 
   warnIfDangerousOriginConfig(config);
+
+  // If --tmux was not given explicitly, prefer the bundled static binary
+  // embedded at compile time over whatever 'tmux' resolves to in PATH.
+  const explicitTmux = process.argv.slice(2).some(
+    a => a === '--tmux' || a.startsWith('--tmux='),
+  );
+  if (!explicitTmux) {
+    const resolved = resolveEmbeddedTmux();
+    if (resolved) config.tmuxBin = resolved;
+  }
 
   // Fail early if the configured tmux binary isn't runnable. Otherwise
   // the first WebSocket connection tries to spawn it and the user just

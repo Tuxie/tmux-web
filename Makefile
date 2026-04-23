@@ -1,13 +1,29 @@
-BUN      := bun
+BUN := bun
 
+# Install prefix for `make install`.
 PREFIX   ?= /usr/local
 BINDIR    = $(PREFIX)/bin
 SHAREDIR  = $(PREFIX)/share/tmux-web
 
+# Isolated build tree for vendored C libraries and the static tmux binary.
+# Kept separate from PREFIX so the two targets never interfere.
+VENDOR_PREFIX  := $(PWD)/build
+VENDOR_CFLAGS   = -I$(VENDOR_PREFIX)/include
+VENDOR_LDFLAGS  = -L$(VENDOR_PREFIX)/lib
+STAMPDIR        = tmp/vendor-stamps
+
 SRCS_CLIENT := $(shell find src/client src/shared -name "*.ts") bun-build.ts
 SRCS_SERVER := $(shell find src/server src/shared -name "*.ts")
 
-.PHONY: all dev clean test typecheck test-unit test-e2e test-e2e-headed vendor install build build-client build-server bench fuzz
+# Present only after `make vendor-tmux`; included as an optional dep so that
+# regenerating assets-embedded.ts (and thus tmux-web) is triggered whenever
+# the binary changes, but the build doesn't hard-require it.
+BUNDLED_TMUX := $(wildcard dist/bin/tmux)
+
+.PHONY: all dev build build-client build-server \
+        vendor vendor-tmux \
+        test typecheck test-unit test-e2e test-e2e-headed \
+        bench fuzz install clean distclean
 
 all: tmux-web
 
@@ -60,7 +76,7 @@ fuzz:
 
 # --- Production binary ---
 
-src/server/assets-embedded.ts: dist/client/xterm.js tmux.conf bun-build.ts scripts/generate-assets.ts
+src/server/assets-embedded.ts: dist/client/xterm.js $(BUNDLED_TMUX) tmux.conf bun-build.ts scripts/generate-assets.ts
 	$(BUN) run scripts/generate-assets.ts
 
 tmux-web: dist/client/vendor-xterm.js dist/client/vendor-xterm-addon-fit.js $(SRCS_SERVER) src/server/assets-embedded.ts
@@ -74,13 +90,14 @@ install: tmux-web
 	mkdir -p $(DESTDIR)$(SHAREDIR)/src/client
 	cp src/client/index.html $(DESTDIR)$(SHAREDIR)/src/client/
 
-# --- Vendor (optional: xterm.js from git HEAD) ---
+# --- Vendor: xterm.js ---
+
 VENDOR_XTERM_HEAD := $(wildcard .git/modules/vendor/xterm.js/HEAD)
 
-# $(wildcard ...) returns empty string if submodule not yet initialised, so
-# the stamp has no prerequisites and is simply rebuilt when missing.
-# Once the submodule exists the HEAD file is tracked as a real dependency,
-# triggering a reinstall whenever the submodule commit changes.
+# $(wildcard ...) returns empty string if the submodule is not yet initialised,
+# so the stamp has no prerequisites and is simply rebuilt when missing.
+# Once the submodule exists the HEAD file is a real dependency, triggering a
+# reinstall whenever the submodule commit changes.
 tmp/.vendor-xterm-built: $(VENDOR_XTERM_HEAD)
 	git submodule update --init vendor/xterm.js
 	cd vendor/xterm.js && bun install && rm -f bun.lock
@@ -108,8 +125,57 @@ dist/client/vendor-xterm-addon-fit.js: tmp/.vendor-xterm-built
 
 vendor: dist/client/vendor-xterm.js dist/client/vendor-xterm-addon-fit.js
 
+# --- Vendor: static tmux binary ---
+
+$(STAMPDIR):
+	mkdir -p $@
+
+vendor/libevent/configure:
+	cd vendor/libevent && ./autogen.sh
+
+vendor/libevent/config.h: vendor/libevent/configure
+	cd vendor/libevent && ./configure --enable-shared=no --prefix="$(VENDOR_PREFIX)"
+
+$(STAMPDIR)/libevent: vendor/libevent/config.h | $(STAMPDIR)
+	cd vendor/libevent && $(MAKE) -j install
+	touch $@
+
+$(STAMPDIR)/utf8proc: vendor/utf8proc/utf8proc.c | $(STAMPDIR)
+	cd vendor/utf8proc && $(MAKE) -j libutf8proc.a prefix="$(VENDOR_PREFIX)"
+	install -d $(VENDOR_PREFIX)/lib $(VENDOR_PREFIX)/include
+	install vendor/utf8proc/libutf8proc.a $(VENDOR_PREFIX)/lib/
+	install vendor/utf8proc/utf8proc.h $(VENDOR_PREFIX)/include/
+	touch $@
+
+# jemalloc is intentionally omitted: its malloc/free/realloc symbols conflict
+# with glibc's libc.a when linking a fully static binary (glibc defines them
+# as strong symbols). This is a glibc limitation; jemalloc works fine with
+# dynamic linking or with musl.
+vendor/tmux/config.h: $(STAMPDIR)/libevent $(STAMPDIR)/utf8proc
+	cd vendor/tmux && ./configure \
+	  --enable-static --enable-optimizations \
+	  --enable-utf8proc --enable-sixel \
+	  --prefix="$(VENDOR_PREFIX)" \
+	  CFLAGS="$(VENDOR_CFLAGS)" LDFLAGS="$(VENDOR_LDFLAGS)"
+
+$(STAMPDIR)/tmux: vendor/tmux/config.h | $(STAMPDIR)
+	cd vendor/tmux && $(MAKE) -j install
+	touch $@
+
+dist/bin/tmux: $(STAMPDIR)/tmux
+	install -d dist/bin
+	install -m 755 $(VENDOR_PREFIX)/bin/tmux dist/bin/tmux
+
+vendor-tmux: dist/bin/tmux
+
 # --- Cleanup ---
 
 clean:
-	rm -rf dist tmux-web banner.cjs pkg.config.json _bundle.cjs src/server/assets-embedded.ts tmp/.vendor-xterm-built
+	rm -rf dist build tmux-web banner.cjs pkg.config.json _bundle.cjs src/server/assets-embedded.ts tmp/.vendor-xterm-built
 	rm -f coverage/.lcov.info.*.tmp
+
+distclean: clean
+	cd vendor/libevent && $(MAKE) distclean || true
+	cd vendor/utf8proc && $(MAKE) clean || true
+	cd vendor/tmux && $(MAKE) distclean || true
+	rm -rf build $(STAMPDIR)

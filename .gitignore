@@ -1,5 +1,6 @@
 node_modules/
 dist/
+build/
 tmux-web
 index.js.map
 test-results/

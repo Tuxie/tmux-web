@@ -1,9 +1,6 @@
 [submodule "vendor/xterm.js"]
 	path = vendor/xterm.js
 	url = https://github.com/xtermjs/xterm.js
-[submodule "vendor/jemalloc"]
-	path = vendor/jemalloc
-	url = https://github.com/jemalloc/jemalloc
 [submodule "vendor/tmux"]
 	path = vendor/tmux
 	url = https://github.com/tmux/tmux
@@ -13,6 +10,3 @@
 [submodule "vendor/utf8proc"]
 	path = vendor/utf8proc
 	url = https://github.com/JuliaStrings/utf8proc
-[submodule "vendor/openssl"]
-	path = vendor/openssl
-	url = https://github.com/openssl/openssl
