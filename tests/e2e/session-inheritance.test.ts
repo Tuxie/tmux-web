@@ -45,25 +45,3 @@ test("new session inherits live session's settings", async ({ page }) => {
   expect(stored?.opacity).toBe(40);
 });
 
-test("theme switch overwrites colours and font in active session", async ({ page }) => {
-  const store = await mockSessionStore(page);
-  await page.goto("/main");
-  await page.waitForSelector("#terminal canvas, #terminal .xterm-screen");
-
-  await page.click("#btn-menu");
-  await waitForMenuInputs(page);
-  // The alt fixture theme's defaults are distinct from the primary theme's
-  // so we can verify that switching theme overwrites `colours` and
-  // `fontFamily` in the active session.
-  await page.selectOption("#inp-theme", FX.themes.alt);
-
-  // Poll until the mock store reflects the new theme defaults.
-  for (let i = 0; i < 50; i++) {
-    const s = store.get().sessions["main"];
-    if (s?.colours === FX.colours.c) break;
-    await new Promise(r => setTimeout(r, 50));
-  }
-  const stored = store.get().sessions["main"];
-  expect(stored?.colours).toBe(FX.colours.c);           // alt theme's defaultColours
-  expect(stored?.fontFamily).toBe(FX.fonts.secondary);  // alt theme's defaultFont
-});

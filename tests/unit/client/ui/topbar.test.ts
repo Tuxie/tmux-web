@@ -8,7 +8,7 @@ import {
 } from '../../../../src/client/session-settings.ts';
 import { DEFAULT_BACKGROUND_HUE, DEFAULT_THEME_HUE } from '../../../../src/client/background-hue.ts';
 import { DEFAULT_FG_CONTRAST_STRENGTH } from '../../../../src/client/fg-contrast.ts';
-import { clearCaches, type ThemeInfo } from '../../../../src/client/theme.ts';
+import { clearCaches, type ThemeInfo, type FontInfo } from '../../../../src/client/theme.ts';
 
 /** Topbar orchestration tests.
  *
@@ -149,6 +149,16 @@ function makeDoc(): StubDoc {
     doc.__byId[id] = e as any;
     doc.body.appendChild(e);
   }
+  // applyTheme() awaits a 'load' event on the <link> it appends to head.
+  // Auto-fire it so theme-switch handlers can complete in unit tests.
+  const headAppendOrig = doc.head.appendChild.bind(doc.head);
+  (doc.head as any).appendChild = (child: any) => {
+    const result = headAppendOrig(child);
+    if ((child.tagName ?? '').toUpperCase() === 'LINK') {
+      Promise.resolve().then(() => (child as any).dispatch?.('load', {}));
+    }
+    return result;
+  };
   return doc;
 }
 
@@ -201,6 +211,7 @@ async function mountTopbar(overrides: Partial<Parameters<typeof freshTopbarCtor>
 
 async function mountTopbarWithSettings(opts: {
   themes?: ThemeInfo[];
+  fonts?: FontInfo[];
   sessions?: Record<string, Partial<SessionSettings>>;
   onSettingsChange?: (s: SessionSettings) => void;
 } = {}) {
@@ -217,7 +228,7 @@ async function mountTopbarWithSettings(opts: {
   });
   stubFetch(async (url, init) => {
     if (url.startsWith('/api/themes')) return { ok: true, json: async () => opts.themes ?? [] } as any;
-    if (url.startsWith('/api/fonts')) return { ok: true, json: async () => [] } as any;
+    if (url.startsWith('/api/fonts')) return { ok: true, json: async () => opts.fonts ?? [] } as any;
     if (url.startsWith('/api/colours')) return { ok: true, json: async () => [] } as any;
     if (url.startsWith('/api/session-settings')) {
       if (init?.method === 'PUT') return { ok: true, json: async () => ({}) } as any;
@@ -825,5 +836,86 @@ describe('Menu stays open during settings changes', () => {
     openMenu();
     dispatchChange('inp-font-bundled', 'SomeFont');
     expect(el('menu-dropdown').hidden).toBe(false);
+  });
+});
+
+// ─── theming: dropdown population and reset ───────────────────────────────────
+
+const FX_PRIMARY: ThemeInfo = { name: 'Default', pack: 'e2e', css: 'primary.css', source: 'bundled' };
+const FX_ALT: ThemeInfo = {
+  name: 'E2E Alt Theme', pack: 'e2e', css: 'alt.css', source: 'bundled',
+  defaultFont: 'E2E Secondary Font',
+  defaultColours: 'E2E Green',
+  defaultTuiBgOpacity: 70,
+  defaultTuiFgOpacity: 80,
+  defaultOpacity: 50,
+};
+const FX_FONT_PRIMARY: FontInfo = { family: 'E2E Primary Font', file: 'PrimaryFont.woff2', pack: 'e2e' };
+
+async function flushAsync(n = 10) {
+  for (let i = 0; i < n; i++) await Promise.resolve();
+}
+
+describe('Theming: dropdown population and reset', () => {
+  function input(id: string): any {
+    return (globalThis.document as any).getElementById(id);
+  }
+
+  function storedMain(): SessionSettings {
+    return loadSessionSettings('main', null, { defaults: DEFAULT_SESSION_SETTINGS });
+  }
+
+  it('Theme dropdown lists fixture themes after init', async () => {
+    await mountTopbarWithSettings({ themes: [FX_PRIMARY, FX_ALT] });
+    const themeEl = input('inp-theme');
+    const names = (themeEl.children as any[]).map((c: any) => c.textContent);
+    expect(names).toContain('Default');
+    expect(names).toContain('E2E Alt Theme');
+  });
+
+  it('font picker is populated from the fixture after init', async () => {
+    await mountTopbarWithSettings({ fonts: [FX_FONT_PRIMARY] });
+    const fontEl = input('inp-font-bundled');
+    const names = (fontEl.children as any[]).map((c: any) => c.textContent);
+    expect(names).toContain('E2E Primary Font');
+  });
+
+  it('reset colours resets background hue and TUI opacity to alt-theme defaults', async () => {
+    await mountTopbarWithSettings({
+      themes: [FX_PRIMARY, FX_ALT],
+      sessions: { main: { theme: 'E2E Alt Theme', backgroundHue: 240, tuiBgOpacity: 30 } },
+    });
+    input('inp-background-hue').value = '240';
+    input('inp-tui-bg-opacity').value = '30';
+
+    input('btn-reset-colours').click();
+
+    expect(input('inp-tui-bg-opacity').value).toBe('70');
+    expect(input('inp-background-hue').value).toBe(String(DEFAULT_BACKGROUND_HUE));
+    expect(storedMain().tuiBgOpacity).toBe(70);
+    expect(storedMain().backgroundHue).toBe(DEFAULT_BACKGROUND_HUE);
+  });
+});
+
+describe('Session inheritance: theme switch updates session settings', () => {
+  function input(id: string): any {
+    return (globalThis.document as any).getElementById(id);
+  }
+
+  function storedMain(): SessionSettings {
+    return loadSessionSettings('main', null, { defaults: DEFAULT_SESSION_SETTINGS });
+  }
+
+  it('theme switch overwrites colours and font in active session', async () => {
+    await mountTopbarWithSettings({ themes: [FX_PRIMARY, FX_ALT] });
+
+    const themeEl = input('inp-theme');
+    themeEl.value = 'E2E Alt Theme';
+    themeEl.dispatch('change', { target: themeEl });
+    await flushAsync(10);
+
+    const stored = storedMain();
+    expect(stored.colours).toBe('E2E Green');
+    expect(stored.fontFamily).toBe('E2E Secondary Font');
   });
 });
