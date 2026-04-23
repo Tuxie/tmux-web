@@ -704,3 +704,31 @@ describe('Topbar slider double-click reset', () => {
     expect(storedMain().backgroundHue).toBe(DEFAULT_BACKGROUND_HUE);
   });
 });
+
+describe('Topbar opacity slider wiring', () => {
+  function input(id: string): any {
+    return (globalThis.document as any).getElementById(id);
+  }
+
+  function changeValue(id: string, value: string): void {
+    const el = input(id);
+    el.value = value;
+    el.dispatch('change', { target: el });
+  }
+
+  function storedMain(): SessionSettings {
+    return loadSessionSettings('main', null, { defaults: DEFAULT_SESSION_SETTINGS });
+  }
+
+  it('inp-opacity change persists opacity to session store and fires onSettingsChange', async () => {
+    const captured: number[] = [];
+    await mountTopbarWithSettings({
+      onSettingsChange: (s) => { captured.push(s.opacity); },
+    });
+
+    changeValue('inp-opacity', '50');
+
+    expect(captured).toContain(50);
+    expect(storedMain().opacity).toBe(50);
+  });
+});

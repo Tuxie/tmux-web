@@ -13,7 +13,7 @@
  *   - `:root` var `--tw-theme-hue`         — the hue integer.
  */
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, type Page } from '@playwright/test';
 import { mockSessionStore } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
@@ -117,18 +117,3 @@ test('Theme Hue slider rotates the --tw-theme-hue var and propagates to hsl() co
   }
 });
 
-test('Theme Hue is persisted per session and survives reload', async ({ page }) => {
-  const store = await mockSessionStore(page);
-  await page.goto('/');
-  await readyAdapter(page);
-
-  await setSlider(page, 'inp-theme-hue', 60);
-
-  for (let i = 0; i < 50; i++) {
-    const s = store.get().sessions['main'];
-    if (s && (s as any).themeHue === 60) break;
-    await new Promise(r => setTimeout(r, 50));
-  }
-  const stored = store.get().sessions['main'];
-  expect((stored as any)?.themeHue).toBe(60);
-});

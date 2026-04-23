@@ -234,6 +234,32 @@ describe('Connection.reconnect', () => {
     expect(first.onclose).toBe(null);
     expect(closedCalls).toBe(0);
   });
+
+  it('sends resize on initial open and on auto-reconnect open', () => {
+    // Mirrors what index.ts wires up: call sendResize inside onOpen.
+    let c: Connection;
+    c = new Connection({
+      getUrl: () => 'ws://localhost/ws',
+      onMessage: () => {},
+      onOpen: () => { c.sendResize(80, 24); },
+      onClose: () => {},
+    });
+    c.connect();
+
+    FakeWebSocket.instances[0]!.simulateOpen();
+    expect(FakeWebSocket.instances[0]!.sent).toEqual([
+      JSON.stringify({ type: 'resize', cols: 80, rows: 24 }),
+    ]);
+
+    FakeWebSocket.instances[0]!.simulateClose();
+    const timer = pendingTimers.find(t => t.ms === 2000)!;
+    timer.fn();
+
+    FakeWebSocket.instances[1]!.simulateOpen();
+    expect(FakeWebSocket.instances[1]!.sent).toEqual([
+      JSON.stringify({ type: 'resize', cols: 80, rows: 24 }),
+    ]);
+  });
 });
 
 describe('buildWsUrl', () => {
