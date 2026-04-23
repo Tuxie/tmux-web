@@ -338,12 +338,10 @@ Options:
   }
 
   const dropStorage = defaultDropStorage();
-  process.on('exit', () => { cleanupDrops(dropStorage); });
 
   const tmuxControl = config.testMode
     ? null
     : createTmuxControl({ tmuxBin: config.tmuxBin, tmuxConfPath: effectiveTmuxConfPath });
-  process.on('exit', () => { void tmuxControl?.close(); });
 
   const handler = await createHttpHandler({
     config,
@@ -386,7 +384,26 @@ Options:
     sessionsStorePath,
     tmuxControl: tmuxControl ?? createNullTmuxControl(),
   });
-  process.on('exit', () => { ws.close(); });
+
+  // Cleanup on every termination path. Without SIGTERM/SIGINT handlers,
+  // a Ctrl-C of the dev server (or `systemctl restart`) leaves every
+  // `tmux -C attach-session` child alive (re-parented to systemd / pid 1).
+  // Each surviving control client stays attached to its tmux session, and
+  // tmux serialises broadcasts across all attached clients — accumulated
+  // orphans turn each subsequent session attach into a multi-second
+  // operation that the user sees as a slow session switch.
+  let cleanupRan = false;
+  const runCleanup = (): void => {
+    if (cleanupRan) return;
+    cleanupRan = true;
+    try { ws.close(); } catch { /* best-effort */ }
+    try { void tmuxControl?.close(); } catch { /* best-effort */ }
+    try { cleanupDrops(dropStorage); } catch { /* best-effort */ }
+  };
+  process.on('exit', runCleanup);
+  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
+    process.on(sig, () => { runCleanup(); process.exit(0); });
+  }
 
   const server = Bun.serve<WsData, never>({
     hostname: host,
