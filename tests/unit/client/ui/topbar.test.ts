@@ -454,3 +454,51 @@ describe('Topbar.show', () => {
     expect(tb.classList.has('hidden')).toBe(false);
   });
 });
+
+describe('Topbar fullscreen checkbox', () => {
+  it('checking the fullscreen checkbox requests fullscreen and syncs checked state', async () => {
+    const t = await mountTopbar();
+    await t.init();
+    const calls: string[] = [];
+    let isFullscreen = false;
+    Object.defineProperty(document, 'fullscreenElement', {
+      get: () => (isFullscreen ? document.documentElement : null),
+      configurable: true,
+    });
+    (document.documentElement as any).requestFullscreen = async () => {
+      calls.push('request');
+      isFullscreen = true;
+      (document as any).dispatch('fullscreenchange', {});
+    };
+
+    const chk = (globalThis.document as any).getElementById('chk-fullscreen');
+    chk.checked = true;
+    chk.dispatch('change', { target: chk });
+
+    expect(calls).toEqual(['request']);
+    expect(chk.checked).toBe(true);
+  });
+
+  it('unchecking the fullscreen checkbox exits fullscreen and syncs checked state', async () => {
+    const t = await mountTopbar();
+    await t.init();
+    const calls: string[] = [];
+    let isFullscreen = true;
+    Object.defineProperty(document, 'fullscreenElement', {
+      get: () => (isFullscreen ? document.documentElement : null),
+      configurable: true,
+    });
+    (document as any).exitFullscreen = async () => {
+      calls.push('exit');
+      isFullscreen = false;
+      (document as any).dispatch('fullscreenchange', {});
+    };
+
+    const chk = (globalThis.document as any).getElementById('chk-fullscreen');
+    chk.checked = false;
+    chk.dispatch('change', { target: chk });
+
+    expect(calls).toEqual(['exit']);
+    expect(chk.checked).toBe(false);
+  });
+});
