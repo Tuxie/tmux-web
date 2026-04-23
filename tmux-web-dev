@@ -33,6 +33,11 @@ rebuild_if_needed() {
     bun run bun-build.ts
     cp node_modules/@xterm/xterm/css/xterm.css dist/client/xterm.css
   fi
+  local assets="src/server/assets-embedded.ts"
+  if [ ! -f "$assets" ] || \
+     find dist/client tmux.conf scripts/generate-assets.ts -newer "$assets" | grep -q .; then
+    bun run scripts/generate-assets.ts
+  fi
 }
 
 start_server() {
