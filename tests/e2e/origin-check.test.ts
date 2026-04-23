@@ -1,10 +1,12 @@
 import { test, expect } from '@playwright/test';
 import type { ChildProcess } from 'child_process';
-import { spawn } from 'child_process';
-import { startServer, killServer } from './helpers.js';
+import { createIsolatedTmux, hasTmux, startServer, killServer, type IsolatedTmux } from './helpers.js';
 
 const PORT = 4112;
 let server: ChildProcess | undefined;
+let tmux: IsolatedTmux | undefined;
+
+test.skip(!hasTmux(), 'tmux not available');
 
 test.beforeAll(async () => {
   // `startServer` has its own 60s timeout, but Playwright's default
@@ -12,6 +14,7 @@ test.beforeAll(async () => {
   // where bun's first spawn is very slow. Extend so the inner timeout
   // wins instead of Playwright cutting us off.
   test.setTimeout(90_000);
+  tmux = createIsolatedTmux('tw-origin-e2e');
   server = await startServer(
     'bun',
     [
@@ -19,13 +22,16 @@ test.beforeAll(async () => {
       `--listen=127.0.0.1:${PORT}`,
       '--no-auth',
       '--no-tls',
+      '--tmux', tmux.wrapperPath,
     ],
   );
 });
 
 test.afterAll(() => {
   killServer(server);
+  tmux?.cleanup();
   server = undefined;
+  tmux = undefined;
 });
 
 test.describe('Origin validation (non-test-mode server)', () => {
@@ -82,7 +88,8 @@ test.describe('Origin validation (non-test-mode server)', () => {
 
   test('sends WWW-Authenticate on WS upgrade 401', async () => {
     const PORT_AUTH = 4113;
-    const authServer = spawn(
+    const authTmux = createIsolatedTmux('tw-origin-auth-e2e');
+    const authServer = await startServer(
       'bun',
       [
         'src/server/index.ts',
@@ -90,19 +97,10 @@ test.describe('Origin validation (non-test-mode server)', () => {
         '--username', 'u',
         '--password', 'p',
         '--no-tls',
+        '--tmux', authTmux.wrapperPath,
       ],
-      { stdio: ['ignore', 'pipe', 'pipe'] },
     );
     try {
-      await new Promise<void>((resolve, reject) => {
-        const t = setTimeout(() => reject(new Error('server did not start in 5s')), 5000);
-        authServer.stdout?.on('data', (buf: Buffer) => {
-          if (buf.toString().includes(`listening on http://127.0.0.1:${PORT_AUTH}`)) {
-            clearTimeout(t); resolve();
-          }
-        });
-        authServer.stderr?.on('data', () => {});
-      });
       const net = await import('node:net');
       const res = await new Promise<string>((resolve, reject) => {
         const sock = net.connect(PORT_AUTH, '127.0.0.1', () => {
@@ -127,8 +125,8 @@ test.describe('Origin validation (non-test-mode server)', () => {
       expect(res.startsWith('HTTP/1.1 401 Unauthorized')).toBe(true);
       expect(res).toContain('WWW-Authenticate: Basic realm="tmux-web"');
     } finally {
-      authServer.kill('SIGTERM');
-      await new Promise<void>(r => { authServer.on('exit', () => r()); });
+      killServer(authServer);
+      authTmux.cleanup();
     }
   });
 });

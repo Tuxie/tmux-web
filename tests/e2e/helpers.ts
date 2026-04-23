@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { spawn, type ChildProcess } from 'child_process';
+import { execFileSync, spawn, type ChildProcess } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -7,6 +7,67 @@ import { fileURLToPath } from 'node:url';
 
 const helpersDir = path.dirname(fileURLToPath(import.meta.url));
 const bundledThemesFixtureDir = path.resolve(helpersDir, '../fixtures/themes-bundled');
+
+export interface IsolatedTmux {
+  socketPath: string;
+  wrapperPath: string;
+  tmux(args: string[]): string;
+  cleanup(): void;
+}
+
+export function hasTmux(): boolean {
+  try {
+    execFileSync('tmux', ['-V'], { stdio: ['ignore', 'pipe', 'ignore'] });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function shellSingleQuote(s: string): string {
+  return `'${s.replace(/'/g, `'\\''`)}'`;
+}
+
+export function createIsolatedTmux(prefix: string, sessions: string[] = []): IsolatedTmux {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
+  const socketPath = path.join(root, 'sock');
+  const wrapperPath = path.join(root, 'tmux');
+  const tmux = (args: string[]) =>
+    execFileSync('tmux', ['-S', socketPath, ...args], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+
+  fs.writeFileSync(
+    wrapperPath,
+    `#!/usr/bin/env bash\nexec tmux -S ${shellSingleQuote(socketPath)} "$@"\n`,
+    { mode: 0o755 },
+  );
+
+  for (const session of sessions) {
+    tmux(['new-session', '-d', '-s', session, 'cat']);
+  }
+
+  return {
+    socketPath,
+    wrapperPath,
+    tmux,
+    cleanup: () => {
+      try { tmux(['kill-server']); } catch { /* already gone */ }
+      try { fs.rmSync(root, { recursive: true, force: true }); } catch { /* best-effort */ }
+    },
+  };
+}
+
+function assertE2eTmuxIsolation(cmd: string, args: string[]): void {
+  if (cmd !== 'bun') return;
+  if (!args.includes('src/server/index.ts')) return;
+  if (args.includes('--test')) return;
+  if (args.some((arg) => arg.startsWith('--test='))) return;
+  if (args.includes('--tmux')) return;
+  if (args.some((arg) => arg.startsWith('--tmux='))) return;
+  throw new Error('non-test-mode e2e servers must pass --tmux with an isolated tmux -S wrapper');
+}
 
 /**
  * Start a server process and resolve when it reports "listening".
@@ -19,6 +80,7 @@ const bundledThemesFixtureDir = path.resolve(helpersDir, '../fixtures/themes-bun
  */
 export function startServer(cmd: string, args: string[], timeoutMs = 60_000): Promise<ChildProcess> {
   return new Promise((resolve, reject) => {
+    assertE2eTmuxIsolation(cmd, args);
     const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-e2e-store-'));
     const dropsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-e2e-drops-'));
     const env = {
