@@ -383,6 +383,18 @@ describe('http branches — auth + origin rejection', () => {
     expect(r.status).toBe(403);
   });
 
+  test('origin check: allows same-origin loopback Origin', async () => {
+    h = await startTestServer({ testMode: false, auth: { enabled: false }, allowedOrigins: [] });
+    const r = await httpReq(h.url + '/', { headers: { Origin: h.url } });
+    expect(r.status).toBe(200);
+  });
+
+  test('origin check: allows request with no Origin header', async () => {
+    h = await startTestServer({ testMode: false, auth: { enabled: false }, allowedOrigins: [] });
+    const r = await httpReq(h.url + '/');
+    expect(r.status).toBe(200);
+  });
+
 });
 
 // ---------------------------------------------------------------------------

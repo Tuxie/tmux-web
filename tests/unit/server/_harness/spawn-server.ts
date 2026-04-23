@@ -113,6 +113,7 @@ export async function startTestServer(opts: HarnessOpts = {}): Promise<Harness> 
     websocket: ws.websocket,
   });
 
+  config.port = server.port;
   const url = `http://127.0.0.1:${server.port}`;
 
   return {

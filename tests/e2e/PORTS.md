@@ -10,8 +10,6 @@ Playwright's current config runs test files serially per project (no `fullyParal
 | 4098  | tests/e2e/tls.test.ts                      | HTTP (no-TLS) variant |
 | 4099  | tests/e2e/tls.test.ts                      | HTTPS (TLS) variant |
 | 4100  | tests/e2e/terminal-selection.test.ts       |       |
-| 4112  | tests/e2e/origin-check.test.ts             | non-test-mode server for Origin check |
-| 4113  | tests/e2e/origin-check.test.ts             | auth-enabled server for 401 WWW-Authenticate test |
 | 4115  | tests/e2e/file-drop.test.ts                | file-drop upload pipeline |
 | 4116  | reserved                                   | OSC 52 read-consent E2E (deferred) |
 | 4117  | tests/e2e/control-mode-notifications.spec.ts | real-tmux rename-session push |
