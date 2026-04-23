@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { ControlClient } from '../../../src/server/tmux-control.ts';
+import { ControlClient, quoteTmuxArg } from '../../../src/server/tmux-control.ts';
 
 /** Scripted stdio pair: stdin is a MemoryWritable that records every
  *  write; stdout is a pushable readable the test drives frame-by-frame. */
@@ -76,6 +76,31 @@ describe('ControlClient', () => {
     await expect(p1).rejects.toMatchObject({ stderr: 'control client exited' });
     await expect(p2).rejects.toMatchObject({ stderr: 'control client exited' });
     expect(client.isAlive()).toBe(false);
+  });
+
+  test('quotes args containing whitespace before joining (regression: list-windows -F "...\\t...")', async () => {
+    const { writes, stdout, proc } = makeStdio();
+    const client = new ControlClient(proc as any);
+    const fmt = '#{window_index}\t#{window_name}\t#{window_active}';
+    const p = client.run(['list-windows', '-t', 'main', '-F', fmt]);
+    await Promise.resolve();
+    // Args with whitespace must be quoted so tmux's own command parser
+    // doesn't tokenise the format string into separate -F arguments.
+    expect(writes).toEqual([`list-windows -t main -F "${fmt}"\n`]);
+    stdout.emit('%begin 1 1 0\n0\tone\t1\n%end 1 1 0\n');
+    expect(await p).toBe('0\tone\t1');
+  });
+
+  test('quoteTmuxArg passes safe tokens through, escapes the rest', () => {
+    expect(quoteTmuxArg('list-sessions')).toBe('list-sessions');
+    expect(quoteTmuxArg('main')).toBe('main');
+    expect(quoteTmuxArg('@17')).toBe('@17');
+    // Whitespace → wrap in double quotes.
+    expect(quoteTmuxArg('a b')).toBe('"a b"');
+    // Existing quotes / backslashes / $ get escaped inside the wrapper.
+    expect(quoteTmuxArg('a"b')).toBe('"a\\"b"');
+    expect(quoteTmuxArg('a\\b')).toBe('"a\\\\b"');
+    expect(quoteTmuxArg('a$b')).toBe('"a\\$b"');
   });
 
   test('rejects with "timeout" after commandTimeoutMs but keeps the client alive', async () => {

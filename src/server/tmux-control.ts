@@ -144,6 +144,18 @@ interface Pending {
 
 const DEFAULT_COMMAND_TIMEOUT_MS = 5_000;
 
+/** Tmux command-line tokenizer treats whitespace as an argument
+ *  separator, so any arg containing a tab/space/newline (e.g. the
+ *  TAB-separated `list-windows -F` format string used by ws.ts) must
+ *  be quoted. Tmux supports double-quoted strings with backslash
+ *  escapes; wrap unconditionally for any arg that needs it. */
+export function quoteTmuxArg(arg: string): string {
+  // Bare tokens with no whitespace, no quotes, no backslashes,
+  // and no $ / # / ; (which tmux interprets) pass through.
+  if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(arg)) return arg;
+  return '"' + arg.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$') + '"';
+}
+
 export interface ControlClientOpts {
   /** Override the per-command soft timeout. Default 5 s. Tests use
    *  short values to exercise the timeout path without wall-clock wait. */
@@ -194,7 +206,7 @@ export class ControlClient {
   private dispatch(): void {
     const head = this.queue[0];
     if (!head) return;
-    this.proc.stdin.write(head.args.join(' ') + '\n');
+    this.proc.stdin.write(head.args.map(quoteTmuxArg).join(' ') + '\n');
     head.timer = setTimeout(() => this.handleTimeout(head.cmdnum), this.commandTimeoutMs);
   }
 
