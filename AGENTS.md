@@ -461,7 +461,7 @@ If the bug you fixed was filed under `docs/bugs/`, move it to `docs/bugs/fixed/`
 
 ### Git
 
-Commit after every change with descriptive message.
+Commit after every change with a descriptive title and a medium detailed explanation.
 
 ### Releases
 
