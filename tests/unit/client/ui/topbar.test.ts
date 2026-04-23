@@ -770,3 +770,60 @@ describe('Topbar font and spacing persistence', () => {
     expect(parseFloat(input('inp-spacing').value)).toBeCloseTo(1.2, 2);
   });
 });
+
+describe('Menu stays open during settings changes', () => {
+  function el(id: string): any {
+    return (globalThis.document as any).getElementById(id);
+  }
+
+  function openMenu(): void {
+    el('menu-dropdown').hidden = false;
+  }
+
+  function dispatchInput(id: string, value: string): void {
+    const e = el(id);
+    e.value = value;
+    e.dispatch('input', { target: e });
+  }
+
+  function dispatchChange(id: string, value: string): void {
+    const e = el(id);
+    e.value = value;
+    e.dispatch('change', { target: e });
+  }
+
+  it('menu stays open after font size number input change', async () => {
+    await mountTopbarWithSettings();
+    openMenu();
+    dispatchChange('inp-fontsize', '20');
+    expect(el('menu-dropdown').hidden).toBe(false);
+  });
+
+  it('menu stays open after font size slider change', async () => {
+    await mountTopbarWithSettings();
+    openMenu();
+    dispatchInput('sld-fontsize', '20');
+    expect(el('menu-dropdown').hidden).toBe(false);
+  });
+
+  it('menu stays open after spacing number input change', async () => {
+    await mountTopbarWithSettings();
+    openMenu();
+    dispatchChange('inp-spacing', '0.9');
+    expect(el('menu-dropdown').hidden).toBe(false);
+  });
+
+  it('menu stays open after spacing slider change', async () => {
+    await mountTopbarWithSettings();
+    openMenu();
+    dispatchInput('sld-spacing', '0.9');
+    expect(el('menu-dropdown').hidden).toBe(false);
+  });
+
+  it('menu stays open after switching bundled font', async () => {
+    await mountTopbarWithSettings();
+    openMenu();
+    dispatchChange('inp-font-bundled', 'SomeFont');
+    expect(el('menu-dropdown').hidden).toBe(false);
+  });
+});
