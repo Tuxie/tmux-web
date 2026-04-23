@@ -330,6 +330,7 @@ export interface ControlPoolOpts {
 
 export class ControlPool implements TmuxControl {
   private clients = new Map<string, ControlClient>();
+  private startingClients = new Map<string, ControlClient>();
   private insertionOrder: ControlClient[] = [];
   private readyPromises = new Map<string, Promise<void>>();
   private listeners: { [K in TmuxNotification['type']]: Array<(n: any) => void> } = {
@@ -353,33 +354,39 @@ export class ControlPool implements TmuxControl {
     // Forward-reference: the notification callback captures `client`. Safe
     // because stdout 'data' is async; `client` is always bound when it fires.
     const client = new ControlClient(proc, (n) => this.onNotification(client, session, n));
+    this.startingClients.set(session, client);
     // Guard: detachSession called before probe resolves must not leak the
     // child. Check cancellation after each await and kill the client if so.
     const wasCancelled = () => this.readyPromises.get(session) === undefined;
-    // Size-negotiation guard (§3.5). Mirror the sibling PTY client's
-    // size so under `window-size latest` the session tracks the browser
-    // and doesn't bounce. With no hint, skip the refresh-client step
-    // entirely and let tmux's own policy resolve the size — there's no
-    // honest size for a headless control client to claim. Swallow
-    // errors — older tmux without `-C <WxH>` falls back to the window-
-    // size policy alone.
-    //
-    // The wasCancelled check is paired with each await: cancellation
-    // can only happen DURING an await, and the no-hint path skips the
-    // refresh-client await entirely (so no check needed before it).
-    if (hint) {
-      try { await client.run(['refresh-client', '-C', `${hint.cols}x${hint.rows}`]); }
-      catch { /* best-effort */ }
+    try {
+      // Size-negotiation guard (§3.5). Mirror the sibling PTY client's
+      // size so under `window-size latest` the session tracks the browser
+      // and doesn't bounce. With no hint, skip the refresh-client step
+      // entirely and let tmux's own policy resolve the size — there's no
+      // honest size for a headless control client to claim. Swallow
+      // errors — older tmux without `-C <WxH>` falls back to the window-
+      // size policy alone.
+      //
+      // The wasCancelled check is paired with each await: cancellation
+      // can only happen DURING an await, and the no-hint path skips the
+      // refresh-client await entirely (so no check needed before it).
+      if (hint) {
+        try { await client.run(['refresh-client', '-C', `${hint.cols}x${hint.rows}`]); }
+        catch { /* best-effort */ }
+        if (wasCancelled()) { client.kill(); return; }
+      }
+      // Readiness probe. If it fails, the client is dead/unusable; propagate.
+      await client.run(['display-message', '-p', 'ok']);
       if (wasCancelled()) { client.kill(); return; }
+      this.startingClients.delete(session);
+      this.clients.set(session, client);
+      this.insertionOrder.push(client);
+      // When the process exits unexpectedly, evict it from the pool so that
+      // the next-oldest entry can promote to primary.
+      void proc.exited.then(() => this.evictClient(client, session));
+    } finally {
+      if (this.startingClients.get(session) === client) this.startingClients.delete(session);
     }
-    // Readiness probe. If it fails, the client is dead/unusable; propagate.
-    await client.run(['display-message', '-p', 'ok']);
-    if (wasCancelled()) { client.kill(); return; }
-    this.clients.set(session, client);
-    this.insertionOrder.push(client);
-    // When the process exits unexpectedly, evict it from the pool so that
-    // the next-oldest entry can promote to primary.
-    void proc.exited.then(() => this.evictClient(client, session));
   }
 
   private evictClient(client: ControlClient, session: string): void {
@@ -424,9 +431,12 @@ export class ControlPool implements TmuxControl {
   }
 
   async close(): Promise<void> {
-    for (const c of this.insertionOrder.splice(0)) c.kill();
+    const clients = new Set([...this.insertionOrder, ...this.startingClients.values()]);
+    this.insertionOrder.splice(0);
+    this.startingClients.clear();
     this.clients.clear();
     this.readyPromises.clear();
+    for (const c of clients) c.kill();
   }
 
   private onNotification(from: ControlClient, session: string, n: TmuxNotification): void {

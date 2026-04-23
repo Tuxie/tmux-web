@@ -180,4 +180,26 @@ describe('ControlPool', () => {
     expect(killed).toBe(true);
     await expect(pool.run(['list-sessions'])).rejects.toBeInstanceOf(NoControlClientError);
   });
+
+  test('close kills clients that are still completing their attach probe', async () => {
+    let killed = false;
+    const spawns: ReturnType<typeof fakeProc>[] = [];
+    const pool = new ControlPool({
+      spawn: () => {
+        const p = fakeProc();
+        const origKill = p.proc.kill;
+        p.proc.kill = () => { killed = true; origKill(); };
+        spawns.push(p);
+        return p.proc;
+      },
+    });
+
+    const attach = pool.attachSession('main');
+    await Promise.resolve();
+
+    await pool.close();
+
+    expect(killed).toBe(true);
+    await expect(attach).rejects.toMatchObject({ stderr: 'control client exited' });
+  });
 });

@@ -1,6 +1,6 @@
 # tmux -C control clients leak across bun server restarts
 
-**Status:** observed, not investigated.
+**Status:** fixed.
 **Date noticed:** 2026-04-23
 **Context:** running `ps -ef` to inspect the live production tmux-web while debugging the `cmdnum` mismatch.
 
@@ -38,6 +38,19 @@ $ ps -ef | grep 'tmux.conf -C attach-session' | grep -v grep | awk '{print $3}' 
 - `ControlPool.close()` calls `kill()` on every client, but `process.on('exit')` in `src/server/index.ts` schedules the close as fire-and-forget. If bun exits before the SIGTERMs flush, the children survive. Need a synchronous teardown (or a `SIGTERM` handler that awaits `tmuxControl.close()` before exiting). **(Partially fixed in commit registering SIGINT/SIGTERM/SIGHUP handlers — future Ctrl-C of bun no longer leaks. Existing orphans on the live host still need a manual cleanup; sandbox refused mass-kill, so the user has to `tmux kill-server` or `pkill -f 'tmux.*-C attach-session.*-t tmux-web'`.)**
 - `Bun.spawn` in `createTmuxControl` doesn't pass `serialization` / `stdio` flags that would die-with-parent. Linux `prctl(PR_SET_PDEATHSIG)` from the child or simply piping stdin so EOF kills tmux on parent death would help. Belt-and-braces against `SIGKILL` of the parent, which the signal-handler fix can't catch.
 - Audit: do we ever call `proc.kill()` on the control client when its `proc.exited` fires unexpectedly? `evictClient` removes it from pool tracking but doesn't kill the proc — and if it's already exited that's fine, but if the bun parent is the one dying, tmux is still alive.
+
+## Fixed root cause
+
+The signal handlers already covered fully-attached control clients, but
+`ControlPool.close()` only killed clients after they had been inserted into
+`insertionOrder`. A control client spawned during `attachSession()` but still
+waiting for the readiness probe lived only in the local `startSession()` stack
+frame. If shutdown happened in that window, `close()` had no reference to kill
+it before process exit.
+
+The fix tracks these starting clients separately and includes them in
+`ControlPool.close()`. The regression test `close kills clients that are still
+completing their attach probe` verifies the previously missed shutdown window.
 
 ## What I was doing when I noticed
 
