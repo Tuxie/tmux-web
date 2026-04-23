@@ -15,13 +15,13 @@ Six findings identified, all Medium or Low severity — no Critical or High issu
 - F2 E2E tests absent from release CI — Medium / Verified
 - F3 Duplicate Homebrew tap bump: inline job + standalone workflow both fire — Medium / Verified
 - F4 Dead `PLATFORM`/`ARCH` Makefile shell expansions — Low / Verified
-- F5 `node node_modules/.bin/playwright` vs `bunx` — Low / Verified
+- F5 direct Playwright CLI invocation vs `bunx playwright` — Low / Verified
 - F6 `assets-embedded.ts` committed generated file without `.gitignore` entry — Low / Verified
 
 ## Checklist (owned items)
 
 - TOOL-1 [x] clean — single toolchain (bun + tsc). No pnpm/npm/vitest.
-- TOOL-2 [x] (1 instance) `node node_modules/.bin/playwright` vs `bunx` → cluster 13.
+- TOOL-2 [x] (1 instance) direct Playwright CLI invocation vs `bunx playwright` → cluster 13.
 - TOOL-3 [x] clean — Bun 1.3.12 pinned in `.bun-version`, `setup-bun`, `@types/bun` aligned. TypeScript `^5.8.0`, Playwright `^1.59.1` current.
 - TOOL-4 [x] clean — bun-build.ts complexity is load-bearing (vendor patching), not over-engineering.
 - TOOL-5 [x] clean — typecheck step present; coverage gate exists locally.

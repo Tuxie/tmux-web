@@ -1,6 +1,6 @@
 ---
-Status: partial
-Resolved-in: db63166 (partial — bunx deferred to Bun 1.4)
+Status: resolved
+Resolved-in: db63166 (partial), follow-up verified on Bun 1.3.13
 ---
 
 > **Resolution (2026-04-21) — maintainer decisions:**
@@ -17,17 +17,18 @@ Resolved-in: db63166 (partial — bunx deferred to Bun 1.4)
 >    is gone.
 > 4. Dead `PLATFORM` / `ARCH` Makefile vars deleted.
 >
-> **Deferred:** `node node_modules/.bin/playwright` → `bunx playwright`
-> can't happen on Bun 1.3.x (fixed in 1.4). New E2E CI step uses
-> `bun run node node_modules/.bin/playwright` to match the
-> Makefile/package.json pattern. Revisit after the `.bun-version` bump.
+>
+> **Follow-up (2026-04-23):** Bun 1.3.13 fixed the remaining known
+> Playwright incompatibility. The repo's Makefile/package scripts now
+> use `bunx playwright`, and `bunx playwright test` has been verified
+> against the pinned Bun 1.3.13 toolchain.
 
 
 # Cluster 13 — ci-workflow-hygiene
 
 ## TL;DR
 
-- **Goal:** Run E2E in CI, kill the duplicate Homebrew-tap bump race, decide what to do about the committed generated `assets-embedded.ts`, switch `node node_modules/.bin/playwright` to `bunx playwright`, and delete dead Makefile shell expansions.
+- **Goal:** Run E2E in CI, kill the duplicate Homebrew-tap bump race, decide what to do about the committed generated `assets-embedded.ts`, use `bunx playwright` for Playwright, and delete dead Makefile shell expansions.
 - **Impact:** The E2E gap and the Homebrew duplication are real CI hygiene issues; the Homebrew race can silently fail a release run. The others are small polish items that reduce friction.
 - **Size:** Medium (half-day)
 - **Depends on:** none
@@ -74,11 +75,11 @@ Resolved-in: db63166 (partial — bunx deferred to Bun 1.4)
   - Raised by: Tooling Analyst
   - Notes: The file is excluded from tsc (`tsconfig.json` exclude list) and uses `@ts-nocheck`. The Makefile `typecheck` target lists it as a prerequisite precisely because CI needs it to exist before typechecking. If gitignored, CI must generate it before typechecking — which already happens in the "Build frontend and generate assets" step. The committed version can drift from what the script would produce if the asset list changes in a branch. Decision: gitignore + always regenerate in CI (currently already the case), or keep committed as a reviewable artifact. Either is defensible.
 
-- **`node node_modules/.bin/playwright` invocation instead of Bun-native runner** — Both `Makefile:45,48` and `package.json:12,14` invoke Playwright via `node node_modules/.bin/playwright test`. Playwright's CLI requires Node internally regardless, so this is technically correct. CLAUDE.md explicitly states "Use `bun`. No `pnpm`, `npm`, `tsx`, or `vitest`." Using `bunx playwright` is the Bun-idiomatic equivalent and is consistent with the `bun x tsc` pattern already used for typecheck.
+- **Use `bunx playwright` for Playwright** — Both `Makefile:45,48` and `package.json:12,14` should invoke Playwright via `bunx playwright test`. Playwright's CLI requires Node internally regardless, but `bunx playwright` is the Bun-idiomatic equivalent and is consistent with the `bun x tsc` pattern already used for typecheck. This was verified against Bun 1.3.13 on 2026-04-23.
   - Location: `Makefile:45,48` · `package.json:12,14`
   - Severity: Low · Confidence: Verified · Effort: Small · Autonomy: autofix-ready
   - Cluster hint: `bun-build-robustness`
-  - Fix: Replace `node node_modules/.bin/playwright test` with `bunx playwright test` in both files (four occurrences).
+  - Fix: Use `bunx playwright test` in both files (four occurrences).
   - Raised by: Tooling Analyst
   - Notes: `bunx playwright test` still shells out to Node internally — this is a style/consistency finding only, no functional difference.
 

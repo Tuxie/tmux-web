@@ -1799,7 +1799,7 @@ Adapt the helper name to whatever `tests/e2e/helpers.ts` actually exports (check
 
 - [ ] **Step 2: Run**
 
-Run: `make build && node node_modules/.bin/playwright test tests/e2e/colours.test.ts`
+Run: `make build && bunx playwright test tests/e2e/colours.test.ts`
 Expected: PASS.
 
 - [ ] **Step 3: Commit**
@@ -1839,7 +1839,7 @@ test("opacity slider updates xterm background alpha", async ({ browser }) => {
 
 - [ ] **Step 2: Run**
 
-Run: `node node_modules/.bin/playwright test tests/e2e/opacity.test.ts`
+Run: `bunx playwright test tests/e2e/opacity.test.ts`
 Expected: PASS.
 
 - [ ] **Step 3: Commit**
@@ -1902,7 +1902,7 @@ Inheritance works because `loadSessionSettings` reads from `localStorage` if pre
 
 - [ ] **Step 2: Run**
 
-Run: `node node_modules/.bin/playwright test tests/e2e/session-inheritance.test.ts`
+Run: `bunx playwright test tests/e2e/session-inheritance.test.ts`
 Expected: PASS.
 
 - [ ] **Step 3: Commit**
@@ -1923,7 +1923,7 @@ Expected: all pass.
 
 - [ ] **Step 2: Run E2E tests**
 
-Run: `make build && node node_modules/.bin/playwright test`
+Run: `make build && bunx playwright test`
 Expected: all pass.
 
 - [ ] **Step 3: Fix any regressions**

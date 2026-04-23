@@ -36,7 +36,7 @@ import { mockApis, injectWsSpy, waitForWsOpen, startServer, killServer, clearSet
 ```
 
 - [ ] **Step 2: Run tests to verify**
-  Run: `npx playwright test tests/e2e/font-selection.test.ts`
+  Run: `bunx playwright test tests/e2e/font-selection.test.ts`
   Expected: PASS
 
 ---
@@ -53,7 +53,7 @@ import { mockApis, injectWsSpy, waitForWsOpen, startServer, killServer, clearSet
   - Use `page.waitForURL` or `page.waitForNavigation` for reloads.
 
 - [ ] **Step 2: Run tests to verify**
-  Run: `npx playwright test tests/e2e/terminal-selection.test.ts`
+  Run: `bunx playwright test tests/e2e/terminal-selection.test.ts`
   Expected: PASS
 
 ---
@@ -70,7 +70,7 @@ import { mockApis, injectWsSpy, waitForWsOpen, startServer, killServer, clearSet
   - Ensure new defaults are used if any cookies are set manually.
 
 - [ ] **Step 2: Run tests to verify**
-  Run: `npx playwright test tests/e2e/font-change-rendering.test.ts tests/e2e/xterm-font-metrics.test.ts`
+  Run: `bunx playwright test tests/e2e/font-change-rendering.test.ts tests/e2e/xterm-font-metrics.test.ts`
   Expected: PASS
 
 ---
@@ -85,5 +85,5 @@ import { mockApis, injectWsSpy, waitForWsOpen, startServer, killServer, clearSet
   - Add `clearSettings(page)` to `beforeEach`.
 
 - [ ] **Step 2: Run all E2E tests**
-  Run: `npx playwright test tests/e2e/`
+  Run: `bunx playwright test tests/e2e/`
   Expected: PASS

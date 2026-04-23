@@ -228,7 +228,7 @@ Rendered per-item in ID order, grouped by category. Multi-owner items show one l
 ## TOOL
 
 - `TOOL-1 [x] clean — single toolchain`
-- `TOOL-2 [x] node vs bunx playwright — see cluster 13`
+- `TOOL-2 [x] Playwright uses bunx — see cluster 13`
 - `TOOL-3 [x] clean — versions current and aligned`
 - `TOOL-4 [x] clean — bun-build.ts complexity load-bearing`
 - `TOOL-5 [x] clean — typecheck step present; local coverage gate exists`

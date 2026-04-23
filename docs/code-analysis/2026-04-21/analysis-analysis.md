@@ -158,9 +158,9 @@ Report directory: docs/code-analysis/2026-04-21/
 Clusters at start: 16
 Clusters closed (resolved):     15  (01, 02, 03, 04, 05, 06, 07, 08,
                                       09, 10, 11, 12, 14, 15, 16)
-Clusters closed (partial):       1  (13 — `bunx playwright` swap
-                                      blocked on Bun 1.4; all other
-                                      findings in the cluster landed)
+Clusters closed (partial):       1  (13 — originally deferred the
+                                      `bunx playwright` swap; follow-up
+                                      verified it on Bun 1.3.13)
 Clusters in-progress:            0
 Clusters deferred whole:         0
 Clusters resolved-by-dep:        0  (no cluster turned out to be
@@ -229,7 +229,7 @@ Three entries landed in `docs/ideas/` rather than as in-scope fixes:
 
 - **`docs/ideas/webgl-mock-harness-for-xterm-adapter.md`** — Layers 2 and 3 of the WebGL stub. Layer 1 (pure-helper carve-out → `src/client/adapters/xterm-cell-math.ts`) landed as a follow-up task after the cluster closed. Maintainer picked this path during the cluster 02 interview.
 - **`docs/ideas/topbar-full-coverage-harness.md`** — ~150-case mechanical harness to bring `src/client/ui/topbar.ts` up to the 95/90 gate. Public-surface tests landed; the rest is deferred. Paired with the WebGL file in the "deferred-but-documented-not-dropped" pattern.
-- **Cluster 13's `bunx playwright`** swap is blocked on a Bun 1.4 bump (Bun 1.3.x's `bunx` can't resolve `@playwright/test`). Cluster stayed `partial` with the deferral recorded in the front-matter plus a CI step comment.
+- **Cluster 13's `bunx playwright`** swap was originally deferred, but a 2026-04-23 follow-up verified `bunx playwright test` on the repo's pinned Bun 1.3.13 toolchain.
 
 Two observations for v-next:
 
@@ -253,7 +253,7 @@ No other silent misses surfaced during fix work. No "we also needed to fix X tha
 - **`scripts/render-status.sh` lives in the skill package**, not the analyzed repo. Fix coordinator has to invoke via absolute path to the plugin cache: `~/.claude/plugins/marketplaces/.../scripts/render-status.sh`. Flagged in Part A; fix-phase experience confirms the friction. Every cluster close required the absolute-path invocation — ~40 times total this session.
 - **Hook-based front-matter auto-stamping raced my manual fills.** Some CLAUDE-adjacent hook auto-filled cluster `Resolved-in:` SHAs. Sometimes it won, sometimes I did; required an extra edit + amend cycle on the first two clusters until I saw the pattern.
 - **Bun 1.3.12 path-handling.** `bun test tests/fuzz/` treats the path as a filter and fails to match; `bun test ./tests/fuzz/` (leading `./`) works as a path. Not a skill problem; worth mentioning because it tripped me up mid-cluster-15.
-- **`bunx playwright` doesn't work on Bun 1.3.x.** Discovered mid-cluster-13 after the cluster confidently recommended the swap. Cluster's "Severity: Low · Confidence: Verified · Effort: Small · Autonomy: autofix-ready" verified the recommendation against the `package.json` pattern, not against the project's pinned toolchain. V-next: verify recommended invocations actually work on the project's pinned Bun / Node / whatever version before marking autofix-ready.
+- **Tool invocations must be verified against the pinned runtime.** Cluster 13 originally deferred `bunx playwright` based on then-known Bun 1.3.x behavior; a later Bun 1.3.13 verification showed the invocation now works. V-next: verify recommended invocations actually work on the project's pinned Bun / Node / whatever version before marking autofix-ready or blocked.
 - **Maintainer interviews via plain Q&A** (numbered / lettered options, pick per-item) worked well for the four decision-heavy clusters (06, 10, 11, 13). No need for `AskUserQuestion`-tool formalism; normal prompts were enough.
 
 ### Instructions to the v-next author

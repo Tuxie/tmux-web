@@ -53,7 +53,7 @@ Expected: Success, `./tmux-web` updated.
 
 - [ ] **Step 1: Run all E2E tests**
 
-Run: `npx playwright test --reporter=line`
+Run: `bunx playwright test --reporter=line`
 Expected: All tests pass.
 
 ### Task 5: Commit
