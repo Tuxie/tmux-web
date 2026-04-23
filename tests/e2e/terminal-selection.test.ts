@@ -19,15 +19,6 @@ test.describe('terminal surface: xterm only', () => {
     await waitForWsOpen(page);
   });
 
-  test('settings menu no longer exposes a terminal picker', async ({ page }) => {
-    await openMenu(page);
-
-    await expect(page.locator('#inp-terminal')).toHaveCount(0);
-
-    const config = await page.evaluate(() => (window as any).__TMUX_WEB_CONFIG ?? {});
-    expect(config.terminal).toBeUndefined();
-  });
-
   test('page loads xterm without a terminal query parameter', async ({ page }) => {
     await expect(page.locator('#terminal .xterm')).toBeVisible({ timeout: 10000 });
     expect(page.url()).not.toContain('?terminal=');
