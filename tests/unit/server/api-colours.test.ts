@@ -1,16 +1,10 @@
 import { describe, test, expect } from "bun:test";
 import { createHttpHandler } from "../../../src/server/http.ts";
+import { callHandler } from "./_harness/call-handler.ts";
 import fs from "fs"; import path from "path"; import os from "os";
 
-async function once(handler: any, url: string) {
-  return new Promise<{status: number; body: string}>((resolve) => {
-    const req: any = { method: "GET", url, headers: { host: "x" }, socket: { remoteAddress: "127.0.0.1" } };
-    const res: any = {
-      writeHead(status: number, _h?: any) { this._status = status; },
-      end(body?: any) { resolve({ status: this._status ?? 200, body: body?.toString?.() ?? "" }); },
-    };
-    Promise.resolve(handler(req, res));
-  });
+function once(handler: any, url: string) {
+  return callHandler(handler, { method: "GET", url });
 }
 
 describe("/api/colours", () => {

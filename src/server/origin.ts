@@ -11,8 +11,6 @@
  * The '*' wildcard entry short-circuits to allow-any (explicit opt-in).
  */
 
-import type { IncomingMessage } from 'http';
-
 export interface OriginTuple {
   scheme: 'http' | 'https';
   host: string;
@@ -68,10 +66,10 @@ export interface OriginAllowContext {
 }
 
 export function isOriginAllowed(
-  req: Pick<IncomingMessage, 'headers'>,
+  originHeader: string | null | undefined,
   ctx: OriginAllowContext,
 ): boolean {
-  const raw = req.headers.origin;
+  const raw = originHeader;
   if (typeof raw !== 'string' || raw.length === 0) return true;
   if (ctx.allowedOrigins.some(e => e === '*')) return true;
   const origin = parseOriginHeader(raw);

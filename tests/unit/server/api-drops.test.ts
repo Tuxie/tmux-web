@@ -2,9 +2,9 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { Readable } from "stream";
 import { createHttpHandler } from "../../../src/server/http.ts";
 import { writeDrop, type DropStorage } from "../../../src/server/file-drop.ts";
+import { callHandler } from "./_harness/call-handler.ts";
 
 let tmp: string;
 let storage: DropStorage;
@@ -40,20 +40,7 @@ async function makeHandler() {
 }
 
 function call(handler: any, opts: { method: string; url: string }): Promise<{ status: number; body: string }> {
-  return new Promise((resolve) => {
-    const stream: any = Readable.from([]);
-    stream.method = opts.method;
-    stream.url = opts.url;
-    stream.headers = { host: "x" };
-    stream.socket = { remoteAddress: "127.0.0.1" };
-    const res: any = {
-      writeHead(status: number) { this._status = status; },
-      end(body?: any) {
-        resolve({ status: this._status ?? 200, body: body?.toString?.() ?? "" });
-      },
-    };
-    Promise.resolve(handler(stream, res));
-  });
+  return callHandler(handler, opts);
 }
 
 describe("/api/drops", () => {

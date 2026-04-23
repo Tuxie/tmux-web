@@ -153,7 +153,7 @@ describe("HTTP Origin check integration (pure shape)", () => {
   test("default config rejects cross-origin from evil.com", () => {
     const { config } = parseConfig(["--no-auth"]);
     expect(isOriginAllowed(
-      { headers: { origin: "https://evil.com" } } as any,
+      "https://evil.com",
       {
         allowedIps: config!.allowedIps,
         allowedOrigins: config!.allowedOrigins,

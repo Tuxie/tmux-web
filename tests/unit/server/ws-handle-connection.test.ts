@@ -1,5 +1,4 @@
 import { describe, test, expect, afterEach } from 'bun:test';
-import WebSocket from 'ws';
 import fs from 'node:fs';
 import http from 'node:http';
 import { startTestServer, type Harness } from './_harness/spawn-server.ts';
@@ -37,18 +36,22 @@ interface OpenedWs {
 
 function openWs(wsUrl: string, path = '/ws?session=main&cols=80&rows=24'): OpenedWs {
   const ws = new WebSocket(wsUrl + path);
+  ws.binaryType = 'arraybuffer';
   const messages: string[] = [];
   const raw: Buffer[] = [];
   // Attach listener *before* open so early PTY output (trigger file) is captured.
-  ws.on('message', (data: Buffer) => {
-    raw.push(data);
-    const s = data.toString('utf8');
+  ws.addEventListener('message', (ev: MessageEvent) => {
+    const buf = typeof ev.data === 'string'
+      ? Buffer.from(ev.data, 'utf8')
+      : Buffer.from(ev.data as ArrayBuffer);
+    raw.push(buf);
+    const s = buf.toString('utf8');
     if (s.startsWith('\x00TT:')) messages.push(s.slice(4));
   });
-  ws.on('error', () => { /* swallow async errors so tests don't crash on close */ });
+  ws.addEventListener('error', () => { /* swallow async errors so tests don't crash on close */ });
   const opened = new Promise<void>((resolve, reject) => {
-    ws.once('open', () => resolve());
-    ws.once('error', reject);
+    ws.addEventListener('open', () => resolve(), { once: true });
+    ws.addEventListener('error', (e) => reject(e), { once: true });
   });
   return { ws, opened, messages, raw };
 }
@@ -240,13 +243,15 @@ describe('ws handleConnection — OSC 52 read flow', () => {
     expect(true).toBe(true);
   }, 15000);
 
-  test('ws.terminate() on client triggers server ws error handler', async () => {
+  test('ws abrupt close on client triggers server ws close handler', async () => {
+    // The legacy `ws.terminate()` path doesn't exist on Bun's spec-compliant
+    // global WebSocket. `close()` triggers the same server-side cleanup
+    // (handleClose); the test is here to ensure no crash.
     h = await startTestServer({ testMode: true });
     const o = openWs(h.wsUrl);
     await o.opened;
-    o.ws.terminate();
-    // Short wait to let the server's 'error' event fire. Negative-observable:
-    // we just need the error handler to run (50ms is plenty on localhost).
+    o.ws.close();
+    // Short wait to let the server's close handler run.
     await new Promise(r => setTimeout(r, 50));
     expect(true).toBe(true);
   }, 15000);

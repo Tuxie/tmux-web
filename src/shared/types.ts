@@ -86,6 +86,12 @@ export interface ServerMessage {
    *  revoke / purge). Drops are a per-user pool (not partitioned by
    *  tmux session), so every attached client refreshes on receipt. */
   dropsChanged?: true;
+  /** Sent when the PTY child (tmux / `cat` in test mode) exits. The
+   *  server intentionally does *not* call `ws.close()` itself because
+   *  doing so triggers a Bun 1.3.13 bug that leaves `server.stop()`
+   *  blocked. The client should treat receipt as "session ended" and
+   *  close the socket on its own. */
+  ptyExit?: true;
 }
 
 /** Client-to-server resize message. */

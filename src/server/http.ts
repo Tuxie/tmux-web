@@ -2,7 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { timingSafeEqual } from 'crypto';
-import type { IncomingMessage, ServerResponse } from 'http';
+import type { Server as BunServer } from 'bun';
 import { MIME_TYPES } from '../shared/constants.js';
 import type { ServerConfig } from '../shared/types.js';
 import { isAllowed } from './allowlist.js';
@@ -52,6 +52,8 @@ const MAX_DROP_BYTES = 50 * 1024 * 1024;
 /** Session-settings body cap. 1 MiB is generous for a JSON schema of
  *  per-session UI preferences but still finite. */
 const MAX_SESSION_SETTINGS_BYTES = 1 * 1024 * 1024;
+
+const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
 /** Detect whether a `PUT /api/session-settings` patch tries to write a
  *  `clipboard` entry on any session. Clipboard grants are consent-only
@@ -143,14 +145,12 @@ async function readFile(filePath: string, assetKey?: string): Promise<{ data: Bu
   return null;
 }
 
-function serveFile(res: ServerResponse, data: Buffer | Uint8Array, contentType: string): void {
-  res.writeHead(200, { 'Content-Type': contentType });
-  res.end(data);
+function fileResponse(data: Buffer | Uint8Array, contentType: string): Response {
+  return new Response(data, { status: 200, headers: { 'Content-Type': contentType } });
 }
 
-function serve404(res: ServerResponse): void {
-  res.writeHead(404);
-  res.end('Not Found');
+function notFound(): Response {
+  return new Response('Not Found', { status: 404 });
 }
 
 function getTerminalVersions(projectRoot: string): Record<string, string> {
@@ -184,10 +184,9 @@ function safeStringEqual(a: string, b: string): boolean {
   return eq && bufA.length === bufB.length;
 }
 
-export function isAuthorized(req: IncomingMessage, config: ServerConfig): boolean {
+export function isAuthorized(authHeader: string | null | undefined, config: ServerConfig): boolean {
   if (!config.auth.enabled) return true;
 
-  const authHeader = req.headers.authorization;
   if (!authHeader) return false;
 
   const match = authHeader.match(/^Basic (.+)$/i);
@@ -207,7 +206,34 @@ export function isAuthorized(req: IncomingMessage, config: ServerConfig): boolea
   return userMatch && passMatch;
 }
 
-export async function createHttpHandler(opts: HttpHandlerOptions) {
+export type HttpHandler = (req: Request, server: BunServer<unknown>) => Response | Promise<Response>;
+
+/** Read the request body into a Buffer, enforcing a byte cap mid-stream
+ *  so a malicious client can't OOM the process. Returns `null` when the
+ *  cap is exceeded. */
+async function readBodyCapped(req: Request, max: number): Promise<Buffer | null> {
+  if (!req.body) return Buffer.alloc(0);
+  const reader = req.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > max) {
+        try { await reader.cancel(); } catch {}
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    try { reader.releaseLock(); } catch {}
+  }
+  return Buffer.concat(chunks);
+}
+
+export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpHandler> {
   const { config, distDir } = opts;
   let bundledDir: string | null = opts.themesBundledDir;
   if (opts.isCompiled) {
@@ -231,105 +257,89 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
       .replace('__BUNDLE__', `/dist/client/xterm.js`);
   };
 
-  return async (req: IncomingMessage, res: ServerResponse) => {
-    const remoteIp = req.socket.remoteAddress || '';
+  return async (req, server) => {
+    const remoteIp = server.requestIP(req)?.address || '';
+    const method = req.method;
     if (!config.testMode && !isAllowed(remoteIp, config.allowedIps)) {
-      debug(config, `HTTP ${req.method} ${req.url} from ${remoteIp} - rejected (IP)`);
-      res.writeHead(403);
-      res.end('Forbidden');
-      return;
+      debug(config, `HTTP ${method} ${req.url} from ${remoteIp} - rejected (IP)`);
+      return new Response('Forbidden', { status: 403 });
     }
 
-    if (!config.testMode && !isOriginAllowed(req, {
+    const originHeader = req.headers.get('origin') ?? undefined;
+    if (!config.testMode && !isOriginAllowed(originHeader, {
       allowedIps: config.allowedIps,
       allowedOrigins: config.allowedOrigins,
       serverScheme: config.tls ? 'https' : 'http',
       serverPort: config.port,
     })) {
-      const origin = req.headers.origin ?? '<none>';
-      debug(config, `HTTP ${req.method} ${req.url} from ${remoteIp} - rejected (Origin: ${origin})`);
+      const origin = originHeader ?? '<none>';
+      debug(config, `HTTP ${method} ${req.url} from ${remoteIp} - rejected (Origin: ${origin})`);
       logOriginReject(origin, remoteIp);
-      res.writeHead(403);
-      res.end('Forbidden');
-      return;
+      return new Response('Forbidden', { status: 403 });
     }
 
-    if (!isAuthorized(req, config)) {
-      debug(config, `HTTP ${req.method} ${req.url} from ${remoteIp} - unauthorized`);
-      res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="tmux-web"' });
-      res.end('Unauthorized');
-      return;
+    const authHeader = req.headers.get('authorization') ?? undefined;
+    if (!isAuthorized(authHeader, config)) {
+      debug(config, `HTTP ${method} ${req.url} from ${remoteIp} - unauthorized`);
+      return new Response('Unauthorized', {
+        status: 401,
+        headers: { 'WWW-Authenticate': 'Basic realm="tmux-web"' },
+      });
     }
 
-    debug(config, `HTTP ${req.method} ${req.url} from ${remoteIp}`);
+    debug(config, `HTTP ${method} ${req.url} from ${remoteIp}`);
 
-    const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+    const url = new URL(req.url);
     const pathname = url.pathname;
 
     if (pathname === '/api/fonts') {
-      if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(fontsCache));
-      return;
+      if (method !== 'GET') return new Response(null, { status: 405 });
+      return new Response(JSON.stringify(fontsCache), { headers: JSON_HEADERS });
     }
 
     if (pathname === '/api/themes') {
-      if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(themesCache));
-      return;
+      if (method !== 'GET') return new Response(null, { status: 405 });
+      return new Response(JSON.stringify(themesCache), { headers: JSON_HEADERS });
     }
 
     if (pathname === '/api/colours') {
-      if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(colourInfos.map(c => ({
+      if (method !== 'GET') return new Response(null, { status: 405 });
+      const body = JSON.stringify(colourInfos.map(c => ({
         name: c.name, variant: c.variant, theme: c.theme,
-      }))));
-      return;
+      })));
+      return new Response(body, { headers: JSON_HEADERS });
     }
 
     if (pathname.startsWith('/themes/')) {
       const rest = pathname.slice('/themes/'.length);
       const slash = rest.indexOf('/');
-      if (slash < 0) {
-        res.writeHead(404);
-        res.end();
-        return;
-      }
+      if (slash < 0) return new Response(null, { status: 404 });
       let packDir: string;
       let fileName: string;
       try {
         packDir = decodeURIComponent(rest.slice(0, slash));
         fileName = decodeURIComponent(rest.slice(slash + 1));
       } catch {
-        res.writeHead(400);
-        res.end();
-        return;
+        return new Response(null, { status: 400 });
       }
       const found = readPackFile(packDir, fileName, packs);
-      if (!found) {
-        res.writeHead(404);
-        res.end();
-        return;
-      }
+      if (!found) return new Response(null, { status: 404 });
       const ext = path.extname(fileName);
       const contentType = MIME_TYPES[ext] || 'application/octet-stream';
       const data = new Uint8Array(await Bun.file(found.fullPath).arrayBuffer());
-      return serveFile(res, data, contentType);
+      return fileResponse(data, contentType);
     }
 
     if (pathname.startsWith('/dist/')) {
       const relative = pathname.slice(6);
       const filePath = path.join(distDir, relative);
       const asset = await readFile(filePath, `dist/${relative}`);
-
-      if (asset) return serveFile(res, asset.data, asset.contentType);
-      return serve404(res);
+      if (asset) return fileResponse(asset.data, asset.contentType);
+      return notFound();
     }
 
     if (pathname === '/api/sessions') {
-      if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
+      if (method !== 'GET') return new Response(null, { status: 405 });
       let stdout: string;
       try {
         stdout = await opts.tmuxControl.run(['list-sessions', '-F', '#{session_id}:#{session_name}']);
@@ -342,14 +352,10 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
             const r = await execFileAsync(config.tmuxBin, ['list-sessions', '-F', '#{session_id}:#{session_name}']);
             stdout = r.stdout;
           } catch {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end('[]');
-            return;
+            return new Response('[]', { headers: JSON_HEADERS });
           }
         } else {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end('[]');
-          return;
+          return new Response('[]', { headers: JSON_HEADERS });
         }
       }
       // tmux's #{session_id} is the `$N` internal id — monotonic
@@ -360,13 +366,11 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
         const name = rest.join(':');
         return { id: (rawId ?? '').replace(/^\$/, ''), name };
       });
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(sessions));
-      return;
+      return new Response(JSON.stringify(sessions), { headers: JSON_HEADERS });
     }
 
     if (pathname === '/api/windows') {
-      if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
+      if (method !== 'GET') return new Response(null, { status: 405 });
       const sess = url.searchParams.get('session') || 'main';
       try {
         // Tab-separated — see matching comment in ws.ts sendWindowState.
@@ -378,37 +382,24 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
           const [index, name, active] = line.split('\t');
           return { index, name, active: active === '1' };
         });
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(windows));
+        return new Response(JSON.stringify(windows), { headers: JSON_HEADERS });
       } catch {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end('[]');
+        return new Response('[]', { headers: JSON_HEADERS });
       }
-      return;
     }
 
     if (pathname === '/api/drops/paste') {
-      if (req.method !== 'POST') {
-        res.writeHead(405);
-        res.end();
-        return;
-      }
+      if (method !== 'POST') return new Response(null, { status: 405 });
       const session = sanitizeSession(url.searchParams.get('session') || 'main');
       const id = url.searchParams.get('id');
-      if (!id) {
-        res.writeHead(400);
-        res.end('Missing id');
-        return;
-      }
+      if (!id) return new Response('Missing id', { status: 400 });
       // Re-resolve the drop from the store rather than trusting any path
       // on the query — guarantees we only paste paths that still exist
       // and are inside the drop store root.
       const drops = listDrops(opts.dropStorage);
       const hit = drops.find(d => d.dropId === id);
       if (!hit) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ pasted: false, id }));
-        return;
+        return new Response(JSON.stringify({ pasted: false, id }), { status: 404, headers: JSON_HEADERS });
       }
       if (!config.testMode) {
         try {
@@ -419,18 +410,15 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
           });
         } catch (err) {
           debug(config, `drop re-paste send-keys failed: ${err}`);
-          res.writeHead(500);
-          res.end('Inject failed');
-          return;
+          return new Response('Inject failed', { status: 500 });
         }
       }
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ pasted: true, id, path: hit.absolutePath, filename: hit.filename }));
-      return;
+      return new Response(JSON.stringify({ pasted: true, id, path: hit.absolutePath, filename: hit.filename }),
+        { headers: JSON_HEADERS });
     }
 
     if (pathname === '/api/drops') {
-      if (req.method === 'GET') {
+      if (method === 'GET') {
         // Strip `absolutePath` from the public response — it leaks the
         // runtime uid + `$XDG_RUNTIME_DIR` layout (/run/user/<uid>/…).
         // The re-paste flow resolves paths server-side from `dropId`
@@ -442,19 +430,16 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
           size: d.size,
           mtime: d.mtime,
         }));
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ drops }));
-        return;
+        return new Response(JSON.stringify({ drops }), { headers: JSON_HEADERS });
       }
-      if (req.method === 'DELETE') {
+      if (method === 'DELETE') {
         const id = url.searchParams.get('id');
         if (id) {
           // Single-drop revoke. deleteDrop rejects anything with path
           // separators or that resolves outside the storage root.
           const ok = deleteDrop(opts.dropStorage, id);
-          res.writeHead(ok ? 200 : 404, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ deleted: ok, id }));
-          return;
+          return new Response(JSON.stringify({ deleted: ok, id }),
+            { status: ok ? 200 : 404, headers: JSON_HEADERS });
         }
         // Purge-all: list first, then remove by id so the watcher map
         // stays consistent.
@@ -463,51 +448,30 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
         for (const d of before) {
           if (deleteDrop(opts.dropStorage, d.dropId)) count++;
         }
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ purged: count }));
-        return;
+        return new Response(JSON.stringify({ purged: count }), { headers: JSON_HEADERS });
       }
-      res.writeHead(405);
-      res.end();
-      return;
+      return new Response(null, { status: 405 });
     }
 
     if (pathname === '/api/drop') {
-      if (req.method !== 'POST') {
-        res.writeHead(405);
-        res.end();
-        return;
-      }
+      if (method !== 'POST') return new Response(null, { status: 405 });
       const session = sanitizeSession(url.searchParams.get('session') || 'main');
       // Browser encodes the original filename so arbitrary UTF-8 / special
       // chars survive HTTP headers (which are latin-1 by default).
-      const rawNameHeader = req.headers['x-filename'];
+      const rawNameHeader = req.headers.get('x-filename');
       let rawName = 'file';
       if (typeof rawNameHeader === 'string' && rawNameHeader) {
         try { rawName = decodeURIComponent(rawNameHeader); } catch { rawName = rawNameHeader; }
       }
 
-      const chunks: Buffer[] = [];
-      let total = 0;
-      let tooBig = false;
+      let data: Buffer;
       try {
-        for await (const chunk of req) {
-          const buf = chunk as Buffer;
-          total += buf.length;
-          if (total > MAX_DROP_BYTES) { tooBig = true; break; }
-          chunks.push(buf);
-        }
+        const buf = await readBodyCapped(req, MAX_DROP_BYTES);
+        if (buf === null) return new Response('Too large', { status: 413 });
+        data = buf;
       } catch {
-        res.writeHead(400);
-        res.end('Read error');
-        return;
+        return new Response('Read error', { status: 400 });
       }
-      if (tooBig) {
-        res.writeHead(413);
-        res.end('Too large');
-        return;
-      }
-      const data = Buffer.concat(chunks);
 
       let absolutePath: string;
       let filename: string;
@@ -517,9 +481,7 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
         filename = wrote.filename;
       } catch (err) {
         debug(config, `drop write failed: ${err}`);
-        res.writeHead(500);
-        res.end('Write failed');
-        return;
+        return new Response('Write failed', { status: 500 });
       }
 
       if (!config.testMode) {
@@ -533,63 +495,41 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
           debug(config, `drop send-keys failed: ${err}`);
           // File is already on disk; surface a 500 so the client can warn
           // the user. The orphaned file will be TTL-swept.
-          res.writeHead(500);
-          res.end('Inject failed');
-          return;
+          return new Response('Inject failed', { status: 500 });
         }
       }
 
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ path: absolutePath, filename, size: data.length }));
-      return;
+      return new Response(JSON.stringify({ path: absolutePath, filename, size: data.length }),
+        { headers: JSON_HEADERS });
     }
 
     if (pathname === '/api/session-settings') {
-      if (req.method === 'GET') {
+      if (method === 'GET') {
         const cfg = loadConfig(opts.sessionsStorePath);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(cfg));
-        return;
+        return new Response(JSON.stringify(cfg), { headers: JSON_HEADERS });
       }
-      if (req.method === 'PUT') {
-        const contentLength = Number(req.headers['content-length'] ?? 0);
+      if (method === 'PUT') {
+        const contentLength = Number(req.headers.get('content-length') ?? 0);
         if (contentLength > MAX_SESSION_SETTINGS_BYTES) {
-          res.writeHead(413);
-          res.end('Payload Too Large');
-          return;
+          return new Response('Payload Too Large', { status: 413 });
         }
         let body: string;
         try {
-          const chunks: Buffer[] = [];
-          let total = 0;
-          for await (const chunk of req) {
-            total += (chunk as Buffer).length;
-            if (total > MAX_SESSION_SETTINGS_BYTES) {
-              res.writeHead(413);
-              res.end('Payload Too Large');
-              return;
-            }
-            chunks.push(chunk as Buffer);
-          }
-          body = Buffer.concat(chunks).toString('utf-8');
+          const buf = await readBodyCapped(req, MAX_SESSION_SETTINGS_BYTES);
+          if (buf === null) return new Response('Payload Too Large', { status: 413 });
+          body = buf.toString('utf-8');
         } catch (err) {
           debug(config, `session-settings PUT error: ${(err as Error).message}`);
-          res.writeHead(400);
-          res.end('Bad Request');
-          return;
+          return new Response('Bad Request', { status: 400 });
         }
         let patch: SessionsConfigPatch;
         try {
           patch = JSON.parse(body);
         } catch {
-          res.writeHead(400);
-          res.end('Bad JSON');
-          return;
+          return new Response('Bad JSON', { status: 400 });
         }
         if (!patch || typeof patch !== 'object') {
-          res.writeHead(400);
-          res.end('Bad payload');
-          return;
+          return new Response('Bad payload', { status: 400 });
         }
         // Clipboard grants are only writable via the consent-prompt
         // pipeline (`recordGrant`, keyed by a live BLAKE3 of the
@@ -600,59 +540,42 @@ export async function createHttpHandler(opts: HttpHandlerOptions) {
         // reject rather than silently drop so any future regression
         // surfaces immediately.
         if (hasClipboardField(patch)) {
-          res.writeHead(400);
-          res.end('clipboard entries are not writable via PUT — use the consent prompt');
-          return;
+          return new Response('clipboard entries are not writable via PUT — use the consent prompt',
+            { status: 400 });
         }
         try {
           const next = applyPatch(opts.sessionsStorePath, patch);
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify(next));
+          return new Response(JSON.stringify(next), { headers: JSON_HEADERS });
         } catch (err) {
-          res.writeHead(500);
-          res.end('Save failed');
+          return new Response('Save failed', { status: 500 });
         }
-        return;
       }
-      if (req.method === 'DELETE') {
+      if (method === 'DELETE') {
         const name = url.searchParams.get('name');
-        if (!name) {
-          res.writeHead(400);
-          res.end('Missing name');
-          return;
-        }
+        if (!name) return new Response('Missing name', { status: 400 });
         try {
           const next = deleteSession(opts.sessionsStorePath, name);
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify(next));
+          return new Response(JSON.stringify(next), { headers: JSON_HEADERS });
         } catch {
-          res.writeHead(500);
-          res.end('Delete failed');
+          return new Response('Delete failed', { status: 500 });
         }
-        return;
       }
-      res.writeHead(405);
-      res.end();
-      return;
+      return new Response(null, { status: 405 });
     }
 
     if (pathname === '/api/terminal-versions') {
-      if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(terminalVersionsCache));
-      return;
+      if (method !== 'GET') return new Response(null, { status: 405 });
+      return new Response(JSON.stringify(terminalVersionsCache), { headers: JSON_HEADERS });
     }
 
-    if (pathname === '/api/exit' && req.method === 'POST') {
+    if (pathname === '/api/exit' && method === 'POST') {
       const action = url.searchParams.get('action') ?? 'quit';
       const code = action === 'restart' ? 2 : 0;
-      res.writeHead(200, { 'Content-Type': 'text/plain' });
-      res.end(action === 'restart' ? 'restarting' : 'quitting');
       setTimeout(() => process.exit(code), 100);
-      return;
+      return new Response(action === 'restart' ? 'restarting' : 'quitting',
+        { headers: { 'Content-Type': 'text/plain' } });
     }
 
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(makeHtml());
+    return new Response(makeHtml(), { headers: { 'Content-Type': 'text/html' } });
   };
 }

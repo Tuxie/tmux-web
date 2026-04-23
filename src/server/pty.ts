@@ -85,6 +85,7 @@ export function spawnPty(opts: SpawnPtyOptions): BunPty {
 
   proc.exited.then(() => {
     onExitCallback();
+    try { proc.terminal?.close(); } catch { /* best-effort */ }
   });
 
   return {
@@ -96,16 +97,20 @@ export function spawnPty(opts: SpawnPtyOptions): BunPty {
     },
     write: (data: string) => {
       if (proc.terminal) {
-        proc.terminal.write(data);
+        try { proc.terminal.write(data); } catch { /* PTY closed mid-write */ }
       }
     },
     resize: (cols: number, rows: number) => {
       if (proc.terminal) {
-        proc.terminal.resize(cols, rows);
+        try { proc.terminal.resize(cols, rows); } catch { /* PTY closed */ }
       }
     },
     kill: () => {
       proc.kill();
+      // Close the PTY master FD too. Without this, a child that exited
+      // before we got here (e.g. tmux failing to start) leaves the FD
+      // ref'd and blocks `Bun.serve.stop()` from returning.
+      try { proc.terminal?.close(); } catch { /* best-effort */ }
     },
   };
 }

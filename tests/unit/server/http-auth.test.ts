@@ -1,13 +1,9 @@
 import { describe, it, expect } from 'bun:test';
-import type { IncomingMessage } from 'http';
 import type { ServerConfig } from '../../../src/shared/types.js';
 import { isAuthorized } from '../../../src/server/http.js';
 
-function makeReq(authHeader?: string): IncomingMessage {
-  return {
-    headers: authHeader ? { authorization: authHeader } : {},
-    socket: { remoteAddress: '127.0.0.1' },
-  } as unknown as IncomingMessage;
+function makeReq(authHeader?: string): string | undefined {
+  return authHeader;
 }
 
 function makeConfig(overrides: Partial<ServerConfig['auth']> = {}): ServerConfig {

@@ -318,6 +318,14 @@ async function main() {
       if (msg.dropsChanged) {
         void dropsPanel?.refresh();
       }
+      if (msg.ptyExit) {
+        // Server signals the underlying PTY/tmux process exited. The
+        // server intentionally does not initiate the close itself (Bun
+        // 1.3.13 leaves `server.stop()` blocked when it does). Closing
+        // from the client lets the auto-reconnect timer in Connection
+        // pick up a fresh PTY on the next attempt.
+        try { connection?.reconnect(); } catch { /* connection may not be set yet */ }
+      }
     }
   }
 

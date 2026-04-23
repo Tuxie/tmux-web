@@ -3,10 +3,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
-import { Readable } from 'node:stream';
 import { startTestServer, tmuxControlFromBin, type Harness } from './_harness/spawn-server.ts';
-import { createHttpHandler } from '../../../src/server/http.ts';
+import { createHttpHandler, type HttpHandler } from '../../../src/server/http.ts';
 import { writeDrop, type DropStorage } from '../../../src/server/file-drop.ts';
+import { callHandler } from './_harness/call-handler.ts';
 
 // Uses node:http directly instead of Bun's fetch. Under act's nested-docker
 // environment Bun's fetch has been observed to return a Response-shaped object
@@ -389,28 +389,24 @@ describe('http branches — auth + origin rejection', () => {
 // Fake-req helpers for branches easier to exercise via direct handler call.
 // ---------------------------------------------------------------------------
 
-function callRaw(handler: any, method: string, url: string, opts: { body?: Buffer; headers?: Record<string,string> } = {}): Promise<{ status: number; body: string; headers: Record<string,any> }> {
-  return new Promise((resolve) => {
-    const chunks = opts.body ? [opts.body] : [];
-    const stream: any = Readable.from(chunks);
-    stream.method = method;
-    stream.url = url;
-    stream.headers = { host: 'x', ...(opts.headers ?? {}) };
-    stream.socket = { remoteAddress: '127.0.0.1' };
-    const res: any = {
-      _headers: {} as Record<string, any>,
-      writeHead(status: number, headers?: Record<string, any>) { this._status = status; if (headers) Object.assign(this._headers, headers); },
-      end(body?: any) {
-        let out = '';
-        if (body instanceof Uint8Array) out = Buffer.from(body).toString('utf8');
-        else if (Buffer.isBuffer(body)) out = body.toString('utf8');
-        else if (typeof body === 'string') out = body;
-        else out = body?.toString?.() ?? '';
-        resolve({ status: this._status ?? 200, body: out, headers: this._headers });
-      },
-    };
-    Promise.resolve(handler(stream, res));
+async function callRaw(
+  handler: HttpHandler,
+  method: string,
+  url: string,
+  opts: { body?: Buffer; headers?: Record<string,string>; remoteIp?: string } = {},
+): Promise<{ status: number; body: string; headers: Headers }> {
+  return await callHandler(handler, {
+    method, url,
+    body: opts.body,
+    headers: opts.headers,
+    remoteIp: opts.remoteIp,
   });
+}
+
+/** Stand-in for `Bun.Server` used by the few tests that build a Request
+ *  by hand (stream-error injection, IP-rejection, etc.). */
+function fakeServer(remoteIp = '127.0.0.1'): any {
+  return { requestIP: () => ({ address: remoteIp, family: 'IPv4', port: 0 }) };
 }
 
 describe('http branches — direct handler (fake req/res)', () => {
@@ -474,40 +470,28 @@ describe('http branches — direct handler (fake req/res)', () => {
 
   test('session-settings PUT stream read error → 400', async () => {
     const h2 = await mkHandler();
-    // Build a request whose async iterator throws mid-stream.
-    const stream: any = {
-      method: 'PUT', url: '/api/session-settings',
-      headers: { host: 'x' }, socket: { remoteAddress: '127.0.0.1' },
-      async *[Symbol.asyncIterator]() {
-        yield Buffer.from('{');
-        throw new Error('boom');
-      },
-    };
-    const res: any = {
-      _headers: {} as Record<string, any>,
-      writeHead(status: number, headers?: Record<string, any>) { this._status = status; if (headers) Object.assign(this._headers, headers); },
-      end(body?: any) { this._body = body?.toString?.() ?? ''; this._done = true; },
-    };
-    await h2(stream, res);
-    expect(res._status).toBe(400);
+    // Body whose underlying ReadableStream errors mid-read.
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(new TextEncoder().encode('{')); },
+      pull() { throw new Error('boom'); },
+    });
+    const req = new Request('http://x/api/session-settings', { method: 'PUT', body, headers: { host: 'x' } });
+    const res = await h2(req, fakeServer());
+    expect(res.status).toBe(400);
   });
 
   test('drop POST with req stream error → 400', async () => {
     const h2 = await mkHandler();
-    const stream: any = {
-      method: 'POST', url: '/api/drop?session=main',
+    const body = new ReadableStream<Uint8Array>({
+      start() { /* no enqueue */ },
+      pull() { throw new Error('boom'); },
+    });
+    const req = new Request('http://x/api/drop?session=main', {
+      method: 'POST', body,
       headers: { host: 'x', 'x-filename': 'f' },
-      socket: { remoteAddress: '127.0.0.1' },
-      async *[Symbol.asyncIterator]() {
-        throw new Error('boom');
-      },
-    };
-    const res: any = {
-      writeHead(s: number) { this._s = s; },
-      end(b?: any) { this._b = b; },
-    };
-    await h2(stream, res);
-    expect(res._s).toBe(400);
+    });
+    const res = await h2(req, fakeServer());
+    expect(res.status).toBe(400);
   });
 
   test('drop POST handles a writeDrop failure with 500 (fake storage root outside tree)', async () => {
@@ -563,14 +547,8 @@ describe('http branches — direct handler (fake req/res)', () => {
       allowedIps: new Set(['10.20.30.40']),
       allowedOrigins: [],
     });
-    // Build a request with a non-localhost remoteAddress.
-    const stream: any = Readable.from([]);
-    stream.method = 'GET'; stream.url = '/';
-    stream.headers = { host: '10.20.30.41' };
-    stream.socket = { remoteAddress: '8.8.8.8' };
-    const res: any = { writeHead(s: number) { this._s = s; }, end(b?: any) { this._b = b; } };
-    await handler(stream, res);
-    expect(res._s).toBe(403);
+    const r = await callRaw(handler, 'GET', '/', { remoteIp: '8.8.8.8' });
+    expect(r.status).toBe(403);
   });
 
   test('Origin rejection: 403 when Origin not allowed (testMode off, direct handler)', async () => {
@@ -579,37 +557,27 @@ describe('http branches — direct handler (fake req/res)', () => {
       allowedIps: new Set(['127.0.0.1']),
       allowedOrigins: [],
     });
-    const stream: any = Readable.from([]);
-    stream.method = 'GET'; stream.url = '/';
-    stream.headers = { host: 'x', origin: 'https://evil.example' };
-    stream.socket = { remoteAddress: '127.0.0.1' };
-    const res: any = { writeHead(s: number) { this._s = s; }, end(b?: any) { this._b = b; } };
-    await handler(stream, res);
-    expect(res._s).toBe(403);
+    const r = await callRaw(handler, 'GET', '/', { headers: { origin: 'https://evil.example' } });
+    expect(r.status).toBe(403);
   });
 
   test('session-settings PUT too large by content-length → 413', async () => {
     const handler = await mkHandler();
-    const stream: any = Readable.from([]);
-    stream.method = 'PUT'; stream.url = '/api/session-settings';
-    stream.headers = { host: 'x', 'content-length': String(2 * 1024 * 1024) };
-    stream.socket = { remoteAddress: '127.0.0.1' };
-    const res: any = { writeHead(s: number) { this._s = s; }, end(b?: any) { this._b = b; } };
-    await handler(stream, res);
-    expect(res._s).toBe(413);
+    const r = await callRaw(handler, 'PUT', '/api/session-settings', {
+      headers: { 'content-length': String(2 * 1024 * 1024) },
+      // Empty body — the content-length-only check must trip 413 before
+      // we read any bytes.
+      body: Buffer.alloc(0),
+    });
+    expect(r.status).toBe(413);
   });
 
   test('session-settings PUT too large while streaming → 413', async () => {
     const handler = await mkHandler();
     // Big body without content-length — trigger the mid-stream 413.
     const big = Buffer.alloc(1 * 1024 * 1024 + 10, 0x61);
-    const stream: any = Readable.from([big]);
-    stream.method = 'PUT'; stream.url = '/api/session-settings';
-    stream.headers = { host: 'x' };
-    stream.socket = { remoteAddress: '127.0.0.1' };
-    const res: any = { writeHead(s: number) { this._s = s; }, end(b?: any) { this._b = b; } };
-    await handler(stream, res);
-    expect(res._s).toBe(413);
+    const r = await callRaw(handler, 'PUT', '/api/session-settings', { body: big });
+    expect(r.status).toBe(413);
   });
 
   test('/api/drop POST too large → 413 (direct handler)', async () => {

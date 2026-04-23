@@ -2,8 +2,8 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { Readable } from "stream";
 import { createHttpHandler } from "../../../src/server/http.ts";
+import { callHandler } from "./_harness/call-handler.ts";
 
 let tmp: string;
 let storePath: string;
@@ -39,20 +39,7 @@ async function makeHandler() {
 }
 
 function call(handler: any, opts: { method: string; url: string; body?: string }): Promise<{status: number; body: string}> {
-  return new Promise((resolve) => {
-    const stream: any = opts.body !== undefined
-      ? Readable.from([Buffer.from(opts.body)])
-      : Readable.from([]);
-    stream.method = opts.method;
-    stream.url = opts.url;
-    stream.headers = { host: "x" };
-    stream.socket = { remoteAddress: "127.0.0.1" };
-    const res: any = {
-      writeHead(status: number, _h?: any) { this._status = status; },
-      end(body?: any) { resolve({ status: this._status ?? 200, body: body?.toString?.() ?? "" }); },
-    };
-    Promise.resolve(handler(stream, res));
-  });
+  return callHandler(handler, opts);
 }
 
 describe("/api/session-settings", () => {

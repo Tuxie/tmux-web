@@ -106,8 +106,7 @@ describe('isOriginAllowed', () => {
     serverPort: 4022,
     ...overrides,
   });
-  const mkReq = (origin: string | undefined) =>
-    ({ headers: origin === undefined ? {} : { origin } }) as any;
+  const mkReq = (origin: string | undefined): string | undefined => origin;
 
   it('allows requests with no Origin header', () => {
     expect(isOriginAllowed(mkReq(undefined), mkCtx())).toBe(true);

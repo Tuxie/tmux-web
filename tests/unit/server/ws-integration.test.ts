@@ -1,5 +1,4 @@
 import { describe, test, expect, afterEach } from 'bun:test';
-import WebSocket from 'ws';
 import { connect } from 'node:net';
 import { startTestServer, type Harness } from './_harness/spawn-server.ts';
 
@@ -8,9 +7,9 @@ afterEach(async () => { if (h) { await h.close(); h = undefined; } });
 
 async function open(path = '/ws?session=main&cols=80&rows=24', headers: Record<string, string> = {}): Promise<WebSocket> {
   return await new Promise((resolve, reject) => {
-    const ws = new WebSocket(h!.wsUrl + path, { headers });
-    ws.once('open', () => resolve(ws));
-    ws.once('error', (e) => reject(e));
+    const ws = new WebSocket(h!.wsUrl + path, { headers } as any);
+    ws.addEventListener('open', () => resolve(ws), { once: true });
+    ws.addEventListener('error', (e) => reject(e), { once: true });
   });
 }
 
@@ -61,12 +60,12 @@ describe('ws upgrade success paths', () => {
     await new Promise(r => setTimeout(r, 20));
   });
 
-  test('non-/ws path is destroyed (no 101)', async () => {
+  test('non-/ws path is rejected (no 101)', async () => {
     h = await startTestServer();
     const port = Number(new URL(h.url).port);
     const { statusCode } = await rawUpgrade(port, '/other?session=main');
-    // socket.destroy() with no HTTP response → no status line parsed
-    expect(statusCode).toBeNull();
+    // Whatever the server returns, it must not be a 101 Switching Protocols.
+    expect(statusCode).not.toBe(101);
   });
 
   test('non-JSON message is forwarded to pty (no crash)', async () => {

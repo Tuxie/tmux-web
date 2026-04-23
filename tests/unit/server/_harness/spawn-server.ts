@@ -1,10 +1,8 @@
-import { createServer } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHttpHandler } from '../../../../src/server/http.ts';
-import { createWsServer } from '../../../../src/server/ws.ts';
+import { createWsHandlers, type WsData } from '../../../../src/server/ws.ts';
 import { createNullTmuxControl, type TmuxControl } from '../../../../src/server/tmux-control.ts';
 import { execFileAsync } from '../../../../src/server/exec.ts';
 import type { DropStorage } from '../../../../src/server/file-drop.ts';
@@ -98,23 +96,33 @@ export async function startTestServer(opts: HarnessOpts = {}): Promise<Harness> 
     tmuxControl,
   });
 
-  const server = createServer((req, res) => { void handler(req as any, res as any); });
-  createWsServer(server, { config, tmuxConfPath, sessionsStorePath, tmuxControl });
+  const ws = createWsHandlers({ config, tmuxConfPath, sessionsStorePath, tmuxControl });
 
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const { port } = server.address() as AddressInfo;
-  const url = `http://127.0.0.1:${port}`;
+  const server = Bun.serve<WsData, never>({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch(req, srv) {
+      const url = new URL(req.url);
+      if (url.pathname.startsWith('/ws') || req.headers.get('upgrade')?.toLowerCase() === 'websocket') {
+        const rejected = ws.upgrade(req, srv);
+        if (rejected) return rejected;
+        return undefined;
+      }
+      return handler(req, srv);
+    },
+    websocket: ws.websocket,
+  });
+
+  const url = `http://127.0.0.1:${server.port}`;
 
   return {
     url,
     wsUrl: url.replace(/^http/, 'ws'),
     tmpDir,
     config,
-    close: () => new Promise<void>((resolve) => {
-      // Force-drop any keep-alive / websocket connections so close() doesn't
-      // hang waiting on pty children (inherited fds keep sockets half-open).
-      (server as any).closeAllConnections?.();
-      server.close(() => resolve());
-    }),
+    close: async () => {
+      ws.close();
+      await server.stop(true);
+    },
   };
 }

@@ -1,11 +1,9 @@
 import fs from 'fs';
-import http from 'http';
-import https from 'https';
 import path from 'path';
 import { parseArgs } from 'util';
 import { tmpdir, userInfo } from 'os';
 import { createHttpHandler } from './http.js';
-import { createWsServer } from './ws.js';
+import { createWsHandlers, type WsData } from './ws.js';
 import { createTmuxControl, createNullTmuxControl } from './tmux-control.js';
 import { defaultDropStorage, cleanupAll as cleanupDrops } from './file-drop.js';
 import { generateSelfSignedCert } from './tls.js';
@@ -360,14 +358,13 @@ Options:
     tmuxControl: tmuxControl ?? createNullTmuxControl(),
   });
 
-  let server: http.Server | https.Server;
-
+  let tlsOpts: { cert: string; key: string } | undefined;
   if (config.tls) {
-    let cert: string;
-    let key: string;
     if (config.tlsCert && config.tlsKey) {
-      cert = fs.readFileSync(config.tlsCert, 'utf-8');
-      key = fs.readFileSync(config.tlsKey, 'utf-8');
+      tlsOpts = {
+        cert: fs.readFileSync(config.tlsCert, 'utf-8'),
+        key: fs.readFileSync(config.tlsKey, 'utf-8'),
+      };
     } else {
       // Self-signed path: we shell out to `openssl req`. Fail early
       // with a clear message instead of a cryptic ENOENT trace.
@@ -379,26 +376,36 @@ Options:
         console.error(`Install openssl, pass --tls-cert / --tls-key to use your own certificate, or disable TLS with --no-tls.`);
         process.exit(1);
       }
-      const generated = generateSelfSignedCert(configDir);
-      cert = generated.cert;
-      key = generated.key;
+      tlsOpts = generateSelfSignedCert(configDir);
     }
-    server = https.createServer({ cert, key }, handler);
-  } else {
-    server = http.createServer(handler);
   }
 
-  createWsServer(server, {
+  const ws = createWsHandlers({
     config,
     tmuxConfPath: effectiveTmuxConfPath,
     sessionsStorePath,
     tmuxControl: tmuxControl ?? createNullTmuxControl(),
   });
+  process.on('exit', () => { ws.close(); });
+
+  const server = Bun.serve<WsData, never>({
+    hostname: host,
+    port,
+    tls: tlsOpts,
+    fetch(req, srv) {
+      const url = new URL(req.url);
+      if (url.pathname.startsWith('/ws') || req.headers.get('upgrade')?.toLowerCase() === 'websocket') {
+        const rejected = ws.upgrade(req, srv);
+        if (rejected) return rejected;
+        return undefined;
+      }
+      return handler(req, srv);
+    },
+    websocket: ws.websocket,
+  });
 
   const scheme = config.tls ? 'https' : 'http';
-  server.listen(port, host, () => {
-    console.log(`tmux-web listening on ${scheme}://${host}:${port}`);
-  });
+  console.log(`tmux-web listening on ${scheme}://${server.hostname}:${server.port}`);
 }
 
 if (import.meta.main) {
