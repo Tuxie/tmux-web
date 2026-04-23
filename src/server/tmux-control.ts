@@ -264,14 +264,13 @@ export class ControlClient {
   }
 
   private handleBegin(cmdnum: number, flags: number): void {
-    // Bit 1 of flags = CMDQ_INTERNAL: tmux emitted this envelope for an
-    // internal operation, not in response to a command we wrote to stdin.
-    // Treat it as stale unconditionally so it can never be attributed to
-    // a pending head — even if one is waiting for its %begin right now.
-    if (flags & 1) {
-      this.staleCmdnums.add(cmdnum);
-      return;
-    }
+    // Note: in tmux 3.6a the flags field has flags=0 for the stray internal
+    // envelope emitted during attach-session bookkeeping, and flags=1 for
+    // user-sent stdin commands. Do NOT gate on flags & 1 — that would discard
+    // every real command response. The stray flags=0 is already handled by the
+    // !head guard below (queue is empty at attach time) and by probe()'s
+    // token-matching loop for any that slip through during initial handshake.
+    void flags;
     // A %begin we owe to a previously-timed-out command: drop the entire
     // envelope (mark cmdnum stale so the matching %end/%error is also
     // dropped). Don't attribute it to the current queue head.

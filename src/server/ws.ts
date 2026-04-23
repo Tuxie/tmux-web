@@ -229,9 +229,11 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
     // `window-size latest` policy briefly resizes the layout to the
     // control client's size and then snaps back when the PTY client's
     // size arrives, which the user sees as a flash + redraw on attach.
-    void opts.tmuxControl.attachSession(session, { cols, rows }).catch((err) => {
-      debug(config, `attachSession(${session}) failed: ${(err as Error).message}`);
-    });
+    void opts.tmuxControl.attachSession(session, { cols, rows })
+      .then(() => sendWindowState(ws, state.lastSession, opts))
+      .catch((err) => {
+        debug(config, `attachSession(${session}) failed: ${(err as Error).message}`);
+      });
   }
   reg.sessionRefs.set(session, (reg.sessionRefs.get(session) ?? 0) + 1);
   let sessionSet = reg.wsClientsBySession.get(session);

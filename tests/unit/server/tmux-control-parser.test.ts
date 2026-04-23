@@ -24,8 +24,8 @@ describe('ControlParser', () => {
       onError: () => {},
       onNotification: () => {},
     });
-    parser.push('%begin 1 42 0\n%end 1 42 0\n');   // flags=0 (client command)
-    parser.push('%begin 1 43 1\n%end 1 43 0\n');   // flags=1 (CMDQ_INTERNAL)
+    parser.push('%begin 1 42 0\n%end 1 42 0\n');   // flags=0 (internal stray in tmux 3.6a)
+    parser.push('%begin 1 43 1\n%end 1 43 0\n');   // flags=1 (user stdin command in tmux 3.6a)
     expect(begins).toEqual([
       { cmdnum: 42, flags: 0 },
       { cmdnum: 43, flags: 1 },

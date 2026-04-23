@@ -377,6 +377,16 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     const dev = openWs(h.wsUrl, '/ws?session=dev&cols=80&rows=24');
     await Promise.all([main.opened, dev.opened]);
 
+    // Wait for the initial sendWindowState calls triggered by attachSession.then()
+    // to complete before measuring notification-driven behaviour.
+    await waitForMsg(main.messages, m => m.session === 'main' && 'windows' in m, 3000);
+    await waitForMsg(dev.messages, m => m.session === 'dev' && 'windows' in m, 3000);
+
+    // Reset so we only measure the notification-driven refresh below.
+    runCalls.length = 0;
+    main.messages.length = 0;
+    dev.messages.length = 0;
+
     for (const cb of listeners.get('windowAdd') ?? []) {
       cb({ type: 'windowAdd', window: '@7', session: 'dev' });
     }
@@ -384,6 +394,8 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     const got = await waitForMsg(dev.messages, m => m.session === 'dev' && 'windows' in m, 8000);
     expect(got).toBeTruthy();
     await new Promise(r => setTimeout(r, 50));
+    // Notification routing must not call display-message (old approach used it to
+    // look up the owning session; the new approach uses n.session directly).
     expect(runCalls.some(args => args[0] === 'display-message')).toBe(false);
     const listWindowTargets = runCalls
       .filter(args => args[0] === 'list-windows')
@@ -609,6 +621,55 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     o.ws.send(JSON.stringify({ type: 'window', action: 'select', index: '0' }));
     const got = await waitForMsg(o.messages, m => 'session' in m, 8000);
     expect(got).toBeTruthy();
+
+    o.ws.close();
+  }, 15000);
+
+  test('windows arrive after attachSession resolves even when PTY title fires first', async () => {
+    // Regression: probe() made attachSession slower. Title change fired before
+    // insertionOrder had a client → sendWindowState threw NoControlClientError
+    // → sent {session} without windows → lastTitle set → no retry → tabs gone.
+    const { path: tmuxBin, dir } = makeFakeTmux();
+    fs.writeFileSync(dir + '/trigger', '\x1b]0;main:editor\x07');
+
+    let resolveAttach!: () => void;
+    const attachDone = new Promise<void>(r => { resolveAttach = r; });
+    let attached = false;
+
+    const tmuxControl: TmuxControl = {
+      attachSession: async () => { await attachDone; attached = true; },
+      detachSession: () => {},
+      run: async (args) => {
+        if (!attached) throw new Error('no control client available');
+        if (args[0] === 'list-windows') return '0\teditor\t1\n';
+        return '';
+      },
+      on: () => () => {},
+      close: async () => {},
+    };
+
+    h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
+    const o = openWs(h.wsUrl);
+    await o.opened;
+
+    // Wait past the 150ms trigger delay for PTY title change to fire
+    await new Promise(r => setTimeout(r, 400));
+
+    // Title fired but attach not resolved — windows frame sent but empty
+    // (sendWindowState uses Promise.allSettled → rejected → windows:[])
+    expect(o.messages.some(raw => {
+      try {
+        const p = JSON.parse(raw);
+        return Array.isArray(p.windows) && p.windows.length > 0;
+      } catch { return false; }
+    })).toBe(false);
+
+    // Resolve attach — server should now call sendWindowState with real data
+    resolveAttach();
+
+    const got = await waitForMsg(o.messages, m => Array.isArray(m.windows) && m.windows.length > 0, 3000);
+    expect(got).toBeTruthy();
+    expect(got.windows).toHaveLength(1);
 
     o.ws.close();
   }, 15000);

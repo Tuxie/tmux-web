@@ -159,6 +159,20 @@ describe('ControlClient', () => {
     await expect(p).rejects.toMatchObject({ name: 'TmuxCommandError', stderr: 'unknown command: bogus' });
   });
 
+  test('flags=1 %begin (tmux 3.6a: user stdin commands) is correctly attributed to pending', async () => {
+    // Regression: d3e02eb added flags & 1 → stale, but in tmux 3.6a flags=1
+    // means a user-sent stdin command (not internal bookkeeping). The stray
+    // internal envelope at attach time has flags=0 and is already handled by
+    // the !head guard and probe(). Marking flags=1 as stale discards every
+    // response and causes probe to timeout after 10 iterations.
+    const { stdout, proc } = makeStdio();
+    const client = new ControlClient(proc as any, () => {}, { commandTimeoutMs: 100 });
+    const p = client.run(['list-windows']);
+    await Promise.resolve();
+    stdout.emit('%begin 1 42 1\nwindow-data\n%end 1 42 1\n');
+    expect(await p).toBe('window-data');
+  });
+
   test('buildControlSpawnArgs forces UTF-8 via -u (regression: LANG=C parents made tmux replace tabs and non-ASCII with "_")', () => {
     // Without `-u`, tmux autodetects UTF-8 from LC_ALL / LC_CTYPE / LANG.
     // A bun process started with LANG=C (systemd units, login shells with

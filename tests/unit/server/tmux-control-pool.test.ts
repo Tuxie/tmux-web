@@ -36,13 +36,14 @@ function extractProbeToken(write: string): string {
 async function driveHandshake(p: Promise<void>, fake: ReturnType<typeof fakeProc>): Promise<void> {
   await Promise.resolve();
   if (fake.writes[0]?.startsWith('refresh-client')) {
-    fake.stdout.emit('%begin 1 1 0\n%end 1 1 0\n');
+    // tmux 3.6a: user stdin commands get flags=1 in their %begin envelope.
+    fake.stdout.emit('%begin 1 1 1\n%end 1 1 1\n');
     await Promise.resolve();
     const token = extractProbeToken(fake.writes[1]!);
-    fake.stdout.emit(`%begin 2 2 0\n${token}\n%end 2 2 0\n`);
+    fake.stdout.emit(`%begin 2 2 1\n${token}\n%end 2 2 1\n`);
   } else {
     const token = extractProbeToken(fake.writes[0]!);
-    fake.stdout.emit(`%begin 1 1 0\n${token}\n%end 1 1 0\n`);
+    fake.stdout.emit(`%begin 1 1 1\n${token}\n%end 1 1 1\n`);
   }
   await p;
 }
@@ -155,7 +156,7 @@ describe('ControlPool', () => {
     const token = extractProbeToken(spawns[0]!.writes[0]!);
     // One-phase handshake: only the display-message probe.
     await Promise.resolve();
-    spawns[0]!.stdout.emit(`%begin 1 1 0\n${token}\n%end 1 1 0\n`);
+    spawns[0]!.stdout.emit(`%begin 1 1 1\n${token}\n%end 1 1 1\n`);
     await p;
   });
 
@@ -182,7 +183,7 @@ describe('ControlPool', () => {
     // Resolve the probe with the correct token. The wasCancelled guard
     // fires and kills the client instead of inserting it into the pool.
     const token = extractProbeToken(spawns[0]!.writes[0]!);
-    spawns[0]!.stdout.emit(`%begin 1 1 0\n${token}\n%end 1 1 0\n`);
+    spawns[0]!.stdout.emit(`%begin 1 1 1\n${token}\n%end 1 1 1\n`);
     await attach;
 
     expect(killed).toBe(true);
@@ -202,16 +203,17 @@ describe('ControlPool', () => {
     const fake = spawns[0]!;
     await Promise.resolve();
 
-    // Stray %begin/%end arrives before our probe response (tmux bookkeeping).
-    // It gets attributed to writes[0]'s pending; probe() gets "" back.
+    // Stray %begin/%end from tmux attach-session bookkeeping (flags=0 in
+    // tmux 3.6a for internal envelopes). Attributed to writes[0]'s pending;
+    // probe() gets "" back.
     fake.stdout.emit('%begin 1 1 0\n%end 1 1 0\n');
     // probe() sees "" ≠ token, sends a second DM (writes[1]).
     await Promise.resolve();
 
-    // Real response for writes[0] arrives and is attributed to writes[1]'s pending
-    // (writes[0]'s pending was already resolved by the stray above).
+    // Real response for writes[0] arrives (flags=1: user stdin command) and is
+    // attributed to writes[1]'s pending (writes[0]'s pending was already resolved).
     const token = extractProbeToken(fake.writes[1]!);
-    fake.stdout.emit(`%begin 2 2 0\n${token}\n%end 2 2 0\n`);
+    fake.stdout.emit(`%begin 2 2 1\n${token}\n%end 2 2 1\n`);
     // probe(): token matches, iterations=2 → pendingStaleBegins += 1.
     await attach;
 
@@ -221,20 +223,19 @@ describe('ControlPool', () => {
 
     // Floating real response for writes[1] arrives. pendingStaleBegins=1
     // absorbs the %begin so it is NOT attributed to the list-windows pending.
-    fake.stdout.emit(`%begin 3 3 0\n${token}\n%end 3 3 0\n`);
+    fake.stdout.emit(`%begin 3 3 1\n${token}\n%end 3 3 1\n`);
     await Promise.resolve();
 
     // list-windows now gets its own %begin and resolves with the correct data.
-    fake.stdout.emit('%begin 4 4 0\nwindow-data\n%end 4 4 0\n');
+    fake.stdout.emit('%begin 4 4 1\nwindow-data\n%end 4 4 1\n');
 
     expect(await runP).toBe('window-data');
   });
 
-  test('CMDQ_INTERNAL (flags=1) %begin is treated as stale even when a command is in-flight', async () => {
-    // Regression: if a stray %begin with CMDQ_INTERNAL arrives while a
-    // command has tmuxCmdnum===null (dispatched, awaiting its own %begin),
-    // the old code would attribute the stray cmdnum to that command and then
-    // resolve it with the wrong output. The flags check must catch it first.
+  test('tmux 3.6a: flags=1 %begin (user stdin command) is correctly attributed to in-flight command', async () => {
+    // In tmux 3.6a, stdin-sent commands receive flags=1 in their %begin line
+    // (flags=0 is the internal stray at attach time, handled by !head guard
+    // and probe()). The pool must attribute flags=1 %begin to the pending head.
     const spawns: ReturnType<typeof fakeProc>[] = [];
     const pool = new ControlPool({ spawn: () => { const p = fakeProc(); spawns.push(p); return p.proc; } });
     await attachHappy(pool, 'main', spawns);
@@ -243,12 +244,8 @@ describe('ControlPool', () => {
     const runP = pool.run(['list-windows']);
     await Promise.resolve();  // list-windows dispatched, tmuxCmdnum=null
 
-    // Internal tmux envelope (CMDQ_INTERNAL, flags=1) arrives before our
-    // command's %begin — e.g. triggered by the attach-session completing.
-    fake.stdout.emit('%begin 1 88259 1\nstray-content\n%end 1 88259 0\n');
-
-    // Our command's real %begin and response arrive after the stray.
-    fake.stdout.emit('%begin 1 88260 0\nwindow-data\n%end 1 88260 0\n');
+    // Real tmux 3.6a response: flags=1 for user stdin command.
+    fake.stdout.emit('%begin 1 88260 1\nwindow-data\n%end 1 88260 1\n');
 
     expect(await runP).toBe('window-data');
   });
