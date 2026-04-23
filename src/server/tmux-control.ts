@@ -234,6 +234,25 @@ export class ControlClient {
     });
   }
 
+  /** Readiness probe. Sends `display-message -p <token>` in a loop until
+   *  the response matches the token, draining any stray %begin/%end
+   *  envelopes tmux emits during attach-session internal bookkeeping.
+   *
+   *  Each extra iteration means one DM response is still in transit from
+   *  tmux. We pre-mark them stale via pendingStaleBegins so they cannot
+   *  be attributed to the next command in the queue. */
+  async probe(): Promise<void> {
+    const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    let iterations = 0;
+    for (;;) {
+      if (iterations >= 10) throw new TmuxCommandError(['display-message', '-p', token], 'probe: no matching response in 10 attempts');
+      const result = await this.run(['display-message', '-p', token]);
+      iterations++;
+      if (result.trim() === token) break;
+    }
+    this.pendingStaleBegins += iterations - 1;
+  }
+
   private dispatch(): void {
     const head = this.queue[0];
     if (!head) return;
@@ -376,7 +395,7 @@ export class ControlPool implements TmuxControl {
         if (wasCancelled()) { client.kill(); return; }
       }
       // Readiness probe. If it fails, the client is dead/unusable; propagate.
-      await client.run(['display-message', '-p', 'ok']);
+      await client.probe();
       if (wasCancelled()) { client.kill(); return; }
       this.startingClients.delete(session);
       this.clients.set(session, client);

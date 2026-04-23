@@ -23,18 +23,27 @@ function fakeProc(): { proc: ControlProc; stdout: { emit: (s: string) => void };
   return { proc, stdout, writes, exit: () => exitCb?.() };
 }
 
-/** Drive the two-phase handshake for a freshly-started session.
- *  The pool dispatches refresh-client synchronously (before the first await),
- *  so after `pool.attachSession` returns a promise, `fake` is already the
- *  active proc. We emit refresh-client response, wait a tick for display-message
- *  to be dispatched, then emit its response. */
+function extractProbeToken(write: string): string {
+  const m = write.match(/^display-message -p (.+)\n$/);
+  if (!m) throw new Error(`Not a probe write: ${JSON.stringify(write)}`);
+  return m[1]!;
+}
+
+/** Drive the handshake for a freshly-started session.
+ *  With a size hint: emits refresh-client response, waits a tick, then
+ *  emits the probe response with the token extracted from the write log.
+ *  Without a hint: only the probe phase (one emit). */
 async function driveHandshake(p: Promise<void>, fake: ReturnType<typeof fakeProc>): Promise<void> {
-  // Tick 1: refresh-client has been dispatched synchronously. Resolve it.
   await Promise.resolve();
-  fake.stdout.emit('%begin 1 1 0\n%end 1 1 0\n');
-  // Tick 2: display-message is now dispatched. Resolve it.
-  await Promise.resolve();
-  fake.stdout.emit('%begin 2 2 0\nok\n%end 2 2 0\n');
+  if (fake.writes[0]?.startsWith('refresh-client')) {
+    fake.stdout.emit('%begin 1 1 0\n%end 1 1 0\n');
+    await Promise.resolve();
+    const token = extractProbeToken(fake.writes[1]!);
+    fake.stdout.emit(`%begin 2 2 0\n${token}\n%end 2 2 0\n`);
+  } else {
+    const token = extractProbeToken(fake.writes[0]!);
+    fake.stdout.emit(`%begin 1 1 0\n${token}\n%end 1 1 0\n`);
+  }
   await p;
 }
 
@@ -141,11 +150,12 @@ describe('ControlPool', () => {
     const pool = new ControlPool({ spawn: () => { const p = fakeProc(); spawns.push(p); return p.proc; } });
     const p = pool.attachSession('main');
     await Promise.resolve();
-    // No `refresh-client` write — first command is the readiness probe.
-    expect(spawns[0]!.writes[0]).toBe('display-message -p ok\n');
-    // One-phase handshake now: only the display-message probe.
+    // No `refresh-client` write — first command is the probe.
+    expect(spawns[0]!.writes[0]).toMatch(/^display-message -p /);
+    const token = extractProbeToken(spawns[0]!.writes[0]!);
+    // One-phase handshake: only the display-message probe.
     await Promise.resolve();
-    spawns[0]!.stdout.emit('%begin 1 1 0\nok\n%end 1 1 0\n');
+    spawns[0]!.stdout.emit(`%begin 1 1 0\n${token}\n%end 1 1 0\n`);
     await p;
   });
 
@@ -162,23 +172,62 @@ describe('ControlPool', () => {
       },
     });
 
-    // Begin attach. Resolve the refresh-client probe only — then detach
-    // BEFORE the display-message probe has fired.
+    // Probe is dispatched synchronously inside pool.attachSession.
     const attach = pool.attachSession('main');
     await Promise.resolve();
-    spawns[0]!.stdout.emit('%begin 1 1 0\n%end 1 1 0\n');
-    await Promise.resolve();
 
-    // Detach while startSession is awaiting the display-message probe.
+    // Detach while startSession is awaiting the probe.
     pool.detachSession('main');
 
-    // Resolve the probe. The cancellation guard should kill the client
-    // instead of inserting it into the pool.
-    spawns[0]!.stdout.emit('%begin 2 2 0\nok\n%end 2 2 0\n');
+    // Resolve the probe with the correct token. The wasCancelled guard
+    // fires and kills the client instead of inserting it into the pool.
+    const token = extractProbeToken(spawns[0]!.writes[0]!);
+    spawns[0]!.stdout.emit(`%begin 1 1 0\n${token}\n%end 1 1 0\n`);
     await attach;
 
     expect(killed).toBe(true);
     await expect(pool.run(['list-sessions'])).rejects.toBeInstanceOf(NoControlClientError);
+  });
+
+  test('probe drains stray %begin/%end and pendingStaleBegins prevents next command from getting the floating response', async () => {
+    // Regression: tmux emits stray %begin/%end during attach-session bookkeeping.
+    // The stray is attributed to the first probe DM (probe resolves with "").
+    // probe() re-sends DM and gets the real response; but the re-sent DM's real
+    // response is still in transit. pendingStaleBegins must absorb it so the
+    // next pool.run() command gets its own response rather than the probe echo.
+    const spawns: ReturnType<typeof fakeProc>[] = [];
+    const pool = new ControlPool({ spawn: () => { const p = fakeProc(); spawns.push(p); return p.proc; } });
+
+    const attach = pool.attachSession('main');
+    const fake = spawns[0]!;
+    await Promise.resolve();
+
+    // Stray %begin/%end arrives before our probe response (tmux bookkeeping).
+    // It gets attributed to writes[0]'s pending; probe() gets "" back.
+    fake.stdout.emit('%begin 1 1 0\n%end 1 1 0\n');
+    // probe() sees "" ≠ token, sends a second DM (writes[1]).
+    await Promise.resolve();
+
+    // Real response for writes[0] arrives and is attributed to writes[1]'s pending
+    // (writes[0]'s pending was already resolved by the stray above).
+    const token = extractProbeToken(fake.writes[1]!);
+    fake.stdout.emit(`%begin 2 2 0\n${token}\n%end 2 2 0\n`);
+    // probe(): token matches, iterations=2 → pendingStaleBegins += 1.
+    await attach;
+
+    // Issue a real command after attach.
+    const runP = pool.run(['list-windows']);
+    await Promise.resolve();
+
+    // Floating real response for writes[1] arrives. pendingStaleBegins=1
+    // absorbs the %begin so it is NOT attributed to the list-windows pending.
+    fake.stdout.emit(`%begin 3 3 0\n${token}\n%end 3 3 0\n`);
+    await Promise.resolve();
+
+    // list-windows now gets its own %begin and resolves with the correct data.
+    fake.stdout.emit('%begin 4 4 0\nwindow-data\n%end 4 4 0\n');
+
+    expect(await runP).toBe('window-data');
   });
 
   test('close kills clients that are still completing their attach probe', async () => {

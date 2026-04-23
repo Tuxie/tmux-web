@@ -1,6 +1,6 @@
 # sendWindowState delivers a corrupt TT message during initial attach
 
-**Status:** observed once, not investigated.
+**Status:** fixed 2026-04-23.
 **Date noticed:** 2026-04-23
 **Context:** verifying the cmd-id-from-%begin fix (commit `0eb1cd5`) by tailing WS messages with a probe script.
 
@@ -59,3 +59,14 @@ Start a fresh dev server with `--debug`, open one WS, watch the first 2–3 `\x0
 ## What I was doing when I noticed
 
 Live-verifying the cmdnum-fix against a real tmux server. The probe script tails all `\x00TT:` payloads from the WS stream. The corrupt message appeared once during the initial three pushes; subsequent pushes were correct.
+
+## Root cause
+
+When `tmux -C attach-session` starts, tmux emits one or more `%begin`/`%end` envelopes for internal bookkeeping *before* reading from stdin. These stray envelopes had `%begin` arrive while the readiness probe's `Pending` still had `tmuxCmdnum === null`, so `handleBegin` attributed the stray cmdnum to the probe. The stray `%end` (with empty or irrelevant content) then resolved the probe. The actual probe response from tmux (`"ok"`) arrived later, when the next command from `sendWindowState` had already taken the queue head. That next command's `Pending` got the stray `%begin` cmdnum from the real probe response — resolving `list-windows` with `"ok"` instead of window data.
+
+## Fix
+
+Replaced the fixed `display-message -p ok` probe in `ControlClient` (called from `startSession`) with a correlation-token loop: `probe()` generates a unique token, sends `display-message -p <token>`, and loops until the response matches the token. Each extra iteration means one real DM response is still in transit from tmux. After the loop, `pendingStaleBegins` is incremented by `iterations - 1` so those floating responses are consumed as stale and cannot be attributed to the next real command.
+
+- `src/server/tmux-control.ts`: added `ControlClient.probe()`; replaced `client.run(['display-message', '-p', 'ok'])` in `startSession` with `client.probe()`.
+- `tests/unit/server/tmux-control-pool.test.ts`: updated `driveHandshake` to extract and echo the token from `fake.writes`; added regression test that simulates the stray-drain and verifies `pendingStaleBegins` blocks the floating response from contaminating the next `pool.run()` command.
