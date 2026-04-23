@@ -25,6 +25,21 @@ export function addModifiers(button: number, ev: MouseEvent | WheelEvent): numbe
   return btn;
 }
 
+export function buildWheelSgrSequences(
+  ev: WheelEvent,
+  metrics: CellMetrics,
+  canvasRect: { left: number; top: number },
+): string[] {
+  const coords = getSgrCoords(ev.clientX, ev.clientY, metrics, canvasRect);
+  const btn = addModifiers(ev.deltaY < 0 ? 64 : 65, ev);
+  const count = Math.max(1, Math.min(Math.abs(Math.round(ev.deltaY / 33)), 5));
+  const seq: string[] = [];
+  for (let i = 0; i < count; i++) {
+    seq.push(buildSgrSequence(btn, coords.col, coords.row, false));
+  }
+  return seq;
+}
+
 export interface MouseHandlerOptions {
   getMetrics: () => CellMetrics;
   getCanvasRect: () => DOMRect;

@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import { setupDocument, el } from '../_dom.ts';
 import {
-  installMouseHandler, getSgrCoords, buildSgrSequence, mouseButton, addModifiers,
+  installMouseHandler, getSgrCoords, buildSgrSequence, mouseButton, addModifiers, buildWheelSgrSequences,
 } from '../../../../src/client/ui/mouse.ts';
 
 describe('pure helpers', () => {
@@ -26,6 +26,35 @@ describe('pure helpers', () => {
     expect(addModifiers(0, { altKey: false, ctrlKey: false } as any)).toBe(0);
     expect(addModifiers(0, { altKey: true, ctrlKey: false } as any)).toBe(8);
     expect(addModifiers(0, { altKey: false, ctrlKey: true } as any)).toBe(16);
+  });
+  test('buildWheelSgrSequences maps wheel up/down to SGR buttons 64/65', () => {
+    expect(buildWheelSgrSequences({
+      clientX: 15,
+      clientY: 25,
+      deltaY: -33,
+      altKey: false,
+      ctrlKey: false,
+    } as WheelEvent, { width: 10, height: 20 }, { left: 0, top: 0 })).toEqual(['\x1b[<64;2;2M']);
+
+    expect(buildWheelSgrSequences({
+      clientX: 15,
+      clientY: 25,
+      deltaY: 33,
+      altKey: false,
+      ctrlKey: false,
+    } as WheelEvent, { width: 10, height: 20 }, { left: 0, top: 0 })).toEqual(['\x1b[<65;2;2M']);
+  });
+  test('buildWheelSgrSequences repeats large wheel deltas with a cap of five', () => {
+    const seq = buildWheelSgrSequences({
+      clientX: 5,
+      clientY: 5,
+      deltaY: 330,
+      altKey: false,
+      ctrlKey: false,
+    } as WheelEvent, { width: 10, height: 20 }, { left: 0, top: 0 });
+
+    expect(seq).toHaveLength(5);
+    expect(seq.every(s => s === '\x1b[<65;1;1M')).toBe(true);
   });
 });
 
