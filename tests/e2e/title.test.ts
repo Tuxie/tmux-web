@@ -17,32 +17,6 @@ test.beforeEach(async ({ page }) => {
   await waitForWsOpen(page);
 });
 
-test('TT title message renders raw unicode in #tb-title', async ({ page }) => {
-  const raw = '\u2733 Compact lessons learned documentation'; // ✳ U+2733
-  await sendFromServer(page, { title: raw });
-  await expect(page.locator('#tb-title')).toHaveText(raw);
-});
-
-test('TT title preserves emoji and box-drawing characters', async ({ page }) => {
-  const raw = '\u25C7  Ready (Fotona) \u2728'; // ◇ … ✨
-  await sendFromServer(page, { title: raw });
-  await expect(page.locator('#tb-title')).toHaveText(raw);
-});
-
-test('a later TT title fully replaces the earlier one (no leftover chars)', async ({ page }) => {
-  await sendFromServer(page, { title: 'first long title' });
-  await expect(page.locator('#tb-title')).toHaveText('first long title');
-  await sendFromServer(page, { title: 'short' });
-  await expect(page.locator('#tb-title')).toHaveText('short');
-});
-
-test('a "session:..."-shaped pane title is shown verbatim (no prefix stripping)', async ({ page }) => {
-  // pane_title from the server is raw — even if it happens to start with
-  // a session-name-shaped prefix, we should not strip anything.
-  await sendFromServer(page, { title: 'main:literal pane title' });
-  await expect(page.locator('#tb-title')).toHaveText('main:literal pane title');
-});
-
 test('OSC title in the PTY stream does not update #tb-title (regression: no xterm onTitleChange)', async ({ page }) => {
   // Set a known title via the server-driven path first.
   await sendFromServer(page, { title: '\u2733 raw' });

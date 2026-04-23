@@ -1,0 +1,32 @@
+import type { WindowInfo } from '../shared/types.js';
+import { extractTTMessages } from './protocol.js';
+
+export interface HandleServerDataOptions {
+  adapter: { write(data: string): void };
+  topbar: {
+    updateSession?(session: string): void;
+    updateWindows?(windows: WindowInfo[]): void;
+    updateTitle?(title: string): void;
+  };
+  onClipboard?(base64: string): void;
+  onClipboardReadRequest?(req: { reqId: string }): void;
+  onClipboardPrompt?(prompt: { reqId: string; exePath: string | null; commandName: string | null }): void;
+  onDropsChanged?(): void;
+  onPtyExit?(): void;
+}
+
+export function handleServerData(data: string, opts: HandleServerDataOptions): void {
+  const { terminalData, messages } = extractTTMessages(data);
+  if (terminalData) opts.adapter.write(terminalData);
+
+  for (const msg of messages) {
+    if (msg.clipboard) opts.onClipboard?.(msg.clipboard);
+    if (msg.session) opts.topbar.updateSession?.(msg.session);
+    if (msg.windows) opts.topbar.updateWindows?.(msg.windows);
+    if (msg.title !== undefined) opts.topbar.updateTitle?.(String(msg.title ?? ''));
+    if (msg.clipboardReadRequest) opts.onClipboardReadRequest?.(msg.clipboardReadRequest);
+    if (msg.clipboardPrompt) opts.onClipboardPrompt?.(msg.clipboardPrompt);
+    if (msg.dropsChanged) opts.onDropsChanged?.();
+    if (msg.ptyExit) opts.onPtyExit?.();
+  }
+}

@@ -1,7 +1,7 @@
 import type { TerminalAdapter } from './adapters/types.js';
 import type { ClientConfig, SwitchSessionMessage } from '../shared/types.js';
-import { extractTTMessages } from './protocol.js';
 import { Connection, buildWsUrl } from './connection.js';
+import { handleServerData } from './message-handler.js';
 import { Topbar } from './ui/topbar.js';
 import { installMouseHandler, getSgrCoords, buildSgrSequence, addModifiers } from './ui/mouse.js';
 import { installKeyboardHandler } from './ui/keyboard.js';
@@ -298,35 +298,24 @@ async function main() {
   }
 
   function handleMessage(data: string) {
-    const { terminalData, messages } = extractTTMessages(data);
-    if (terminalData) adapter.write(terminalData);
-    for (const msg of messages) {
-      if (msg.clipboard) handleClipboard(msg.clipboard);
-      if (msg.session) topbar.updateSession(msg.session);
-      if (msg.windows) topbar.updateWindows(msg.windows);
-      if (msg.title !== undefined) topbar.updateTitle(String(msg.title ?? ''));
-      if (msg.clipboardReadRequest) {
-        void sendClipboardForRead(msg.clipboardReadRequest.reqId);
-      }
-      if (msg.clipboardPrompt) {
-        void handleClipboardPrompt(
-          msg.clipboardPrompt.reqId,
-          msg.clipboardPrompt.exePath,
-          msg.clipboardPrompt.commandName,
-        );
-      }
-      if (msg.dropsChanged) {
-        void dropsPanel?.refresh();
-      }
-      if (msg.ptyExit) {
+    handleServerData(data, {
+      adapter,
+      topbar,
+      onClipboard: handleClipboard,
+      onClipboardReadRequest: (req) => { void sendClipboardForRead(req.reqId); },
+      onClipboardPrompt: (prompt) => {
+        void handleClipboardPrompt(prompt.reqId, prompt.exePath, prompt.commandName);
+      },
+      onDropsChanged: () => { void dropsPanel?.refresh(); },
+      onPtyExit: () => {
         // Server signals the underlying PTY/tmux process exited. The
         // server intentionally does not initiate the close itself (Bun
         // 1.3.13 leaves `server.stop()` blocked when it does). Closing
         // from the client lets the auto-reconnect timer in Connection
         // pick up a fresh PTY on the next attempt.
         try { connection?.reconnect(); } catch { /* connection may not be set yet */ }
-      }
-    }
+      },
+    });
   }
 
   // Once-per-reconnect-burst toast: a single failing open fires
