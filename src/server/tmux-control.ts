@@ -26,6 +26,10 @@ export class NoControlClientError extends Error {
 }
 
 export interface ParserCallbacks {
+  /** Optional — invoked when a `%begin` line is seen, before any envelope
+   *  body lines arrive. ControlClient uses this to capture tmux's own
+   *  cmd-id (which is server-global, not derivable from write order). */
+  onBegin?: (cmdnum: number) => void;
   onResponse: (cmdnum: number, output: string) => void;
   onError: (cmdnum: number, stderr: string) => void;
   onNotification: (n: TmuxNotification) => void;
@@ -68,7 +72,9 @@ export class ControlParser {
     }
     if (line.startsWith('%begin ')) {
       const parts = line.split(' ');
-      this.inEnvelope = { cmdnum: Number(parts[2]), lines: [] };
+      const cmdnum = Number(parts[2]);
+      this.inEnvelope = { cmdnum, lines: [] };
+      this.cb.onBegin?.(cmdnum);
       return;
     }
     // Outside an envelope: notification or unknown line.
@@ -135,7 +141,12 @@ export interface ControlProc {
 }
 
 interface Pending {
-  cmdnum: number;
+  /** Internal id used only to identify the right pending in `handleTimeout`.
+   *  Tmux's own cmd-id is captured from `%begin` and stored in `tmuxCmdnum`. */
+  id: number;
+  /** Cmd-id echoed by tmux in `%begin`. Filled in by `handleBegin`; stays
+   *  null until tmux acknowledges the write. Used to match `%end`/`%error`. */
+  tmuxCmdnum: number | null;
   args: readonly string[];
   resolve: (stdout: string) => void;
   reject: (err: unknown) => void;
@@ -164,12 +175,21 @@ export interface ControlClientOpts {
 
 export class ControlClient {
   private parser: ControlParser;
-  private nextCmdnum = 1;
+  private nextId = 1;
   /** Head of the FIFO = in-flight; rest = backlog. */
   private queue: Pending[] = [];
   private alive = true;
   private readonly notifyCb: (n: TmuxNotification) => void;
   private readonly commandTimeoutMs: number;
+  /** Cmd-ids echoed by tmux that we've already abandoned via timeout —
+   *  any %end/%error carrying these ids is dropped. */
+  private staleCmdnums = new Set<number>();
+  /** Number of upcoming %begin envelopes whose cmd-id should be marked
+   *  stale on arrival (rather than assigned to the queue head). Used when
+   *  a command times out *before* tmux has echoed its %begin: we don't
+   *  yet know the cmd-id to mark stale, so we promise to mark the next
+   *  unattributed %begin instead. */
+  private pendingStaleBegins = 0;
 
   constructor(
     private proc: ControlProc,
@@ -179,6 +199,7 @@ export class ControlClient {
     this.notifyCb = onNotification;
     this.commandTimeoutMs = opts.commandTimeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS;
     this.parser = new ControlParser({
+      onBegin: (cmdnum) => this.handleBegin(cmdnum),
       onResponse: (cmdnum, output) => this.handleResponse(cmdnum, output),
       onError: (cmdnum, stderr) => this.handleError(cmdnum, stderr),
       onNotification: (n) => this.notifyCb(n),
@@ -194,7 +215,8 @@ export class ControlClient {
     if (!this.alive) return Promise.reject(new TmuxCommandError(args, 'control client exited'));
     return new Promise((resolve, reject) => {
       const pending: Pending = {
-        cmdnum: this.nextCmdnum++,
+        id: this.nextId++,
+        tmuxCmdnum: null,
         args, resolve, reject,
         timer: null,
       };
@@ -207,17 +229,37 @@ export class ControlClient {
     const head = this.queue[0];
     if (!head) return;
     this.proc.stdin.write(head.args.map(quoteTmuxArg).join(' ') + '\n');
-    head.timer = setTimeout(() => this.handleTimeout(head.cmdnum), this.commandTimeoutMs);
+    head.timer = setTimeout(() => this.handleTimeout(head.id), this.commandTimeoutMs);
+  }
+
+  private handleBegin(cmdnum: number): void {
+    // A %begin we owe to a previously-timed-out command: drop the entire
+    // envelope (mark cmdnum stale so the matching %end/%error is also
+    // dropped). Don't attribute it to the current queue head.
+    if (this.pendingStaleBegins > 0) {
+      this.pendingStaleBegins--;
+      this.staleCmdnums.add(cmdnum);
+      return;
+    }
+    const head = this.queue[0];
+    if (!head || head.tmuxCmdnum !== null) {
+      // No pending in flight, or head already has a cmdnum (defensive —
+      // shouldn't happen given we serialise writes). Treat as stale.
+      this.staleCmdnums.add(cmdnum);
+      return;
+    }
+    head.tmuxCmdnum = cmdnum;
   }
 
   private handleResponse(cmdnum: number, output: string): void {
     const head = this.queue[0];
-    if (!head) return;
-    if (head.cmdnum !== cmdnum) {
-      // Stale response for a force-advanced cmdnum (timeout). Drop
-      // silently. Spec §4.2's "protocol desync → tear down primary"
-      // branch is deferred to Task 3 so the soft-timeout path can't
-      // kill a live primary just because a slow tmux finally answered.
+    if (!head || head.tmuxCmdnum !== cmdnum) {
+      // Stale envelope for a force-advanced (timed-out) cmdnum, OR a
+      // cmdnum we never attributed to a head. Drop silently. Spec §4.2's
+      // "protocol desync → tear down primary" branch is deferred to Task 3
+      // so the soft-timeout path can't kill a live primary just because a
+      // slow tmux finally answered.
+      this.staleCmdnums.delete(cmdnum);
       return;
     }
     if (head.timer) clearTimeout(head.timer);
@@ -228,22 +270,27 @@ export class ControlClient {
 
   private handleError(cmdnum: number, stderr: string): void {
     const head = this.queue[0];
-    if (!head) return;
-    // Same rationale as in handleResponse: stale %error for a
-    // force-advanced cmdnum is dropped silently (desync tear-down
-    // deferred to Task 3).
-    if (head.cmdnum !== cmdnum) return;
+    if (!head || head.tmuxCmdnum !== cmdnum) {
+      // Same rationale as in handleResponse.
+      this.staleCmdnums.delete(cmdnum);
+      return;
+    }
     if (head.timer) clearTimeout(head.timer);
     this.queue.shift();
     head.reject(new TmuxCommandError(head.args, stderr));
     this.dispatch();
   }
 
-  private handleTimeout(cmdnum: number): void {
+  private handleTimeout(id: number): void {
     const head = this.queue[0];
-    if (!head || head.cmdnum !== cmdnum) return;
+    if (!head || head.id !== id) return;
     // Soft timeout: advance the queue but do NOT tear down the client.
-    // A late %end/%error will be ignored via the cmdnum mismatch guard.
+    // A late %end/%error must be dropped — either via the staleCmdnums set
+    // (when tmux already echoed %begin for this command) or via the
+    // pendingStaleBegins counter (when tmux hadn't yet, in which case the
+    // upcoming %begin will be intercepted on arrival).
+    if (head.tmuxCmdnum !== null) this.staleCmdnums.add(head.tmuxCmdnum);
+    else this.pendingStaleBegins++;
     this.queue.shift();
     head.reject(new TmuxCommandError(head.args, 'timeout'));
     this.dispatch();
@@ -283,16 +330,16 @@ export class ControlPool implements TmuxControl {
 
   constructor(private opts: ControlPoolOpts) {}
 
-  attachSession(session: string): Promise<void> {
+  attachSession(session: string, hint?: AttachSizeHint): Promise<void> {
     const existing = this.readyPromises.get(session);
     if (existing) return existing;
-    const ready = this.startSession(session);
+    const ready = this.startSession(session, hint);
     this.readyPromises.set(session, ready);
     ready.catch(() => this.readyPromises.delete(session));
     return ready;
   }
 
-  private async startSession(session: string): Promise<void> {
+  private async startSession(session: string, hint?: AttachSizeHint): Promise<void> {
     const proc = this.opts.spawn(session);
     // Forward-reference: the notification callback captures `client`. Safe
     // because stdout 'data' is async; `client` is always bound when it fires.

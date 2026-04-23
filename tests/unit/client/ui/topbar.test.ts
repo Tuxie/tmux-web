@@ -318,6 +318,61 @@ describe('Topbar.init + updateTitle / updateWindows / renderWinTabs', () => {
     // Same key → no re-render, same element reference.
     expect(winTabs.children[0]).toBe(before);
   });
+
+  it('renderWindowsMenu lists every window from cachedWindows with index + name', async () => {
+    // Regression guard for the "windows menu is empty" half of the
+    // `tmux -C` cmdnum-mismatch bug: even if the WS push delivered the
+    // window list correctly, an empty `cachedWindows` would render a
+    // menu with no window rows. Prove the render iterates the cache.
+    const t = await mountTopbar();
+    await t.init();
+    t.updateWindows([
+      { index: '0', name: 'zsh', active: true },
+      { index: '1', name: 'vim', active: false },
+      { index: '2', name: 'logs', active: false },
+    ]);
+    const menu: any = (globalThis.document as any).createElement('div');
+    (t as any).renderWindowsMenu(menu, () => {});
+    // First three children must be the per-window rows, in cache order.
+    const rows = menu.children.slice(0, 3);
+    expect(rows.map((r: any) => r.textContent)).toEqual([
+      '0: zsh', '1: vim', '2: logs',
+    ]);
+    // Active window gets the `current` marker class + aria-selected.
+    expect(rows[0].className).toContain('current');
+    expect(rows[1].className).not.toContain('current');
+  });
+
+  it('renderWindowsMenu with empty cachedWindows renders no window rows (only the input + footer block)', async () => {
+    // Mirror of the live-server bug: if the WS push delivered `windows: []`
+    // because `tmuxControl.run(list-windows)` rejected, the menu would
+    // open with nothing to pick from. Make that observable.
+    const t = await mountTopbar();
+    await t.init();
+    t.updateWindows([]);
+    const menu: any = (globalThis.document as any).createElement('div');
+    (t as any).renderWindowsMenu(menu, () => {});
+    const winRows = menu.children.filter((c: any) =>
+      typeof c.className === 'string' && c.className.includes('tw-dd-session-item')
+    );
+    expect(winRows.length).toBe(0);
+  });
+
+  it('clicking a row in the windows menu sends a `window select` message', async () => {
+    const outgoing: string[] = [];
+    const t = await mountTopbar({ send: (s) => outgoing.push(s) });
+    await t.init();
+    t.updateWindows([
+      { index: '0', name: 'zsh', active: true },
+      { index: '1', name: 'vim', active: false },
+    ]);
+    const menu: any = (globalThis.document as any).createElement('div');
+    (t as any).renderWindowsMenu(menu, () => {});
+    // Row index 1 == vim; click it.
+    const vimRow = menu.children[1];
+    vimRow.click();
+    expect(outgoing).toContain(JSON.stringify({ type: 'window', action: 'select', index: '1' }));
+  });
 });
 
 describe('Topbar.updateSession', () => {

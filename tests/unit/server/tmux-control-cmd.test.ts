@@ -110,12 +110,52 @@ describe('ControlClient', () => {
     await expect(p).rejects.toMatchObject({ stderr: 'timeout' });
     expect(client.isAlive()).toBe(true);
 
-    // After timeout: a late-arriving stale response for cmdnum 1 is
-    // dropped on the cmdnum-mismatch guard (next real cmdnum is 2).
+    // Late `%begin/%end` for the timed-out command is dropped via the
+    // pendingStaleBegins counter (no head-cmdnum was assigned yet because
+    // tmux hadn't echoed `%begin` before the timeout fired).
     stdout.emit('%begin 1 1 0\nlate\n%end 1 1 0\n');
     const p2 = client.run(['list-sessions']);
     await Promise.resolve();
     stdout.emit('%begin 2 2 0\nok\n%end 2 2 0\n');
     expect(await p2).toBe('ok');
+  });
+
+  test('matches responses by tmux-server cmdnum from %begin (regression: empty windows when tmux echoes a server-global id)', async () => {
+    // Real tmux uses a server-global cmd-id, often a large number that
+    // bears no relation to the order of writes from a given client. Before
+    // this fix ControlClient assumed cmdnum 1, 2, 3, … and silently dropped
+    // every real response — which made `attachSession` hang forever and
+    // `/api/windows` return [].
+    const { writes, stdout, proc } = makeStdio();
+    const client = new ControlClient(proc as any);
+    const p = client.run(['list-windows', '-t', 'main', '-F', '#{window_index}\t#{window_name}\t#{window_active}']);
+    await Promise.resolve();
+    expect(writes.length).toBe(1);
+    // tmux echoes its own cmd-id (here 75792) — ControlClient must capture
+    // it from %begin and use it to match the trailing %end.
+    stdout.emit('%begin 1776925932 75792 0\n0\tone\t1\n1\ttwo\t0\n%end 1776925932 75792 0\n');
+    expect(await p).toBe('0\tone\t1\n1\ttwo\t0');
+  });
+
+  test('subsequent commands receive distinct tmux cmdnums, each matched independently', async () => {
+    const { stdout, proc } = makeStdio();
+    const client = new ControlClient(proc as any);
+    const p1 = client.run(['list-sessions']);
+    await Promise.resolve();
+    stdout.emit('%begin 100 75792 0\nalpha\n%end 100 75792 0\n');
+    expect(await p1).toBe('alpha');
+    const p2 = client.run(['list-windows']);
+    await Promise.resolve();
+    stdout.emit('%begin 101 75900 0\nbeta\n%end 101 75900 0\n');
+    expect(await p2).toBe('beta');
+  });
+
+  test('%error carries tmux cmdnum and rejects the matching pending', async () => {
+    const { stdout, proc } = makeStdio();
+    const client = new ControlClient(proc as any);
+    const p = client.run(['bogus']);
+    await Promise.resolve();
+    stdout.emit('%begin 9 42424 0\nunknown command: bogus\n%error 9 42424 0\n');
+    await expect(p).rejects.toMatchObject({ name: 'TmuxCommandError', stderr: 'unknown command: bogus' });
   });
 });
