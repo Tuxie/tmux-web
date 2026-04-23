@@ -40,6 +40,9 @@ interface WsConnState {
   pendingReads: Map<string, RouterPendingRead>;
   nextReqId: number;
   unsubscribeDrops?: () => void;
+  /** Monotonically-increasing counter. Each new switchSession call bumps
+   *  this so prior in-flight switches detect they've been superseded. */
+  switchSerial: number;
 }
 
 const WS_OPEN = 1;
@@ -151,6 +154,7 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
         lastTitle: '',
         pendingReads: new Map(),
         nextReqId: 0,
+        switchSerial: 0,
       },
     };
 
@@ -483,23 +487,47 @@ async function switchSession(
     return;
   }
 
-  moveWsToSession(ws, oldSession, newSession, opts, reg);
   if (opts.config.testMode) {
+    moveWsToSession(ws, oldSession, newSession, opts, reg);
     await sendWindowState(ws, newSession, opts);
     return;
   }
 
+  // Bump serial so any prior in-flight switch for this WS self-cancels.
+  const mySerial = ++state.switchSerial;
+  // Cancelled if a newer switch started or the WS closed (handleClose
+  // already cleaned up oldSession; proceeding to moveWsToSession would
+  // register a closed WS on newSession with no future handleClose to
+  // decrement the ref, leaking the control client).
+  const isCancelled = () => state.switchSerial !== mySerial || ws.readyState !== WS_OPEN;
+
+  // Track whether attachSession succeeded so the finally block can
+  // detach newSession when we bail out mid-flight (prevents leaked
+  // control-client processes from accumulating on every failed switch).
+  let newSessionAttached = false;
   try {
     await opts.tmuxControl.attachSession(newSession, { cols: ws.data.cols, rows: ws.data.rows });
+    newSessionAttached = true;
+
+    if (isCancelled()) return;
+
     const client = await tmuxClientForPty(state.pty, opts);
     if (!client) {
       debug(opts.config, `switch-session(${newSession}) failed: PTY tmux client not found`);
       return;
     }
+    if (isCancelled()) return;
+
     await opts.tmuxControl.run(['switch-client', '-c', client, '-t', newSession]);
+    if (isCancelled()) return;
+
+    moveWsToSession(ws, oldSession, newSession, opts, reg);
+    newSessionAttached = false; // now owned by handleClose via registeredSession
     await sendWindowState(ws, newSession, opts);
   } catch (err) {
     debug(opts.config, `switch-session(${newSession}) failed: ${(err as Error).message}`);
+  } finally {
+    if (newSessionAttached) opts.tmuxControl.detachSession(newSession);
   }
 }
 

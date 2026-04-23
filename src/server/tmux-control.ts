@@ -502,7 +502,7 @@ export function buildControlSpawnArgs(tmuxBin: string, tmuxConfPath: string, ses
   // non-ASCII byte with `_`. That manifests in the browser as window
   // tabs labelled "1_claude_1" instead of `1\tclaude\t1`. Forcing `-u`
   // is more robust than trusting the spawn-time environment.
-  return [tmuxBin, '-f', tmuxConfPath, '-u', '-C', 'attach-session', '-t', session];
+  return [tmuxBin, '-f', tmuxConfPath, '-u', '-C', 'new-session', '-A', '-s', session];
 }
 
 /** Real-world factory. Production code uses this; tests use `new ControlPool`

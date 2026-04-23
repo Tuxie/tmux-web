@@ -674,3 +674,152 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     o.ws.close();
   }, 15000);
 });
+
+/** Shared mock builder for switchSession race/leak tests. Stalls
+ *  attachSession for the named sessions until the returned gate resolvers
+ *  are called. */
+function makeGatedControl(
+  stall: string[],
+  gates: Record<string, () => void>,
+): { tmuxControl: TmuxControl; attached: string[]; detached: string[] } {
+  const attached: string[] = [];
+  const detached: string[] = [];
+
+  const gatePromises: Record<string, Promise<void> | undefined> = {};
+  for (const s of stall) {
+    gatePromises[s] = new Promise<void>(r => { gates[s] = r; });
+  }
+
+  const tmuxControl: TmuxControl = {
+    attachSession: async (session) => {
+      attached.push(session);
+      if (gatePromises[session]) await gatePromises[session];
+    },
+    detachSession: (session) => { detached.push(session); },
+    run: async (args) => {
+      if (args[0] === 'list-windows') return '0\tone\t1\n';
+      if (args[0] === 'display-message') return 'title';
+      // Single candidate → tmuxClientForPty fallback returns it regardless of PID.
+      if (args[0] === 'list-clients') return `1\t/dev/pts/fake\tfake`;
+      if (args[0] === 'switch-client') return '';
+      return '';
+    },
+    on: () => () => {},
+    close: async () => {},
+  };
+  return { tmuxControl, attached, detached };
+}
+
+describe('ws switchSession — race and leak guards', () => {
+  test('Bug 2: failed attachSession does not detach old-session control client', async () => {
+    // Before fix: moveWsToSession was called before attachSession. A failed
+    // switch killed 'main's control client, making every subsequent
+    // /api/sessions call fail and the menu show all sessions as not running.
+    const attached: string[] = [];
+    const detached: string[] = [];
+    const tmuxControl: TmuxControl = {
+      attachSession: async (session) => {
+        attached.push(session);
+        if (session === 'dev') throw new Error('no such session: dev');
+      },
+      detachSession: (session) => { detached.push(session); },
+      run: async (args) => {
+        if (args[0] === 'list-windows') return '0\tone\t1\n';
+        if (args[0] === 'display-message') return 'title';
+        return '';
+      },
+      on: () => () => {},
+      close: async () => {},
+    };
+
+    const { path: tmuxBin } = makeFakeTmux();
+    h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
+    const o = openWs(h.wsUrl, '/ws?session=main&cols=80&rows=24');
+    await o.opened;
+    await waitFor(() => attached.includes('main'), 3000);
+
+    o.ws.send(JSON.stringify({ type: 'switch-session', name: 'dev' }));
+    await waitFor(() => attached.includes('dev'), 3000);
+    // Let the catch block in switchSession run.
+    await new Promise(r => setTimeout(r, 30));
+
+    // 'main' must NOT be detached — the failed switch must not touch it.
+    expect(detached.filter(s => s === 'main')).toHaveLength(0);
+    // 'dev' attach threw before newSessionAttached=true, so no finally detach.
+    expect(detached.filter(s => s === 'dev')).toHaveLength(0);
+
+    // WS close → handleClose cleans up 'main' exactly once.
+    o.ws.close();
+    await waitFor(() => detached.includes('main'), 3000);
+    expect(detached.filter(s => s === 'main')).toHaveLength(1);
+  }, 15000);
+
+  test('Bug 3: WS close mid-switch triggers finally detach of new session', async () => {
+    // Before fix: isCancelled() was absent. If the WS closed after
+    // attachSession resolved, moveWsToSession still ran, registering a dead
+    // WS on the new session with ref count 1 and no future handleClose to
+    // decrement it — leaking the tmux -C process indefinitely.
+    const gates: Record<string, () => void> = {};
+    const { tmuxControl, attached, detached } = makeGatedControl(['dev'], gates);
+
+    const { path: tmuxBin } = makeFakeTmux();
+    h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
+    const o = openWs(h.wsUrl, '/ws?session=main&cols=80&rows=24');
+    await o.opened;
+    await waitFor(() => attached.includes('main'), 3000);
+
+    // Trigger switch — stalls at attachSession('dev').
+    o.ws.send(JSON.stringify({ type: 'switch-session', name: 'dev' }));
+    await waitFor(() => attached.includes('dev'), 3000);
+
+    // Close WS while attachSession('dev') is pending.
+    o.ws.close();
+    // Wait for handleClose — it detaches 'main'.
+    await waitFor(() => detached.includes('main'), 3000);
+    expect(detached).toContain('main');
+
+    // Unblock attachSession('dev'). isCancelled fires (ws.readyState !== OPEN),
+    // the finally block detaches 'dev', preventing the leaked control client.
+    gates['dev']!();
+    await waitFor(() => detached.includes('dev'), 3000);
+    expect(detached).toContain('dev');
+  }, 15000);
+
+  test('Bug 4: rapid second switch cancels first; intermediate session not leaked', async () => {
+    // Before fix: two concurrent switches both called moveWsToSession with the
+    // same oldSession. The first moved WS to 'dev', the second moved to 'work'.
+    // 'dev' ref count was never decremented, so its tmux -C process leaked.
+    // Repeated back-and-forth exhausted file descriptors → server returned 502.
+    const gates: Record<string, () => void> = {};
+    const { tmuxControl, attached, detached } = makeGatedControl(['dev'], gates);
+
+    const { path: tmuxBin } = makeFakeTmux();
+    h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
+    const o = openWs(h.wsUrl, '/ws?session=main&cols=80&rows=24');
+    await o.opened;
+    await waitFor(() => attached.includes('main'), 3000);
+
+    // First switch to 'dev' — stalls at attachSession.
+    o.ws.send(JSON.stringify({ type: 'switch-session', name: 'dev' }));
+    await waitFor(() => attached.includes('dev'), 3000);
+
+    // Second switch to 'work' — bumps switchSerial, cancelling the first.
+    o.ws.send(JSON.stringify({ type: 'switch-session', name: 'work' }));
+    await waitFor(() => attached.includes('work'), 3000);
+
+    // 'work' switch completes fully: moveWsToSession detaches 'main'.
+    await waitFor(() => detached.includes('main'), 3000);
+    expect(detached).toContain('main');
+
+    // Unblock 'dev' — isCancelled fires (switchSerial mismatch),
+    // finally detaches 'dev' — no leaked control client.
+    gates['dev']!();
+    await waitFor(() => detached.includes('dev'), 3000);
+    expect(detached).toContain('dev');
+
+    // Cleanup: closing WS detaches 'work' (the active session).
+    o.ws.close();
+    await waitFor(() => detached.includes('work'), 3000);
+    expect(detached).toContain('work');
+  }, 15000);
+});

@@ -186,7 +186,9 @@ describe('ControlClient', () => {
     // Sanity: the rest of the invocation is intact.
     expect(args[0]).toBe('tmux');
     expect(args).toContain('-C');
-    expect(args).toContain('attach-session');
+    expect(args).toContain('new-session');
+    expect(args).toContain('-A');
+    expect(args).toContain('-s');
     expect(args[args.length - 1]).toBe('main');
   });
 });
