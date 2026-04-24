@@ -1,8 +1,14 @@
 interface TmuxTermWindow {
   show?: () => void;
   focus?: () => void;
-  on: (event: 'close', cb: () => void) => void;
+  on: (event: 'close' | 'move' | 'resize', cb: () => void) => void;
   close: () => void;
+  getFrame?: () => {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
 }
 
 interface BrowserWindowConstructor<T extends TmuxTermWindow> {
@@ -38,4 +44,17 @@ export function openTmuxTermWindow<T extends TmuxTermWindow>(
   win.show?.();
   win.focus?.();
   return win;
+}
+
+export function installWindowFrameLogging(
+  win: TmuxTermWindow,
+  log: (message: string) => void,
+): void {
+  const logFrame = (source: 'move' | 'resize') => {
+    const frame = win.getFrame?.();
+    if (!frame) return;
+    log(`window-frame ${source} frame=${JSON.stringify(frame)}`);
+  };
+  win.on('move', () => logFrame('move'));
+  win.on('resize', () => logFrame('resize'));
 }

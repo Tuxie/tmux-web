@@ -7,7 +7,7 @@ import {
   startTmuxWebServer,
 } from './server-process.js';
 import { desktopExtraArgs } from './tmux-path.js';
-import { openTmuxTermWindow } from './window.js';
+import { installWindowFrameLogging, openTmuxTermWindow } from './window.js';
 import { installTmuxTermHostMessages } from './window-host-messages.js';
 import { debugWorkAreaForFrame, workAreaForFrame } from './display-workarea.js';
 
@@ -73,6 +73,9 @@ async function main(): Promise<void> {
         logDesktop(`window-geometry ${message} displays=${JSON.stringify(Screen.getAllDisplays())}`);
       },
     );
+    installWindowFrameLogging(win, (message) => {
+      logDesktop(message);
+    });
     logDesktop('window opened');
 
     win.on('close', () => {
