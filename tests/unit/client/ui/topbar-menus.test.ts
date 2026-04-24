@@ -765,6 +765,38 @@ describe('session button: click and menu interactions', () => {
     expect(menu.hidden).toBe(true);
   });
 
+  it('opens immediately from cached sessions while /api/sessions refresh is still pending', async () => {
+    installGlobals('main');
+    makeDoc();
+    let resolveSessions!: () => void;
+    const sessionsPending = new Promise<void>(r => { resolveSessions = r; });
+    stubFetch(async (url: string, init?: RequestInit) => {
+      if (url.startsWith('/api/themes'))           return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/fonts'))            return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/colours'))          return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/session-settings')) return { ok: true, json: async () => ({ version: 1, sessions: {} }) } as any;
+      if (url.startsWith('/api/sessions')) {
+        await sessionsPending;
+        return { ok: true, json: async () => [{ id: '1', name: 'main' }, { id: '2', name: 'work' }] } as any;
+      }
+      if (url.startsWith('/api/drops'))            return { ok: true, json: async () => ({ drops: [] }) } as any;
+      return { ok: true, json: async () => ({}) } as any;
+    });
+    const { Topbar } = await import('../../../../src/client/ui/topbar.ts');
+    const t = new Topbar({ send: () => {}, focus: () => {}, getLiveSettings: () => null });
+    await t.init();
+    (t as any).cachedSessions = [{ id: '1', name: 'main' }];
+
+    sessionBtn().click();
+    await Promise.resolve();
+
+    const menu = sessMenu();
+    expect(menu.hidden).toBe(false);
+    expect(rowByName(sessionRows(menu), 'main')).not.toBeNull();
+
+    resolveSessions();
+  });
+
   it('clicking delete button removes the session via DELETE fetch', async () => {
     const deletedUrls: string[] = [];
     const t = await mountTopbar({ session: 'main' });

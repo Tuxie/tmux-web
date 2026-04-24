@@ -473,6 +473,18 @@ async function tmuxClientForPty(pty: BunPty | undefined, opts: WsServerOptions):
   return null;
 }
 
+async function tmuxClientSession(client: string, opts: WsServerOptions): Promise<string | null> {
+  const out = await opts.tmuxControl.run([
+    'display-message',
+    '-p',
+    '-c',
+    client,
+    '#{client_session}',
+  ]);
+  const session = out.trim();
+  return session || null;
+}
+
 async function switchSession(
   ws: ServerWebSocket<WsData>,
   rawName: string,
@@ -521,6 +533,13 @@ async function switchSession(
 
     await opts.tmuxControl.run(['switch-client', '-c', client, '-t', newSession]);
     if (isCancelled()) return;
+
+    const reportedSession = await tmuxClientSession(client, opts);
+    if (isCancelled()) return;
+    if (reportedSession !== newSession) {
+      debug(opts.config, `switch-session(${newSession}) failed: PTY tmux client still on ${reportedSession ?? '<unknown>'}`);
+      return;
+    }
 
     moveWsToSession(ws, oldSession, newSession, opts, reg);
     newSessionAttached = false; // now owned by handleClose via registeredSession

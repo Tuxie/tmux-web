@@ -375,6 +375,35 @@ describe('Dropdown a11y + keyboard nav', () => {
     expect(activeId).toBe(selectedItem.id);
   });
 
+  it('open() treats aria-selected=true as selected for custom option content', async () => {
+    const doc = makeDoc();
+    const trigger = ext(doc.createElement('button'));
+    doc.body.appendChild(trigger);
+    const { Dropdown } = await import('../../../../src/client/ui/dropdown.ts');
+    const dd = Dropdown.custom(trigger as any, {
+      renderContent: (menu) => {
+        for (const [name, selected] of [['main', false], ['work', true]] as const) {
+          const row = ext(doc.createElement('div'));
+          row.id = `row-${name}`;
+          row.className = 'tw-dropdown-item tw-dd-session-item';
+          row.setAttribute('role', 'option');
+          row.setAttribute('tabindex', '-1');
+          row.setAttribute('aria-selected', selected ? 'true' : 'false');
+          row.textContent = name;
+          menu.appendChild(row);
+        }
+      },
+    });
+
+    await dd.open();
+
+    const rows = (dd.menuElement as any).children
+      .filter((c: any) => c.getAttribute?.('role') === 'option');
+    expect((dd.triggerElement as any).getAttribute('aria-activedescendant')).toBe(rows[1].id);
+    expect(rows[0].classList.contains('tw-dd-active')).toBe(false);
+    expect(rows[1].classList.contains('tw-dd-active')).toBe(true);
+  });
+
   it('ArrowDown moves the active marker to the next option, wrapping at the end', async () => {
     const doc = makeDoc();
     const parent = ext(doc.createElement('div'));

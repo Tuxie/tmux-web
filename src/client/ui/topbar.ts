@@ -288,11 +288,24 @@ export class Topbar {
     const btn = document.getElementById('btn-session-menu') as HTMLButtonElement;
     const btnPlus = document.getElementById('btn-session-plus') as HTMLButtonElement | null;
 
-    const sessionDropdown = Dropdown.custom(btn, {
+    let sessionDropdown: Dropdown;
+    const refreshOpenMenu = (menu: HTMLElement, close: () => void): void => {
+      void this.refreshCachedSessions().then(() => {
+        if (sessionDropdown.menuElement.hidden) return;
+        menu.innerHTML = '';
+        this.renderSessionsMenu(menu, close);
+      });
+    };
+
+    sessionDropdown = Dropdown.custom(btn, {
       className: 'tw-dd-sessions',
-      beforeOpen: () => this.refreshCachedSessions(),
-      renderContent: (menu, close) => this.renderSessionsMenu(menu, close),
+      renderContent: (menu, close) => {
+        this.renderSessionsMenu(menu, close);
+        refreshOpenMenu(menu, close);
+      },
     });
+
+    void this.refreshCachedSessions();
 
     // Right-click behaves like left-click — opens the same rich session
     // menu (which already has Name, New session, and Kill session).

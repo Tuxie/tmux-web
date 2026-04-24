@@ -531,14 +531,20 @@ export class Dropdown {
 
   private activeIndex(items: HTMLElement[]): number {
     const id = this.trigger.getAttribute('aria-activedescendant');
-    if (!id) return items.findIndex(it => it.classList.contains('selected'));
+    if (!id) return items.findIndex(it => this.isSelectedOption(it));
     return items.findIndex(it => it.id === id);
   }
 
+  private isSelectedOption(item: HTMLElement): boolean {
+    return item.classList.contains('selected') || item.getAttribute('aria-selected') === 'true';
+  }
+
   private setActive(item: HTMLElement): void {
+    if (!item.id) item.id = 'tw-dd-opt-' + (++nextOptionIdSeq);
     this.trigger.setAttribute('aria-activedescendant', item.id);
     for (const other of this.optionElements()) {
-      other.classList.toggle('tw-dd-active', other === item);
+      if (other === item) other.classList.add('tw-dd-active');
+      else other.classList.remove('tw-dd-active');
     }
     // Keep the active option in view for long lists that exceed the
     // fixed-position max-height.
@@ -567,7 +573,7 @@ export class Dropdown {
     // current choice from the first press.
     const items = this.optionElements();
     if (items.length > 0) {
-      const selectedIdx = items.findIndex(it => it.classList.contains('selected'));
+      const selectedIdx = items.findIndex(it => this.isSelectedOption(it));
       this.setActive(items[selectedIdx >= 0 ? selectedIdx : 0]!);
     } else {
       this.trigger.removeAttribute('aria-activedescendant');
