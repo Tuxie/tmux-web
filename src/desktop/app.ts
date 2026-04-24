@@ -36,38 +36,43 @@ async function main(): Promise<void> {
     void closeServer().finally(() => process.exit(0));
   };
 
-  const url = buildAuthenticatedUrl({
-    host: server.endpoint.host,
-    port: server.endpoint.port,
-    credentials,
-  });
+  try {
+    const url = buildAuthenticatedUrl({
+      host: server.endpoint.host,
+      port: server.endpoint.port,
+      credentials,
+    });
 
-  const win = new BrowserWindow({
-    title: 'tmux-term',
-    url,
-    partition: `tmux-term-${process.pid}`,
-    frame: {
-      width: 1200,
-      height: 760,
-    },
-  });
+    const win = new BrowserWindow({
+      title: 'tmux-term',
+      url,
+      partition: `tmux-term-${process.pid}`,
+      frame: {
+        width: 1200,
+        height: 760,
+      },
+    });
 
-  win.on('close', () => {
-    if (closingAfterServerExit) return;
-    shutdown();
-  });
-
-  void server.process.exited.then((code) => {
-    if (intentionalShutdown) return;
-    closingAfterServerExit = true;
-    try { win.close(); } catch {}
-    process.exit(code === 0 ? 0 : 1);
-  });
-
-  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
-    process.on(sig, () => {
+    win.on('close', () => {
+      if (closingAfterServerExit) return;
       shutdown();
     });
+
+    void server.process.exited.then((code) => {
+      if (intentionalShutdown) return;
+      closingAfterServerExit = true;
+      try { win.close(); } catch {}
+      process.exit(code === 0 ? 0 : 1);
+    });
+
+    for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
+      process.on(sig, () => {
+        shutdown();
+      });
+    }
+  } catch (err) {
+    await closeServer();
+    throw err;
   }
 }
 
