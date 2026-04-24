@@ -17,6 +17,37 @@ export interface DropStorage {
   autoUnlinkOnClose: boolean;
 }
 
+export interface DropRootOptions {
+  override?: string;
+  xdgRuntimeDir?: string;
+  tmpDir?: string;
+  uid?: number;
+  isUsableDir?: (dir: string) => boolean;
+}
+
+function isUsableRuntimeDir(dir: string): boolean {
+  try {
+    if (!fs.statSync(dir).isDirectory()) return false;
+    fs.accessSync(dir, fs.constants.W_OK | fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function resolveDropRoot(opts: DropRootOptions = {}): string {
+  if (opts.override) return opts.override;
+
+  const uid = opts.uid ?? (typeof process.getuid === 'function' ? process.getuid() : 0);
+  const tmpBase = opts.tmpDir ?? os.tmpdir();
+  const xdgRuntimeDir = opts.xdgRuntimeDir ?? process.env.XDG_RUNTIME_DIR;
+  const isUsableDir = opts.isUsableDir ?? isUsableRuntimeDir;
+
+  return xdgRuntimeDir && isUsableDir(xdgRuntimeDir)
+    ? path.join(xdgRuntimeDir, 'tmux-web', 'drop')
+    : path.join(tmpBase, `tmux-web-drop-${uid}`);
+}
+
 /** Build a default per-user drop storage under $XDG_RUNTIME_DIR when set
  *  (Linux: /run/user/<uid>/tmux-web/drop), otherwise under os.tmpdir()
  *  scoped by uid to keep multi-user hosts from colliding. Mode 0700.
@@ -26,14 +57,7 @@ export interface DropStorage {
  *  (where the running dev server would pick them up on its next drop
  *  refresh). */
 export function defaultDropStorage(): DropStorage {
-  const uid = typeof process.getuid === 'function' ? process.getuid() : 0;
-  const override = process.env.TMUX_WEB_DROP_ROOT;
-  const xdg = process.env.XDG_RUNTIME_DIR;
-  const base = override
-    ? override
-    : (xdg && fs.existsSync(xdg)
-      ? path.join(xdg, 'tmux-web', 'drop')
-      : path.join(os.tmpdir(), `tmux-web-drop-${uid}`));
+  const base = resolveDropRoot({ override: process.env.TMUX_WEB_DROP_ROOT });
   fs.mkdirSync(base, { recursive: true, mode: 0o700 });
   return {
     root: base,

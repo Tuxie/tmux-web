@@ -138,6 +138,34 @@ export function warnIfDangerousOriginConfig(
   );
 }
 
+export interface RuntimeBaseDirOptions {
+  xdgRuntimeDir?: string;
+  tmpDir?: string;
+  uid?: number;
+  isUsableDir?: (dir: string) => boolean;
+}
+
+function isUsableRuntimeDir(dir: string): boolean {
+  try {
+    if (!fs.statSync(dir).isDirectory()) return false;
+    fs.accessSync(dir, fs.constants.W_OK | fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function resolveRuntimeBaseDir(opts: RuntimeBaseDirOptions = {}): string {
+  const uid = opts.uid ?? (typeof process.getuid === 'function' ? process.getuid() : 0);
+  const tmpBase = opts.tmpDir ?? tmpdir();
+  const isUsableDir = opts.isUsableDir ?? isUsableRuntimeDir;
+  const xdgRuntimeDir = opts.xdgRuntimeDir ?? process.env.XDG_RUNTIME_DIR;
+
+  return xdgRuntimeDir && isUsableDir(xdgRuntimeDir)
+    ? path.join(xdgRuntimeDir, 'tmux-web')
+    : path.join(tmpBase, `tmux-web-${uid}`);
+}
+
 /** Extract the embedded tmux binary to a stable per-user cache path and
  *  return that path, or null if no binary was bundled.
  *
@@ -150,10 +178,7 @@ function resolveEmbeddedTmux(): string | null {
   const src = embeddedAssets['dist/bin/tmux'];
   if (!src) return null;
 
-  const uid = typeof process.getuid === 'function' ? process.getuid() : 0;
-  const dir = process.env.XDG_RUNTIME_DIR && fs.existsSync(process.env.XDG_RUNTIME_DIR)
-    ? path.join(process.env.XDG_RUNTIME_DIR, 'tmux-web')
-    : path.join(tmpdir(), `tmux-web-${uid}`);
+  const dir = resolveRuntimeBaseDir();
   const dest = path.join(dir, 'tmux');
 
   try {
@@ -421,10 +446,7 @@ Options:
     // timestamped copies. One tmux-web process per user is the normal
     // case; two racing writes of the same content are fine (deterministic
     // output + rename would require more plumbing than it's worth).
-    const uid = typeof process.getuid === 'function' ? process.getuid() : 0;
-    const runtimeBase = process.env.XDG_RUNTIME_DIR && fs.existsSync(process.env.XDG_RUNTIME_DIR)
-      ? path.join(process.env.XDG_RUNTIME_DIR, 'tmux-web')
-      : path.join(tmpdir(), `tmux-web-${uid}`);
+    const runtimeBase = resolveRuntimeBaseDir();
     fs.mkdirSync(runtimeBase, { recursive: true, mode: 0o700 });
     const confPath = path.join(runtimeBase, 'tmux.conf');
     fs.writeFileSync(confPath, baseTmuxConfContent);

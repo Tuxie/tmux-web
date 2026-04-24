@@ -10,6 +10,7 @@ import {
   deleteDrop,
   onDropsChange,
   defaultDropStorage,
+  resolveDropRoot,
   hasInotifywait,
   _resetInotifyProbe,
   AUTO_UNLINK_GRACE_MS,
@@ -276,6 +277,18 @@ describe("defaultDropStorage", () => {
       expect(s.root.startsWith(os.tmpdir())).toBe(true);
       expect(s.root).toContain("tmux-web-drop-");
     });
+  });
+
+  test("resolveDropRoot falls back when XDG_RUNTIME_DIR is not usable", () => {
+    const root = resolveDropRoot({
+      override: undefined,
+      xdgRuntimeDir: "/run/user/1000",
+      tmpDir: "/tmp",
+      uid: 1000,
+      isUsableDir: () => false,
+    });
+
+    expect(root).toBe("/tmp/tmux-web-drop-1000");
   });
 
   test("TMUX_WEB_DROP_ROOT overrides both XDG_RUNTIME_DIR and tmpdir", () => {

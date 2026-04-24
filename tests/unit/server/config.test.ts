@@ -1,5 +1,5 @@
 import { expect, test, describe } from "bun:test";
-import { parseConfig } from "../../../src/server/index.js";
+import { parseConfig, resolveRuntimeBaseDir } from "../../../src/server/index.js";
 
 test("parseConfig returns default values", () => {
   const { config } = parseConfig([]);
@@ -19,6 +19,17 @@ test("parseConfig with explicit --tls returns tls: true", () => {
 test("parseConfig includes themes-dir when provided", () => {
   const { config } = parseConfig(["--themes-dir", "/tmp/themes"]);
   expect(config?.themesDir).toBe("/tmp/themes");
+});
+
+test("resolveRuntimeBaseDir falls back when XDG_RUNTIME_DIR is not usable", () => {
+  const runtimeBase = resolveRuntimeBaseDir({
+    xdgRuntimeDir: "/run/user/1000",
+    tmpDir: "/tmp",
+    uid: 1000,
+    isUsableDir: () => false,
+  });
+
+  expect(runtimeBase).toBe("/tmp/tmux-web-1000");
 });
 
 

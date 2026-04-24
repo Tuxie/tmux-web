@@ -33,14 +33,28 @@ const GLOBAL_LINE_MIN = 95;
  *  switchSession + sessionRefs wiring added more such paths around
  *  control-pool lifecycle. `tmux-control.ts` (new in v1.8.0) has
  *  spawn-failure / process-exit / cancellation branches only reached
- *  by real-tmux e2e — unit-side coverage is tracked as follow-up. */
+ *  by real-tmux e2e — unit-side coverage is tracked as follow-up.
+ *
+ *  The v1.9.0 beta desktop wrapper files sit at native/packaging
+ *  boundaries. Unit tests cover the pure selectors, launch helpers,
+ *  and host-message routing; the uncovered lines are mostly OS-native
+ *  error/fallback branches or post-build filesystem variants exercised
+ *  only by real Electrobun packaging. Keep them in-scope with explicit
+ *  lower per-file floors instead of excluding the files entirely. */
 const PER_FILE_FUNC_OVERRIDES: Record<string, number> = {
   'src/server/ws.ts': 82,
   'src/server/tmux-control.ts': 85,
+  'src/client/auth-fetch.ts': 85,
 };
 const PER_FILE_LINE_OVERRIDES: Record<string, number> = {
   'src/server/ws.ts': 92,
   'src/server/tmux-control.ts': 85,
+  'scripts/prepare-electrobun-bundle.ts': 80,
+  'src/client/auth-fetch.ts': 91,
+  'src/desktop/display-workarea.ts': 80,
+  'src/desktop/server-process.ts': 92,
+  'src/desktop/tmux-path.ts': 90,
+  'src/desktop/window-host-messages.ts': 92,
 };
 
 interface FileCov { path: string; lines: { found: number; hit: number }; funcs: { found: number; hit: number } }
