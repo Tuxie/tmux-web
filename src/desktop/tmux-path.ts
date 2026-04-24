@@ -13,9 +13,22 @@ export function findTmuxInPath(): string | null {
   return null;
 }
 
-export function desktopExtraArgs(): string[] {
+export function findBundledTmux(executablePath = process.execPath): string | null {
+  const candidate = path.join(path.dirname(executablePath), 'tmux');
+  try {
+    fs.accessSync(candidate, fs.constants.X_OK);
+    return candidate;
+  } catch {
+    return null;
+  }
+}
+
+export function desktopExtraArgs(opts: { executablePath?: string } = {}): string[] {
   const args: string[] = [];
-  const tmuxBin = process.env.TMUX_TERM_TMUX_BIN || findTmuxInPath();
+  const tmuxBin =
+    process.env.TMUX_TERM_TMUX_BIN ||
+    findTmuxInPath() ||
+    findBundledTmux(opts.executablePath);
   if (tmuxBin) {
     args.push('--tmux', tmuxBin);
   }

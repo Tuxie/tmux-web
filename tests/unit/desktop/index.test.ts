@@ -2,7 +2,11 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { desktopExtraArgs, findTmuxInPath } from '../../../src/desktop/tmux-path.ts';
+import {
+  desktopExtraArgs,
+  findBundledTmux,
+  findTmuxInPath,
+} from '../../../src/desktop/tmux-path.ts';
 
 const originalPath = process.env.PATH;
 const originalTmux = process.env.TMUX_TERM_TMUX_BIN;
@@ -45,5 +49,23 @@ describe('desktop entrypoint helpers', () => {
     process.env.TMUX_TERM_TMUX_BIN = '/custom/tmux';
 
     expect(desktopExtraArgs()).toEqual(['--tmux', '/custom/tmux']);
+  });
+
+  test('findBundledTmux returns tmux next to the runtime executable', () => {
+    const tmux = makeExecutable('tmux');
+    const bun = path.join(path.dirname(tmux), 'bun');
+    fs.writeFileSync(bun, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+
+    expect(findBundledTmux(bun)).toBe(tmux);
+  });
+
+  test('desktopExtraArgs falls back to bundled tmux when PATH has none', () => {
+    const tmux = makeExecutable('tmux');
+    const bun = path.join(path.dirname(tmux), 'bun');
+    fs.writeFileSync(bun, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    process.env.PATH = '';
+    delete process.env.TMUX_TERM_TMUX_BIN;
+
+    expect(desktopExtraArgs({ executablePath: bun })).toEqual(['--tmux', tmux]);
   });
 });

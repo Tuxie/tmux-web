@@ -41,7 +41,7 @@ async function generate() {
   // The server extracts it to a temp path at startup and uses it as the
   // default --tmux binary so the bundle is self-contained.
   const tmuxBinPath = path.join(projectRoot, "dist/bin/tmux");
-  if (fs.existsSync(tmuxBinPath)) {
+  if (process.env.TMUX_WEB_EMBED_TMUX !== "0" && fs.existsSync(tmuxBinPath)) {
     assets.push({ key: "dist/bin/tmux", path: "../../dist/bin/tmux" });
   }
 

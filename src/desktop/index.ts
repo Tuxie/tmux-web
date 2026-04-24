@@ -1,4 +1,5 @@
 import { BrowserWindow } from 'electrobun/bun';
+import fs from 'node:fs';
 import path from 'node:path';
 import { buildAuthenticatedUrl, generateDesktopCredentials } from './auth.js';
 import {
@@ -21,6 +22,8 @@ function logTmuxWebOutput(stream: 'stdout' | 'stderr', text: string): void {
 
 function resolveTmuxWebExecutable(): string {
   if (process.env.TMUX_TERM_TMUX_WEB) return process.env.TMUX_TERM_TMUX_WEB;
+  const besideRuntime = path.join(path.dirname(process.execPath), 'tmux-web');
+  if (fs.existsSync(besideRuntime)) return besideRuntime;
   return path.resolve(import.meta.dir, '..', 'tmux-web');
 }
 
@@ -80,9 +83,7 @@ async function main(): Promise<void> {
   }
 }
 
-if (import.meta.main) {
-  main().catch((err) => {
-    console.error(err instanceof Error ? err.stack ?? err.message : String(err));
-    process.exit(1);
-  });
-}
+main().catch((err) => {
+  console.error(err instanceof Error ? err.stack ?? err.message : String(err));
+  process.exit(1);
+});

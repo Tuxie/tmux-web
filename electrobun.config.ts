@@ -27,4 +27,7 @@ export default {
       defaultRenderer: 'native',
     },
   },
+  scripts: {
+    postBuild: 'scripts/prepare-electrobun-bundle.ts',
+  },
 } satisfies ElectrobunConfig;

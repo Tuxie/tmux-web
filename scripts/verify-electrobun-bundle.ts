@@ -18,12 +18,22 @@ function targetArch(): string {
 const appFileName = environment === 'stable' ? 'tmux-term' : `tmux-term-${environment}`;
 const platform = targetOS();
 const platformBuildRoot = path.join(buildRoot, `${environment}-${platform}-${targetArch()}`);
+const appRoot =
+  platform === 'macos'
+    ? path.join(platformBuildRoot, `${appFileName}.app`)
+    : path.join(platformBuildRoot, appFileName);
 const resourcesApp =
   platform === 'macos'
-    ? path.join(platformBuildRoot, `${appFileName}.app`, 'Contents', 'Resources', 'app')
-    : path.join(platformBuildRoot, appFileName, 'Resources', 'app');
-const expected = path.join(resourcesApp, 'tmux-web');
+    ? path.join(appRoot, 'Contents', 'Resources', 'app')
+    : path.join(appRoot, 'Resources', 'app');
+const executableDir =
+  platform === 'macos'
+    ? path.join(appRoot, 'Contents', 'MacOS')
+    : resourcesApp;
+const expected = path.join(executableDir, 'tmux-web');
+const expectedTmux = platform === 'macos' ? path.join(executableDir, 'tmux') : null;
 const expectedEntrypoint = path.join(resourcesApp, 'bun', 'index.js');
+const misplacedMacTmuxWeb = platform === 'macos' ? path.join(resourcesApp, 'tmux-web') : null;
 
 if (!fs.existsSync(expected)) {
   console.error(`tmux-term bundle is missing tmux-web binary: ${expected}`);
@@ -38,6 +48,23 @@ if (!fs.existsSync(expectedEntrypoint)) {
 const mode = fs.statSync(expected).mode;
 if ((mode & 0o111) === 0) {
   console.error(`tmux-term bundled tmux-web is not executable: ${expected}`);
+  process.exit(1);
+}
+
+if (expectedTmux) {
+  if (!fs.existsSync(expectedTmux)) {
+    console.error(`tmux-term macOS bundle is missing vendored tmux: ${expectedTmux}`);
+    process.exit(1);
+  }
+  const tmuxMode = fs.statSync(expectedTmux).mode;
+  if ((tmuxMode & 0o111) === 0) {
+    console.error(`tmux-term bundled tmux is not executable: ${expectedTmux}`);
+    process.exit(1);
+  }
+}
+
+if (misplacedMacTmuxWeb && fs.existsSync(misplacedMacTmuxWeb)) {
+  console.error(`tmux-term macOS bundle should not keep tmux-web in Resources/app: ${misplacedMacTmuxWeb}`);
   process.exit(1);
 }
 

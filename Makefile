@@ -51,7 +51,8 @@ build-client: dist/client/xterm.js
 
 build-server: tmux-web
 
-tmux-term: tmux-web
+tmux-term:
+	$(BUN) run scripts/build-desktop-prereqs.ts
 	$(BUN) run desktop:build
 	$(BUN) run scripts/verify-electrobun-bundle.ts
 
