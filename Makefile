@@ -144,6 +144,7 @@ $(STAMPDIR):
 	mkdir -p $@
 
 vendor/libevent/configure:
+	git submodule update --init vendor/libevent
 	cd vendor/libevent && ./autogen.sh
 
 vendor/libevent/config.h: vendor/libevent/configure
@@ -166,6 +167,7 @@ $(STAMPDIR)/utf8proc: vendor/utf8proc/utf8proc.c | $(STAMPDIR)
 # as strong symbols). This is a glibc limitation; jemalloc works fine with
 # dynamic linking or with musl.
 vendor/tmux/configure:
+	git submodule update --init vendor/tmux
 	cd vendor/tmux && ./autogen.sh
 
 vendor/tmux/config.h: vendor/tmux/configure $(STAMPDIR)/libevent $(STAMPDIR)/utf8proc
