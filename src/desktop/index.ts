@@ -9,7 +9,7 @@ import {
 import { desktopExtraArgs } from './tmux-path.js';
 import { installWindowFrameLogging, openTmuxTermWindow } from './window.js';
 import { installTmuxTermHostMessages } from './window-host-messages.js';
-import { debugWorkAreaForFrame, workAreaForFrame, workAreaForPoint } from './display-workarea.js';
+import { debugWorkAreaForFrame, workAreaForFrame } from './display-workarea.js';
 
 function logDesktop(message: string): void {
   console.error(`[tmux-term] ${message}`);
@@ -67,12 +67,11 @@ async function main(): Promise<void> {
       (frame) => {
         const displays = Screen.getAllDisplays();
         const primaryWorkArea = Screen.getPrimaryDisplay().workArea;
-        const cursor = Screen.getCursorScreenPoint();
         if (geometryDebugEnabled) {
           const debug = debugWorkAreaForFrame(frame, displays, primaryWorkArea);
-          logDesktop(`window-geometry selector frame=${JSON.stringify(frame)} cursor=${JSON.stringify(cursor)} debug=${JSON.stringify(debug)} displays=${JSON.stringify(displays)}`);
+          logDesktop(`window-geometry selector frame=${JSON.stringify(frame)} debug=${JSON.stringify(debug)} displays=${JSON.stringify(displays)}`);
         }
-        return workAreaForPoint(cursor, frame, displays, primaryWorkArea);
+        return workAreaForFrame(frame, displays, primaryWorkArea);
       },
       geometryDebugEnabled
         ? (message) => {

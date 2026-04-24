@@ -21,11 +21,6 @@ export interface WorkAreaDebugInfo {
   yCandidates: number[];
 }
 
-export interface Point {
-  x: number;
-  y: number;
-}
-
 function overlapArea(a: Rectangle, b: Rectangle): number {
   const left = Math.max(a.x, b.x);
   const right = Math.min(a.x + a.width, b.x + b.width);
@@ -157,40 +152,6 @@ export function workAreaForFrame(
     }
   }
   return normalizedWorkAreaDetails(best, frame, maxY).selectedWorkArea;
-}
-
-export function workAreaForPoint(
-  point: Point,
-  frame: Rectangle,
-  displays: Display[],
-  fallbackWorkArea: Rectangle,
-): Rectangle {
-  if (displays.length === 0) return fallbackWorkArea;
-
-  const hit = displays.find((display) => (
-    point.x >= display.bounds.x
-    && point.y >= display.bounds.y
-    && point.x <= display.bounds.x + display.bounds.width
-    && point.y <= display.bounds.y + display.bounds.height
-  ));
-  if (hit) return workAreaForFrame(frame, [hit], fallbackWorkArea);
-
-  let best = displays[0]!;
-  let bestDistance = centerDistanceSquared(
-    { x: point.x, y: point.y, width: 0, height: 0 },
-    best.bounds,
-  );
-  for (const display of displays.slice(1)) {
-    const distance = centerDistanceSquared(
-      { x: point.x, y: point.y, width: 0, height: 0 },
-      display.bounds,
-    );
-    if (distance < bestDistance) {
-      best = display;
-      bestDistance = distance;
-    }
-  }
-  return workAreaForFrame(frame, [best], fallbackWorkArea);
 }
 
 export function debugWorkAreaForFrame(
