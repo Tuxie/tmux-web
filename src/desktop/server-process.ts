@@ -55,15 +55,46 @@ export interface StartedTmuxWebServer {
 
 export interface StartTmuxWebServerOptions extends TmuxWebLaunchOptions {
   startupTimeoutMs?: number;
+  closeGraceMs?: number;
 }
 
-function terminateProcess(proc: Subprocess<'pipe', 'pipe', 'pipe'>): void {
+const OUTPUT_TAIL_LIMIT = 8192;
+
+function appendBoundedTail(tail: string, text: string): string {
+  const next = tail + text;
+  return next.length > OUTPUT_TAIL_LIMIT ? next.slice(-OUTPUT_TAIL_LIMIT) : next;
+}
+
+function formatOutputTail(name: string, tail: string): string {
+  const trimmed = tail.trimEnd();
+  return trimmed ? `; ${name}: ${trimmed}` : '';
+}
+
+function terminateProcess(
+  proc: Subprocess<'pipe', 'pipe', 'pipe'>,
+  signal: 'SIGTERM' | 'SIGKILL' = 'SIGTERM',
+): void {
   try {
-    proc.kill('SIGTERM');
+    proc.kill(signal);
   } catch {
-    try {
-      proc.kill();
-    } catch {}
+    if (signal !== 'SIGKILL') {
+      try {
+        proc.kill();
+      } catch {}
+    }
+  }
+}
+
+async function waitForExitWithKill(
+  proc: Subprocess<'pipe', 'pipe', 'pipe'>,
+  graceMs: number,
+): Promise<void> {
+  terminateProcess(proc, 'SIGTERM');
+  const exited = proc.exited.then(() => undefined, () => undefined);
+  const graceExpired = Bun.sleep(graceMs).then(() => 'timeout' as const);
+  if ((await Promise.race([exited, graceExpired])) === 'timeout') {
+    terminateProcess(proc, 'SIGKILL');
+    await exited;
   }
 }
 
@@ -79,45 +110,77 @@ export async function startTmuxWebServer(
     stderr: 'pipe',
   });
 
-  const decoder = new TextDecoder();
   const timeoutMs = opts.startupTimeoutMs ?? 10_000;
+  const closeGraceMs = opts.closeGraceMs ?? 500;
   let buffer = '';
+  let stdoutTail = '';
+  let stderrTail = '';
+  let settled = false;
 
   const endpoint = await new Promise<ListeningEndpoint>((resolve, reject) => {
     const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
       terminateProcess(proc);
-      reject(new Error(`tmux-web did not report readiness within ${timeoutMs}ms`));
+      reject(
+        new Error(
+          `tmux-web did not report readiness within ${timeoutMs}ms${formatOutputTail('stdout', stdoutTail)}${formatOutputTail('stderr', stderrTail)}`,
+        ),
+      );
     }, timeoutMs);
 
     const fail = (err: unknown) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
       terminateProcess(proc);
       reject(err instanceof Error ? err : new Error(String(err)));
     };
 
+    const ready = (endpoint: ListeningEndpoint) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(endpoint);
+    };
+
     void proc.exited.then((code) => {
-      fail(new Error(`tmux-web exited before readiness with status ${code}`));
+      fail(
+        new Error(
+          `tmux-web exited before readiness with status ${code}${formatOutputTail('stdout', stdoutTail)}${formatOutputTail('stderr', stderrTail)}`,
+        ),
+      );
     });
 
-    void (async () => {
-      const reader = proc.stdout.getReader();
+    void (async (stream: ReadableStream<Uint8Array>) => {
+      const stdoutDecoder = new TextDecoder();
+      const reader = stream.getReader();
       try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          buffer += decoder.decode(value, { stream: true });
+          const text = stdoutDecoder.decode(value, { stream: true });
+          stdoutTail = appendBoundedTail(stdoutTail, text);
+          if (settled) continue;
+          buffer += text;
           const lines = buffer.split(/\r?\n/);
           buffer = lines.pop() ?? '';
           for (const line of lines) {
             const parsed = parseTmuxWebListeningLine(line);
             if (parsed) {
-              clearTimeout(timer);
-              resolve(parsed);
-              return;
+              ready(parsed);
+              break;
             }
           }
         }
-        fail(new Error('tmux-web stdout closed before readiness'));
+        if (!settled) {
+          const code = await proc.exited;
+          fail(
+            new Error(
+              `tmux-web exited before readiness with status ${code}${formatOutputTail('stdout', stdoutTail)}${formatOutputTail('stderr', stderrTail)}`,
+            ),
+          );
+        }
       } catch (err) {
         fail(err);
       } finally {
@@ -125,17 +188,35 @@ export async function startTmuxWebServer(
           reader.releaseLock();
         } catch {}
       }
-    })();
+    })(proc.stdout);
+
+    void (async (stream: ReadableStream<Uint8Array>) => {
+      const stderrDecoder = new TextDecoder();
+      const reader = stream.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          stderrTail = appendBoundedTail(
+            stderrTail,
+            stderrDecoder.decode(value, { stream: true }),
+          );
+        }
+      } catch (err) {
+        fail(err);
+      } finally {
+        try {
+          reader.releaseLock();
+        } catch {}
+      }
+    })(proc.stderr);
   });
 
   return {
     process: proc,
     endpoint,
     close: async () => {
-      terminateProcess(proc);
-      try {
-        await proc.exited;
-      } catch {}
+      await waitForExitWithKill(proc, closeGraceMs);
     },
   };
 }

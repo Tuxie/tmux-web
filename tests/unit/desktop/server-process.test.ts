@@ -2,7 +2,32 @@ import { describe, expect, test } from 'bun:test';
 import {
   buildTmuxWebLaunch,
   parseTmuxWebListeningLine,
+  startTmuxWebServer,
 } from '../../../src/desktop/server-process.js';
+
+const credentials = { username: 'tmux-term-user', password: 'random-secret' };
+
+function bunEvalLaunch(script: string, startupTimeoutMs = 1_000) {
+  return {
+    executable: process.execPath,
+    executableArgs: ['-e', script],
+    credentials,
+    startupTimeoutMs,
+  };
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  return await Bun.file(path).exists();
+}
+
+async function waitForFile(path: string, timeoutMs = 1_000): Promise<void> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (await fileExists(path)) return;
+    await Bun.sleep(10);
+  }
+  throw new Error(`timed out waiting for ${path}`);
+}
 
 describe('desktop tmux-web launch helpers', () => {
   test('buildTmuxWebLaunch binds loopback port 0 and keeps password out of argv', () => {
@@ -64,5 +89,90 @@ describe('desktop tmux-web launch helpers', () => {
       parseTmuxWebListeningLine('tmux-web listening on http://0.0.0.0:38123'),
     ).toBeNull();
     expect(parseTmuxWebListeningLine('warning: booting')).toBeNull();
+  });
+
+  test('startTmuxWebServer resolves readiness from a partial stdout line', async () => {
+    const server = await startTmuxWebServer(
+      bunEvalLaunch(`
+        process.stdout.write('tmux-web listening on http://127.0.0.1:');
+        setTimeout(() => process.stdout.write('38123\\n'), 10);
+        setInterval(() => {}, 1_000);
+      `),
+    );
+
+    try {
+      expect(server.endpoint).toEqual({
+        host: '127.0.0.1',
+        port: 38123,
+        origin: 'http://127.0.0.1:38123',
+      });
+    } finally {
+      await server.close();
+    }
+  });
+
+  test('startTmuxWebServer rejects when child exits before readiness', async () => {
+    await expect(
+      startTmuxWebServer(
+        bunEvalLaunch(`
+          process.stdout.write('warning: booting\\n');
+          process.exit(7);
+        `),
+      ),
+    ).rejects.toThrow('tmux-web exited before readiness with status 7');
+  });
+
+  test('startTmuxWebServer timeout terminates a child that never reports readiness', async () => {
+    const marker = `/tmp/tmux-web-timeout-${crypto.randomUUID()}`;
+
+    await expect(
+      startTmuxWebServer(
+        bunEvalLaunch(
+          `
+            process.on('SIGTERM', async () => {
+              await Bun.write(${JSON.stringify(marker)}, 'terminated');
+              process.exit(0);
+            });
+            setInterval(() => {}, 1_000);
+          `,
+          50,
+        ),
+      ),
+    ).rejects.toThrow('tmux-web did not report readiness within 50ms');
+
+    await waitForFile(marker);
+  });
+
+  test('close terminates a child after readiness', async () => {
+    const marker = `/tmp/tmux-web-close-${crypto.randomUUID()}`;
+    const server = await startTmuxWebServer(
+      bunEvalLaunch(`
+        process.stdout.write('tmux-web listening on http://127.0.0.1:38123\\n');
+        process.on('SIGTERM', async () => {
+          await Bun.write(${JSON.stringify(marker)}, 'closed');
+          process.exit(0);
+        });
+        setInterval(() => {}, 1_000);
+      `),
+    );
+
+    await server.close();
+
+    await waitForFile(marker);
+  });
+
+  test('close uses a kill fallback when a child ignores SIGTERM', async () => {
+    const server = await startTmuxWebServer(
+      bunEvalLaunch(`
+        process.stdout.write('tmux-web listening on http://127.0.0.1:38123\\n');
+        process.on('SIGTERM', () => {});
+        setInterval(() => {}, 1_000);
+      `),
+    );
+
+    await expect(Promise.race([
+      server.close().then(() => 'closed'),
+      Bun.sleep(1_000).then(() => 'timeout'),
+    ])).resolves.toBe('closed');
   });
 });
