@@ -2,7 +2,26 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const buildRoot = path.resolve(process.argv[2] ?? 'build');
-const expected = path.join(buildRoot, 'dev-linux-x64', 'tmux-term-dev', 'Resources', 'app', 'tmux-web');
+const environment = process.argv[3] ?? 'dev';
+
+function targetOS(): string {
+  if (process.platform === 'darwin') return 'macos';
+  if (process.platform === 'linux') return 'linux';
+  throw new Error(`Unsupported tmux-term desktop build platform: ${process.platform}`);
+}
+
+function targetArch(): string {
+  if (process.arch === 'x64' || process.arch === 'arm64') return process.arch;
+  throw new Error(`Unsupported tmux-term desktop build architecture: ${process.arch}`);
+}
+
+const appFileName = environment === 'stable' ? 'tmux-term' : `tmux-term-${environment}`;
+const platform = targetOS();
+const platformBuildRoot = path.join(buildRoot, `${environment}-${platform}-${targetArch()}`);
+const expected =
+  platform === 'macos'
+    ? path.join(platformBuildRoot, `${appFileName}.app`, 'Contents', 'Resources', 'app', 'tmux-web')
+    : path.join(platformBuildRoot, appFileName, 'Resources', 'app', 'tmux-web');
 
 if (!fs.existsSync(expected)) {
   console.error(`tmux-term bundle is missing tmux-web binary: ${expected}`);
