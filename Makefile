@@ -53,6 +53,7 @@ build-server: tmux-web
 
 tmux-term: tmux-web
 	$(BUN) run desktop:build
+	$(BUN) run scripts/verify-electrobun-bundle.ts
 
 # --- Testing ---
 

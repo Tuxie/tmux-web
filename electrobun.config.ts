@@ -15,6 +15,9 @@ export default {
       entrypoint: 'src/desktop/app.ts',
       external: ['electrobun/bun'],
     },
+    copy: {
+      'tmux-web': 'tmux-web',
+    },
     mac: {
       bundleCEF: false,
       defaultRenderer: 'native',

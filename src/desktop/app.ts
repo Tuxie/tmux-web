@@ -1,4 +1,5 @@
 import { BrowserWindow } from 'electrobun/bun';
+import path from 'node:path';
 import { buildAuthenticatedUrl, generateDesktopCredentials } from './auth.js';
 import {
   createCloseOnce,
@@ -6,7 +7,8 @@ import {
 } from './server-process.js';
 
 function resolveTmuxWebExecutable(): string {
-  return process.env.TMUX_TERM_TMUX_WEB ?? './tmux-web';
+  if (process.env.TMUX_TERM_TMUX_WEB) return process.env.TMUX_TERM_TMUX_WEB;
+  return path.resolve(import.meta.dir, '..', 'tmux-web');
 }
 
 function desktopExtraArgs(): string[] {
