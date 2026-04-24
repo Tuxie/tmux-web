@@ -18,13 +18,20 @@ function targetArch(): string {
 const appFileName = environment === 'stable' ? 'tmux-term' : `tmux-term-${environment}`;
 const platform = targetOS();
 const platformBuildRoot = path.join(buildRoot, `${environment}-${platform}-${targetArch()}`);
-const expected =
+const resourcesApp =
   platform === 'macos'
-    ? path.join(platformBuildRoot, `${appFileName}.app`, 'Contents', 'Resources', 'app', 'tmux-web')
-    : path.join(platformBuildRoot, appFileName, 'Resources', 'app', 'tmux-web');
+    ? path.join(platformBuildRoot, `${appFileName}.app`, 'Contents', 'Resources', 'app')
+    : path.join(platformBuildRoot, appFileName, 'Resources', 'app');
+const expected = path.join(resourcesApp, 'tmux-web');
+const expectedEntrypoint = path.join(resourcesApp, 'bun', 'index.js');
 
 if (!fs.existsSync(expected)) {
   console.error(`tmux-term bundle is missing tmux-web binary: ${expected}`);
+  process.exit(1);
+}
+
+if (!fs.existsSync(expectedEntrypoint)) {
+  console.error(`tmux-term bundle is missing Electrobun app entrypoint: ${expectedEntrypoint}`);
   process.exit(1);
 }
 

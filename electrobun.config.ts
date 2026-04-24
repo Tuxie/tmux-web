@@ -12,7 +12,7 @@ export default {
   },
   build: {
     bun: {
-      entrypoint: 'src/desktop/app.ts',
+      entrypoint: 'src/desktop/index.ts',
       external: ['electrobun/bun'],
     },
     copy: {
