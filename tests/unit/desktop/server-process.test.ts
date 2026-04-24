@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   buildTmuxWebLaunch,
+  createCloseOnce,
   parseTmuxWebListeningLine,
   startTmuxWebServer,
 } from '../../../src/desktop/server-process.js';
@@ -183,6 +184,17 @@ describe('desktop tmux-web launch helpers', () => {
       parseTmuxWebListeningLine('tmux-web listening on http://0.0.0.0:38123'),
     ).toBeNull();
     expect(parseTmuxWebListeningLine('warning: booting')).toBeNull();
+  });
+
+  test('createCloseOnce runs cleanup once', async () => {
+    let calls = 0;
+    const close = createCloseOnce(async () => { calls += 1; });
+
+    await close();
+    await close();
+    await close();
+
+    expect(calls).toBe(1);
   });
 
   test('startTmuxWebServer resolves readiness from a partial stdout line', async () => {
