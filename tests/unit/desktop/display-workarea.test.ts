@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { workAreaForFrame, type Display } from '../../../src/desktop/display-workarea.js';
+import { debugWorkAreaForFrame, workAreaForFrame, workAreaForPoint, type Display } from '../../../src/desktop/display-workarea.js';
 
 describe('desktop display work area selection', () => {
   const primary: Display = {
@@ -128,7 +128,8 @@ describe('desktop display work area selection', () => {
       isPrimary: false,
     };
 
-    const workArea = workAreaForFrame(
+    const workArea = workAreaForPoint(
+      { x: 1500, y: 2600 },
       { x: 1111, y: 1450, width: 1200, height: 760 },
       [macPrimary, macBelow],
       macPrimary.workArea,
@@ -160,5 +161,28 @@ describe('desktop display work area selection', () => {
     );
 
     expect(workArea).toEqual(stackedPrimary.workArea);
+  });
+
+  test('debug selector and real selector agree for a monitor placed above the primary', () => {
+    const macPrimary: Display = {
+      id: 3,
+      bounds: { x: 0, y: 0, width: 3840, height: 2160 },
+      workArea: { x: 0, y: 30, width: 3840, height: 2130 },
+      scaleFactor: 1,
+      isPrimary: true,
+    };
+    const macAbove: Display = {
+      id: 1,
+      bounds: { x: 1004, y: -1169, width: 1800, height: 1169 },
+      workArea: { x: 1004, y: -1130, width: 1800, height: 1130 },
+      scaleFactor: 2,
+      isPrimary: false,
+    };
+    const frame = { x: 1301, y: -2121, width: 1200, height: 760 };
+
+    const debug = debugWorkAreaForFrame(frame, [macPrimary, macAbove], macPrimary.workArea);
+    const workArea = workAreaForFrame(frame, [macPrimary, macAbove], macPrimary.workArea);
+
+    expect(debug.selectedWorkArea).toEqual(workArea);
   });
 });
