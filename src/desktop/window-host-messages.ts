@@ -23,7 +23,6 @@ interface WindowFrame {
 }
 
 export type WorkAreaProvider = (frame: WindowFrame) => WindowFrame;
-export type FrameMapper = (frame: WindowFrame) => WindowFrame;
 
 function hostMessageDetail(event: unknown): unknown {
   const detail = (event as { data?: { detail?: unknown } })?.data?.detail;
@@ -38,13 +37,11 @@ function hostMessageDetail(event: unknown): unknown {
 export function installTmuxTermHostMessages(
   win: HostMessageWindow,
   getWorkArea: WorkAreaProvider,
-  mapFrameForSet: FrameMapper = (frame) => frame,
 ): void {
   let preMaximizeFrame: WindowFrame | null = null;
 
   const setFrame = (frame: WindowFrame) => {
-    const nativeFrame = mapFrameForSet(frame);
-    win.setFrame(nativeFrame.x, nativeFrame.y, nativeFrame.width, nativeFrame.height);
+    win.setFrame(frame.x, frame.y, frame.width, frame.height);
   };
 
   const restoreIfMaximized = () => {
