@@ -37,6 +37,18 @@ function centerDistanceSquared(a: Rectangle, b: Rectangle): number {
   return (ax - bx) ** 2 + (ay - by) ** 2;
 }
 
+function candidateBounds(display: Display): Rectangle[] {
+  return uniqueNumbers([
+    display.bounds.y,
+    display.bounds.y - display.bounds.height + (display.workArea.y - display.bounds.y),
+  ]).map((y) => ({
+    x: display.bounds.x,
+    y,
+    width: display.bounds.width,
+    height: display.bounds.height,
+  }));
+}
+
 function uniqueNumbers(values: number[]): number[] {
   return [...new Set(values)];
 }
@@ -71,12 +83,14 @@ function normalizedWorkAreaDetails(display: Display, frame: Rectangle, globalMax
 
   const topInsetFromGlobal = workArea.y - bounds.y;
   const negativeSpaceCandidate = workArea.y + workArea.height - globalMaxY + topInsetFromGlobal;
+  const belowPrimaryCandidate = workArea.y - bounds.y + bounds.height;
   const yCandidates = uniqueNumbers([
     workArea.y,
     -workArea.y,
     bounds.y + workArea.y,
     -(bounds.y + workArea.y),
     negativeSpaceCandidate,
+    belowPrimaryCandidate,
     bounds.y + bounds.height - topInsetFromGlobal - workArea.height,
     -(bounds.y + bounds.height - topInsetFromGlobal - workArea.height),
     bounds.y + bounds.height - workArea.y - workArea.height,
@@ -87,6 +101,8 @@ function normalizedWorkAreaDetails(display: Display, frame: Rectangle, globalMax
     ? workArea.y
     : !display.isPrimary && frame.y < 0 && Number.isFinite(negativeSpaceCandidate)
         ? negativeSpaceCandidate
+        : !display.isPrimary && bounds.y > 0 && frame.y > 0 && Number.isFinite(belowPrimaryCandidate)
+            ? belowPrimaryCandidate
         : pickY(frame.y, yCandidates.length > 0 ? yCandidates : [workArea.y]);
 
   return {
@@ -112,23 +128,27 @@ export function workAreaForFrame(
   const maxY = desktopMaxY(displays);
 
   let best = displays[0]!;
-  let bestOverlap = overlapArea(frame, best.bounds);
-  for (const display of displays.slice(1)) {
-    const area = overlapArea(frame, display.bounds);
-    if (area > bestOverlap) {
-      best = display;
-      bestOverlap = area;
+  let bestOverlap = -1;
+  for (const display of displays) {
+    for (const bounds of candidateBounds(display)) {
+      const area = overlapArea(frame, bounds);
+      if (area > bestOverlap) {
+        best = display;
+        bestOverlap = area;
+      }
     }
   }
   if (bestOverlap > 0) return normalizedWorkAreaDetails(best, frame, maxY).selectedWorkArea;
 
   best = displays[0]!;
-  let bestDistance = centerDistanceSquared(frame, best.bounds);
-  for (const display of displays.slice(1)) {
-    const distance = centerDistanceSquared(frame, display.bounds);
-    if (distance < bestDistance) {
-      best = display;
-      bestDistance = distance;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const display of displays) {
+    for (const bounds of candidateBounds(display)) {
+      const distance = centerDistanceSquared(frame, bounds);
+      if (distance < bestDistance) {
+        best = display;
+        bestDistance = distance;
+      }
     }
   }
   return normalizedWorkAreaDetails(best, frame, maxY).selectedWorkArea;

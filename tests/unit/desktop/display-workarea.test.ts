@@ -112,6 +112,31 @@ describe('desktop display work area selection', () => {
     expect(workArea).toEqual({ x: -1800, y: -566, width: 1800, height: 1130 });
   });
 
+  test('uses the manually verified frame space when the secondary monitor sits below the primary', () => {
+    const macPrimary: Display = {
+      id: 3,
+      bounds: { x: 0, y: 0, width: 3840, height: 2160 },
+      workArea: { x: 0, y: 30, width: 3840, height: 2130 },
+      scaleFactor: 1,
+      isPrimary: true,
+    };
+    const macBelow: Display = {
+      id: 1,
+      bounds: { x: 1002, y: 2160, width: 1800, height: 1169 },
+      workArea: { x: 1002, y: 2199, width: 1800, height: 1130 },
+      scaleFactor: 2,
+      isPrimary: false,
+    };
+
+    const workArea = workAreaForFrame(
+      { x: 1111, y: 1450, width: 1200, height: 760 },
+      [macPrimary, macBelow],
+      macPrimary.workArea,
+    );
+
+    expect(workArea).toEqual({ x: 1002, y: 1208, width: 1800, height: 1130 });
+  });
+
   test('does not force the negative-space candidate for a slightly off-top window on the primary display', () => {
     const stackedPrimary: Display = {
       id: 1,
