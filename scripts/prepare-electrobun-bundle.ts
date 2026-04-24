@@ -1,18 +1,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-if (process.env.ELECTROBUN_OS !== 'macos') {
-  process.exit(0);
+export function resolveMacosAppRoot(env: NodeJS.ProcessEnv = process.env): string {
+  const buildDir = env.ELECTROBUN_BUILD_DIR ?? 'build';
+  const buildEnv = env.ELECTROBUN_BUILD_ENV ?? 'dev';
+  const arch = env.ELECTROBUN_ARCH ?? process.arch;
+  const appName = env.ELECTROBUN_APP_NAME ?? (buildEnv === 'stable' ? 'tmux-term' : `tmux-term-${buildEnv}`);
+  const platformDir = `${buildEnv}-macos-${arch}`;
+
+  const direct = path.join(buildDir, `${appName}.app`);
+  if (fs.existsSync(direct)) return direct;
+
+  return path.join(buildDir, platformDir, `${appName}.app`);
 }
-
-const buildDir = process.env.ELECTROBUN_BUILD_DIR ?? 'build';
-const buildEnv = process.env.ELECTROBUN_BUILD_ENV ?? 'dev';
-const arch = process.env.ELECTROBUN_ARCH ?? process.arch;
-const appName = process.env.ELECTROBUN_APP_NAME ?? (buildEnv === 'stable' ? 'tmux-term' : `tmux-term-${buildEnv}`);
-
-const appRoot = path.join(buildDir, `${buildEnv}-macos-${arch}`, `${appName}.app`);
-const resourcesApp = path.join(appRoot, 'Contents', 'Resources', 'app');
-const macosDir = path.join(appRoot, 'Contents', 'MacOS');
 
 function installExecutable(source: string, destination: string): void {
   if (!fs.existsSync(source)) {
@@ -23,12 +23,24 @@ function installExecutable(source: string, destination: string): void {
   fs.chmodSync(destination, 0o755);
 }
 
-installExecutable(path.join(resourcesApp, 'tmux-web'), path.join(macosDir, 'tmux-web'));
+export function prepareMacosBundle(env: NodeJS.ProcessEnv = process.env): void {
+  const appRoot = resolveMacosAppRoot(env);
+  const resourcesApp = path.join(appRoot, 'Contents', 'Resources', 'app');
+  const macosDir = path.join(appRoot, 'Contents', 'MacOS');
 
-const bundledTmux = path.join('dist', 'bin', 'tmux');
-if (fs.existsSync(bundledTmux)) {
-  installExecutable(bundledTmux, path.join(macosDir, 'tmux'));
+  installExecutable(path.join(resourcesApp, 'tmux-web'), path.join(macosDir, 'tmux-web'));
+
+  const bundledTmux = path.join('dist', 'bin', 'tmux');
+  if (fs.existsSync(bundledTmux)) {
+    installExecutable(bundledTmux, path.join(macosDir, 'tmux'));
+  }
+
+  fs.rmSync(path.join(resourcesApp, 'tmux-web'), { force: true });
+  console.log(`Prepared macOS tmux-term executables in ${macosDir}`);
 }
 
-fs.rmSync(path.join(resourcesApp, 'tmux-web'), { force: true });
-console.log(`Prepared macOS tmux-term executables in ${macosDir}`);
+if (import.meta.main) {
+  if (process.env.ELECTROBUN_OS === 'macos') {
+    prepareMacosBundle();
+  }
+}
