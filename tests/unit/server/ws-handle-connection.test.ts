@@ -422,7 +422,9 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
       attachSession: async (session) => { attached.push(session); },
       detachSession: (session) => { detached.push(session); },
       run: async (args) => {
-        if (args[0] === 'display-message' && args.includes('#{client_session}')) return 'dev\n';
+        if (args[0] === 'list-clients' && args.includes('#{client_tty}\t#{client_name}\t#{client_session}')) {
+          return '/dev/pts/fake\tfake\tdev\n';
+        }
         const { stdout } = await execFileAsync(tmuxBin, args);
         return stdout;
       },
@@ -449,7 +451,13 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     expect(switched).toBeTruthy();
     expect((switched as string).match(/new-session/g)?.length).toBe(1);
     expect(attached).toEqual(['main', 'dev']);
+    await waitFor(() => detached.includes('main'), 8000);
     expect(detached).toEqual(['main']);
+    await waitFor(() => {
+      try { return fs.readFileSync(logFile, 'utf8').includes('refresh-client -t /dev/pts/fake'); }
+      catch { return false; }
+    }, 8000);
+    o.ws.send('REDRAW');
     const sessionAck = await waitForMsg(o.messages, m => m.session === 'dev', 8000);
     expect(sessionAck).toBeTruthy();
 
@@ -464,7 +472,7 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
   }, 15000);
 
   test('switch-session does not acknowledge or move bookkeeping until tmux reports the PTY client on target session', async () => {
-    const { path: tmuxBin } = makeFakeTmux();
+    const { path: tmuxBin, logFile } = makeFakeTmux({ ignoreSwitchClient: true });
     const attached: string[] = [];
     const detached: string[] = [];
     const runCalls: string[][] = [];
@@ -474,10 +482,7 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
       run: async (args) => {
         runCalls.push(args);
         if (args[0] === 'list-windows') return '0\tone\t1\n';
-        if (args[0] === 'display-message' && args.includes('#{client_session}')) return 'main\n';
         if (args[0] === 'display-message') return 'title';
-        if (args[0] === 'list-clients') return `1\t/dev/pts/fake\tfake`;
-        if (args[0] === 'switch-client') return '';
         const { stdout } = await execFileAsync(tmuxBin, args);
         return stdout;
       },
@@ -491,7 +496,10 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
 
     o.messages.length = 0;
     o.ws.send(JSON.stringify({ type: 'switch-session', name: 'dev' }));
-    await waitFor(() => runCalls.some(args => args[0] === 'switch-client'), 3000);
+    await waitFor(() => {
+      try { return fs.readFileSync(logFile, 'utf8').includes('switch-client'); }
+      catch { return false; }
+    }, 3000);
     await new Promise(r => setTimeout(r, 30));
 
     expect(o.messages.some(raw => {
@@ -802,10 +810,14 @@ function makeGatedControl(
     detachSession: (session) => { detached.push(session); },
     run: async (args) => {
       if (args[0] === 'list-windows') return '0\tone\t1\n';
-      if (args[0] === 'display-message' && args.includes('#{client_session}')) return switchedTo + '\n';
       if (args[0] === 'display-message') return 'title';
       // Single candidate → tmuxClientForPty fallback returns it regardless of PID.
-      if (args[0] === 'list-clients') return `1\t/dev/pts/fake\tfake`;
+      if (args[0] === 'list-clients' && args.includes('#{client_pid}\t#{client_tty}\t#{client_name}')) {
+        return `1\t/dev/pts/fake\tfake`;
+      }
+      if (args[0] === 'list-clients' && args.includes('#{client_tty}\t#{client_name}\t#{client_session}')) {
+        return `/dev/pts/fake\tfake\t${switchedTo}`;
+      }
       if (args[0] === 'switch-client') { switchedTo = args[args.length - 1] ?? switchedTo; return ''; }
       return '';
     },

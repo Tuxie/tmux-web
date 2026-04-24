@@ -10,7 +10,8 @@ import { getForegroundProcess } from './foreground-process.js';
 import { resolvePolicy, recordGrant } from './clipboard-policy.js';
 import { onDropsChange } from './file-drop.js';
 import { routeClientMessage, type WsAction, type PendingRead as RouterPendingRead } from './ws-router.js';
-import type { TmuxControl } from './tmux-control.js';
+import { TmuxCommandError, type TmuxControl } from './tmux-control.js';
+import { execFileAsync } from './exec.js';
 
 export interface WsServerOptions {
   config: ServerConfig;
@@ -43,7 +44,18 @@ interface WsConnState {
   /** Monotonically-increasing counter. Each new switchSession call bumps
    *  this so prior in-flight switches detect they've been superseded. */
   switchSerial: number;
+  /** Counts PTY output frames forwarded to the browser. Session switches use
+   *  this to avoid acknowledging a switch before xterm has received redraw
+   *  bytes for the target tmux session. */
+  ptyOutputSerial: number;
+  ptyOutputWaiters: Array<{
+    after: number;
+    resolve: (ok: boolean) => void;
+    timer: ReturnType<typeof setTimeout>;
+  }>;
 }
+
+type PtyOutputWaiter = WsConnState['ptyOutputWaiters'][number];
 
 const WS_OPEN = 1;
 
@@ -155,6 +167,8 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
         pendingReads: new Map(),
         nextReqId: 0,
         switchSerial: 0,
+        ptyOutputSerial: 0,
+        ptyOutputWaiters: [],
       },
     };
 
@@ -219,7 +233,10 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
     for (const req of result.readRequests) {
       void handleReadRequest(ws, req.selection, opts);
     }
-    if (result.output) ws.send(result.output);
+    if (result.output) {
+      ws.send(result.output);
+      markPtyOutputForwarded(state);
+    }
     if (result.titleChanged && result.detectedTitle !== state.lastTitle) {
       state.lastTitle = result.detectedTitle || '';
       if (result.detectedSession) state.lastSession = result.detectedSession;
@@ -282,6 +299,7 @@ function handleClose(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: Ws
   const { remoteIp, state } = ws.data;
   const session = state.registeredSession;
   debug(config, `WS closed from ${remoteIp} session=${session}`);
+  cancelPtyOutputWaiters(state);
   state.unsubscribeDrops?.();
   state.sessionSet?.delete(ws);
   if (state.sessionSet && state.sessionSet.size === 0) reg.wsClientsBySession.delete(session);
@@ -297,6 +315,41 @@ function handleClose(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: Ws
 
 function nextReqId(state: WsConnState): string {
   return `r${Date.now().toString(36)}${(state.nextReqId++).toString(36)}`;
+}
+
+function markPtyOutputForwarded(state: WsConnState): void {
+  state.ptyOutputSerial++;
+  const ready = state.ptyOutputWaiters.filter(w => state.ptyOutputSerial > w.after);
+  if (ready.length === 0) return;
+  state.ptyOutputWaiters = state.ptyOutputWaiters.filter(w => state.ptyOutputSerial <= w.after);
+  for (const waiter of ready) {
+    clearTimeout(waiter.timer);
+    waiter.resolve(true);
+  }
+}
+
+function waitForPtyOutputAfter(state: WsConnState, after: number, timeoutMs: number): Promise<boolean> {
+  if (state.ptyOutputSerial > after) return Promise.resolve(true);
+  return new Promise(resolve => {
+    let waiter: PtyOutputWaiter;
+    waiter = {
+      after,
+      resolve,
+      timer: setTimeout(() => {
+        state.ptyOutputWaiters = state.ptyOutputWaiters.filter(w => w !== waiter);
+        resolve(false);
+      }, timeoutMs),
+    };
+    state.ptyOutputWaiters.push(waiter);
+  });
+}
+
+function cancelPtyOutputWaiters(state: WsConnState): void {
+  const waiters = state.ptyOutputWaiters.splice(0);
+  for (const waiter of waiters) {
+    clearTimeout(waiter.timer);
+    waiter.resolve(false);
+  }
 }
 
 /** Respond to the PTY for an OSC 52 read. Empty base64 = denied/empty
@@ -455,7 +508,7 @@ function moveWsToSession(
 
 async function tmuxClientForPty(pty: BunPty | undefined, opts: WsServerOptions): Promise<string | null> {
   if (!pty) return null;
-  const out = await opts.tmuxControl.run([
+  const { stdout: out } = await execFileAsync(opts.config.tmuxBin, [
     'list-clients',
     '-F',
     '#{client_pid}\t#{client_tty}\t#{client_name}',
@@ -474,15 +527,17 @@ async function tmuxClientForPty(pty: BunPty | undefined, opts: WsServerOptions):
 }
 
 async function tmuxClientSession(client: string, opts: WsServerOptions): Promise<string | null> {
-  const out = await opts.tmuxControl.run([
-    'display-message',
-    '-p',
-    '-c',
-    client,
-    '#{client_session}',
+  const { stdout: out } = await execFileAsync(opts.config.tmuxBin, [
+    'list-clients',
+    '-F',
+    '#{client_tty}\t#{client_name}\t#{client_session}',
   ]);
-  const session = out.trim();
-  return session || null;
+  for (const line of out.split('\n')) {
+    if (!line) continue;
+    const [tty, name, session] = line.split('\t');
+    if (client === tty || client === name) return session || null;
+  }
+  return null;
 }
 
 async function switchSession(
@@ -531,7 +586,9 @@ async function switchSession(
     }
     if (isCancelled()) return;
 
-    await opts.tmuxControl.run(['switch-client', '-c', client, '-t', newSession]);
+    const outputBeforeSwitch = state.ptyOutputSerial;
+
+    await execFileAsync(opts.config.tmuxBin, ['switch-client', '-c', client, '-t', newSession]);
     if (isCancelled()) return;
 
     const reportedSession = await tmuxClientSession(client, opts);
@@ -543,10 +600,22 @@ async function switchSession(
 
     moveWsToSession(ws, oldSession, newSession, opts, reg);
     newSessionAttached = false; // now owned by handleClose via registeredSession
-    if (ws.readyState === WS_OPEN) ws.send(frameTTMessage({ session: newSession }));
+    // switch-client changes tmux's internal client session synchronously, but
+    // the PTY redraw reaches xterm on a separate stream. Force a redraw and do
+    // not let the browser apply the target session's theme/topbar state until
+    // at least one post-switch output frame has been forwarded.
+    try { await execFileAsync(opts.config.tmuxBin, ['refresh-client', '-t', client]); }
+    catch { /* best-effort; the waiter below still covers natural redraws */ }
+    if (isCancelled()) return;
+    const sawRedraw = await waitForPtyOutputAfter(state, outputBeforeSwitch, 2000);
+    if (!sawRedraw) debug(opts.config, `switch-session(${newSession}) timed out waiting for PTY redraw`);
+    if (isCancelled()) return;
     await sendWindowState(ws, newSession, opts);
   } catch (err) {
-    debug(opts.config, `switch-session(${newSession}) failed: ${(err as Error).message}`);
+    const detail = err instanceof TmuxCommandError
+      ? `${err.message} running ${err.args.join(' ')}`
+      : (err as Error).message;
+    debug(opts.config, `switch-session(${newSession}) failed: ${detail}`);
   } finally {
     if (newSessionAttached) opts.tmuxControl.detachSession(newSession);
   }

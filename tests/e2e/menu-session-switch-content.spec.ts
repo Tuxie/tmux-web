@@ -2,7 +2,6 @@ import { test, expect, type Page } from '@playwright/test';
 import { startServer, killServer, createIsolatedTmux, hasTmux } from './helpers.js';
 
 test.skip(!hasTmux(), 'tmux not available');
-test.fail(true, 'Known bug: menu switch can acknowledge before xterm displays the target tmux session');
 
 const PORT = 4119;
 const SESSIONS = ['Fotona', 'HASS', 'main'] as const;

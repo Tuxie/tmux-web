@@ -9,13 +9,14 @@ import { join } from 'node:path';
  *  set-environment, send-keys -H <hex>, new-session -A -s …
  *  State is kept in a sidecar JSON file whose path is logged per call so
  *  tests can assert the call sequence. */
-export function makeFakeTmux(opts: { panePid?: number; failDisplayMessage?: boolean } = {}): { path: string; logFile: string; dir: string } {
+export function makeFakeTmux(opts: { panePid?: number; failDisplayMessage?: boolean; ignoreSwitchClient?: boolean } = {}): { path: string; logFile: string; dir: string } {
   const dir = mkdtempSync(join(tmpdir(), 'fake-tmux-'));
   const logFile = join(dir, 'calls.log');
   const bin = join(dir, 'tmux');
   const panePid = opts.panePid ?? 1;
   writeFileSync(bin, `#!/usr/bin/env bash
 LOG="${logFile}"
+SESSION_FILE="${dir}/client.session"
 # Use flock-free append with single write() via printf; append mode is
 # atomic on POSIX for writes <= PIPE_BUF (4096 bytes). No sync needed —
 # the write is visible to readers on the same host via page cache immediately.
@@ -36,12 +37,23 @@ case "$1" in
   list-windows) printf "0\\tone\\t1\\n1\\ttwo\\t0\\n";;
   list-clients)
     if [ -f "${dir}/client.pid" ]; then
-      printf "%s\\t/dev/pts/fake\\n" "$(cat "${dir}/client.pid")"
+      SESSION="$(cat "$SESSION_FILE" 2>/dev/null || printf main)"
+      case "$*" in
+        *client_session*) printf "/dev/pts/fake\\t/dev/pts/fake\\t%s\\n" "$SESSION";;
+        *) printf "%s\\t/dev/pts/fake\\t/dev/pts/fake\\n" "$(cat "${dir}/client.pid")";;
+      esac
     fi
     ;;
   list-sessions) echo "main: 1 windows"; echo "dev: 1 windows";;
   new-session)
     printf "%s" "$$" > "${dir}/client.pid"
+    SESSION_NAME="main"
+    PREV=""
+    for ARG in "$@"; do
+      if [ "$PREV" = "-s" ]; then SESSION_NAME="$ARG"; break; fi
+      PREV="$ARG"
+    done
+    printf "%s" "$SESSION_NAME" > "$SESSION_FILE"
     # Keep the PTY alive for integration tests, but exit on signals so
     # proc.kill() cleans up reliably.
     trap 'exit 0' TERM INT HUP
@@ -68,7 +80,16 @@ case "$1" in
     kill "$READER_PID" 2>/dev/null || true
     exit 0
     ;;
-  select-window|new-window|kill-window|rename-window|rename-session|kill-session|set-environment|send-keys|switch-client) exit 0;;
+  switch-client)
+    TARGET=""
+    while [ "$#" -gt 0 ]; do
+      if [ "$1" = "-t" ]; then shift; TARGET="$1"; fi
+      shift || true
+    done
+    ${opts.ignoreSwitchClient ? ':' : '[ -n "$TARGET" ] && printf "%s" "$TARGET" > "$SESSION_FILE"'}
+    exit 0
+    ;;
+  select-window|new-window|kill-window|rename-window|rename-session|kill-session|set-environment|send-keys|refresh-client) exit 0;;
   *) exit 0;;
 esac
 `);
