@@ -267,6 +267,10 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
   return async (req, server) => {
     const remoteIp = server.requestIP(req)?.address || '';
     const method = req.method;
+    const url = new URL(req.url);
+    const pathname = url.pathname;
+
+    const handle = async (): Promise<Response> => {
     if (!config.testMode && !isAllowed(remoteIp, config.allowedIps)) {
       debug(config, `HTTP ${method} ${req.url} from ${remoteIp} - rejected (IP)`);
       return new Response('Forbidden', { status: 403 });
@@ -295,9 +299,6 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
     }
 
     debug(config, `HTTP ${method} ${req.url} from ${remoteIp}`);
-
-    const url = new URL(req.url);
-    const pathname = url.pathname;
 
     if (pathname === '/api/fonts') {
       if (method !== 'GET') return new Response(null, { status: 405 });
@@ -584,5 +585,12 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
     }
 
     return new Response(makeHtml(), { headers: { 'Content-Type': 'text/html' } });
+    };
+
+    const response = await handle();
+    if (pathname.startsWith('/api/')) {
+      debug(config, `API ${method} ${pathname} from ${remoteIp} -> ${response.status}`);
+    }
+    return response;
   };
 }
