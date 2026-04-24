@@ -19,7 +19,15 @@ describe("bundled themes", () => {
     expect(scene!.css).toBe("scene.css");
     expect(scene!.defaultColours).toBe("Dracula");
     expect(scene!.defaultFont).toBe("mOsOul Nerd Font");
+    expect(scene!.defaultFontSize).toBe(18.5);
+    expect(scene!.defaultSpacing).toBe(1.1);
     expect(scene!.defaultTuiBgOpacity).toBe(70);
+
+    const amiga = themes.find(theme => theme.name === "AmigaOS 3.1");
+    expect(amiga).toBeDefined();
+    expect(amiga!.defaultFont).toBe("Topaz8 Amiga1200 Nerd Font");
+    expect(amiga!.defaultFontSize).toBe(18.5);
+    expect(amiga!.defaultSpacing).toBe(1.05);
 
     const fonts = listFonts(packs);
     expect(fonts).toContainEqual({
