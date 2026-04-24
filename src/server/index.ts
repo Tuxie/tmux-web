@@ -164,8 +164,12 @@ function resolveEmbeddedTmux(): string | null {
 
     if (stale) {
       fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-      fs.copyFileSync(src, dest);
-      fs.chmodSync(dest, 0o755);
+      // Bun compiles `with { type: "file" }` imports to paths under
+      // `/$bunfs/…` — a virtual FS that is read-only via Bun-aware APIs.
+      // `fs.copyFileSync` does NOT understand bunfs and fails with ENOENT,
+      // so round-trip through readFileSync + writeFileSync (both bunfs-
+      // aware) to get the bytes out.
+      fs.writeFileSync(dest, fs.readFileSync(src), { mode: 0o755 });
       // Stamp dest with src's mtime so the comparison is stable on the next run.
       fs.utimesSync(dest, srcStat.atime, srcStat.mtime);
     }

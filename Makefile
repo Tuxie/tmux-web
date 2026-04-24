@@ -141,18 +141,22 @@ $(STAMPDIR)/libevent: vendor/libevent/config.h | $(STAMPDIR)
 	touch $@
 
 $(STAMPDIR)/utf8proc: vendor/utf8proc/utf8proc.c | $(STAMPDIR)
-	cd vendor/utf8proc && $(MAKE) -j libutf8proc.a prefix="$(VENDOR_PREFIX)"
-	install -d $(VENDOR_PREFIX)/lib $(VENDOR_PREFIX)/include
+	cd vendor/utf8proc && $(MAKE) -j libutf8proc.a libutf8proc.pc prefix="$(VENDOR_PREFIX)"
+	install -d $(VENDOR_PREFIX)/lib $(VENDOR_PREFIX)/include $(VENDOR_PREFIX)/lib/pkgconfig
 	install vendor/utf8proc/libutf8proc.a $(VENDOR_PREFIX)/lib/
 	install vendor/utf8proc/utf8proc.h $(VENDOR_PREFIX)/include/
+	install -m 644 vendor/utf8proc/libutf8proc.pc $(VENDOR_PREFIX)/lib/pkgconfig/
 	touch $@
 
 # jemalloc is intentionally omitted: its malloc/free/realloc symbols conflict
 # with glibc's libc.a when linking a fully static binary (glibc defines them
 # as strong symbols). This is a glibc limitation; jemalloc works fine with
 # dynamic linking or with musl.
-vendor/tmux/config.h: $(STAMPDIR)/libevent $(STAMPDIR)/utf8proc
-	cd vendor/tmux && ./configure \
+vendor/tmux/configure:
+	cd vendor/tmux && ./autogen.sh
+
+vendor/tmux/config.h: vendor/tmux/configure $(STAMPDIR)/libevent $(STAMPDIR)/utf8proc
+	cd vendor/tmux && PKG_CONFIG_PATH="$(VENDOR_PREFIX)/lib/pkgconfig" ./configure \
 	  --enable-static --enable-optimizations \
 	  --enable-utf8proc --enable-sixel \
 	  --prefix="$(VENDOR_PREFIX)" \

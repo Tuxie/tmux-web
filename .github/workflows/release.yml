@@ -59,17 +59,22 @@ jobs:
       contents: read
     strategy:
       matrix:
+        # Each leg runs on a runner whose host arch matches the release
+        # target — required because `make vendor-tmux` (libevent + utf8proc
+        # + tmux) builds a NATIVE binary that gets embedded into the
+        # compiled tmux-web. A host/target mismatch would ship the wrong
+        # arch tmux to users.
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-latest        # x64 host
             target: bun-linux-x64
             name: linux-x64
-          - os: ubuntu-latest
+          - os: ubuntu-24.04-arm     # arm64 host (free for public repos)
             target: bun-linux-arm64
             name: linux-arm64
-          - os: macos-latest
+          - os: macos-13             # Intel x64 host
             target: bun-darwin-x64
             name: darwin-x64
-          - os: macos-latest
+          - os: macos-latest         # arm64 host (Apple Silicon)
             target: bun-darwin-arm64
             name: darwin-arm64
 
@@ -79,14 +84,24 @@ jobs:
         with:
           submodules: true
 
-      # Linux runner only: tmux + inotify-tools are pre-installed on
-      # GitHub's ubuntu-latest image but absent from minimal `act`
-      # containers. Coverage gate on `src/server/file-drop.ts` depends
-      # on inotifywait being probeable. macOS runners skip the
-      # auto-unlink tests via the same probe, which is fine.
-      - name: Install tmux and inotify-tools (linux CI helpers)
+      # Linux runners: tmux + inotify-tools are pre-installed on GitHub's
+      # ubuntu images but absent from minimal `act` containers. Coverage
+      # gate on `src/server/file-drop.ts` depends on inotifywait being
+      # probeable. autoconf/automake/libtool/pkg-config/bison are needed
+      # by `make vendor-tmux` (libevent autogen.sh, tmux configure).
+      - name: Install build deps (linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y tmux inotify-tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tmux inotify-tools \
+            autoconf automake libtool pkg-config bison
+
+      # macOS runners: pkg-config is missing from the default image.
+      # autoconf / automake / libtool / bison are usually pre-installed
+      # via Homebrew but install defensively in case the image rotates.
+      - name: Install build deps (macOS)
+        if: runner.os == 'macOS'
+        run: brew install autoconf automake libtool pkg-config bison
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -95,6 +110,12 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      # Build the vendored static tmux (libevent + utf8proc + tmux) for
+      # the host arch. `generate-assets.ts` only embeds dist/bin/tmux
+      # when present, so this MUST run before the assets step.
+      - name: Build vendored static tmux
+        run: make vendor-tmux
 
       - name: Build frontend and generate assets
         run: |
@@ -127,18 +148,15 @@ jobs:
         if: runner.os == 'macOS'
         run: bun test
 
-      # Post-compile verification: block release if the compiled binary
-      # serves the npm @xterm/xterm bundle instead of vendor/xterm.js.
-      # This has regressed several times; see CLAUDE.md.
-      #
-      # Only runs on legs where the runner arch matches the compiled target
-      # (x64 runner for bun-linux-x64, arm64 runner for bun-darwin-arm64).
-      # The cross-compiled legs produce a binary the runner can't execute;
-      # the sentinel embed check is identical across archs anyway, so one
-      # pass per OS is sufficient.
+      # Post-compile verifications: block release if the compiled binary
+      # is missing the vendor/xterm.js bundle or the embedded vendored
+      # tmux. Each leg now runs on a runner whose host arch matches the
+      # compiled target, so every leg can execute its own binary.
       - name: Verify compiled binary embeds vendor/xterm.js
-        if: matrix.target == 'bun-linux-x64' || matrix.target == 'bun-darwin-arm64'
         run: bun scripts/verify-vendor-xterm.ts ./tmux-web
+
+      - name: Verify compiled binary embeds vendored tmux
+        run: bun scripts/verify-vendor-tmux.ts ./tmux-web
 
       - name: Package release
         run: |
