@@ -27,7 +27,7 @@ and produced no further output for several minutes.
 
 ## Observed State
 
-`pgrep -af 'bun test|make test|playwright|node_modules/.bin/playwright'` showed:
+`pgrep -af 'bun test|make test|playwright'` showed:
 
 - `make test`
 - `bun test --parallel`

@@ -249,7 +249,7 @@ The fix should also keep the existing unit/e2e suite passing:
 ```bash
 bun test tests/unit/server/ws-handle-connection.test.ts
 bun test tests/unit/client/ui/dropdown.test.ts tests/unit/client/ui/topbar-menus.test.ts
-node node_modules/.bin/playwright test tests/e2e/url-session.test.ts
+bun x playwright test tests/e2e/url-session.test.ts
 bun x tsc --noEmit -p tsconfig.json
 bun x tsc --noEmit -p tsconfig.client.json
 ```
