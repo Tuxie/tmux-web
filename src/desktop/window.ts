@@ -9,6 +9,7 @@ interface BrowserWindowConstructor<T extends TmuxTermWindow> {
   new (opts: {
     title: string;
     url: string;
+    titleBarStyle: 'hidden' | 'hiddenInset' | 'default';
     frame: {
       x: number;
       y: number;
@@ -25,6 +26,7 @@ export function openTmuxTermWindow<T extends TmuxTermWindow>(
   const win = new BrowserWindowClass({
     title: 'tmux-term',
     url,
+    titleBarStyle: 'hidden',
     frame: {
       x: 0,
       y: 0,

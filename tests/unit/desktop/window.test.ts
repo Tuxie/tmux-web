@@ -30,6 +30,7 @@ describe('desktop window creation', () => {
     expect(windows[0]!.opts).toEqual({
       title: 'tmux-term',
       url: 'http://127.0.0.1:1234/',
+      titleBarStyle: 'hidden',
       frame: {
         x: 0,
         y: 0,
