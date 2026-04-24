@@ -24,7 +24,7 @@ describe('desktop display work area selection', () => {
       primary.workArea,
     );
 
-    expect(workArea).toEqual(secondary.workArea);
+    expect(workArea).toEqual({ x: 1440, y: 40, width: 1920, height: 1040 });
   });
 
   test('falls back to nearest display center when there is no overlap', () => {
@@ -34,7 +34,7 @@ describe('desktop display work area selection', () => {
       primary.workArea,
     );
 
-    expect(workArea).toEqual(secondary.workArea);
+    expect(workArea).toEqual({ x: 1440, y: 40, width: 1920, height: 1040 });
   });
 
   test('falls back to the primary work area when no displays are available', () => {
@@ -54,7 +54,7 @@ describe('desktop display work area selection', () => {
       primary.workArea,
     );
 
-    expect(workArea).toEqual({ x: 1440, y: 0, width: 1920, height: 1040 });
+    expect(workArea).toEqual({ x: 1440, y: 40, width: 1920, height: 1040 });
   });
 
   test('converts monitor-local workArea coordinates into global coordinates for secondary displays', () => {
