@@ -46,8 +46,9 @@ async function main(): Promise<void> {
     const win = new BrowserWindow({
       title: 'tmux-term',
       url,
-      partition: `tmux-term-${process.pid}`,
       frame: {
+        x: 0,
+        y: 0,
         width: 1200,
         height: 760,
       },
