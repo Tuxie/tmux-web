@@ -13,20 +13,45 @@ export interface Display {
   isPrimary: boolean;
 }
 
-function normalizeWorkArea(display: Display): Rectangle {
+function candidateWorkAreas(display: Display): Rectangle[] {
   const { bounds, workArea } = display;
   const looksGlobal =
     workArea.x >= bounds.x
     && workArea.y >= bounds.y
     && workArea.x + workArea.width <= bounds.x + bounds.width
     && workArea.y + workArea.height <= bounds.y + bounds.height;
-  if (looksGlobal) return workArea;
-  return {
+  if (looksGlobal) return [workArea];
+  const direct = {
     x: bounds.x + workArea.x,
     y: bounds.y + workArea.y,
     width: workArea.width,
     height: workArea.height,
   };
+  const flipped = {
+    x: direct.x,
+    y: bounds.y + bounds.height - workArea.y - workArea.height,
+    width: workArea.width,
+    height: workArea.height,
+  };
+  return direct.y === flipped.y ? [direct] : [direct, flipped];
+}
+
+function originDistanceSquared(a: Rectangle, b: Rectangle): number {
+  return (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
+}
+
+function normalizeWorkArea(display: Display, frame: Rectangle): Rectangle {
+  const candidates = candidateWorkAreas(display);
+  let best = candidates[0]!;
+  let bestDistance = originDistanceSquared(frame, best);
+  for (const candidate of candidates.slice(1)) {
+    const distance = originDistanceSquared(frame, candidate);
+    if (distance < bestDistance) {
+      best = candidate;
+      bestDistance = distance;
+    }
+  }
+  return best;
 }
 
 function overlapArea(a: Rectangle, b: Rectangle): number {
@@ -61,7 +86,7 @@ export function workAreaForFrame(
       bestOverlap = area;
     }
   }
-  if (bestOverlap > 0) return normalizeWorkArea(best);
+  if (bestOverlap > 0) return normalizeWorkArea(best, frame);
 
   best = displays[0]!;
   let bestDistance = centerDistanceSquared(frame, best.bounds);
@@ -72,5 +97,5 @@ export function workAreaForFrame(
       bestDistance = distance;
     }
   }
-  return normalizeWorkArea(best);
+  return normalizeWorkArea(best, frame);
 }
