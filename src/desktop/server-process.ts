@@ -8,6 +8,7 @@ export interface TmuxWebLaunchOptions {
   credentials: DesktopCredentials;
   executableArgs?: string[];
   extraArgs?: string[];
+  testMode?: boolean;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -83,6 +84,7 @@ export function buildTmuxWebLaunch(opts: TmuxWebLaunchOptions): TmuxWebLaunch {
       '--listen',
       '127.0.0.1:0',
       '--no-tls',
+      ...(opts.testMode ? ['--test'] : []),
       ...extraArgs,
     ],
     env: {

@@ -92,6 +92,23 @@ describe('desktop tmux-web launch helpers', () => {
     ]);
   });
 
+  test('buildTmuxWebLaunch appends test mode only from the typed option', () => {
+    const launch = buildTmuxWebLaunch({
+      executable: 'bun',
+      executableArgs: ['src/server/index.ts'],
+      credentials: { username: 'tmux-term-user', password: 'random-secret' },
+      testMode: true,
+    });
+
+    expect(launch.args).toEqual([
+      'src/server/index.ts',
+      '--listen',
+      '127.0.0.1:0',
+      '--no-tls',
+      '--test',
+    ]);
+  });
+
   test('buildTmuxWebLaunch rejects unsafe executable args', () => {
     for (const opts of [
       {
