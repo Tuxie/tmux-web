@@ -9,3 +9,9 @@ describe('index.html does not expose removed backend-selection UI', () => {
     expect(html).not.toContain('id="inp-terminal"');
   });
 });
+
+describe('index.html Electrobun titlebar affordance', () => {
+  it('marks the topbar title as a native window drag region', () => {
+    expect(html).toContain('id="tb-title" class="electrobun-webkit-app-region-drag"');
+  });
+});
