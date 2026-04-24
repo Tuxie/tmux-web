@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { workAreaForFrame, type Display } from '../../../src/desktop/display-workarea.js';
+import { workAreaForFrame, workAreaForPoint, type Display } from '../../../src/desktop/display-workarea.js';
 
 describe('desktop display work area selection', () => {
   const primary: Display = {
@@ -129,6 +129,32 @@ describe('desktop display work area selection', () => {
     };
 
     const workArea = workAreaForFrame(
+      { x: 1111, y: 1450, width: 1200, height: 760 },
+      [macPrimary, macBelow],
+      macPrimary.workArea,
+    );
+
+    expect(workArea).toEqual({ x: 1002, y: 1208, width: 1800, height: 1130 });
+  });
+
+  test('chooses the monitor under the cursor when frame overlap still points at the primary display', () => {
+    const macPrimary: Display = {
+      id: 3,
+      bounds: { x: 0, y: 0, width: 3840, height: 2160 },
+      workArea: { x: 0, y: 30, width: 3840, height: 2130 },
+      scaleFactor: 1,
+      isPrimary: true,
+    };
+    const macBelow: Display = {
+      id: 1,
+      bounds: { x: 1002, y: 2160, width: 1800, height: 1169 },
+      workArea: { x: 1002, y: 2199, width: 1800, height: 1130 },
+      scaleFactor: 2,
+      isPrimary: false,
+    };
+
+    const workArea = workAreaForPoint(
+      { x: 1500, y: 2600 },
       { x: 1111, y: 1450, width: 1200, height: 760 },
       [macPrimary, macBelow],
       macPrimary.workArea,
