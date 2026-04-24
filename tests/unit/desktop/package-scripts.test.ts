@@ -5,7 +5,7 @@ describe('desktop package scripts', () => {
   test('desktop:dev uses the bundled tmux-web binary path', () => {
     const script = pkg.scripts['desktop:dev'];
 
-    expect(script).toContain('make tmux-web');
+    expect(script).toContain('bun run scripts/build-desktop-prereqs.ts');
     expect(script).toContain('electrobun dev');
     expect(script).not.toContain('TMUX_TERM_TMUX_WEB=./tmux-web');
   });

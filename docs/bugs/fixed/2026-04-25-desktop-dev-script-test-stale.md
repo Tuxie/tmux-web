@@ -31,9 +31,9 @@ Expected to contain: "make tmux-web"
 Received: "bun run scripts/build-desktop-prereqs.ts && electrobun dev"
 ```
 
-## Likely Fix
+## Fix
 
-Update the test to assert the current intended contract: `desktop:dev` should
-run `scripts/build-desktop-prereqs.ts` before `electrobun dev`, and should not
-use the old `TMUX_TERM_TMUX_WEB=./tmux-web` override. Confirm from the recent
-desktop-prereqs implementation before editing the test.
+Updated `tests/unit/desktop/package-scripts.test.ts` to assert the current
+contract: `desktop:dev` runs `scripts/build-desktop-prereqs.ts` before
+`electrobun dev`, and still does not use the old
+`TMUX_TERM_TMUX_WEB=./tmux-web` override.

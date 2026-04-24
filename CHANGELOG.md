@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.9.0-beta1 — 2026-04-25
+
 ### Added
 
 - **`tmux-term` desktop wrapper.** Adds an optional Electrobun desktop app target
@@ -9,6 +11,17 @@
   loopback tmux-web server. The wrapper binds to `127.0.0.1`, uses a random
   per-launch Basic Auth secret, disables TLS for the local hop, and shuts down
   the child server when the desktop window exits.
+
+### Changed
+
+- **`tmux-term` desktop rendering now uses CEF on macOS and Linux.** The native
+  Electrobun webview heavily posterized the Amiga Scene 2000 radial background
+  on macOS; the desktop build now bundles CEF and keeps Chromium GPU rendering
+  enabled on both desktop targets for smoother gradients.
+- **Amiga theme defaults are larger.** AmigaOS 3.1 and Amiga Scene 2000 now
+  default to 18.5 pt terminal text. AmigaOS 3.1 defaults to 1.05 line height
+  and Scene 2000 defaults to 1.1. The AmigaOS 3.1 GUI chrome also uses the
+  larger Topaz size; Scene 2000's GUI chrome is unchanged.
 
 ## 1.8.1 — 2026-04-24
 
