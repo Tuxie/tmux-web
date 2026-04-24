@@ -166,6 +166,11 @@ interface Pending {
 }
 
 const DEFAULT_COMMAND_TIMEOUT_MS = 5_000;
+/** Kill the control client after this many consecutive command timeouts.
+ *  Three timeouts (15 s) with no successful response means the client is
+ *  stuck. Killing it triggers onExit → pool eviction → execFileAsync fallback
+ *  for HTTP callers, and a fresh control client on the next WS attach. */
+const CONSECUTIVE_TIMEOUT_KILL_THRESHOLD = 3;
 
 /** Tmux command-line tokenizer treats whitespace as an argument
  *  separator, so any arg containing a tab/space/newline (e.g. the
@@ -196,6 +201,11 @@ export class ControlClient {
   /** Cmd-ids echoed by tmux that we've already abandoned via timeout —
    *  any %end/%error carrying these ids is dropped. */
   private staleCmdnums = new Set<number>();
+  /** Consecutive command timeouts with no successful response in between.
+   *  When this reaches CONSECUTIVE_TIMEOUT_KILL_THRESHOLD the proc is killed
+   *  so the pool evicts the client and callers get the execFileAsync fallback
+   *  instead of hanging for N × commandTimeoutMs each request. */
+  private consecutiveTimeouts = 0;
   /** Number of upcoming %begin envelopes whose cmd-id should be marked
    *  stale on arrival (rather than assigned to the queue head). Used when
    *  a command times out *before* tmux has echoed its %begin: we don't
@@ -301,6 +311,7 @@ export class ControlClient {
       return;
     }
     if (head.timer) clearTimeout(head.timer);
+    this.consecutiveTimeouts = 0;
     this.queue.shift();
     head.resolve(output);
     this.dispatch();
@@ -314,6 +325,7 @@ export class ControlClient {
       return;
     }
     if (head.timer) clearTimeout(head.timer);
+    this.consecutiveTimeouts = 0;
     this.queue.shift();
     head.reject(new TmuxCommandError(head.args, stderr));
     this.dispatch();
@@ -331,7 +343,22 @@ export class ControlClient {
     else this.pendingStaleBegins++;
     this.queue.shift();
     head.reject(new TmuxCommandError(head.args, 'timeout'));
-    this.dispatch();
+    // Drain the entire backlog immediately. Queued commands were never written
+    // to tmux stdin, so no stale accounting is needed. Failing them now lets
+    // every HTTP caller fall back to execFileAsync within one timeout window
+    // instead of waiting N × commandTimeoutMs for each to be dispatched and
+    // time out in turn — the root cause of the sessions-menu 502 regression.
+    const backlog = this.queue.splice(0);
+    for (const p of backlog) p.reject(new TmuxCommandError(p.args, 'timeout'));
+    this.consecutiveTimeouts++;
+    if (this.consecutiveTimeouts >= CONSECUTIVE_TIMEOUT_KILL_THRESHOLD) {
+      // Client is stuck (N sequential dispatched-command timeouts with no
+      // success). Kill the proc so onExit fires and evicts this client from
+      // the pool; the next WebSocket attach will spawn a fresh one.
+      this.proc.kill();
+      return;
+    }
+    // Queue is empty after the drain; next run() will dispatch fresh.
   }
 
   private onExit(): void {

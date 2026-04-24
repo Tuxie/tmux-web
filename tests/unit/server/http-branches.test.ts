@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import { startTestServer, tmuxControlFromBin, type Harness } from './_harness/spawn-server.ts';
+import { TmuxCommandError, type TmuxControl } from '../../../src/server/tmux-control.ts';
 import { createHttpHandler, type HttpHandler } from '../../../src/server/http.ts';
 import { writeDrop, type DropStorage } from '../../../src/server/file-drop.ts';
 import { callHandler } from './_harness/call-handler.ts';
@@ -208,6 +209,57 @@ describe('http branches — harness-based', () => {
     const r = await httpReq(h.url + '/api/windows?session=main', { method: 'DELETE' });
     expect(r.status).toBe(405);
   });
+
+  // Regression: previously only NoControlClientError triggered the execFileAsync
+  // fallback; a stuck control client throwing TmuxCommandError('timeout') caused
+  // the endpoint to return [] (empty) instead of real session/window data, and
+  // ultimately an empty reply from the Bun server after the timeouts stacked up.
+
+  test.skipIf(process.platform !== 'linux')(
+    'GET /api/sessions falls back to execFileAsync when control client throws TmuxCommandError',
+    async () => {
+      // Script outputs one parseable session line; $0 in single-quotes is literal.
+      const script = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'tw-fake-tmux-')), 'tmux');
+      fs.writeFileSync(script, "#!/bin/sh\nprintf '$0:Fallback\\n'\n", { mode: 0o755 });
+
+      const stuckControl: TmuxControl = {
+        attachSession: async () => {},
+        detachSession: () => {},
+        run: () => Promise.reject(new TmuxCommandError(['list-sessions', '-F', '...'], 'timeout')),
+        on: () => () => {},
+        close: async () => {},
+      };
+
+      h = await startTestServer({ tmuxBin: script, tmuxControl: stuckControl });
+      const r = await httpReq(h.url + '/api/sessions');
+      expect(r.status).toBe(200);
+      const j = await r.json();
+      expect(Array.isArray(j)).toBe(true);
+      // execFileAsync path was used — must return real data, not an empty list.
+      expect(j).toEqual([{ id: '0', name: 'Fallback' }]);
+    },
+  );
+
+  test.skipIf(process.platform !== 'linux')(
+    'GET /api/windows falls back to execFileAsync when control client throws TmuxCommandError',
+    async () => {
+      const script = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'tw-fake-tmux-')), 'tmux');
+      fs.writeFileSync(script, "#!/bin/sh\nprintf '2\\tfallback-win\\t1\\n'\n", { mode: 0o755 });
+
+      const stuckControl: TmuxControl = {
+        attachSession: async () => {},
+        detachSession: () => {},
+        run: () => Promise.reject(new TmuxCommandError(['list-windows', '-t', 'main', '-F', '...'], 'timeout')),
+        on: () => () => {},
+        close: async () => {},
+      };
+
+      h = await startTestServer({ tmuxBin: script, tmuxControl: stuckControl });
+      const r = await httpReq(h.url + '/api/windows?session=main');
+      expect(r.status).toBe(200);
+      expect(await r.json()).toEqual([{ index: '2', name: 'fallback-win', active: true }]);
+    },
+  );
 
   test('GET /api/terminal-versions returns JSON object', async () => {
     h = await startTestServer();

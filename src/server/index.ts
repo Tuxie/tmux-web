@@ -175,7 +175,64 @@ function resolveEmbeddedTmux(): string | null {
   }
 }
 
+/** Find the first `tmux` in $PATH that is not our own executable. */
+function findTmuxInPath(): string | null {
+  let selfReal: string;
+  try { selfReal = fs.realpathSync(process.execPath); } catch { selfReal = process.execPath; }
+  for (const dir of (process.env.PATH ?? '').split(':')) {
+    const candidate = path.join(dir, 'tmux');
+    try {
+      if (fs.realpathSync(candidate) !== selfReal) return candidate;
+    } catch { /* not found or inaccessible */ }
+  }
+  return null;
+}
+
+// Options that consume the next token as their value (no = form).
+const STRING_OPTS = new Set([
+  '--listen', '-l', '--allow-ip', '-i', '--allow-origin', '-o',
+  '--username', '-u', '--password', '-p',
+  '--tls-cert', '--tls-key', '--tmux', '--tmux-conf', '--themes-dir', '--theme',
+]);
+
+/** Return the index of a bare `tmux` positional in args (skipping option values). */
+function findTmuxSubcommandIndex(args: string[]): number {
+  let skipNext = false;
+  for (let i = 0; i < args.length; i++) {
+    if (skipNext) { skipNext = false; continue; }
+    const arg = args[i]!;
+    if (arg === 'tmux') return i;
+    if (arg.startsWith('-') && !arg.includes('=') && STRING_OPTS.has(arg)) skipNext = true;
+  }
+  return -1;
+}
+
+/** Extract the value of --tmux / --tmux=<path> from a slice of args. */
+function extractTmuxBinArg(args: string[]): string | undefined {
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--tmux' && i + 1 < args.length) return args[i + 1];
+    if (args[i]?.startsWith('--tmux=')) return args[i]!.slice('--tmux='.length);
+  }
+}
+
 async function startServer() {
+  // "tmux" passthrough subcommand: `tmux-web [--tmux /alt/bin] tmux [tmux-args…]`
+  // Everything after the bare `tmux` word is forwarded to the tmux binary.
+  // --tmux before the subcommand selects which binary; otherwise bundled → PATH.
+  const rawArgs = process.argv.slice(2);
+  const tmuxSubIdx = findTmuxSubcommandIndex(rawArgs);
+  if (tmuxSubIdx !== -1) {
+    const forwardArgs = rawArgs.slice(tmuxSubIdx + 1);
+    const explicitBin = extractTmuxBinArg(rawArgs.slice(0, tmuxSubIdx));
+    const tmuxBin = explicitBin ?? resolveEmbeddedTmux() ?? findTmuxInPath();
+    if (!tmuxBin) {
+      console.error('tmux-web: cannot find a tmux binary to proxy to');
+      process.exit(1);
+    }
+    const result = Bun.spawnSync([tmuxBin, ...forwardArgs], { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit' });
+    process.exit(result.exitCode ?? 1);
+  }
+
   // Check before parseConfig so we can detect CLI password usage before it's
   // merged into config (env var vs CLI flag indistinguishable afterwards).
   const argvHasPassword = process.argv.some(
@@ -467,6 +524,10 @@ Options:
       }
       return handler(req, srv);
     },
+    error(err) {
+      console.error('[http-error]', err);
+      return new Response('Internal Server Error', { status: 500 });
+    },
     websocket: ws.websocket,
   });
 
@@ -475,6 +536,25 @@ Options:
 }
 
 if (import.meta.main) {
+  // When invoked as plain "tmux" (symlink/rename), proxy to the bundled tmux
+  // binary unless the first argument is "web", which means run tmux-web.
+  const isCompiled = !process.execPath.endsWith('bun') && !process.execPath.endsWith('bun.exe');
+  const selfName = path.basename(isCompiled ? process.execPath : (process.argv[1] ?? process.execPath));
+  if (selfName === 'tmux') {
+    const args = process.argv.slice(2);
+    if (args[0] !== 'web') {
+      const tmuxBin = resolveEmbeddedTmux() ?? findTmuxInPath();
+      if (!tmuxBin) {
+        console.error('tmux-web: cannot find a tmux binary to proxy to');
+        process.exit(1);
+      }
+      const result = Bun.spawnSync([tmuxBin, ...args], { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit' });
+      process.exit(result.exitCode ?? 1);
+    }
+    // Strip the "web" subcommand so the rest of argv looks like tmux-web was called directly.
+    process.argv.splice(2, 1);
+  }
+
   startServer().catch(err => {
     console.error(err);
     process.exit(1);

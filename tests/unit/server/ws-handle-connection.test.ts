@@ -673,6 +673,61 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
 
     o.ws.close();
   }, 15000);
+
+  test('windows populated even when shell passthrough title corrupts state.lastSession', async () => {
+    // Regression: with `allow-passthrough on`, the shell may send an OSC
+    // title like `user@host: ~` AFTER tmux's own set-titles output. The last
+    // title wins in processData → detectedSession='user@host' →
+    // state.lastSession='user@host'. attachSession.then(sendWindowState) then
+    // calls list-windows -t user@host which fails → windows:[]. Fix: use the
+    // immutable `session` captured from the URL, not state.lastSession.
+    const { path: tmuxBin, dir } = makeFakeTmux();
+    // Two OSC titles in sequence: tmux's set-titles first, shell passthrough last.
+    // processData iterates with /g and detectedSession = last match = 'user@host'.
+    fs.writeFileSync(dir + '/trigger', '\x1b]0;main:1 bash\x07\x1b]0;user@host: ~\x07');
+
+    // Gate attachSession so it resolves AFTER the title fires (400ms > 150ms trigger).
+    let resolveAttach!: () => void;
+    const attachDone = new Promise<void>(r => { resolveAttach = r; });
+
+    const tmuxControl: TmuxControl = {
+      attachSession: async () => { await attachDone; },
+      detachSession: () => {},
+      run: async (args) => {
+        // Only honour list-windows for the real session 'main', not the corrupted 'user@host'.
+        if (args[0] === 'list-windows' && args[2] === 'main') return '1\tbash\t1\n';
+        if (args[0] === 'display-message') return '';
+        throw new Error(`no session: ${args[2] ?? '?'}`);
+      },
+      on: () => () => {},
+      close: async () => {},
+    };
+
+    h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
+    const o = openWs(h.wsUrl);
+    await o.opened;
+
+    // Wait past the 150ms trigger delay so PTY title fires before attach resolves.
+    await new Promise(r => setTimeout(r, 400));
+
+    // Title has fired; state.lastSession may now be 'user@host' (corrupted).
+    // No windows frame with real data should have arrived yet.
+    expect(o.messages.some(raw => {
+      try { const p = JSON.parse(raw); return Array.isArray(p.windows) && p.windows.length > 0; }
+      catch { return false; }
+    })).toBe(false);
+
+    // Resolve attach — server must use the URL session ('main'), not state.lastSession.
+    resolveAttach();
+
+    const got = await waitForMsg(o.messages, m => Array.isArray(m.windows) && m.windows.length > 0, 3000);
+    expect(got).toBeTruthy();
+    expect(got.session).toBe('main');
+    expect(got.windows).toHaveLength(1);
+    expect(got.windows[0]).toMatchObject({ index: '1', name: 'bash', active: true });
+
+    o.ws.close();
+  }, 15000);
 });
 
 /** Shared mock builder for switchSession race/leak tests. Stalls

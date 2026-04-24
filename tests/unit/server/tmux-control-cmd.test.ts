@@ -173,6 +173,82 @@ describe('ControlClient', () => {
     expect(await p).toBe('window-data');
   });
 
+  test('head timeout immediately drains the entire backlog (regression: N queued callers each waited N×5s)', async () => {
+    // When multiple HTTP requests pile up behind a stuck control client, only
+    // the head command is dispatched. On head timeout the backlog must be
+    // rejected immediately — not after N × commandTimeoutMs — so every caller
+    // falls back to execFileAsync within one timeout window.
+    const { proc } = makeStdio();
+    const client = new ControlClient(proc as any, () => {}, { commandTimeoutMs: 20 });
+
+    const results = await Promise.allSettled([
+      client.run(['cmd-1']),
+      client.run(['cmd-2']),
+      client.run(['cmd-3']),
+      client.run(['cmd-4']),
+      client.run(['cmd-5']),
+    ]);
+
+    // All five must be rejected with 'timeout', not 'control client exited'.
+    for (const r of results) {
+      expect(r.status).toBe('rejected');
+      expect((r as PromiseRejectedResult).reason).toMatchObject({ stderr: 'timeout' });
+    }
+    // Only 1 head dispatch timed out — below kill threshold of 3.
+    expect(client.isAlive()).toBe(true);
+  });
+
+  test('kills proc after 3 consecutive single-command timeouts with no successful response', async () => {
+    // Circuit-breaker: after CONSECUTIVE_TIMEOUT_KILL_THRESHOLD (3) consecutive
+    // dispatched-command timeouts the client kills its proc so the pool evicts
+    // it and callers can fall through to execFileAsync. Each command is run
+    // alone so it is actually dispatched (backlog drain doesn't count).
+    const { proc } = makeStdio();
+    let killed = false;
+    const origKill = proc.kill;
+    proc.kill = () => { killed = true; origKill(); };
+    const client = new ControlClient(proc as any, () => {}, { commandTimeoutMs: 10 });
+
+    await Promise.allSettled([client.run(['cmd-a'])]);
+    expect(killed).toBe(false);
+    await Promise.allSettled([client.run(['cmd-b'])]);
+    expect(killed).toBe(false);
+    await Promise.allSettled([client.run(['cmd-c'])]);
+    expect(killed).toBe(true);
+  });
+
+  test('resets consecutive timeout count after a successful response', async () => {
+    // The circuit-breaker counter must return to zero when a command succeeds,
+    // so intermittent slowness does not permanently kill a healthy client.
+    const { proc, stdout } = makeStdio();
+    let killed = false;
+    const origKill = proc.kill;
+    proc.kill = () => { killed = true; origKill(); };
+    const client = new ControlClient(proc as any, () => {}, { commandTimeoutMs: 10 });
+
+    // 2 timeouts (below the kill threshold of 3)
+    await expect(client.run(['a'])).rejects.toMatchObject({ stderr: 'timeout' });
+    // Drain the pendingStaleBegins left by cmd-a's timeout so subsequent
+    // %begin frames are attributed correctly (mirrors the existing timeout test).
+    stdout.emit('%begin 1 1 0\nlate-a\n%end 1 1 0\n');
+    await expect(client.run(['b'])).rejects.toMatchObject({ stderr: 'timeout' });
+    stdout.emit('%begin 1 2 0\nlate-b\n%end 1 2 0\n');
+
+    // One successful response — resets consecutiveTimeouts to 0.
+    const succ = client.run(['c']);
+    await Promise.resolve(); // let dispatch() write to stdin
+    stdout.emit('%begin 1 3 0\nok\n%end 1 3 0\n');
+    await expect(succ).resolves.toBe('ok');
+
+    // 2 more timeouts — counter is back at 2, still below threshold.
+    await expect(client.run(['d'])).rejects.toMatchObject({ stderr: 'timeout' });
+    stdout.emit('%begin 1 4 0\nlate-d\n%end 1 4 0\n');
+    await expect(client.run(['e'])).rejects.toMatchObject({ stderr: 'timeout' });
+
+    expect(killed).toBe(false);
+    expect(client.isAlive()).toBe(true);
+  });
+
   test('buildControlSpawnArgs forces UTF-8 via -u (regression: LANG=C parents made tmux replace tabs and non-ASCII with "_")', () => {
     // Without `-u`, tmux autodetects UTF-8 from LC_ALL / LC_CTYPE / LANG.
     // A bun process started with LANG=C (systemd units, login shells with

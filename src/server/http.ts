@@ -28,7 +28,7 @@ import { sendBytesToPane } from './tmux-inject.js';
 import { formatBracketedPasteForDrop } from './drop-paste.js';
 import { sanitizeSession } from './pty.js';
 import { execFileAsync } from './exec.js';
-import { NoControlClientError, type TmuxControl } from './tmux-control.js';
+import { type TmuxControl } from './tmux-control.js';
 import pkg from '../../package.json' with { type: 'json' };
 
 export interface HttpHandlerOptions {
@@ -343,18 +343,14 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
       let stdout: string;
       try {
         stdout = await opts.tmuxControl.run(['list-sessions', '-F', '#{session_id}:#{session_name}']);
-      } catch (err) {
-        if (err instanceof NoControlClientError) {
-          // Cold path: no control client yet (first page load before any
-          // WS tab is open). Fall back to execFileAsync — one fork-per-op
-          // here is acceptable since it's a one-time-per-boot path.
-          try {
-            const r = await execFileAsync(config.tmuxBin, ['list-sessions', '-F', '#{session_id}:#{session_name}']);
-            stdout = r.stdout;
-          } catch {
-            return new Response('[]', { headers: JSON_HEADERS });
-          }
-        } else {
+      } catch {
+        // Control client unavailable or stuck (NoControlClientError / TmuxCommandError).
+        // Fall back to execFileAsync so a stuck control client never causes
+        // the sessions menu to return an empty list or hang.
+        try {
+          const r = await execFileAsync(config.tmuxBin, ['list-sessions', '-F', '#{session_id}:#{session_name}']);
+          stdout = r.stdout;
+        } catch {
           return new Response('[]', { headers: JSON_HEADERS });
         }
       }
@@ -372,19 +368,23 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
     if (pathname === '/api/windows') {
       if (method !== 'GET') return new Response(null, { status: 405 });
       const sess = url.searchParams.get('session') || 'main';
-      try {
-        // Tab-separated — see matching comment in ws.ts sendWindowState.
-        const stdout = await opts.tmuxControl.run([
-          'list-windows', '-t', sess, '-F',
-          '#{window_index}\t#{window_name}\t#{window_active}',
-        ]);
-        const windows = stdout.trim().split('\n').filter(Boolean).map(line => {
+      const LIST_WINDOWS_ARGS = ['list-windows', '-t', sess, '-F', '#{window_index}\t#{window_name}\t#{window_active}'] as const;
+      const parseWindows = (raw: string) =>
+        raw.trim().split('\n').filter(Boolean).map(line => {
           const [index, name, active] = line.split('\t');
           return { index, name, active: active === '1' };
         });
-        return new Response(JSON.stringify(windows), { headers: JSON_HEADERS });
+      try {
+        // Tab-separated — see matching comment in ws.ts sendWindowState.
+        const stdout = await opts.tmuxControl.run(LIST_WINDOWS_ARGS);
+        return new Response(JSON.stringify(parseWindows(stdout)), { headers: JSON_HEADERS });
       } catch {
-        return new Response('[]', { headers: JSON_HEADERS });
+        try {
+          const r = await execFileAsync(config.tmuxBin, LIST_WINDOWS_ARGS);
+          return new Response(JSON.stringify(parseWindows(r.stdout)), { headers: JSON_HEADERS });
+        } catch {
+          return new Response('[]', { headers: JSON_HEADERS });
+        }
       }
     }
 

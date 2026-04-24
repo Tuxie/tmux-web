@@ -802,3 +802,70 @@ describe('session button: click and menu interactions', () => {
     expect(switched).not.toContain('archived');
   });
 });
+
+// ─── stopped→running session switch flow ─────────────────────────────────────
+
+describe('sessions menu: click-to-start-and-switch flow', () => {
+  beforeEach(() => { _resetSessionStore(); });
+
+  it('clicking a stopped session calls onSwitchSession; after switch both sessions appear running; switching back and clicking the formerly-stopped session again is immediate', async () => {
+    const switched: string[] = [];
+    const t = await mountTopbar({ session: 'main' });
+    (t as any).opts.onSwitchSession = (name: string) => switched.push(name);
+
+    // Initial state: 'main' is running tmux session; 'work' is stored but not running.
+    _resetSessionStore({ sessions: { work: {} as any } });
+    (t as any).cachedSessions = [{ id: '1', name: 'main' }];
+
+    // ── Open 1: menu shows 'main' running, 'work' stopped ──────────────────
+    const close = () => {};
+    let menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, close);
+    let rows = sessionRows(menu);
+
+    expect(statusDot(rowByName(rows, 'main')).className).toContain('running');
+    expect(statusDot(rowByName(rows, 'work')).className).toContain('stopped');
+    expect(rowByName(rows, 'work').className).not.toContain('current');
+
+    // Click 'work' → onSwitchSession fires.
+    rowByName(rows, 'work').click();
+    expect(switched).toEqual(['work']);
+
+    // Caller (index.ts in production) updates the URL and reconnects the
+    // WebSocket. Simulate that: push new pathname and report both sessions
+    // as running (the server started 'work' on attach).
+    t.updateSession('work');
+    (t as any).cachedSessions = [{ id: '1', name: 'main' }, { id: '2', name: 'work' }];
+
+    // ── Open 2: both sessions running; 'work' is now current ───────────────
+    menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, close);
+    rows = sessionRows(menu);
+
+    expect(rows.length).toBe(2);
+    expect(statusDot(rowByName(rows, 'main')).className).toContain('running');
+    expect(statusDot(rowByName(rows, 'work')).className).toContain('running');
+    // No stopped-session delete button on either row.
+    expect(deleteBtn(rowByName(rows, 'main'))).toBeNull();
+    expect(deleteBtn(rowByName(rows, 'work'))).toBeNull();
+    expect(rowByName(rows, 'work').className).toContain('current');
+    expect(rowByName(rows, 'main').className).not.toContain('current');
+
+    // Click 'main' → switch back.
+    rowByName(rows, 'main').click();
+    expect(switched).toEqual(['work', 'main']);
+    t.updateSession('main');
+
+    // ── Open 3: 'work' still running, now non-current; click is immediate ──
+    menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, close);
+    rows = sessionRows(menu);
+
+    expect(statusDot(rowByName(rows, 'work')).className).toContain('running');
+    expect(rowByName(rows, 'work').className).not.toContain('current');
+    expect(rowByName(rows, 'main').className).toContain('current');
+
+    rowByName(rows, 'work').click();
+    expect(switched).toEqual(['work', 'main', 'work']);
+  });
+});
