@@ -23,7 +23,32 @@ export interface ListeningEndpoint {
   origin: string;
 }
 
+const FORBIDDEN_EXTRA_ARGS = new Set([
+  '--listen',
+  '-l',
+  '--no-auth',
+  '--username',
+  '-u',
+  '--password',
+  '-p',
+  '--tls',
+  '--tls-cert',
+  '--tls-key',
+]);
+
+function validateExtraArgs(extraArgs: string[]): void {
+  for (const arg of extraArgs) {
+    const flag = arg.startsWith('-') ? (arg.split('=', 1)[0] ?? arg) : arg;
+    if (FORBIDDEN_EXTRA_ARGS.has(flag)) {
+      throw new Error(`tmux-web desktop extra arg is not allowed: ${flag}`);
+    }
+  }
+}
+
 export function buildTmuxWebLaunch(opts: TmuxWebLaunchOptions): TmuxWebLaunch {
+  const extraArgs = opts.extraArgs ?? [];
+  validateExtraArgs(extraArgs);
+
   return {
     cmd: opts.executable,
     args: [
@@ -31,7 +56,7 @@ export function buildTmuxWebLaunch(opts: TmuxWebLaunchOptions): TmuxWebLaunch {
       '--listen',
       '127.0.0.1:0',
       '--no-tls',
-      ...(opts.extraArgs ?? []),
+      ...extraArgs,
     ],
     env: {
       ...(opts.env ?? process.env),

@@ -89,6 +89,23 @@ describe('desktop tmux-web launch helpers', () => {
     ]);
   });
 
+  test('buildTmuxWebLaunch rejects security-sensitive extra args', () => {
+    for (const extraArgs of [
+      ['--no-auth'],
+      ['--listen', '0.0.0.0:0'],
+      ['--password=secret'],
+      ['-p', 'secret'],
+    ]) {
+      expect(() =>
+        buildTmuxWebLaunch({
+          executable: '/opt/tmux-term/tmux-web',
+          credentials,
+          extraArgs,
+        }),
+      ).toThrow('not allowed');
+    }
+  });
+
   test('parseTmuxWebListeningLine accepts loopback http lines', () => {
     expect(
       parseTmuxWebListeningLine('tmux-web listening on http://127.0.0.1:38123'),
