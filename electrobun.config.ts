@@ -26,8 +26,11 @@ export default {
       },
     },
     linux: {
-      bundleCEF: false,
-      defaultRenderer: 'native',
+      bundleCEF: true,
+      defaultRenderer: 'cef',
+      chromiumFlags: {
+        'disable-gpu': false,
+      },
     },
   },
   scripts: {
