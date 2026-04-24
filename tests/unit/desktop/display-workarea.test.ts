@@ -46,4 +46,29 @@ describe('desktop display work area selection', () => {
 
     expect(workArea).toEqual(primary.workArea);
   });
+
+  test('keeps global workArea coordinates when the chosen display already reports global positioning', () => {
+    const workArea = workAreaForFrame(
+      { x: 1500, y: 100, width: 900, height: 600 },
+      [primary, secondary],
+      primary.workArea,
+    );
+
+    expect(workArea).toEqual({ x: 1440, y: 0, width: 1920, height: 1040 });
+  });
+
+  test('converts monitor-local workArea coordinates into global coordinates for secondary displays', () => {
+    const localSecondary: Display = {
+      ...secondary,
+      workArea: { x: 0, y: 0, width: 1920, height: 1040 },
+    };
+
+    const workArea = workAreaForFrame(
+      { x: 1500, y: 100, width: 900, height: 600 },
+      [primary, localSecondary],
+      primary.workArea,
+    );
+
+    expect(workArea).toEqual({ x: 1440, y: 0, width: 1920, height: 1040 });
+  });
 });

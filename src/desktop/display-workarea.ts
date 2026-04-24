@@ -13,6 +13,22 @@ export interface Display {
   isPrimary: boolean;
 }
 
+function normalizeWorkArea(display: Display): Rectangle {
+  const { bounds, workArea } = display;
+  const looksGlobal =
+    workArea.x >= bounds.x
+    && workArea.y >= bounds.y
+    && workArea.x + workArea.width <= bounds.x + bounds.width
+    && workArea.y + workArea.height <= bounds.y + bounds.height;
+  if (looksGlobal) return workArea;
+  return {
+    x: bounds.x + workArea.x,
+    y: bounds.y + workArea.y,
+    width: workArea.width,
+    height: workArea.height,
+  };
+}
+
 function overlapArea(a: Rectangle, b: Rectangle): number {
   const left = Math.max(a.x, b.x);
   const right = Math.min(a.x + a.width, b.x + b.width);
@@ -45,7 +61,7 @@ export function workAreaForFrame(
       bestOverlap = area;
     }
   }
-  if (bestOverlap > 0) return best.workArea;
+  if (bestOverlap > 0) return normalizeWorkArea(best);
 
   best = displays[0]!;
   let bestDistance = centerDistanceSquared(frame, best.bounds);
@@ -56,5 +72,5 @@ export function workAreaForFrame(
       bestDistance = distance;
     }
   }
-  return best.workArea;
+  return normalizeWorkArea(best);
 }
