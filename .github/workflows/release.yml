@@ -71,7 +71,7 @@ jobs:
           - os: ubuntu-24.04-arm     # arm64 host (free for public repos)
             target: bun-linux-arm64
             name: linux-arm64
-          - os: macos-13             # Intel x64 host
+          - os: macos-26-intel       # Intel x64 host (macos-13 was retired)
             target: bun-darwin-x64
             name: darwin-x64
           - os: macos-latest         # arm64 host (Apple Silicon)
