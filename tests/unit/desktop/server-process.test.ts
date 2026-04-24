@@ -76,6 +76,30 @@ describe('desktop tmux-web launch helpers', () => {
     expect(launch.env.PATH).toBe('/usr/bin');
   });
 
+  test('buildTmuxWebLaunch pins desktop sessions to the normal tmux-web store', () => {
+    const launch = buildTmuxWebLaunch({
+      executable: '/opt/tmux-term/tmux-web',
+      credentials,
+      env: { HOME: '/Users/per', PATH: '/bin' },
+    });
+
+    expect(launch.env.TMUX_WEB_SESSIONS_FILE).toBe('/Users/per/.config/tmux-web/sessions.json');
+  });
+
+  test('buildTmuxWebLaunch preserves explicit sessions store override', () => {
+    const launch = buildTmuxWebLaunch({
+      executable: '/opt/tmux-term/tmux-web',
+      credentials,
+      env: {
+        HOME: '/Users/per',
+        PATH: '/bin',
+        TMUX_WEB_SESSIONS_FILE: '/tmp/custom-sessions.json',
+      },
+    });
+
+    expect(launch.env.TMUX_WEB_SESSIONS_FILE).toBe('/tmp/custom-sessions.json');
+  });
+
   test('buildTmuxWebLaunch supports running the server through bun', () => {
     const launch = buildTmuxWebLaunch({
       executable: 'bun',

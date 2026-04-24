@@ -1,4 +1,5 @@
 import type { Subprocess } from 'bun';
+import path from 'node:path';
 import type { DesktopCredentials } from './auth.js';
 
 type TmuxWebProcess = Subprocess<'ignore', 'pipe', 'pipe'>;
@@ -71,9 +72,15 @@ function validateExtraArgs(extraArgs: string[]): void {
   }
 }
 
+function defaultSessionsFile(env: NodeJS.ProcessEnv): string {
+  const configHome = env.XDG_CONFIG_HOME || path.join(env.HOME ?? '', '.config');
+  return path.join(configHome, 'tmux-web', 'sessions.json');
+}
+
 export function buildTmuxWebLaunch(opts: TmuxWebLaunchOptions): TmuxWebLaunch {
   const executableArgs = opts.executableArgs ?? [];
   const extraArgs = opts.extraArgs ?? [];
+  const baseEnv = opts.env ?? process.env;
   validateExecutableArgs(opts.executable, executableArgs);
   validateExtraArgs(extraArgs);
 
@@ -88,7 +95,8 @@ export function buildTmuxWebLaunch(opts: TmuxWebLaunchOptions): TmuxWebLaunch {
       ...extraArgs,
     ],
     env: {
-      ...(opts.env ?? process.env),
+      ...baseEnv,
+      TMUX_WEB_SESSIONS_FILE: baseEnv.TMUX_WEB_SESSIONS_FILE ?? defaultSessionsFile(baseEnv),
       TMUX_WEB_USERNAME: opts.credentials.username,
       TMUX_WEB_PASSWORD: opts.credentials.password,
     },
