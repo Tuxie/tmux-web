@@ -280,6 +280,7 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
       .replace('<!-- __CONFIG__ -->', `<script>window.__TMUX_WEB_CONFIG = ${JSON.stringify(clientConfig)}</script>`)
       .replace('__XTERM_CSS__', clientUrl('/dist/client/xterm.css'))
       .replace('__BASE_CSS__', clientUrl('/dist/client/base.css'))
+      .replace('__DEFAULT_THEME_CSS__', clientUrl('/themes/default/default.css'))
       .replace('__BUNDLE__', clientUrl('/dist/client/xterm.js'));
   };
 

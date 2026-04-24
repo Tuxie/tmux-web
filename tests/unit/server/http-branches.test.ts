@@ -587,7 +587,7 @@ describe('http branches — direct handler (fake req/res)', () => {
         tmuxConf: '',
         auth: { enabled: true, username: 'tmux-term-user', password: 'p@ss/w:rd' },
       } as any,
-      htmlTemplate: '<html><link href="__XTERM_CSS__"><link href="__BASE_CSS__"><!-- __CONFIG__ --><script src="__BUNDLE__"></script></html>',
+      htmlTemplate: '<html><link href="__XTERM_CSS__"><link href="__BASE_CSS__"><link href="__DEFAULT_THEME_CSS__"><!-- __CONFIG__ --><script src="__BUNDLE__"></script></html>',
       distDir: tmp,
       themesUserDir: tmp,
       themesBundledDir: tmp,
@@ -608,6 +608,7 @@ describe('http branches — direct handler (fake req/res)', () => {
     expect(r.body).toContain('"clientAuthToken":"client-token"');
     expect(r.body).toContain('/dist/client/xterm.css?tw_auth=client-token');
     expect(r.body).toContain('/dist/client/base.css?tw_auth=client-token');
+    expect(r.body).toContain('/themes/default/default.css?tw_auth=client-token');
     expect(r.body).toContain('/dist/client/xterm.js?tw_auth=client-token');
   });
 
