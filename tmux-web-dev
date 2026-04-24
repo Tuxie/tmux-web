@@ -31,7 +31,6 @@ rebuild_if_needed() {
      find src/client src/shared bun-build.ts -newer "$MARKER" | grep -q .; then
     echo "[tmux-web-dev] rebuilding client..." >&2
     bun run bun-build.ts
-    cp node_modules/@xterm/xterm/css/xterm.css dist/client/xterm.css
   fi
   local assets="src/server/assets-embedded.ts"
   if [ ! -f "$assets" ] || \
