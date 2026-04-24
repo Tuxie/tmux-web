@@ -9,7 +9,7 @@ import { handleClipboard } from './ui/clipboard.js';
 import { showClipboardPrompt } from './ui/clipboard-prompt.js';
 import { installFileDropHandler } from './ui/file-drop.js';
 import { showToast, formatBytes } from './ui/toast.js';
-import { consumeBootErrors } from './boot-errors.js';
+import { consumeBootErrorDetails, consumeBootErrors } from './boot-errors.js';
 import { installAuthenticatedFetch } from './auth-fetch.js';
 import { clientLog } from './client-log.js';
 import { installDropsPanel } from './ui/drops-panel.js';
@@ -80,8 +80,10 @@ async function main() {
   // written by `recordBootError` — the toast only exists so a user
   // without devtools open notices the degraded state.
   const bootErrors = consumeBootErrors();
+  const bootErrorDetails = consumeBootErrorDetails();
   if (bootErrors.length > 0) {
     const unique = [...new Set(bootErrors)];
+    clientLog('boot-errors ' + bootErrorDetails.join(' | '));
     showToast(
       'Failed to load some UI data (' + unique.join(', ') + ') — settings menu may be incomplete.',
       { variant: 'error', durationMs: 6000 },

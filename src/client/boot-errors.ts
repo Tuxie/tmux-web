@@ -9,12 +9,20 @@
  */
 
 const errors: string[] = [];
+const details: string[] = [];
+
+function formatDetail(detail: unknown): string {
+  if (detail instanceof Error) return detail.message;
+  if (detail === undefined) return '';
+  return String(detail);
+}
 
 /** Record a boot-time failure under a short label (e.g. 'themes').
- *  The optional `detail` is only used for the console.warn — the
- *  toast path reads the label list via `consumeBootErrors()`. */
+ *  The optional `detail` is used for console.warn and server-side
+ *  debug logging via `consumeBootErrorDetails()`. */
 export function recordBootError(label: string, detail?: unknown): void {
   errors.push(label);
+  details.push(detail === undefined ? label : `${label}: ${formatDetail(detail)}`);
   if (detail !== undefined) console.warn('boot fetch failed:', label, detail);
   else console.warn('boot fetch failed:', label);
 }
@@ -24,5 +32,13 @@ export function recordBootError(label: string, detail?: unknown): void {
 export function consumeBootErrors(): string[] {
   const out = errors.slice();
   errors.length = 0;
+  return out;
+}
+
+/** Read full boot error details and clear that buffer. Intended to
+ *  pair with `consumeBootErrors()` at the end of boot. */
+export function consumeBootErrorDetails(): string[] {
+  const out = details.slice();
+  details.length = 0;
   return out;
 }

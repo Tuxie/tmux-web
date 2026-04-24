@@ -5,6 +5,7 @@ import {
   createCloseOnce,
   startTmuxWebServer,
 } from './server-process.js';
+import { desktopExtraArgs } from './tmux-path.js';
 import { openTmuxTermWindow } from './window.js';
 
 function logDesktop(message: string): void {
@@ -23,25 +24,16 @@ function resolveTmuxWebExecutable(): string {
   return path.resolve(import.meta.dir, '..', 'tmux-web');
 }
 
-function desktopExtraArgs(): string[] {
-  const args: string[] = [];
-  if (process.env.TMUX_TERM_TMUX_BIN) {
-    args.push('--tmux', process.env.TMUX_TERM_TMUX_BIN);
-  }
-  if (process.env.TMUX_TERM_THEMES_DIR) {
-    args.push('--themes-dir', process.env.TMUX_TERM_THEMES_DIR);
-  }
-  return args;
-}
-
 async function main(): Promise<void> {
   const credentials = generateDesktopCredentials();
   const executable = resolveTmuxWebExecutable();
+  const extraArgs = desktopExtraArgs();
   logDesktop(`starting tmux-web: ${executable}`);
+  logDesktop(`tmux-web args: ${extraArgs.join(' ') || '(none)'}`);
   const server = await startTmuxWebServer({
     executable,
     credentials,
-    extraArgs: desktopExtraArgs(),
+    extraArgs,
     onOutput: logTmuxWebOutput,
   });
   logDesktop(`tmux-web ready: ${server.endpoint.origin}`);
@@ -88,7 +80,9 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  console.error(err instanceof Error ? err.stack ?? err.message : String(err));
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().catch((err) => {
+    console.error(err instanceof Error ? err.stack ?? err.message : String(err));
+    process.exit(1);
+  });
+}
