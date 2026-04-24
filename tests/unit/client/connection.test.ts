@@ -264,7 +264,11 @@ describe('Connection.reconnect', () => {
 
 describe('buildWsUrl', () => {
   beforeEach(() => {
-    (globalThis as any).location = { protocol: 'https:', host: 'example.com:4022' };
+    (globalThis as any).location = {
+      protocol: 'https:',
+      host: 'example.com:4022',
+      href: 'https://example.com:4022/',
+    };
   });
 
   it('picks wss:// when location.protocol is https:', () => {
@@ -274,9 +278,24 @@ describe('buildWsUrl', () => {
   });
 
   it('picks ws:// when location.protocol is http:', () => {
-    (globalThis as any).location = { protocol: 'http:', host: '127.0.0.1:4022' };
+    (globalThis as any).location = {
+      protocol: 'http:',
+      host: '127.0.0.1:4022',
+      href: 'http://127.0.0.1:4022/',
+    };
     expect(buildWsUrl('dev', 120, 40)).toBe(
       'ws://127.0.0.1:4022/ws?cols=120&rows=40&session=dev',
+    );
+  });
+
+  it('carries Basic Auth userinfo from the current page URL', () => {
+    (globalThis as any).location = {
+      protocol: 'http:',
+      host: '127.0.0.1:4022',
+      href: 'http://tmux-term-user:p%40ss%2Fw%3Ard@127.0.0.1:4022/',
+    };
+    expect(buildWsUrl('dev', 120, 40)).toBe(
+      'ws://tmux-term-user:p%40ss%2Fw%3Ard@127.0.0.1:4022/ws?cols=120&rows=40&session=dev',
     );
   });
 

@@ -71,5 +71,9 @@ export class Connection {
 
 export function buildWsUrl(session: string, cols: number, rows: number): string {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${location.host}/ws?cols=${cols}&rows=${rows}&session=${encodeURIComponent(session)}`;
+  const current = new URL(location.href);
+  const auth = current.username
+    ? `${current.username}${current.password ? `:${current.password}` : ''}@`
+    : '';
+  return `${protocol}//${auth}${location.host}/ws?cols=${cols}&rows=${rows}&session=${encodeURIComponent(session)}`;
 }
