@@ -12,6 +12,13 @@ VENDOR_CFLAGS   = -I$(VENDOR_PREFIX)/include
 VENDOR_LDFLAGS  = -L$(VENDOR_PREFIX)/lib
 STAMPDIR        = tmp/vendor-stamps
 
+# tmux configure: `--enable-static` is a Linux-only option (passes `-static`
+# to the linker). macOS doesn't support fully static binaries — no static
+# libSystem — and tmux's configure hard-errors out. libevent / utf8proc
+# still link statically on macOS because we only install their `.a` files
+# to $(VENDOR_PREFIX)/lib; only libSystem goes dynamic.
+TMUX_STATIC_FLAG := $(if $(filter Darwin,$(shell uname -s)),,--enable-static)
+
 SRCS_CLIENT := $(shell find src/client src/shared -name "*.ts") bun-build.ts
 SRCS_SERVER := $(shell find src/server src/shared -name "*.ts")
 
@@ -157,7 +164,7 @@ vendor/tmux/configure:
 
 vendor/tmux/config.h: vendor/tmux/configure $(STAMPDIR)/libevent $(STAMPDIR)/utf8proc
 	cd vendor/tmux && PKG_CONFIG_PATH="$(VENDOR_PREFIX)/lib/pkgconfig" ./configure \
-	  --enable-static --enable-optimizations \
+	  $(TMUX_STATIC_FLAG) --enable-optimizations \
 	  --enable-utf8proc --enable-sixel \
 	  --prefix="$(VENDOR_PREFIX)" \
 	  CFLAGS="$(VENDOR_CFLAGS)" LDFLAGS="$(VENDOR_LDFLAGS)"
@@ -169,6 +176,12 @@ $(STAMPDIR)/tmux: vendor/tmux/config.h | $(STAMPDIR)
 dist/bin/tmux: $(STAMPDIR)/tmux
 	install -d dist/bin
 	install -m 755 $(VENDOR_PREFIX)/bin/tmux dist/bin/tmux
+	@# Smoke test: make sure the linker produced a binary that actually
+	@# starts. A missing dylib or unresolved symbol would error here, so
+	@# the pipeline fails at build time rather than shipping a dead tmux
+	@# that crashes the first time a user opens a session.
+	@printf '  SMOKE  dist/bin/tmux -V -> '
+	@dist/bin/tmux -V || { echo "FAIL — dist/bin/tmux did not start; see above"; exit 1; }
 
 vendor-tmux: dist/bin/tmux
 
