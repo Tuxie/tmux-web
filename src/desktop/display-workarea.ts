@@ -56,10 +56,14 @@ function normalizedWorkArea(display: Display, frame: Rectangle): Rectangle {
   const topInsetFromGlobal = workArea.y - bounds.y;
   const yCandidates = uniqueNumbers([
     workArea.y,
+    -workArea.y,
     bounds.y + workArea.y,
+    -(bounds.y + workArea.y),
     bounds.y + bounds.height - topInsetFromGlobal - workArea.height,
+    -(bounds.y + bounds.height - topInsetFromGlobal - workArea.height),
     bounds.y + bounds.height - workArea.y - workArea.height,
-  ]).filter((y) => y >= bounds.y && y + workArea.height <= bounds.y + bounds.height);
+    -(bounds.y + bounds.height - workArea.y - workArea.height),
+  ]).filter((y) => Number.isFinite(y));
 
   return {
     x: pickClosest(frame.x, xCandidates.length > 0 ? xCandidates : [workArea.x]),

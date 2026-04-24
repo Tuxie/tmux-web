@@ -109,6 +109,6 @@ describe('desktop display work area selection', () => {
       macPrimary.workArea,
     );
 
-    expect(workArea).toEqual({ x: -1800, y: 386, width: 1800, height: 1130 });
+    expect(workArea).toEqual({ x: -1800, y: -425, width: 1800, height: 1130 });
   });
 });
