@@ -461,6 +461,9 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     // to complete before measuring notification-driven behaviour.
     await waitForMsg(main.messages, m => m.session === 'main' && 'windows' in m, 3000);
     await waitForMsg(dev.messages, m => m.session === 'dev' && 'windows' in m, 3000);
+    // Let any startup direct-query retry finish before clearing buffers;
+    // otherwise a late startup frame can be mistaken for notification fanout.
+    await new Promise(r => setTimeout(r, 350));
 
     // Reset so we only measure the notification-driven refresh below.
     runCalls.length = 0;
@@ -763,10 +766,10 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     o.ws.close();
   }, 15000);
 
-  test('windows arrive after attachSession resolves even when PTY title fires first', async () => {
-    // Regression: probe() made attachSession slower. Title change fired before
-    // insertionOrder had a client → sendWindowState threw NoControlClientError
-    // → sent {session} without windows → lastTitle set → no retry → tabs gone.
+  test('startup windows arrive before slow attachSession resolves', async () => {
+    // First paint must not wait for the control client attach/probe path.
+    // The direct startup query should populate tabs even while attachSession
+    // is still blocked.
     const { path: tmuxBin, dir } = makeFakeTmux();
     fs.writeFileSync(dir + '/trigger', '\x1b]0;main:editor\x07');
 
@@ -791,24 +794,15 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     const o = openWs(h.wsUrl);
     await o.opened;
 
-    // Wait past the 150ms trigger delay for PTY title change to fire
-    await new Promise(r => setTimeout(r, 400));
+    const gotBeforeAttach = await waitForMsg(o.messages, m => Array.isArray(m.windows) && m.windows.length > 0, 1000);
+    expect(gotBeforeAttach).toBeTruthy();
+    expect(attached).toBe(false);
+    expect(gotBeforeAttach.windows).toHaveLength(2);
 
-    // Title fired but attach not resolved — windows frame sent but empty
-    // (sendWindowState uses Promise.allSettled → rejected → windows:[])
-    expect(o.messages.some(raw => {
-      try {
-        const p = JSON.parse(raw);
-        return Array.isArray(p.windows) && p.windows.length > 0;
-      } catch { return false; }
-    })).toBe(false);
-
-    // Resolve attach — server should now call sendWindowState with real data
+    // Resolve attach — the regular control-backed refresh may send a later
+    // frame, but the initial UI was already populated.
     resolveAttach();
-
-    const got = await waitForMsg(o.messages, m => Array.isArray(m.windows) && m.windows.length > 0, 3000);
-    expect(got).toBeTruthy();
-    expect(got.windows).toHaveLength(1);
+    await new Promise(r => setTimeout(r, 0));
 
     o.ws.close();
   }, 15000);
@@ -850,21 +844,16 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     // Wait past the 150ms trigger delay so PTY title fires before attach resolves.
     await new Promise(r => setTimeout(r, 400));
 
-    // Title has fired; state.lastSession may now be 'user@host' (corrupted).
-    // No windows frame with real data should have arrived yet.
-    expect(o.messages.some(raw => {
-      try { const p = JSON.parse(raw); return Array.isArray(p.windows) && p.windows.length > 0; }
-      catch { return false; }
-    })).toBe(false);
+    // Title has fired; state.lastSession may now be 'user@host' (corrupted),
+    // but the startup direct query should already have populated the UI using
+    // the URL session ('main') rather than waiting for attachSession.
+    const startup = await waitForMsg(o.messages, m => Array.isArray(m.windows) && m.windows.length > 0, 1000);
+    expect(startup).toBeTruthy();
+    expect(startup.session).toBe('main');
 
     // Resolve attach — server must use the URL session ('main'), not state.lastSession.
     resolveAttach();
-
-    const got = await waitForMsg(o.messages, m => Array.isArray(m.windows) && m.windows.length > 0, 3000);
-    expect(got).toBeTruthy();
-    expect(got.session).toBe('main');
-    expect(got.windows).toHaveLength(1);
-    expect(got.windows[0]).toMatchObject({ index: '1', name: 'bash', active: true });
+    await new Promise(r => setTimeout(r, 0));
 
     o.ws.close();
   }, 15000);

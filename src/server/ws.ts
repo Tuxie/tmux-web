@@ -265,6 +265,12 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
   });
 
   if (!config.testMode) {
+    // Do not make the first window tabs wait for the control client attach.
+    // Direct `tmux list-*` calls are cheap and usually succeed as soon as
+    // `new-session -A` has started the PTY client; retry briefly for the
+    // cold-start race where the session is still being created.
+    void sendStartupWindowState(ws, session, opts);
+
     // Pass the WS's cols/rows so the control client's `refresh-client -C`
     // mirrors the sibling PTY client's size — otherwise tmux's
     // `window-size latest` policy briefly resizes the layout to the
@@ -789,6 +795,66 @@ async function getPaneTitle(sessionName: string, opts: WsServerOptions): Promise
     } catch {
       return undefined;
     }
+  }
+}
+
+async function listSessionStateDirect(opts: WsServerOptions): Promise<SessionInfo[] | null> {
+  const args = ['list-sessions', '-F', '#{session_id}:#{session_name}'] as const;
+  try {
+    const { stdout } = await execFileAsync(opts.config.tmuxBin, args);
+    const sessions = stdout.trim().split('\n').filter(Boolean).map((line) => {
+      const [rawId, ...rest] = line.split(':');
+      return { id: (rawId ?? '').replace(/^\$/, ''), name: rest.join(':') };
+    });
+    return sessions.length > 0 ? sessions : null;
+  } catch {
+    return null;
+  }
+}
+
+async function listWindowStateDirect(sessionName: string, opts: WsServerOptions): Promise<WindowInfo[] | null> {
+  const args = ['list-windows', '-t', sessionName, '-F', '#{window_index}\t#{window_name}\t#{window_active}'] as const;
+  try {
+    const { stdout } = await execFileAsync(opts.config.tmuxBin, args);
+    const windows: WindowInfo[] = stdout.trim().split('\n').filter(Boolean).map(line => {
+      const [index, name, active] = line.split('\t');
+      return { index: index!, name: name!, active: active === '1' };
+    });
+    return windows.length > 0 ? windows : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getPaneTitleDirect(sessionName: string, opts: WsServerOptions): Promise<string | undefined> {
+  const args = ['display-message', '-t', sessionName, '-p', '#{pane_title}'] as const;
+  try {
+    return (await execFileAsync(opts.config.tmuxBin, args)).stdout.trim();
+  } catch {
+    return undefined;
+  }
+}
+
+async function sendStartupWindowState(ws: ServerWebSocket<WsData>, sessionName: string, opts: WsServerOptions): Promise<void> {
+  const retryDelays = [0, 25, 75, 150, 300];
+  const startedAt = Date.now();
+  for (const delay of retryDelays) {
+    if (delay > 0) await Bun.sleep(delay);
+    if (ws.readyState !== WS_OPEN) return;
+
+    const [sessions, windows, title] = await Promise.all([
+      listSessionStateDirect(opts),
+      listWindowStateDirect(sessionName, opts),
+      getPaneTitleDirect(sessionName, opts),
+    ]);
+    if (!windows || windows.length === 0) continue;
+
+    const msg: ServerMessage = { session: sessionName, windows };
+    if (sessions && sessions.length > 0) msg.sessions = sessions;
+    if (title !== undefined) msg.title = title;
+    debug(opts.config, `startup window state ready for ${sessionName} in ${Date.now() - startedAt}ms`);
+    ws.send(frameTTMessage(msg));
+    return;
   }
 }
 
