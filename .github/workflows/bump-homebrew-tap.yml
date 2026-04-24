@@ -7,16 +7,32 @@ name: Bump Homebrew tap
 #
 # Requires a repo secret named HOMEBREW_TAP_TOKEN — a fine-grained or
 # classic PAT with `contents: write` on Tuxie/homebrew-tap.
+#
+# NOTE: `release: published` does NOT fire when release.yml creates the
+# release via the default GITHUB_TOKEN — GitHub's anti-loop safeguard
+# suppresses downstream workflow runs triggered by GITHUB_TOKEN events.
+# The primary entry point is now `workflow_call` from release.yml's own
+# `bump-homebrew` job (which runs after the `release` job). The
+# `release: published` trigger stays as a fallback for releases created
+# outside the workflow (e.g. `gh release create` run by a human with
+# their own PAT). `workflow_dispatch` stays for catch-up on past tags.
 
 on:
   release:
     types: [published]
-  # Manual dispatch for catching up after a botched release or testing
-  # the bump logic against an existing tag.
   workflow_dispatch:
     inputs:
       tag:
         description: 'Release tag to bump to (e.g. v1.4.1)'
+        required: true
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Release tag to bump to (e.g. v1.4.1)'
+        required: true
+        type: string
+    secrets:
+      HOMEBREW_TAP_TOKEN:
         required: true
 
 jobs:
@@ -28,7 +44,9 @@ jobs:
       - name: Resolve tag
         id: tag
         run: |
-          TAG="${{ github.event.release.tag_name || github.event.inputs.tag }}"
+          # inputs.tag covers both workflow_dispatch and workflow_call.
+          # github.event.release.tag_name covers the release-published path.
+          TAG="${{ inputs.tag || github.event.release.tag_name }}"
           if [ -z "$TAG" ]; then
             echo "No tag resolved" >&2; exit 1
           fi

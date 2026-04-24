@@ -231,8 +231,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # The Homebrew tap bump lives entirely in `.github/workflows/bump-
-  # homebrew-tap.yml`, triggered by `release: published` (plus a
-  # workflow_dispatch fallback). The inline `homebrew:` job that used
-  # to live here raced the standalone workflow on every tag push —
-  # cluster 13 removed it.
+  # Homebrew tap bump: delegated to the reusable workflow in
+  # .github/workflows/bump-homebrew-tap.yml via workflow_call. Chained
+  # workflow_call invocations run even when the parent was triggered by
+  # GITHUB_TOKEN (unlike `release: published` events, which GitHub
+  # suppresses to prevent infinite loops). `needs: release` means it
+  # only runs after the GitHub release + its assets are live.
+  bump-homebrew:
+    name: Bump Homebrew tap
+    needs: release
+    uses: ./.github/workflows/bump-homebrew-tap.yml
+    with:
+      tag: ${{ github.ref_name }}
+    secrets: inherit
