@@ -1,5 +1,5 @@
 import type { Server as BunServer, ServerWebSocket, WebSocketHandler } from 'bun';
-import type { ServerConfig, WindowInfo } from '../shared/types.js';
+import type { ServerConfig, ServerMessage, WindowInfo } from '../shared/types.js';
 import { processData, frameTTMessage } from './protocol.js';
 import { deliverOsc52Reply } from './osc52-reply.js';
 import { buildPtyCommand, buildPtyEnv, spawnPty, sanitizeSession, type BunPty } from './pty.js';
@@ -239,8 +239,28 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
     }
     if (result.titleChanged && result.detectedTitle !== state.lastTitle) {
       state.lastTitle = result.detectedTitle || '';
-      if (result.detectedSession) state.lastSession = result.detectedSession;
-      void sendWindowState(ws, state.lastSession, opts);
+      // OSC titles are doubly used: tmux's `set-titles` template encodes
+      // `<session>:<window>:<process>` and is the live signal that an
+      // external `switch-client` retargeted the PTY tmux client to a
+      // different session, but a shell with `allow-passthrough on` will
+      // also emit `\x1b]0;user@host:~/p\x07` from its prompt. Trust the
+      // detected session ONLY when the pool already has an attached
+      // control client for it (i.e. it really is one of our tmux
+      // sessions); otherwise just push the title under the registered
+      // session and leave session identity alone.
+      const detected = result.detectedSession;
+      const isKnownSession = !!detected && opts.tmuxControl.hasSession(detected);
+      if (isKnownSession && detected !== state.registeredSession) {
+        // External session change observed. Mutate registeredSession so
+        // subsequent window/clipboard operations target the new session,
+        // and refresh window state for the new context.
+        state.registeredSession = detected!;
+        state.lastSession = detected!;
+        void sendWindowState(ws, detected!, opts);
+      } else {
+        const sessionForFrame = isKnownSession ? detected! : state.registeredSession;
+        ws.send(frameTTMessage({ session: sessionForFrame, title: state.lastTitle }));
+      }
     }
   });
 
@@ -734,17 +754,24 @@ async function sendWindowState(ws: ServerWebSocket<WsData>, sessionName: string,
         'display-message', '-t', sessionName, '-p', '#{pane_title}',
       ]),
     ]);
-    const windows: WindowInfo[] = winResult.status === 'fulfilled'
+    const windows: WindowInfo[] | null = winResult.status === 'fulfilled'
       ? winResult.value.trim().split('\n').filter(Boolean).map(line => {
           const [index, name, active] = line.split('\t');
           return { index: index!, name: name!, active: active === '1' };
         })
-      : [];
+      : null;
     const title = titleResult.status === 'fulfilled'
       ? titleResult.value.trim()
       : undefined;
     if (ws.readyState === WS_OPEN) {
-      ws.send(frameTTMessage({ session: sessionName, windows, title }));
+      // Tmux sessions always have ≥1 window, so an empty list means our
+      // query failed — omit the `windows` field rather than wiping the
+      // client's cached list. The client's message-handler is gated by
+      // `if (msg.windows)` so a missing field is a no-op there.
+      const msg: ServerMessage = { session: sessionName };
+      if (windows && windows.length > 0) msg.windows = windows;
+      if (title !== undefined) msg.title = title;
+      ws.send(frameTTMessage(msg));
     }
   } catch {
     if (ws.readyState === WS_OPEN) {
@@ -782,6 +809,10 @@ async function broadcastWindowsForSession(
       const [index, name, active] = line.split('\t');
       return { index: index!, name: name!, active: active === '1' };
     });
+    // Tmux sessions always have ≥1 window — empty means our query
+    // raced a window-close or hit a transient parse failure. Don't
+    // wipe the client's cached list.
+    if (windows.length === 0) return;
     for (const ws of clients) {
       if (ws.readyState !== WS_OPEN) continue;
       ws.send(frameTTMessage({ session: sessionName, windows }));

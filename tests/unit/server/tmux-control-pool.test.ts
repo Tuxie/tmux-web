@@ -133,6 +133,17 @@ describe('ControlPool', () => {
     await expect(pool.run(['list-sessions'])).rejects.toBeInstanceOf(NoControlClientError);
   });
 
+  test('hasSession reflects fully-attached sessions only', async () => {
+    const spawns: ReturnType<typeof fakeProc>[] = [];
+    const pool = new ControlPool({ spawn: () => { const p = fakeProc(); spawns.push(p); return p.proc; } });
+    expect(pool.hasSession('main')).toBe(false);
+    await attachHappy(pool, 'main', spawns);
+    expect(pool.hasSession('main')).toBe(true);
+    expect(pool.hasSession('other')).toBe(false);
+    pool.detachSession('main');
+    expect(pool.hasSession('main')).toBe(false);
+  });
+
   test('refresh-client uses the cols/rows hint from attachSession (regression: huge default bounced layout to 10000x10000 then back)', async () => {
     const spawns: ReturnType<typeof fakeProc>[] = [];
     const pool = new ControlPool({ spawn: () => { const p = fakeProc(); spawns.push(p); return p.proc; } });

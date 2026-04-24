@@ -336,14 +336,93 @@ describe('ws handleConnection — OSC 52 write + title change from PTY', () => {
     o.ws.close();
   }, 15000);
 
-  test('OSC title change from PTY triggers sendWindowState', async () => {
+  test('OSC title change pushes title under the registered session, never inferring session from the OSC payload', async () => {
+    // Old buggy behaviour: an OSC `\x1b]0;dev:editor\x07` would set
+    // state.lastSession='dev' and trigger a sendWindowState query against
+    // session 'dev'. With shells emitting `\x1b]0;user@host:~\x07` from
+    // their prompt, this clobbered the cached window list (list-windows
+    // -t user@host fails → windows: []). The OSC title is now pushed
+    // as title-only under the immutable URL session.
     const { path: tmuxBin, dir } = makeFakeTmux();
-    fs.writeFileSync(dir + '/trigger', '\x1b]0;dev:editor\x07');
-    h = await startTestServer({ testMode: false, tmuxBin });
+    fs.writeFileSync(dir + '/trigger', '\x1b]0;user@host:~/path\x07');
+    const tmuxControlCalls: string[][] = [];
+    const tmuxControl: TmuxControl = {
+      attachSession: async () => {},
+      detachSession: () => {},
+      run: async (args) => {
+        tmuxControlCalls.push([...args]);
+        if (args[0] === 'list-windows') return '0\teditor\t1\n';
+        if (args[0] === 'display-message') return 'paneTitle';
+        return '';
+      },
+      on: () => () => {},
+      hasSession: () => false,
+      close: async () => {},
+    };
+    h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
     const o = openWs(h.wsUrl);
     await o.opened;
-    const got = await waitForMsg(o.messages, m => m.session === 'dev', 8000);
+    const got = await waitForMsg(o.messages, m => m.title === 'user@host:~/path', 8000);
     expect(got).toBeTruthy();
+    expect(got.session).toBe('main');
+    // No tmuxControl.run was issued against 'user@host'.
+    expect(tmuxControlCalls.some(a => a.includes('user@host'))).toBe(false);
+    o.ws.close();
+  }, 15000);
+
+  test('OSC title naming a known tmux session triggers a real sendWindowState (external switch-client detected)', async () => {
+    // tmux's set-titles output during an external `switch-client` looks like
+    // `\x1b]0;<session>:<window>:<process>\x07`. When the detected session
+    // matches a control-pool entry we *do* want to mutate registeredSession
+    // and refresh the window list — otherwise an external switch (e.g.
+    // tmux's prefix-S) would leave the topbar showing the previous session.
+    const { path: tmuxBin, dir } = makeFakeTmux();
+    fs.writeFileSync(dir + '/trigger', '\x1b]0;dev:1:zsh\x07');
+    const tmuxControl: TmuxControl = {
+      attachSession: async () => {},
+      detachSession: () => {},
+      run: async (args) => {
+        if (args[0] === 'list-windows') return '0\teditor\t1\n';
+        if (args[0] === 'display-message') return 'pane';
+        return '';
+      },
+      on: () => () => {},
+      hasSession: (s) => s === 'main' || s === 'dev',
+      close: async () => {},
+    };
+    h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
+    const o = openWs(h.wsUrl);
+    await o.opened;
+    // Expect a frame for 'dev' (the OSC-detected, validated session) with windows.
+    const got = await waitForMsg(o.messages, m => m.session === 'dev' && Array.isArray(m.windows) && m.windows.length > 0, 8000);
+    expect(got).toBeTruthy();
+    o.ws.close();
+  }, 15000);
+
+  test('sendWindowState omits the windows field when list-windows fails (preserves client cache)', async () => {
+    const { path: tmuxBin } = makeFakeTmux();
+    const tmuxControl: TmuxControl = {
+      attachSession: async () => {},
+      detachSession: () => {},
+      run: async (args) => {
+        if (args[0] === 'list-windows') throw new Error('list-windows: no such session');
+        if (args[0] === 'display-message') return 'a-title';
+        return '';
+      },
+      on: () => () => {},
+      hasSession: () => false,
+      close: async () => {},
+    };
+    h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
+    const o = openWs(h.wsUrl);
+    await o.opened;
+    // Wait for the chained-on-attach sendWindowState to fire and push a frame.
+    const got = await waitForMsg(o.messages, m => m.session === 'main' && m.title === 'a-title', 8000);
+    expect(got).toBeTruthy();
+    // Empty/failed windows result must NOT ship as `windows: []`; the
+    // field must be absent so client.updateWindows() is never called
+    // with an empty array (would wipe the cached list).
+    expect('windows' in got).toBe(false);
     o.ws.close();
   }, 15000);
 });
@@ -370,6 +449,7 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
           if (idx >= 0) arr.splice(idx, 1);
         };
       },
+      hasSession: () => false,
       close: async () => {},
     };
     h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
@@ -429,6 +509,7 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
         return stdout;
       },
       on: () => () => {},
+      hasSession: () => false,
       close: async () => {},
     };
     h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
@@ -487,6 +568,7 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
         return stdout;
       },
       on: () => () => {},
+      hasSession: () => false,
       close: async () => {},
     };
     h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
@@ -701,6 +783,7 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
         return '';
       },
       on: () => () => {},
+      hasSession: () => false,
       close: async () => {},
     };
 
@@ -756,6 +839,7 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
         throw new Error(`no session: ${args[2] ?? '?'}`);
       },
       on: () => () => {},
+      hasSession: () => false,
       close: async () => {},
     };
 
@@ -822,6 +906,7 @@ function makeGatedControl(
       return '';
     },
     on: () => () => {},
+    hasSession: () => false,
     close: async () => {},
   };
   return { tmuxControl, attached, detached };
@@ -846,6 +931,7 @@ describe('ws switchSession — race and leak guards', () => {
         return '';
       },
       on: () => () => {},
+      hasSession: () => false,
       close: async () => {},
     };
 

@@ -23,6 +23,7 @@ export function tmuxControlFromBin(tmuxBin: string): TmuxControl {
       return stdout;
     },
     on: () => () => {},
+    hasSession: () => false,
     close: async () => {},
   };
 }

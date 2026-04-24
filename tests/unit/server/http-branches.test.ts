@@ -227,6 +227,7 @@ describe('http branches — harness-based', () => {
         detachSession: () => {},
         run: () => Promise.reject(new TmuxCommandError(['list-sessions', '-F', '...'], 'timeout')),
         on: () => () => {},
+        hasSession: () => false,
         close: async () => {},
       };
 
@@ -251,6 +252,7 @@ describe('http branches — harness-based', () => {
         detachSession: () => {},
         run: () => Promise.reject(new TmuxCommandError(['list-windows', '-t', 'main', '-F', '...'], 'timeout')),
         on: () => () => {},
+        hasSession: () => false,
         close: async () => {},
       };
 

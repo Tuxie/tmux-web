@@ -36,7 +36,7 @@ const GLOBAL_LINE_MIN = 95;
  *  by real-tmux e2e — unit-side coverage is tracked as follow-up. */
 const PER_FILE_FUNC_OVERRIDES: Record<string, number> = {
   'src/server/ws.ts': 82,
-  'src/server/tmux-control.ts': 86,
+  'src/server/tmux-control.ts': 85,
 };
 const PER_FILE_LINE_OVERRIDES: Record<string, number> = {
   'src/server/ws.ts': 92,

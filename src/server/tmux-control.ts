@@ -139,6 +139,12 @@ export interface TmuxControl {
     event: T,
     cb: (n: Extract<TmuxNotification, { type: T }>) => void,
   ): () => void;
+  /** True when there is a fully-attached control client for `session`.
+   *  Used by ws.ts to validate session names extracted from PTY OSC titles
+   *  before trusting them as session identifiers — shells commonly emit
+   *  `\x1b]0;user@host:~\x07` from their prompt, and an unvalidated split
+   *  would otherwise treat `user@host` as a tmux session. */
+  hasSession(session: string): boolean;
   close(): Promise<void>;
 }
 
@@ -474,6 +480,10 @@ export class ControlPool implements TmuxControl {
     return primary.run(args);
   };
 
+  hasSession(session: string): boolean {
+    return this.clients.has(session);
+  }
+
   on<T extends TmuxNotification['type']>(
     event: T,
     cb: (n: Extract<TmuxNotification, { type: T }>) => void,
@@ -573,6 +583,7 @@ export function createNullTmuxControl(): TmuxControl {
     detachSession: () => {},
     run: () => Promise.reject(new NoControlClientError()),
     on: () => () => {},
+    hasSession: () => false,
     close: async () => {},
   };
 }
