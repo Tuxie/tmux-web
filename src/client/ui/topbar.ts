@@ -59,6 +59,8 @@ import {
   requestDesktopWindowClose,
 } from '../desktop-host.js';
 
+const TITLEBAR_DRAG_RESTORE_THRESHOLD_PX = 4;
+
 export interface TopbarOptions {
   send: (data: string) => void;
   focus: () => void;
@@ -335,9 +337,21 @@ export class Topbar {
       ev.stopPropagation();
       requestDesktopToggleMaximize();
     });
+    let pendingTitleDrag: { x: number; y: number; restored: boolean } | null = null;
     this.tbTitle.addEventListener('mousedown', (ev) => {
       if (ev.button !== 0) return;
+      pendingTitleDrag = { x: ev.clientX, y: ev.clientY, restored: false };
+    });
+    document.addEventListener('mousemove', (ev) => {
+      if (!pendingTitleDrag || pendingTitleDrag.restored) return;
+      const dx = ev.clientX - pendingTitleDrag.x;
+      const dy = ev.clientY - pendingTitleDrag.y;
+      if (Math.hypot(dx, dy) < TITLEBAR_DRAG_RESTORE_THRESHOLD_PX) return;
+      pendingTitleDrag.restored = true;
       notifyDesktopTitlebarDrag();
+    });
+    document.addEventListener('mouseup', () => {
+      pendingTitleDrag = null;
     });
   }
 
