@@ -8,6 +8,7 @@ import {
 } from './server-process.js';
 import { desktopExtraArgs } from './tmux-path.js';
 import { openTmuxTermWindow } from './window.js';
+import { installTmuxTermHostMessages } from './window-host-messages.js';
 
 function logDesktop(message: string): void {
   console.error(`[tmux-term] ${message}`);
@@ -58,6 +59,7 @@ async function main(): Promise<void> {
 
     logDesktop(`opening window: ${server.endpoint.origin}`);
     const win = openTmuxTermWindow(BrowserWindow, url);
+    installTmuxTermHostMessages(win);
     logDesktop('window opened');
 
     win.on('close', () => {

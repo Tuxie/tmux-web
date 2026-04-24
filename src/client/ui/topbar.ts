@@ -53,6 +53,7 @@ import {
   clampTuiSaturation,
 } from '../tui-saturation.js';
 import type { SessionInfo } from '../../shared/types.js';
+import { requestDesktopWindowClose } from '../desktop-host.js';
 
 export interface TopbarOptions {
   send: (data: string) => void;
@@ -320,12 +321,11 @@ export class Topbar {
       }
     });
 
-    // `#btn-session-plus` is the left half of the `[ + | name ]` control.
-    // Intentionally decoupled from the session dropdown: it's reserved for
-    // its own upcoming menu (a separate UI from the sessions list). Keeping
-    // the element in the DOM today so theme CSS and the DOM contract stay
-    // stable while the menu is designed.
-    void btnPlus;
+    btnPlus?.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      requestDesktopWindowClose();
+    });
   }
 
   private setupMenu(): void {
