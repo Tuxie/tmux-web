@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "types": ["node", "bun"]
+  },
+  "include": ["electrobun.config.ts", "src/desktop/electrobun-types.d.ts"],
+  "exclude": ["node_modules", "dist"]
+}
