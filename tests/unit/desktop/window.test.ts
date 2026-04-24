@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { installWindowFrameLogging, openTmuxTermWindow } from '../../../src/desktop/window.js';
+import { openTmuxTermWindow } from '../../../src/desktop/window.js';
 
 describe('desktop window creation', () => {
   test('creates and foregrounds the tmux-term window', () => {
@@ -39,28 +39,5 @@ describe('desktop window creation', () => {
       },
     });
     expect(calls).toEqual(['show', 'focus']);
-  });
-
-  test('logs full frame after move and resize events', () => {
-    const messages: string[] = [];
-    const handlers: Record<string, () => void> = {};
-    const win = {
-      getFrame: () => ({ x: -1200, y: -386, width: 1800, height: 1130 }),
-      on: (event: 'move' | 'resize' | 'close', cb: () => void) => {
-        handlers[event] = cb;
-      },
-    };
-
-    installWindowFrameLogging(win as any, (message) => {
-      messages.push(message);
-    });
-
-    handlers.move?.();
-    handlers.resize?.();
-
-    expect(messages).toEqual([
-      'window-frame move frame={"x":-1200,"y":-386,"width":1800,"height":1130}',
-      'window-frame resize frame={"x":-1200,"y":-386,"width":1800,"height":1130}',
-    ]);
   });
 });

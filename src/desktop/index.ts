@@ -7,9 +7,9 @@ import {
   startTmuxWebServer,
 } from './server-process.js';
 import { desktopExtraArgs } from './tmux-path.js';
-import { installWindowFrameLogging, openTmuxTermWindow } from './window.js';
+import { openTmuxTermWindow } from './window.js';
 import { installTmuxTermHostMessages } from './window-host-messages.js';
-import { debugWorkAreaForFrame, workAreaForFrame } from './display-workarea.js';
+import { workAreaForFrame } from './display-workarea.js';
 
 function logDesktop(message: string): void {
   console.error(`[tmux-term] ${message}`);
@@ -62,20 +62,12 @@ async function main(): Promise<void> {
     const win = openTmuxTermWindow(BrowserWindow, url);
     installTmuxTermHostMessages(
       win,
-      (frame) => {
-        const displays = Screen.getAllDisplays();
-        const primaryWorkArea = Screen.getPrimaryDisplay().workArea;
-        const debug = debugWorkAreaForFrame(frame, displays, primaryWorkArea);
-        logDesktop(`window-geometry selector frame=${JSON.stringify(frame)} debug=${JSON.stringify(debug)} displays=${JSON.stringify(displays)}`);
-        return workAreaForFrame(frame, displays, primaryWorkArea);
-      },
-      (message) => {
-        logDesktop(`window-geometry ${message} displays=${JSON.stringify(Screen.getAllDisplays())}`);
-      },
+      (frame) => workAreaForFrame(
+        frame,
+        Screen.getAllDisplays(),
+        Screen.getPrimaryDisplay().workArea,
+      ),
     );
-    installWindowFrameLogging(win, (message) => {
-      logDesktop(message);
-    });
     logDesktop('window opened');
 
     win.on('close', () => {
