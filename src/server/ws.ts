@@ -1,5 +1,5 @@
 import type { Server as BunServer, ServerWebSocket, WebSocketHandler } from 'bun';
-import type { ServerConfig, ServerMessage, WindowInfo } from '../shared/types.js';
+import type { ServerConfig, ServerMessage, SessionInfo, WindowInfo } from '../shared/types.js';
 import { processData, frameTTMessage } from './protocol.js';
 import { deliverOsc52Reply } from './osc52-reply.js';
 import { buildPtyCommand, buildPtyEnv, spawnPty, sanitizeSession, type BunPty } from './pty.js';
@@ -741,34 +741,71 @@ async function applyColourVariant(
   }
 }
 
+async function listSessionState(opts: WsServerOptions): Promise<SessionInfo[] | null> {
+  const args = ['list-sessions', '-F', '#{session_id}:#{session_name}'] as const;
+  let stdout: string;
+  try {
+    stdout = await opts.tmuxControl.run(args);
+  } catch {
+    try {
+      stdout = (await execFileAsync(opts.config.tmuxBin, args)).stdout;
+    } catch {
+      return null;
+    }
+  }
+  const sessions = stdout.trim().split('\n').filter(Boolean).map((line) => {
+    const [rawId, ...rest] = line.split(':');
+    return { id: (rawId ?? '').replace(/^\$/, ''), name: rest.join(':') };
+  });
+  return sessions.length > 0 ? sessions : null;
+}
+
+async function listWindowState(sessionName: string, opts: WsServerOptions): Promise<WindowInfo[] | null> {
+  const args = ['list-windows', '-t', sessionName, '-F', '#{window_index}\t#{window_name}\t#{window_active}'] as const;
+  let stdout: string;
+  try {
+    stdout = await opts.tmuxControl.run(args);
+  } catch {
+    try {
+      stdout = (await execFileAsync(opts.config.tmuxBin, args)).stdout;
+    } catch {
+      return null;
+    }
+  }
+  const windows: WindowInfo[] = stdout.trim().split('\n').filter(Boolean).map(line => {
+    const [index, name, active] = line.split('\t');
+    return { index: index!, name: name!, active: active === '1' };
+  });
+  return windows.length > 0 ? windows : null;
+}
+
+async function getPaneTitle(sessionName: string, opts: WsServerOptions): Promise<string | undefined> {
+  const args = ['display-message', '-t', sessionName, '-p', '#{pane_title}'] as const;
+  try {
+    return (await opts.tmuxControl.run(args)).trim();
+  } catch {
+    try {
+      return (await execFileAsync(opts.config.tmuxBin, args)).stdout.trim();
+    } catch {
+      return undefined;
+    }
+  }
+}
+
 async function sendWindowState(ws: ServerWebSocket<WsData>, sessionName: string, opts: WsServerOptions): Promise<void> {
   try {
-    // Tab-separated fields — window names can contain any Unicode code
-    // point including `:`, so `\t` is the unambiguous separator (tmux
-    // window names cannot contain `\t`).
-    const [winResult, titleResult] = await Promise.allSettled([
-      opts.tmuxControl.run([
-        'list-windows', '-t', sessionName, '-F', '#{window_index}\t#{window_name}\t#{window_active}',
-      ]),
-      opts.tmuxControl.run([
-        'display-message', '-t', sessionName, '-p', '#{pane_title}',
-      ]),
+    const [sessions, windows, title] = await Promise.all([
+      listSessionState(opts),
+      listWindowState(sessionName, opts),
+      getPaneTitle(sessionName, opts),
     ]);
-    const windows: WindowInfo[] | null = winResult.status === 'fulfilled'
-      ? winResult.value.trim().split('\n').filter(Boolean).map(line => {
-          const [index, name, active] = line.split('\t');
-          return { index: index!, name: name!, active: active === '1' };
-        })
-      : null;
-    const title = titleResult.status === 'fulfilled'
-      ? titleResult.value.trim()
-      : undefined;
     if (ws.readyState === WS_OPEN) {
       // Tmux sessions always have ≥1 window, so an empty list means our
       // query failed — omit the `windows` field rather than wiping the
       // client's cached list. The client's message-handler is gated by
       // `if (msg.windows)` so a missing field is a no-op there.
       const msg: ServerMessage = { session: sessionName };
+      if (sessions && sessions.length > 0) msg.sessions = sessions;
       if (windows && windows.length > 0) msg.windows = windows;
       if (title !== undefined) msg.title = title;
       ws.send(frameTTMessage(msg));

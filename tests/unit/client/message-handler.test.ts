@@ -57,4 +57,23 @@ describe('handleServerData', () => {
     expect(clips).toEqual(['SGVsbG8=']);
     expect(writes).toEqual([]);
   });
+
+  test('routes TT sessions and windows to the topbar', () => {
+    const sessions: unknown[] = [];
+    const windows: unknown[] = [];
+
+    handleServerData('\x00TT:' + JSON.stringify({
+      sessions: [{ id: '1', name: 'main' }],
+      windows: [{ index: '0', name: 'zsh', active: true }],
+    }), {
+      adapter: { write: () => {} },
+      topbar: {
+        updateSessions: (next) => sessions.push(next),
+        updateWindows: (next) => windows.push(next),
+      },
+    });
+
+    expect(sessions).toEqual([[{ id: '1', name: 'main' }]]);
+    expect(windows).toEqual([[{ index: '0', name: 'zsh', active: true }]]);
+  });
 });

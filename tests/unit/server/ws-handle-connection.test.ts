@@ -399,7 +399,7 @@ describe('ws handleConnection — OSC 52 write + title change from PTY', () => {
     o.ws.close();
   }, 15000);
 
-  test('sendWindowState omits the windows field when list-windows fails (preserves client cache)', async () => {
+  test('sendWindowState falls back to tmux binary when control list-windows fails', async () => {
     const { path: tmuxBin } = makeFakeTmux();
     const tmuxControl: TmuxControl = {
       attachSession: async () => {},
@@ -419,10 +419,10 @@ describe('ws handleConnection — OSC 52 write + title change from PTY', () => {
     // Wait for the chained-on-attach sendWindowState to fire and push a frame.
     const got = await waitForMsg(o.messages, m => m.session === 'main' && m.title === 'a-title', 8000);
     expect(got).toBeTruthy();
-    // Empty/failed windows result must NOT ship as `windows: []`; the
-    // field must be absent so client.updateWindows() is never called
-    // with an empty array (would wipe the cached list).
-    expect('windows' in got).toBe(false);
+    expect(got.windows).toEqual([
+      { index: '0', name: 'one', active: true },
+      { index: '1', name: 'two', active: false },
+    ]);
     o.ws.close();
   }, 15000);
 });

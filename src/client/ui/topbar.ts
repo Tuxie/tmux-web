@@ -52,6 +52,7 @@ import {
   DEFAULT_TUI_SATURATION,
   clampTuiSaturation,
 } from '../tui-saturation.js';
+import type { SessionInfo } from '../../shared/types.js';
 
 export interface TopbarOptions {
   send: (data: string) => void;
@@ -1064,6 +1065,10 @@ export class Topbar {
     }
     this.cachedWindows = windows.slice();
     this.renderWinTabs();
+  }
+
+  updateSessions(sessions: SessionInfo[]): void {
+    this.cachedSessions = sessions.slice();
   }
 
   updateTitle(title: string): void {

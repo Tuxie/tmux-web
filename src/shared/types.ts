@@ -60,6 +60,11 @@ export interface WindowInfo {
   active: boolean;
 }
 
+export interface SessionInfo {
+  id: string;
+  name: string;
+}
+
 /**
  * Server-to-client out-of-band message.
  * Framed as \x00TT:<json> in the WebSocket data stream.
@@ -67,6 +72,7 @@ export interface WindowInfo {
  */
 export interface ServerMessage {
   session?: string;
+  sessions?: SessionInfo[];
   windows?: WindowInfo[];
   clipboard?: string; // base64-encoded
   title?: string;    // active pane title (shell window title)

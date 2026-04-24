@@ -41,7 +41,7 @@ let activeTheme = 'Default';
 
 export async function listThemes(): Promise<ThemeInfo[]> {
   if (!cachedThemes) {
-    const injected = window.__TMUX_WEB_CONFIG.themes;
+    const injected = window.__TMUX_WEB_CONFIG?.themes;
     if (injected) {
       cachedThemes = injected;
       return cachedThemes;
@@ -65,7 +65,7 @@ export async function listThemes(): Promise<ThemeInfo[]> {
 
 export async function listFonts(): Promise<FontInfo[]> {
   if (!cachedFonts) {
-    const injected = window.__TMUX_WEB_CONFIG.fonts;
+    const injected = window.__TMUX_WEB_CONFIG?.fonts;
     if (injected) {
       cachedFonts = injected;
       return cachedFonts;

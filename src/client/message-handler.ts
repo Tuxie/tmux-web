@@ -1,10 +1,11 @@
-import type { WindowInfo } from '../shared/types.js';
+import type { SessionInfo, WindowInfo } from '../shared/types.js';
 import { extractTTMessages } from './protocol.js';
 
 export interface HandleServerDataOptions {
   adapter: { write(data: string): void };
   topbar: {
     updateSession?(session: string): void;
+    updateSessions?(sessions: SessionInfo[]): void;
     updateWindows?(windows: WindowInfo[]): void;
     updateTitle?(title: string): void;
   };
@@ -22,6 +23,7 @@ export function handleServerData(data: string, opts: HandleServerDataOptions): v
   for (const msg of messages) {
     if (msg.clipboard) opts.onClipboard?.(msg.clipboard);
     if (msg.session) opts.topbar.updateSession?.(msg.session);
+    if (msg.sessions) opts.topbar.updateSessions?.(msg.sessions);
     if (msg.windows) opts.topbar.updateWindows?.(msg.windows);
     if (msg.title !== undefined) opts.topbar.updateTitle?.(String(msg.title ?? ''));
     if (msg.clipboardReadRequest) opts.onClipboardReadRequest?.(msg.clipboardReadRequest);
