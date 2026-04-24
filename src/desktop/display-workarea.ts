@@ -13,6 +13,14 @@ export interface Display {
   isPrimary: boolean;
 }
 
+export interface WorkAreaDebugInfo {
+  displayId: number;
+  displayBounds: Rectangle;
+  selectedWorkArea: Rectangle;
+  xCandidates: number[];
+  yCandidates: number[];
+}
+
 function overlapArea(a: Rectangle, b: Rectangle): number {
   const left = Math.max(a.x, b.x);
   const right = Math.min(a.x + a.width, b.x + b.width);
@@ -46,7 +54,7 @@ function pickClosest(target: number, values: number[]): number {
   return best;
 }
 
-function normalizedWorkArea(display: Display, frame: Rectangle): Rectangle {
+function normalizedWorkAreaDetails(display: Display, frame: Rectangle): WorkAreaDebugInfo {
   const { bounds, workArea } = display;
   const xCandidates = uniqueNumbers([
     workArea.x,
@@ -66,11 +74,21 @@ function normalizedWorkArea(display: Display, frame: Rectangle): Rectangle {
   ]).filter((y) => Number.isFinite(y));
 
   return {
+    displayId: display.id,
+    displayBounds: bounds,
+    xCandidates,
+    yCandidates,
+    selectedWorkArea: {
     x: pickClosest(frame.x, xCandidates.length > 0 ? xCandidates : [workArea.x]),
     y: pickClosest(frame.y, yCandidates.length > 0 ? yCandidates : [workArea.y]),
     width: workArea.width,
     height: workArea.height,
+    },
   };
+}
+
+function normalizedWorkArea(display: Display, frame: Rectangle): Rectangle {
+  return normalizedWorkAreaDetails(display, frame).selectedWorkArea;
 }
 
 export function workAreaForFrame(
@@ -101,4 +119,42 @@ export function workAreaForFrame(
     }
   }
   return normalizedWorkArea(best, frame);
+}
+
+export function debugWorkAreaForFrame(
+  frame: Rectangle,
+  displays: Display[],
+  fallbackWorkArea: Rectangle,
+): WorkAreaDebugInfo {
+  if (displays.length === 0) {
+    return {
+      displayId: -1,
+      displayBounds: fallbackWorkArea,
+      selectedWorkArea: fallbackWorkArea,
+      xCandidates: [fallbackWorkArea.x],
+      yCandidates: [fallbackWorkArea.y],
+    };
+  }
+
+  let best = displays[0]!;
+  let bestOverlap = overlapArea(frame, best.bounds);
+  for (const display of displays.slice(1)) {
+    const area = overlapArea(frame, display.bounds);
+    if (area > bestOverlap) {
+      best = display;
+      bestOverlap = area;
+    }
+  }
+  if (bestOverlap > 0) return normalizedWorkAreaDetails(best, frame);
+
+  best = displays[0]!;
+  let bestDistance = centerDistanceSquared(frame, best.bounds);
+  for (const display of displays.slice(1)) {
+    const distance = centerDistanceSquared(frame, display.bounds);
+    if (distance < bestDistance) {
+      best = display;
+      bestDistance = distance;
+    }
+  }
+  return normalizedWorkAreaDetails(best, frame);
 }

@@ -44,6 +44,7 @@ export function installTmuxTermHostMessages(
 
   const setFrame = (frame: WindowFrame) => {
     win.setFrame(frame.x, frame.y, frame.width, frame.height);
+    log(`afterSetFrame frame=${JSON.stringify(win.getFrame())}`);
   };
 
   const restoreIfMaximized = () => {
