@@ -82,7 +82,6 @@ export class XtermAdapter implements TerminalAdapter {
       allowTransparency: !useSubpixelAA,
       allowProposedApi: true,
       scrollback: 0,
-      // @ts-expect-error: scrollbar is a vendored extension not in @xterm/xterm npm types
       scrollbar: { showScrollbar: false },
       // Opt-in to xterm's built-in Kitty keyboard protocol
       // (https://sw.kovidgoyal.net/kitty/keyboard-protocol/). When

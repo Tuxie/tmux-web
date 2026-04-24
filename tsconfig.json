@@ -14,7 +14,16 @@
     "declarationMap": true,
     "sourceMap": true,
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    "paths": {
+      "@xterm/xterm": ["./vendor/xterm.js/typings/xterm"],
+      "@xterm/addon-fit": ["./vendor/xterm.js/addons/addon-fit/typings/addon-fit"],
+      "@xterm/addon-image": ["./vendor/xterm.js/addons/addon-image/typings/addon-image"],
+      "@xterm/addon-unicode-graphemes": ["./vendor/xterm.js/addons/addon-unicode-graphemes/typings/addon-unicode-graphemes"],
+      "@xterm/addon-web-fonts": ["./vendor/xterm.js/addons/addon-web-fonts/typings/addon-web-fonts"],
+      "@xterm/addon-web-links": ["./vendor/xterm.js/addons/addon-web-links/typings/addon-web-links"],
+      "@xterm/addon-webgl": ["./vendor/xterm.js/addons/addon-webgl/typings/addon-webgl"]
+    }
   },
   "include": ["src/server/**/*.ts", "src/shared/**/*.ts"],
   "exclude": ["node_modules", "dist", "src/server/assets-embedded.ts"]

@@ -63,6 +63,24 @@ describe('XtermAdapter', () => {
         fit = mock(() => {});
       },
     }));
+    mock.module('@xterm/addon-unicode-graphemes', () => ({
+      UnicodeGraphemesAddon: class {},
+    }));
+    mock.module('@xterm/addon-web-links', () => ({
+      WebLinksAddon: class { constructor(_h?: unknown) {} },
+    }));
+    mock.module('@xterm/addon-web-fonts', () => ({
+      WebFontsAddon: class { constructor(_f?: unknown) {} },
+    }));
+    mock.module('@xterm/addon-image', () => ({
+      ImageAddon: class { constructor(_o?: unknown) {} },
+    }));
+    mock.module('@xterm/addon-webgl', () => ({
+      WebglAddon: class {
+        onContextLoss = () => ({ dispose: mock(() => {}) });
+        dispose = mock(() => {});
+      },
+    }));
 
     (globalThis as any).ResizeObserver = class {
       constructor(_cb: () => void) {}
