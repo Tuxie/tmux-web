@@ -83,9 +83,11 @@ function normalizedWorkAreaDetails(display: Display, frame: Rectangle, globalMax
     -(bounds.y + bounds.height - workArea.y - workArea.height),
   ]).filter((y) => Number.isFinite(y));
 
-  const selectedY = frame.y < 0 && Number.isFinite(negativeSpaceCandidate)
-    ? negativeSpaceCandidate
-    : pickY(frame.y, yCandidates.length > 0 ? yCandidates : [workArea.y]);
+  const selectedY = display.isPrimary && frame.y < 0
+    ? workArea.y
+    : !display.isPrimary && frame.y < 0 && Number.isFinite(negativeSpaceCandidate)
+        ? negativeSpaceCandidate
+        : pickY(frame.y, yCandidates.length > 0 ? yCandidates : [workArea.y]);
 
   return {
     displayId: display.id,

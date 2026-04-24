@@ -111,4 +111,29 @@ describe('desktop display work area selection', () => {
 
     expect(workArea).toEqual({ x: -1800, y: -566, width: 1800, height: 1130 });
   });
+
+  test('does not force the negative-space candidate for a slightly off-top window on the primary display', () => {
+    const stackedPrimary: Display = {
+      id: 1,
+      bounds: { x: 0, y: 0, width: 1600, height: 900 },
+      workArea: { x: 0, y: 25, width: 1600, height: 875 },
+      scaleFactor: 1,
+      isPrimary: true,
+    };
+    const stackedBelow: Display = {
+      id: 2,
+      bounds: { x: 0, y: 900, width: 1600, height: 900 },
+      workArea: { x: 0, y: 900, width: 1600, height: 860 },
+      scaleFactor: 1,
+      isPrimary: false,
+    };
+
+    const workArea = workAreaForFrame(
+      { x: 100, y: -10, width: 900, height: 600 },
+      [stackedPrimary, stackedBelow],
+      stackedPrimary.workArea,
+    );
+
+    expect(workArea).toEqual(stackedPrimary.workArea);
+  });
 });
