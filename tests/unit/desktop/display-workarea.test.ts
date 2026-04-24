@@ -163,6 +163,31 @@ describe('desktop display work area selection', () => {
     expect(workArea).toEqual(stackedPrimary.workArea);
   });
 
+  test('prefers the primary display when synthetic bounds create an overlap tie', () => {
+    const stackedPrimary: Display = {
+      id: 1,
+      bounds: { x: 0, y: 0, width: 1600, height: 900 },
+      workArea: { x: 0, y: 25, width: 1600, height: 875 },
+      scaleFactor: 1,
+      isPrimary: true,
+    };
+    const stackedBelow: Display = {
+      id: 2,
+      bounds: { x: 0, y: 900, width: 1600, height: 900 },
+      workArea: { x: 0, y: 900, width: 1600, height: 860 },
+      scaleFactor: 1,
+      isPrimary: false,
+    };
+
+    const workArea = workAreaForFrame(
+      { x: 100, y: 100, width: 900, height: 600 },
+      [stackedBelow, stackedPrimary],
+      stackedPrimary.workArea,
+    );
+
+    expect(workArea).toEqual(stackedPrimary.workArea);
+  });
+
   test('debug selector and real selector agree for a monitor placed above the primary', () => {
     const macPrimary: Display = {
       id: 3,
