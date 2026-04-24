@@ -27,7 +27,7 @@ SRCS_SERVER := $(shell find src/server src/shared -name "*.ts")
 # the binary changes, but the build doesn't hard-require it.
 BUNDLED_TMUX := $(wildcard dist/bin/tmux)
 
-.PHONY: all dev build build-client build-server \
+.PHONY: all dev build build-client build-server tmux-term \
         vendor vendor-tmux \
         test typecheck test-unit test-e2e test-e2e-headed \
         bench fuzz install clean distclean
@@ -50,6 +50,9 @@ build: dist/client/xterm.js
 build-client: dist/client/xterm.js
 
 build-server: tmux-web
+
+tmux-term: tmux-web
+	$(BUN) run desktop:build
 
 # --- Testing ---
 
