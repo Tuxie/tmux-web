@@ -23,6 +23,7 @@ interface WindowFrame {
 }
 
 export type WorkAreaProvider = (frame: WindowFrame) => WindowFrame;
+export type HostMessageLogger = (message: string) => void;
 
 function hostMessageDetail(event: unknown): unknown {
   const detail = (event as { data?: { detail?: unknown } })?.data?.detail;
@@ -37,6 +38,7 @@ function hostMessageDetail(event: unknown): unknown {
 export function installTmuxTermHostMessages(
   win: HostMessageWindow,
   getWorkArea: WorkAreaProvider,
+  log: HostMessageLogger = () => {},
 ): void {
   let preMaximizeFrame: WindowFrame | null = null;
 
@@ -46,6 +48,7 @@ export function installTmuxTermHostMessages(
 
   const restoreIfMaximized = () => {
     if (!preMaximizeFrame) return false;
+    log(`restore frame=${JSON.stringify(preMaximizeFrame)}`);
     setFrame(preMaximizeFrame);
     preMaximizeFrame = null;
     return true;
@@ -58,7 +61,9 @@ export function installTmuxTermHostMessages(
     } else if (isTmuxTermToggleMaximizeMessage(message)) {
       if (!restoreIfMaximized()) {
         preMaximizeFrame = win.getFrame();
-        setFrame(getWorkArea(preMaximizeFrame));
+        const workArea = getWorkArea(preMaximizeFrame);
+        log(`maximize currentFrame=${JSON.stringify(preMaximizeFrame)} workArea=${JSON.stringify(workArea)}`);
+        setFrame(workArea);
       }
     } else if (isTmuxTermTitlebarDragMessage(message)) {
       restoreIfMaximized();

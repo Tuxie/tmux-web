@@ -60,11 +60,17 @@ async function main(): Promise<void> {
 
     logDesktop(`opening window: ${server.endpoint.origin}`);
     const win = openTmuxTermWindow(BrowserWindow, url);
-    installTmuxTermHostMessages(win, (frame) => workAreaForFrame(
-      frame,
-      Screen.getAllDisplays(),
-      Screen.getPrimaryDisplay().workArea,
-    ));
+    installTmuxTermHostMessages(
+      win,
+      (frame) => workAreaForFrame(
+        frame,
+        Screen.getAllDisplays(),
+        Screen.getPrimaryDisplay().workArea,
+      ),
+      (message) => {
+        logDesktop(`window-geometry ${message} displays=${JSON.stringify(Screen.getAllDisplays())}`);
+      },
+    );
     logDesktop('window opened');
 
     win.on('close', () => {
