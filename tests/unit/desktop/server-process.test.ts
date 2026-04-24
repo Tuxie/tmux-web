@@ -67,6 +67,7 @@ describe('desktop tmux-web launch helpers', () => {
       '--listen',
       '127.0.0.1:0',
       '--no-tls',
+      '--debug',
       '--tmux',
       '/usr/bin/tmux',
     ]);
@@ -113,6 +114,7 @@ describe('desktop tmux-web launch helpers', () => {
       '--listen',
       '127.0.0.1:0',
       '--no-tls',
+      '--debug',
     ]);
   });
 
@@ -129,6 +131,7 @@ describe('desktop tmux-web launch helpers', () => {
       '--listen',
       '127.0.0.1:0',
       '--no-tls',
+      '--debug',
       '--test',
     ]);
   });
@@ -178,7 +181,13 @@ describe('desktop tmux-web launch helpers', () => {
           credentials,
           extraArgs,
         }).args,
-      ).toEqual(['--listen', '127.0.0.1:0', '--no-tls', ...extraArgs]);
+      ).toEqual([
+        '--listen',
+        '127.0.0.1:0',
+        '--no-tls',
+        ...(extraArgs.includes('--debug') || extraArgs.includes('-d') ? [] : ['--debug']),
+        ...extraArgs,
+      ]);
     }
   });
 
@@ -346,8 +355,8 @@ describe('desktop tmux-web launch helpers', () => {
     const server = await startTmuxWebServer(
       await bunScriptLaunch(`
         process.stdout.write('tmux-web listening on http://127.0.0.1:38123\\n');
-        process.on('SIGTERM', async () => {
-          await Bun.write(${JSON.stringify(marker)}, 'closed');
+        process.on('SIGTERM', () => {
+          require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'closed');
           process.exit(0);
         });
         setInterval(() => {}, 1_000);

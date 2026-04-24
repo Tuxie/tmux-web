@@ -77,6 +77,10 @@ function defaultSessionsFile(env: NodeJS.ProcessEnv): string {
   return path.join(configHome, 'tmux-web', 'sessions.json');
 }
 
+function debugArgs(extraArgs: string[]): string[] {
+  return extraArgs.includes('--debug') || extraArgs.includes('-d') ? [] : ['--debug'];
+}
+
 export function buildTmuxWebLaunch(opts: TmuxWebLaunchOptions): TmuxWebLaunch {
   const executableArgs = opts.executableArgs ?? [];
   const extraArgs = opts.extraArgs ?? [];
@@ -91,6 +95,7 @@ export function buildTmuxWebLaunch(opts: TmuxWebLaunchOptions): TmuxWebLaunch {
       '--listen',
       '127.0.0.1:0',
       '--no-tls',
+      ...debugArgs(extraArgs),
       ...(opts.testMode ? ['--test'] : []),
       ...extraArgs,
     ],
