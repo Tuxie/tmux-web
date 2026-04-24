@@ -154,7 +154,8 @@ $(STAMPDIR)/libevent: vendor/libevent/config.h | $(STAMPDIR)
 	cd vendor/libevent && $(MAKE) -j install
 	touch $@
 
-$(STAMPDIR)/utf8proc: vendor/utf8proc/utf8proc.c | $(STAMPDIR)
+$(STAMPDIR)/utf8proc: | $(STAMPDIR)
+	git submodule update --init vendor/utf8proc
 	cd vendor/utf8proc && $(MAKE) -j libutf8proc.a libutf8proc.pc prefix="$(VENDOR_PREFIX)"
 	install -d $(VENDOR_PREFIX)/lib $(VENDOR_PREFIX)/include $(VENDOR_PREFIX)/lib/pkgconfig
 	install vendor/utf8proc/libutf8proc.a $(VENDOR_PREFIX)/lib/
