@@ -10,6 +10,7 @@ import { showClipboardPrompt } from './ui/clipboard-prompt.js';
 import { installFileDropHandler } from './ui/file-drop.js';
 import { showToast, formatBytes } from './ui/toast.js';
 import { consumeBootErrors } from './boot-errors.js';
+import { installAuthenticatedFetch } from './auth-fetch.js';
 import { installDropsPanel } from './ui/drops-panel.js';
 import { getTopbarAutohide, getFontSubpixelAA } from './prefs.js';
 import { applyTheme, loadAllFonts, listThemes } from './theme.js';
@@ -56,6 +57,8 @@ declare global {
 
 
 async function main() {
+  installAuthenticatedFetch(window.__TMUX_WEB_CONFIG.wsBasicAuth);
+
   const adapter: TerminalAdapter = new XtermAdapter();
   const container = document.getElementById('terminal')!;
 
