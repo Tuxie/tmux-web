@@ -299,6 +299,17 @@ describe('buildWsUrl', () => {
     );
   });
 
+  it('uses explicit desktop Basic Auth userinfo when location userinfo is absent', () => {
+    (globalThis as any).location = {
+      protocol: 'http:',
+      host: '127.0.0.1:4022',
+      href: 'http://127.0.0.1:4022/',
+    };
+    expect(buildWsUrl('dev', 120, 40, 'tmux-term-user:p%40ss%2Fw%3Ard')).toBe(
+      'ws://tmux-term-user:p%40ss%2Fw%3Ard@127.0.0.1:4022/ws?cols=120&rows=40&session=dev',
+    );
+  });
+
   it('URL-encodes session names with special characters', () => {
     expect(buildWsUrl('my session', 80, 24)).toBe(
       'wss://example.com:4022/ws?cols=80&rows=24&session=my%20session',

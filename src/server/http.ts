@@ -251,7 +251,14 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
   const terminalVersionsCache = getTerminalVersions(opts.projectRoot);
 
   const makeHtml = () => {
-    const clientConfig = { version: pkg.version, ...(config.testMode ? { testMode: true } : {}) };
+    const wsBasicAuth = config.exposeClientAuth && config.auth.username && config.auth.password
+      ? `${encodeURIComponent(config.auth.username)}:${encodeURIComponent(config.auth.password)}`
+      : undefined;
+    const clientConfig = {
+      version: pkg.version,
+      ...(config.testMode ? { testMode: true } : {}),
+      ...(wsBasicAuth ? { wsBasicAuth } : {}),
+    };
     return opts.htmlTemplate
       .replace('<!-- __CONFIG__ -->', `<script>window.__TMUX_WEB_CONFIG = ${JSON.stringify(clientConfig)}</script>`)
       .replace('__BUNDLE__', `/dist/client/xterm.js`);

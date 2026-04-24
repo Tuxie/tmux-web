@@ -122,6 +122,7 @@ export interface ServerConfig {
   tmuxBin: string;
   tmuxConf?: string;
   themesDir?: string;
+  exposeClientAuth?: boolean;
   auth: {
     enabled: boolean;
     username?: string;
@@ -136,4 +137,9 @@ export interface ClientConfig {
    *  window.__twInjectMessage backdoor used by e2e tests to drive the client
    *  without a server round-trip. Absent in production builds. */
   testMode?: boolean;
+  /** Desktop-only Basic Auth userinfo for WebSocket URLs. Normal browser
+   *  deployments do not expose this; tmux-term opts in with per-launch
+   *  random loopback credentials because WebKit strips URL userinfo from
+   *  `location.href` after the HTTP Basic challenge. */
+  wsBasicAuth?: string;
 }

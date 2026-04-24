@@ -326,7 +326,7 @@ async function main() {
   connection = new Connection({
     getUrl: () => {
       const currentSession = location.pathname.replace(/^\/+|\/+$/g, '') || 'main';
-      return buildWsUrl(currentSession, adapter.cols, adapter.rows);
+      return buildWsUrl(currentSession, adapter.cols, adapter.rows, window.__TMUX_WEB_CONFIG.wsBasicAuth);
     },
     onMessage: handleMessage,
     onOpen: () => {

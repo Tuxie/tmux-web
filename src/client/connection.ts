@@ -69,10 +69,12 @@ export class Connection {
   }
 }
 
-export function buildWsUrl(session: string, cols: number, rows: number): string {
+export function buildWsUrl(session: string, cols: number, rows: number, wsBasicAuth?: string): string {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const current = new URL(location.href);
-  const auth = current.username
+  const auth = wsBasicAuth
+    ? `${wsBasicAuth}@`
+    : current.username
     ? `${current.username}${current.password ? `:${current.password}` : ''}@`
     : '';
   return `${protocol}//${auth}${location.host}/ws?cols=${cols}&rows=${rows}&session=${encodeURIComponent(session)}`;

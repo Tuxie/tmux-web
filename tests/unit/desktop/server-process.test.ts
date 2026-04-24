@@ -83,6 +83,7 @@ describe('desktop tmux-web launch helpers', () => {
     expect(launch.args.join(' ')).not.toContain('random-secret');
     expect(launch.env.TMUX_WEB_USERNAME).toBe('tmux-term-user');
     expect(launch.env.TMUX_WEB_PASSWORD).toBe('random-secret');
+    expect(launch.env.TMUX_WEB_EXPOSE_CLIENT_AUTH).toBe('1');
     expect(launch.env.PATH).toBe('/usr/bin');
   });
 

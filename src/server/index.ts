@@ -112,6 +112,7 @@ export function parseConfig(argv: string[]): ConfigResult {
     tmuxConf: args['tmux-conf'] as string | undefined,
     testMode: !!args.test,
     debug: !!args.debug,
+    exposeClientAuth: process.env.TMUX_WEB_EXPOSE_CLIENT_AUTH === '1',
     auth: {
       enabled: authEnabled,
       username,

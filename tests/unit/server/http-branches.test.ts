@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import { startTestServer, tmuxControlFromBin, type Harness } from './_harness/spawn-server.ts';
-import { TmuxCommandError, type TmuxControl } from '../../../src/server/tmux-control.ts';
+import { createNullTmuxControl, TmuxCommandError, type TmuxControl } from '../../../src/server/tmux-control.ts';
 import { createHttpHandler, type HttpHandler } from '../../../src/server/http.ts';
 import { writeDrop, type DropStorage } from '../../../src/server/file-drop.ts';
 import { callHandler } from './_harness/call-handler.ts';
@@ -542,6 +542,43 @@ describe('http branches — direct handler (fake req/res)', () => {
     });
 
     expect(r.status).toBe(200);
+  });
+
+  test('desktop auth handoff injects WebSocket Basic Auth userinfo', async () => {
+    const sessionsStorePath = path.join(tmp, 'sessions.json');
+    fs.writeFileSync(sessionsStorePath, JSON.stringify({ version: 1, sessions: {} }));
+    const h2 = await createHttpHandler({
+      config: {
+        host: '127.0.0.1',
+        port: 4022,
+        allowedIps: new Set(['127.0.0.1']),
+        allowedOrigins: [],
+        tls: false,
+        testMode: false,
+        debug: false,
+        exposeClientAuth: true,
+        tmuxBin: '/bin/true',
+        tmuxConf: '',
+        auth: { enabled: true, username: 'tmux-term-user', password: 'p@ss/w:rd' },
+      } as any,
+      htmlTemplate: '<html><!-- __CONFIG__ --><script src="__BUNDLE__"></script></html>',
+      distDir: tmp,
+      themesUserDir: tmp,
+      themesBundledDir: tmp,
+      projectRoot: tmp,
+      isCompiled: false,
+      sessionsStorePath,
+      dropStorage: storage,
+      tmuxControl: createNullTmuxControl(),
+    });
+    const creds = Buffer.from('tmux-term-user:p@ss/w:rd').toString('base64');
+
+    const r = await callRaw(h2, 'GET', '/', {
+      headers: { Authorization: `Basic ${creds}` },
+    });
+
+    expect(r.status).toBe(200);
+    expect(r.body).toContain('"wsBasicAuth":"tmux-term-user:p%40ss%2Fw%3Ard"');
   });
 
   test('GET /api/session-settings returns current config', async () => {
