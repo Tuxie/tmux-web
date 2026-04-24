@@ -202,7 +202,7 @@ export function debugWorkAreaForPoint(
     && point.x <= display.bounds.x + display.bounds.width
     && point.y <= display.bounds.y + display.bounds.height
   ));
-  if (hit) return debugWorkAreaForFrame(frame, [hit], fallbackWorkArea);
+  if (hit) return normalizedWorkAreaDetails(hit, frame, desktopMaxY(displays));
 
   let best = displays[0]!;
   let bestDistance = centerDistanceSquared(
@@ -219,5 +219,5 @@ export function debugWorkAreaForPoint(
       bestDistance = distance;
     }
   }
-  return debugWorkAreaForFrame(frame, [best], fallbackWorkArea);
+  return normalizedWorkAreaDetails(best, frame, desktopMaxY(displays));
 }
