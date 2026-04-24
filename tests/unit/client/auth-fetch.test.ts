@@ -83,6 +83,23 @@ describe('makeAuthenticatedFetch', () => {
     expect(seenHeaders!.has('Authorization')).toBe(false);
   });
 
+  test('passes absolute credential-free same-origin URLs when page href has userinfo', async () => {
+    let seenUrl = '';
+    const fetch = makeAuthenticatedFetch(
+      ((url) => {
+        seenUrl = String(url);
+        return Promise.resolve(new Response('ok'));
+      }) as typeof globalThis.fetch,
+      'tmux-term-user:secret',
+      { href: 'http://tmux-term-user:secret@127.0.0.1:4022/', origin: 'http://127.0.0.1:4022' },
+      'client-token',
+    );
+
+    await fetch('/api/session-settings');
+
+    expect(seenUrl).toBe('http://127.0.0.1:4022/api/session-settings?tw_auth=client-token');
+  });
+
   test('does not throw in webviews without a global Request constructor', async () => {
     const originalRequest = globalThis.Request;
     try {

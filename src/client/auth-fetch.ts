@@ -16,6 +16,25 @@ function requestUrl(input: RequestInfo | URL): string {
   return String(input);
 }
 
+function pageHrefHasUserinfo(loc: Pick<Location, 'href'>): boolean {
+  try {
+    const pageUrl = new URL(loc.href);
+    return pageUrl.username.length > 0 || pageUrl.password.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function fetchUrl(inputUrl: string, loc: Pick<Location, 'href' | 'origin'>, clientAuthToken?: string): string {
+  const authenticated = withClientAuth(inputUrl, clientAuthToken, loc);
+  if (!pageHrefHasUserinfo(loc)) return authenticated;
+
+  const absolute = new URL(authenticated, loc.origin);
+  absolute.username = '';
+  absolute.password = '';
+  return absolute.href;
+}
+
 export function makeAuthenticatedFetch(
   baseFetch: typeof fetch,
   basicAuthUserinfo: string | undefined,
@@ -31,7 +50,7 @@ export function makeAuthenticatedFetch(
 
     const headers = new Headers(init?.headers ?? (isRequest(input) ? input.headers : undefined));
     if (authHeader && !headers.has('Authorization')) headers.set('Authorization', authHeader);
-    const nextInput = withClientAuth(requestUrl(input), clientAuthToken, loc);
+    const nextInput = fetchUrl(requestUrl(input), { href: loc.href, origin: loc.origin }, clientAuthToken);
 
     return baseFetch(isRequest(input) ? new Request(nextInput, input) : nextInput, { ...init, headers });
   }) as typeof fetch;
