@@ -341,6 +341,12 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
       return new Response(body, { headers: JSON_HEADERS });
     }
 
+    if (pathname === '/api/client-log') {
+      if (method !== 'GET') return new Response(null, { status: 405 });
+      debug(config, `client-log: ${url.searchParams.get('message') ?? ''}`);
+      return new Response(null, { status: 204 });
+    }
+
     if (pathname.startsWith('/themes/')) {
       const rest = pathname.slice('/themes/'.length);
       const slash = rest.indexOf('/');

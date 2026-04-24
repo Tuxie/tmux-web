@@ -627,6 +627,24 @@ describe('http branches — direct handler (fake req/res)', () => {
     expect(rejected.status).toBe(401);
   });
 
+  test('/api/client-log writes debug diagnostics and returns no content', async () => {
+    const h2 = await mkHandler({ debug: true });
+    const lines: string[] = [];
+    const originalWrite = process.stderr.write;
+    process.stderr.write = ((chunk: string | Uint8Array) => {
+      lines.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write;
+    try {
+      const r = await callRaw(h2, 'GET', '/api/client-log?message=boot-fetch%3Astart');
+      expect(r.status).toBe(204);
+    } finally {
+      process.stderr.write = originalWrite;
+    }
+
+    expect(lines.join('')).toContain('client-log: boot-fetch:start');
+  });
+
   test('GET /api/session-settings returns current config', async () => {
     const h2 = await mkHandler();
     const r = await callRaw(h2, 'GET', '/api/session-settings');

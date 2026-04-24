@@ -11,6 +11,7 @@ import { installFileDropHandler } from './ui/file-drop.js';
 import { showToast, formatBytes } from './ui/toast.js';
 import { consumeBootErrors } from './boot-errors.js';
 import { installAuthenticatedFetch } from './auth-fetch.js';
+import { clientLog } from './client-log.js';
 import { installDropsPanel } from './ui/drops-panel.js';
 import { getTopbarAutohide, getFontSubpixelAA } from './prefs.js';
 import { applyTheme, loadAllFonts, listThemes } from './theme.js';
@@ -57,16 +58,22 @@ declare global {
 
 
 async function main() {
+  clientLog('main:start');
   installAuthenticatedFetch(window.__TMUX_WEB_CONFIG.wsBasicAuth);
+  clientLog('fetch:installed');
 
   const adapter: TerminalAdapter = new XtermAdapter();
   const container = document.getElementById('terminal')!;
 
   if (!getTopbarAutohide()) document.body.classList.add('topbar-pinned');
 
+  clientLog('boot-fetch:start');
   const [themes, colours] = await Promise.all([listThemes(), fetchColours()]);
+  clientLog(`boot-fetch:done themes=${themes.length} colours=${colours.length}`);
   await initSessionStore();
+  clientLog('session-store:done');
   await loadAllFonts();
+  clientLog('fonts:done');
 
   // If any of the three boot fetches failed, collapse the labels into
   // one user-visible toast. Individual console.warn entries are already
@@ -473,4 +480,7 @@ async function main() {
   // #menu-dropdown, polling while the settings menu is visible.)
 }
 
-main();
+main().catch((err) => {
+  clientLog(`main:error ${err instanceof Error ? err.message : String(err)}`);
+  throw err;
+});
