@@ -5,6 +5,11 @@ import {
   createCloseOnce,
   startTmuxWebServer,
 } from './server-process.js';
+import { openTmuxTermWindow } from './window.js';
+
+function logDesktop(message: string): void {
+  console.error(`[tmux-term] ${message}`);
+}
 
 function resolveTmuxWebExecutable(): string {
   if (process.env.TMUX_TERM_TMUX_WEB) return process.env.TMUX_TERM_TMUX_WEB;
@@ -24,11 +29,14 @@ function desktopExtraArgs(): string[] {
 
 async function main(): Promise<void> {
   const credentials = generateDesktopCredentials();
+  const executable = resolveTmuxWebExecutable();
+  logDesktop(`starting tmux-web: ${executable}`);
   const server = await startTmuxWebServer({
-    executable: resolveTmuxWebExecutable(),
+    executable,
     credentials,
     extraArgs: desktopExtraArgs(),
   });
+  logDesktop(`tmux-web ready: ${server.endpoint.origin}`);
   const closeServer = createCloseOnce(server.close);
   let intentionalShutdown = false;
   let closingAfterServerExit = false;
@@ -45,16 +53,9 @@ async function main(): Promise<void> {
       credentials,
     });
 
-    const win = new BrowserWindow({
-      title: 'tmux-term',
-      url,
-      frame: {
-        x: 0,
-        y: 0,
-        width: 1200,
-        height: 760,
-      },
-    });
+    logDesktop(`opening window: ${server.endpoint.origin}`);
+    const win = openTmuxTermWindow(BrowserWindow, url);
+    logDesktop('window opened');
 
     win.on('close', () => {
       if (closingAfterServerExit) return;
@@ -80,6 +81,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  console.error(err instanceof Error ? err.message : String(err));
+  console.error(err instanceof Error ? err.stack ?? err.message : String(err));
   process.exit(1);
 });
