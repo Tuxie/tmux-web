@@ -40,4 +40,17 @@ describe('desktop auth helpers', () => {
 
     expect(url).toBe('http://tmux-term-user:p%40ss%2Fw%3Ard@127.0.0.1:41234/');
   });
+
+  test('buildAuthenticatedUrl brackets IPv6 literal hosts', () => {
+    const url = buildAuthenticatedUrl({
+      host: '::1',
+      port: 41234,
+      credentials: {
+        username: 'tmux-term-user',
+        password: 'secret',
+      },
+    });
+
+    expect(url).toBe('http://tmux-term-user:secret@[::1]:41234/');
+  });
 });
