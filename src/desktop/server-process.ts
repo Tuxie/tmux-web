@@ -1,6 +1,8 @@
 import type { Subprocess } from 'bun';
 import type { DesktopCredentials } from './auth.js';
 
+type TmuxWebProcess = Subprocess<'ignore', 'pipe', 'pipe'>;
+
 export interface TmuxWebLaunchOptions {
   executable: string;
   credentials: DesktopCredentials;
@@ -48,7 +50,7 @@ export function parseTmuxWebListeningLine(line: string): ListeningEndpoint | nul
 }
 
 export interface StartedTmuxWebServer {
-  process: Subprocess<'pipe', 'pipe', 'pipe'>;
+  process: TmuxWebProcess;
   endpoint: ListeningEndpoint;
   close: () => Promise<void>;
 }
@@ -71,7 +73,7 @@ function formatOutputTail(name: string, tail: string): string {
 }
 
 function terminateProcess(
-  proc: Subprocess<'pipe', 'pipe', 'pipe'>,
+  proc: TmuxWebProcess,
   signal: 'SIGTERM' | 'SIGKILL' = 'SIGTERM',
 ): void {
   try {
@@ -86,7 +88,7 @@ function terminateProcess(
 }
 
 async function waitForExitWithKill(
-  proc: Subprocess<'pipe', 'pipe', 'pipe'>,
+  proc: TmuxWebProcess,
   graceMs: number,
 ): Promise<void> {
   terminateProcess(proc, 'SIGTERM');

@@ -25,6 +25,6 @@
       "@xterm/addon-webgl": ["./vendor/xterm.js/addons/addon-webgl/typings/addon-webgl"]
     }
   },
-  "include": ["src/server/**/*.ts", "src/shared/**/*.ts"],
+  "include": ["src/server/**/*.ts", "src/shared/**/*.ts", "src/desktop/**/*.ts"],
   "exclude": ["node_modules", "dist", "src/server/assets-embedded.ts"]
 }
