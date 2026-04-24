@@ -65,6 +65,7 @@ function defaultThemes() {
 beforeEach(() => {
   clearCaches();
   setupDom();
+  (globalThis as any).window = { __TMUX_WEB_CONFIG: { version: 'test' } };
   stubFetch((u) => ({
     ok: true,
     json: async () => u.endsWith('/api/themes') ? defaultThemes() : [],
@@ -79,6 +80,33 @@ beforeEach(() => {
 });
 
 describe('theme module', () => {
+  test('listThemes uses injected desktop boot metadata before fetch', async () => {
+    let calls = 0;
+    (globalThis as any).window.__TMUX_WEB_CONFIG.themes = defaultThemes();
+    stubFetch(() => {
+      calls++;
+      return { ok: true, json: async () => [] };
+    });
+    clearCaches();
+
+    expect(await listThemes()).toEqual(defaultThemes());
+    expect(calls).toBe(0);
+  });
+
+  test('listFonts uses injected desktop boot metadata before fetch', async () => {
+    let calls = 0;
+    const fonts = [{ family: 'Injected Font', file: 'font.woff2', pack: 'default' }];
+    (globalThis as any).window.__TMUX_WEB_CONFIG.fonts = fonts;
+    stubFetch(() => {
+      calls++;
+      return { ok: true, json: async () => [] };
+    });
+    clearCaches();
+
+    expect(await listFonts()).toEqual(fonts);
+    expect(calls).toBe(0);
+  });
+
   test('applyTheme injects link tag with correct href', async () => {
     await applyTheme('Default');
     const link = (globalThis as any).__appended.find((n: Link) => n.tagName === 'LINK');

@@ -1,5 +1,9 @@
-import { describe, test, expect } from "bun:test";
+import { beforeEach, describe, test, expect } from "bun:test";
 import { composeBgColor, composeTheme, fetchColours } from "../../../src/client/colours.ts";
+
+beforeEach(() => {
+  (globalThis as any).window = { __TMUX_WEB_CONFIG: { version: 'test' } };
+});
 
 describe("composeBgColor", () => {
   test("applies opacity to #RRGGBB background", () => {

@@ -65,6 +65,8 @@ export function composeTheme(
 }
 
 export async function fetchColours(): Promise<Array<{ name: string; variant?: string; theme: ITheme }>> {
+  const injected = window.__TMUX_WEB_CONFIG.colours;
+  if (injected) return injected;
   const { recordBootError } = await import('./boot-errors.js');
   try {
     const res = await fetch('/api/colours');

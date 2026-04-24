@@ -606,6 +606,9 @@ describe('http branches — direct handler (fake req/res)', () => {
     expect(r.status).toBe(200);
     expect(r.body).toContain('"wsBasicAuth":"tmux-term-user:p%40ss%2Fw%3Ard"');
     expect(r.body).toContain('"clientAuthToken":"client-token"');
+    expect(r.body).toContain('"themes"');
+    expect(r.body).toContain('"fonts"');
+    expect(r.body).toContain('"colours"');
     expect(r.body).toContain('/dist/client/xterm.css?tw_auth=client-token');
     expect(r.body).toContain('/dist/client/base.css?tw_auth=client-token');
     expect(r.body).toContain('/themes/default/default.css?tw_auth=client-token');

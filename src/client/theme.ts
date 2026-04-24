@@ -41,6 +41,11 @@ let activeTheme = 'Default';
 
 export async function listThemes(): Promise<ThemeInfo[]> {
   if (!cachedThemes) {
+    const injected = window.__TMUX_WEB_CONFIG.themes;
+    if (injected) {
+      cachedThemes = injected;
+      return cachedThemes;
+    }
     const { recordBootError } = await import('./boot-errors.js');
     try {
       const response = await fetch('/api/themes');
@@ -60,6 +65,11 @@ export async function listThemes(): Promise<ThemeInfo[]> {
 
 export async function listFonts(): Promise<FontInfo[]> {
   if (!cachedFonts) {
+    const injected = window.__TMUX_WEB_CONFIG.fonts;
+    if (injected) {
+      cachedFonts = injected;
+      return cachedFonts;
+    }
     const { recordBootError } = await import('./boot-errors.js');
     try {
       const response = await fetch('/api/fonts');

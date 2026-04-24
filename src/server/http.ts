@@ -275,6 +275,15 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
       ...(config.testMode ? { testMode: true } : {}),
       ...(wsBasicAuth ? { wsBasicAuth } : {}),
       ...(clientAuthToken ? { clientAuthToken } : {}),
+      ...(config.exposeClientAuth ? { themes: themesCache } : {}),
+      ...(config.exposeClientAuth ? { fonts: fontsCache } : {}),
+      ...(config.exposeClientAuth ? {
+        colours: colourInfos.map(c => ({
+          name: c.name,
+          variant: c.variant,
+          theme: c.theme,
+        })),
+      } : {}),
     };
     return opts.htmlTemplate
       .replace('<!-- __CONFIG__ -->', `<script>window.__TMUX_WEB_CONFIG = ${JSON.stringify(clientConfig)}</script>`)

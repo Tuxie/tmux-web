@@ -7,6 +7,7 @@ function stubFetch(impl: (url: string) => any): void {
 
 beforeEach(() => {
   (globalThis as any).console.warn = () => {};
+  (globalThis as any).window = { __TMUX_WEB_CONFIG: { version: 'test' } };
 });
 
 describe('composeBgColor', () => {
@@ -46,6 +47,19 @@ describe('composeTheme', () => {
 });
 
 describe('fetchColours', () => {
+  it('uses injected desktop boot metadata before fetch', async () => {
+    let calls = 0;
+    const colours = [{ name: 'Injected', theme: { background: '#111' } }];
+    (globalThis as any).window.__TMUX_WEB_CONFIG.colours = colours;
+    stubFetch(() => {
+      calls++;
+      return { ok: true, json: async () => [] };
+    });
+
+    expect(await fetchColours()).toEqual(colours);
+    expect(calls).toBe(0);
+  });
+
   it('returns the server list on ok', async () => {
     stubFetch(() => ({ ok: true, json: async () => [{ name: 'Nord', theme: { background: '#000' } }] }));
     const r = await fetchColours();

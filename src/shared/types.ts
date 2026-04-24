@@ -147,4 +147,36 @@ export interface ClientConfig {
    *  loads that cannot set an Authorization header, such as stylesheet
    *  links and FontFace URLs. */
   clientAuthToken?: string;
+  /** Desktop-only boot metadata. Native WebViews can be inconsistent
+   *  about fetch(), while the initial document config is already proven
+   *  to load. */
+  themes?: Array<{
+    name: string;
+    pack: string;
+    css: string;
+    defaultFont?: string;
+    defaultFontSize?: number;
+    defaultSpacing?: number;
+    defaultColours?: string;
+    defaultOpacity?: number;
+    defaultTuiBgOpacity?: number;
+    defaultTuiFgOpacity?: number;
+    defaultTuiSaturation?: number;
+    defaultFgContrastStrength?: number;
+    defaultFgContrastBias?: number;
+    defaultThemeHue?: number;
+    defaultThemeSat?: number;
+    defaultThemeLtn?: number;
+    defaultThemeContrast?: number;
+    defaultDepth?: number;
+    defaultBackgroundHue?: number;
+    defaultBackgroundSaturation?: number;
+    defaultBackgroundBrightest?: number;
+    defaultBackgroundDarkest?: number;
+    author?: string;
+    version?: string;
+    source: 'user' | 'bundled';
+  }>;
+  fonts?: Array<{ family: string; file: string; pack: string }>;
+  colours?: Array<{ name: string; variant?: string; theme: ITheme }>;
 }
