@@ -57,6 +57,30 @@ make tmux-web
 
 The binary embeds the client bundle, fonts, and default `tmux.conf`. It can be copied to any host with `tmux` installed.
 
+## tmux-term desktop app
+
+`tmux-term` is an optional Electrobun desktop wrapper around tmux-web. It starts
+a private tmux-web server on `127.0.0.1` with a per-launch random Basic Auth
+secret, opens it in a native desktop window, and shuts the server down when the
+window closes.
+
+Local development:
+
+```bash
+bun install
+bun run desktop:dev
+```
+
+Local package build:
+
+```bash
+make tmux-term
+```
+
+The desktop wrapper uses Electrobun's native webview first. Because tmux-web's
+terminal renderer is WebGL-only, macOS and Linux builds must be smoke-tested in
+the native webview before release.
+
 **macOS Users**: Binaries downloaded via a web browser are flagged with a quarantine attribute by macOS Gatekeeper. Because these binaries are not signed with a paid Apple Developer account, macOS may say the file is "damaged" or "cannot be verified". You must remove the quarantine flag before running it:
 ```bash
 xattr -d com.apple.quarantine tmux-web-darwin-*

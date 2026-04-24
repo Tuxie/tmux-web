@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`tmux-term` desktop wrapper.** Adds an optional Electrobun desktop app target
+  that runs the existing tmux-web UI in a native window backed by a private
+  loopback tmux-web server. The wrapper binds to `127.0.0.1`, uses a random
+  per-launch Basic Auth secret, disables TLS for the local hop, and shuts down
+  the child server when the desktop window exits.
+
 ## 1.8.1 — 2026-04-24
 
 Fix two defects in v1.8.0: a release-pipeline bug that made every v1.8.0 archive ship without the embedded tmux, and a long-standing UI race where the windows menu came up empty on cold start. No behaviour changes beyond these fixes; no new features.
