@@ -41,6 +41,10 @@ function uniqueNumbers(values: number[]): number[] {
   return [...new Set(values)];
 }
 
+function desktopMaxY(displays: Display[]): number {
+  return Math.max(...displays.map((display) => display.bounds.y + display.bounds.height));
+}
+
 function pickClosest(target: number, values: number[]): number {
   let best = values[0]!;
   let bestDistance = Math.abs(target - best);
@@ -55,14 +59,10 @@ function pickClosest(target: number, values: number[]): number {
 }
 
 function pickY(target: number, values: number[]): number {
-  if (target < 0) {
-    const negative = values.filter((value) => value < 0);
-    if (negative.length > 0) return Math.max(...negative);
-  }
   return pickClosest(target, values);
 }
 
-function normalizedWorkAreaDetails(display: Display, frame: Rectangle): WorkAreaDebugInfo {
+function normalizedWorkAreaDetails(display: Display, frame: Rectangle, globalMaxY: number): WorkAreaDebugInfo {
   const { bounds, workArea } = display;
   const xCandidates = uniqueNumbers([
     workArea.x,
@@ -70,16 +70,22 @@ function normalizedWorkAreaDetails(display: Display, frame: Rectangle): WorkArea
   ]).filter((x) => x >= bounds.x && x + workArea.width <= bounds.x + bounds.width);
 
   const topInsetFromGlobal = workArea.y - bounds.y;
+  const negativeSpaceCandidate = workArea.y + workArea.height - globalMaxY + topInsetFromGlobal;
   const yCandidates = uniqueNumbers([
     workArea.y,
     -workArea.y,
     bounds.y + workArea.y,
     -(bounds.y + workArea.y),
+    negativeSpaceCandidate,
     bounds.y + bounds.height - topInsetFromGlobal - workArea.height,
     -(bounds.y + bounds.height - topInsetFromGlobal - workArea.height),
     bounds.y + bounds.height - workArea.y - workArea.height,
     -(bounds.y + bounds.height - workArea.y - workArea.height),
   ]).filter((y) => Number.isFinite(y));
+
+  const selectedY = frame.y < 0 && Number.isFinite(negativeSpaceCandidate)
+    ? negativeSpaceCandidate
+    : pickY(frame.y, yCandidates.length > 0 ? yCandidates : [workArea.y]);
 
   return {
     displayId: display.id,
@@ -88,15 +94,11 @@ function normalizedWorkAreaDetails(display: Display, frame: Rectangle): WorkArea
     yCandidates,
     selectedWorkArea: {
       x: pickClosest(frame.x, xCandidates.length > 0 ? xCandidates : [workArea.x]),
-      y: pickY(frame.y, yCandidates.length > 0 ? yCandidates : [workArea.y]),
+      y: selectedY,
       width: workArea.width,
       height: workArea.height,
     },
   };
-}
-
-function normalizedWorkArea(display: Display, frame: Rectangle): Rectangle {
-  return normalizedWorkAreaDetails(display, frame).selectedWorkArea;
 }
 
 export function workAreaForFrame(
@@ -105,6 +107,7 @@ export function workAreaForFrame(
   fallbackWorkArea: Rectangle,
 ): Rectangle {
   if (displays.length === 0) return fallbackWorkArea;
+  const maxY = desktopMaxY(displays);
 
   let best = displays[0]!;
   let bestOverlap = overlapArea(frame, best.bounds);
@@ -115,7 +118,7 @@ export function workAreaForFrame(
       bestOverlap = area;
     }
   }
-  if (bestOverlap > 0) return normalizedWorkArea(best, frame);
+  if (bestOverlap > 0) return normalizedWorkAreaDetails(best, frame, maxY).selectedWorkArea;
 
   best = displays[0]!;
   let bestDistance = centerDistanceSquared(frame, best.bounds);
@@ -126,7 +129,7 @@ export function workAreaForFrame(
       bestDistance = distance;
     }
   }
-  return normalizedWorkArea(best, frame);
+  return normalizedWorkAreaDetails(best, frame, maxY).selectedWorkArea;
 }
 
 export function debugWorkAreaForFrame(
@@ -143,6 +146,7 @@ export function debugWorkAreaForFrame(
       yCandidates: [fallbackWorkArea.y],
     };
   }
+  const maxY = desktopMaxY(displays);
 
   let best = displays[0]!;
   let bestOverlap = overlapArea(frame, best.bounds);
@@ -153,7 +157,7 @@ export function debugWorkAreaForFrame(
       bestOverlap = area;
     }
   }
-  if (bestOverlap > 0) return normalizedWorkAreaDetails(best, frame);
+  if (bestOverlap > 0) return normalizedWorkAreaDetails(best, frame, maxY);
 
   best = displays[0]!;
   let bestDistance = centerDistanceSquared(frame, best.bounds);
@@ -164,5 +168,5 @@ export function debugWorkAreaForFrame(
       bestDistance = distance;
     }
   }
-  return normalizedWorkAreaDetails(best, frame);
+  return normalizedWorkAreaDetails(best, frame, maxY);
 }
