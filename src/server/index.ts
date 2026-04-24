@@ -113,6 +113,7 @@ export function parseConfig(argv: string[]): ConfigResult {
     testMode: !!args.test,
     debug: !!args.debug,
     exposeClientAuth: process.env.TMUX_WEB_EXPOSE_CLIENT_AUTH === '1',
+    clientAuthToken: process.env.TMUX_WEB_CLIENT_AUTH_TOKEN || undefined,
     auth: {
       enabled: authEnabled,
       username,

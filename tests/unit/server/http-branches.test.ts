@@ -528,6 +528,31 @@ describe('http branches — direct handler (fake req/res)', () => {
     expect(r.status).toBe(200);
   });
 
+  test('debug path redacts desktop client auth query tokens', async () => {
+    const h2 = await mkHandler({
+      debug: true,
+      testMode: false,
+      exposeClientAuth: true,
+      clientAuthToken: 'client-token',
+      auth: { enabled: true, username: 'tmux-term-user', password: 'secret' },
+    });
+    const lines: string[] = [];
+    const originalWrite = process.stderr.write;
+    process.stderr.write = ((chunk: string | Uint8Array) => {
+      lines.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write;
+    try {
+      const r = await callRaw(h2, 'GET', '/api/themes?tw_auth=client-token');
+      expect(r.status).toBe(200);
+    } finally {
+      process.stderr.write = originalWrite;
+    }
+
+    expect(lines.join('')).toContain('tw_auth=%3Credacted%3E');
+    expect(lines.join('')).not.toContain('client-token');
+  });
+
   test('loopback Origin uses actual bound port when configured port is zero', async () => {
     const h2 = await mkHandler({
       testMode: false,
@@ -544,7 +569,7 @@ describe('http branches — direct handler (fake req/res)', () => {
     expect(r.status).toBe(200);
   });
 
-  test('desktop auth handoff injects WebSocket Basic Auth userinfo', async () => {
+  test('desktop auth handoff injects WebSocket Basic Auth userinfo and client auth URLs', async () => {
     const sessionsStorePath = path.join(tmp, 'sessions.json');
     fs.writeFileSync(sessionsStorePath, JSON.stringify({ version: 1, sessions: {} }));
     const h2 = await createHttpHandler({
@@ -557,11 +582,12 @@ describe('http branches — direct handler (fake req/res)', () => {
         testMode: false,
         debug: false,
         exposeClientAuth: true,
+        clientAuthToken: 'client-token',
         tmuxBin: '/bin/true',
         tmuxConf: '',
         auth: { enabled: true, username: 'tmux-term-user', password: 'p@ss/w:rd' },
       } as any,
-      htmlTemplate: '<html><!-- __CONFIG__ --><script src="__BUNDLE__"></script></html>',
+      htmlTemplate: '<html><link href="__XTERM_CSS__"><link href="__BASE_CSS__"><!-- __CONFIG__ --><script src="__BUNDLE__"></script></html>',
       distDir: tmp,
       themesUserDir: tmp,
       themesBundledDir: tmp,
@@ -579,6 +605,25 @@ describe('http branches — direct handler (fake req/res)', () => {
 
     expect(r.status).toBe(200);
     expect(r.body).toContain('"wsBasicAuth":"tmux-term-user:p%40ss%2Fw%3Ard"');
+    expect(r.body).toContain('"clientAuthToken":"client-token"');
+    expect(r.body).toContain('/dist/client/xterm.css?tw_auth=client-token');
+    expect(r.body).toContain('/dist/client/base.css?tw_auth=client-token');
+    expect(r.body).toContain('/dist/client/xterm.js?tw_auth=client-token');
+  });
+
+  test('desktop client auth token authorizes same-origin client requests', async () => {
+    const h2 = await mkHandler({
+      testMode: false,
+      exposeClientAuth: true,
+      clientAuthToken: 'client-token',
+      auth: { enabled: true, username: 'tmux-term-user', password: 'secret' },
+    });
+
+    const accepted = await callRaw(h2, 'GET', '/api/themes?tw_auth=client-token');
+    const rejected = await callRaw(h2, 'GET', '/api/themes?tw_auth=wrong');
+
+    expect(accepted.status).toBe(200);
+    expect(rejected.status).toBe(401);
   });
 
   test('GET /api/session-settings returns current config', async () => {

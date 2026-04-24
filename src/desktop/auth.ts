@@ -3,6 +3,7 @@ import { randomBytes as nodeRandomBytes } from 'node:crypto';
 export interface DesktopCredentials {
   username: string;
   password: string;
+  clientToken: string;
 }
 
 export interface GenerateDesktopCredentialsOptions {
@@ -34,6 +35,7 @@ export function generateDesktopCredentials(
   return {
     username: `tmux-term-${base64Url(randomBytes(8))}`,
     password: base64Url(randomBytes(32)),
+    clientToken: base64Url(randomBytes(32)),
   };
 }
 

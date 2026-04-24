@@ -103,6 +103,7 @@ export function buildTmuxWebLaunch(opts: TmuxWebLaunchOptions): TmuxWebLaunch {
       ...baseEnv,
       TMUX_WEB_SESSIONS_FILE: baseEnv.TMUX_WEB_SESSIONS_FILE ?? defaultSessionsFile(baseEnv),
       TMUX_WEB_EXPOSE_CLIENT_AUTH: '1',
+      TMUX_WEB_CLIENT_AUTH_TOKEN: opts.credentials.clientToken,
       TMUX_WEB_USERNAME: opts.credentials.username,
       TMUX_WEB_PASSWORD: opts.credentials.password,
     },

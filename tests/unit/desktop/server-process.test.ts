@@ -6,7 +6,11 @@ import {
   startTmuxWebServer,
 } from '../../../src/desktop/server-process.js';
 
-const credentials = { username: 'tmux-term-user', password: 'random-secret' };
+const credentials = {
+  username: 'tmux-term-user',
+  password: 'random-secret',
+  clientToken: 'client-token',
+};
 
 async function bunScriptLaunch(script: string, startupTimeoutMs = 1_000) {
   const scriptPath = `/tmp/tmux-web-child-${crypto.randomUUID()}.ts`;
@@ -66,6 +70,7 @@ describe('desktop tmux-web launch helpers', () => {
       credentials: {
         username: 'tmux-term-user',
         password: 'random-secret',
+        clientToken: 'client-token',
       },
       extraArgs: ['--tmux', '/usr/bin/tmux'],
       env: { PATH: '/usr/bin', TMUX_WEB_PASSWORD: 'old' },
@@ -83,6 +88,7 @@ describe('desktop tmux-web launch helpers', () => {
     expect(launch.args.join(' ')).not.toContain('random-secret');
     expect(launch.env.TMUX_WEB_USERNAME).toBe('tmux-term-user');
     expect(launch.env.TMUX_WEB_PASSWORD).toBe('random-secret');
+    expect(launch.env.TMUX_WEB_CLIENT_AUTH_TOKEN).toBe('client-token');
     expect(launch.env.TMUX_WEB_EXPOSE_CLIENT_AUTH).toBe('1');
     expect(launch.env.PATH).toBe('/usr/bin');
   });
@@ -115,7 +121,7 @@ describe('desktop tmux-web launch helpers', () => {
     const launch = buildTmuxWebLaunch({
       executable: 'bun',
       executableArgs: ['src/server/index.ts'],
-      credentials: { username: 'tmux-term-user', password: 'random-secret' },
+      credentials,
     });
 
     expect(launch.cmd).toBe('bun');
@@ -132,7 +138,7 @@ describe('desktop tmux-web launch helpers', () => {
     const launch = buildTmuxWebLaunch({
       executable: 'bun',
       executableArgs: ['src/server/index.ts'],
-      credentials: { username: 'tmux-term-user', password: 'random-secret' },
+      credentials,
       testMode: true,
     });
 

@@ -94,6 +94,16 @@ function debug(config: ServerConfig, ...args: unknown[]): void {
   if (config.debug) process.stderr.write(`[debug] ${args.join(' ')}\n`);
 }
 
+function redactClientAuthUrl(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl);
+    if (url.searchParams.has('tw_auth')) url.searchParams.set('tw_auth', '<redacted>');
+    return url.toString();
+  } catch {
+    return rawUrl.replace(/([?&]tw_auth=)[^&]*/g, '$1<redacted>');
+  }
+}
+
 function getAssetPath(key: string): string | null {
   return embeddedAssets[key] || null;
 }
@@ -254,14 +264,23 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
     const wsBasicAuth = config.exposeClientAuth && config.auth.username && config.auth.password
       ? `${encodeURIComponent(config.auth.username)}:${encodeURIComponent(config.auth.password)}`
       : undefined;
+    const clientAuthToken = config.exposeClientAuth ? config.clientAuthToken : undefined;
+    const clientUrl = (path: string): string => {
+      if (!clientAuthToken) return path;
+      const sep = path.includes('?') ? '&' : '?';
+      return `${path}${sep}tw_auth=${encodeURIComponent(clientAuthToken)}`;
+    };
     const clientConfig = {
       version: pkg.version,
       ...(config.testMode ? { testMode: true } : {}),
       ...(wsBasicAuth ? { wsBasicAuth } : {}),
+      ...(clientAuthToken ? { clientAuthToken } : {}),
     };
     return opts.htmlTemplate
       .replace('<!-- __CONFIG__ -->', `<script>window.__TMUX_WEB_CONFIG = ${JSON.stringify(clientConfig)}</script>`)
-      .replace('__BUNDLE__', `/dist/client/xterm.js`);
+      .replace('__XTERM_CSS__', clientUrl('/dist/client/xterm.css'))
+      .replace('__BASE_CSS__', clientUrl('/dist/client/base.css'))
+      .replace('__BUNDLE__', clientUrl('/dist/client/xterm.js'));
   };
 
   return async (req, server) => {
@@ -269,10 +288,11 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
     const method = req.method;
     const url = new URL(req.url);
     const pathname = url.pathname;
+    const debugUrl = redactClientAuthUrl(req.url);
 
     const handle = async (): Promise<Response> => {
     if (!config.testMode && !isAllowed(remoteIp, config.allowedIps)) {
-      debug(config, `HTTP ${method} ${req.url} from ${remoteIp} - rejected (IP)`);
+      debug(config, `HTTP ${method} ${debugUrl} from ${remoteIp} - rejected (IP)`);
       return new Response('Forbidden', { status: 403 });
     }
 
@@ -284,21 +304,23 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
       serverPort: config.port || server.port || config.port,
     })) {
       const origin = originHeader ?? '<none>';
-      debug(config, `HTTP ${method} ${req.url} from ${remoteIp} - rejected (Origin: ${origin})`);
+      debug(config, `HTTP ${method} ${debugUrl} from ${remoteIp} - rejected (Origin: ${origin})`);
       logOriginReject(origin, remoteIp);
       return new Response('Forbidden', { status: 403 });
     }
 
     const authHeader = req.headers.get('authorization') ?? undefined;
-    if (!isAuthorized(authHeader, config)) {
-      debug(config, `HTTP ${method} ${req.url} from ${remoteIp} - unauthorized`);
+    const clientAuthToken = url.searchParams.get('tw_auth') ?? undefined;
+    const isClientAuthorized = !!config.clientAuthToken && clientAuthToken === config.clientAuthToken;
+    if (!isClientAuthorized && !isAuthorized(authHeader, config)) {
+      debug(config, `HTTP ${method} ${debugUrl} from ${remoteIp} - unauthorized`);
       return new Response('Unauthorized', {
         status: 401,
         headers: { 'WWW-Authenticate': 'Basic realm="tmux-web"' },
       });
     }
 
-    debug(config, `HTTP ${method} ${req.url} from ${remoteIp}`);
+    debug(config, `HTTP ${method} ${debugUrl} from ${remoteIp}`);
 
     if (pathname === '/api/fonts') {
       if (method !== 'GET') return new Response(null, { status: 405 });

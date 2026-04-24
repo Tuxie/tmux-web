@@ -13,8 +13,11 @@ describe('desktop auth helpers', () => {
     expect(second.username.startsWith('tmux-term-')).toBe(true);
     expect(first.password.length).toBeGreaterThanOrEqual(43);
     expect(second.password.length).toBeGreaterThanOrEqual(43);
+    expect(first.clientToken.length).toBeGreaterThanOrEqual(43);
+    expect(second.clientToken.length).toBeGreaterThanOrEqual(43);
     expect(first.username).not.toBe(second.username);
     expect(first.password).not.toBe(second.password);
+    expect(first.clientToken).not.toBe(second.clientToken);
     expect(first.password).not.toContain(':');
     expect(first.username).not.toContain(':');
   });
@@ -26,6 +29,7 @@ describe('desktop auth helpers', () => {
 
     expect(creds.username).toBe('tmux-term-q6urq6urq6s');
     expect(creds.password).toBe('q6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6s');
+    expect(creds.clientToken).toBe('q6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6s');
   });
 
   test('buildAuthenticatedUrl encodes credentials and uses loopback http', () => {
@@ -35,6 +39,7 @@ describe('desktop auth helpers', () => {
       credentials: {
         username: 'tmux-term-user',
         password: 'p@ss/w:rd',
+        clientToken: 'client-token',
       },
     });
 
@@ -48,6 +53,7 @@ describe('desktop auth helpers', () => {
       credentials: {
         username: 'tmux-term-user',
         password: 'secret',
+        clientToken: 'client-token',
       },
     });
 

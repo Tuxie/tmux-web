@@ -123,6 +123,7 @@ export interface ServerConfig {
   tmuxConf?: string;
   themesDir?: string;
   exposeClientAuth?: boolean;
+  clientAuthToken?: string;
   auth: {
     enabled: boolean;
     username?: string;
@@ -142,4 +143,8 @@ export interface ClientConfig {
    *  random loopback credentials because WebKit strips URL userinfo from
    *  `location.href` after the HTTP Basic challenge. */
   wsBasicAuth?: string;
+  /** Desktop-only bearer-style query token for browser-managed resource
+   *  loads that cannot set an Authorization header, such as stylesheet
+   *  links and FontFace URLs. */
+  clientAuthToken?: string;
 }

@@ -1,3 +1,5 @@
+import { withClientAuth } from './auth-url.js';
+
 export type ThemeInfo = {
   name: string;
   pack: string;
@@ -85,7 +87,7 @@ export async function loadAllFonts(): Promise<void> {
     try {
       const ff = new FontFace(
         font.family,
-        `url(/themes/${encodeURIComponent(font.pack)}/${encodeURIComponent(font.file)})`
+        `url(${withClientAuth(`/themes/${encodeURIComponent(font.pack)}/${encodeURIComponent(font.file)}`)})`
       );
       await ff.load();
       document.fonts.add(ff);
@@ -116,7 +118,7 @@ export async function applyTheme(name: string): Promise<void> {
   const link = document.createElement('link') as HTMLLinkElement;
   link.id = 'theme-css';
   link.rel = 'stylesheet';
-  link.href = `/themes/${encodeURIComponent(theme.pack)}/${encodeURIComponent(theme.css)}`;
+  link.href = withClientAuth(`/themes/${encodeURIComponent(theme.pack)}/${encodeURIComponent(theme.css)}`);
   const loaded = new Promise<void>((resolve) => {
     link.addEventListener('load', () => resolve(), { once: true });
     link.addEventListener('error', () => resolve(), { once: true });
