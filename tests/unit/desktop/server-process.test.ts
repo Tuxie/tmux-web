@@ -197,6 +197,34 @@ describe('desktop tmux-web launch helpers', () => {
     expect(calls).toBe(1);
   });
 
+  test('createCloseOnce waits for in-flight cleanup', async () => {
+    let calls = 0;
+    let releaseCleanup!: () => void;
+    const cleanupReleased = new Promise<void>((resolve) => {
+      releaseCleanup = resolve;
+    });
+    const close = createCloseOnce(async () => {
+      calls += 1;
+      await cleanupReleased;
+    });
+
+    const firstClose = close();
+    const secondClose = close();
+    let secondSettled = false;
+    void secondClose.then(() => {
+      secondSettled = true;
+    });
+
+    await Bun.sleep(0);
+    expect(secondSettled).toBe(false);
+    expect(calls).toBe(1);
+
+    releaseCleanup();
+    await Promise.all([firstClose, secondClose]);
+    expect(secondSettled).toBe(true);
+    expect(calls).toBe(1);
+  });
+
   test('startTmuxWebServer resolves readiness from a partial stdout line', async () => {
     const server = await startTmuxWebServer(
       await bunScriptLaunch(`

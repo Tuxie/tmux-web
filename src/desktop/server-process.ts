@@ -282,10 +282,9 @@ export async function startTmuxWebServer(
 }
 
 export function createCloseOnce(close: () => Promise<void> | void): () => Promise<void> {
-  let closed = false;
-  return async () => {
-    if (closed) return;
-    closed = true;
-    await close();
+  let closePromise: Promise<void> | null = null;
+  return () => {
+    closePromise ??= Promise.resolve().then(close);
+    return closePromise;
   };
 }
