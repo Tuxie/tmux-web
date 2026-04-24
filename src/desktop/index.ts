@@ -11,6 +11,13 @@ function logDesktop(message: string): void {
   console.error(`[tmux-term] ${message}`);
 }
 
+function logTmuxWebOutput(stream: 'stdout' | 'stderr', text: string): void {
+  const prefix = stream === 'stdout' ? '[tmux-web stdout] ' : '[tmux-web stderr] ';
+  for (const line of text.split(/\r?\n/)) {
+    if (line.length > 0) process.stderr.write(`${prefix}${line}\n`);
+  }
+}
+
 function resolveTmuxWebExecutable(): string {
   if (process.env.TMUX_TERM_TMUX_WEB) return process.env.TMUX_TERM_TMUX_WEB;
   return path.resolve(import.meta.dir, '..', 'tmux-web');
@@ -35,6 +42,7 @@ async function main(): Promise<void> {
     executable,
     credentials,
     extraArgs: desktopExtraArgs(),
+    onOutput: logTmuxWebOutput,
   });
   logDesktop(`tmux-web ready: ${server.endpoint.origin}`);
   const closeServer = createCloseOnce(server.close);

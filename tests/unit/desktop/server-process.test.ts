@@ -32,6 +32,15 @@ async function waitForFile(path: string, timeoutMs = 1_000): Promise<void> {
   throw new Error(`timed out waiting for ${path}`);
 }
 
+async function waitForText(read: () => string, expected: string, timeoutMs = 1_000): Promise<void> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (read().includes(expected)) return;
+    await Bun.sleep(10);
+  }
+  throw new Error(`timed out waiting for ${expected}`);
+}
+
 function isPidAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
@@ -290,6 +299,29 @@ describe('desktop tmux-web launch helpers', () => {
         port: 38123,
         origin: 'http://127.0.0.1:38123',
       });
+    } finally {
+      await server.close();
+    }
+  });
+
+  test('startTmuxWebServer forwards child output after readiness', async () => {
+    const chunks: Array<{ stream: 'stdout' | 'stderr'; text: string }> = [];
+    const server = await startTmuxWebServer({
+      ...(await bunScriptLaunch(`
+        process.stdout.write('tmux-web listening on http://127.0.0.1:38123\\n');
+        setTimeout(() => {
+          process.stderr.write('[debug] HTTP GET /dist/client/xterm.js\\n');
+        }, 10);
+        setInterval(() => {}, 1_000);
+      `)),
+      onOutput: (stream, text) => chunks.push({ stream, text }),
+    });
+
+    try {
+      await waitForText(
+        () => chunks.filter(c => c.stream === 'stderr').map(c => c.text).join(''),
+        '[debug] HTTP GET /dist/client/xterm.js',
+      );
     } finally {
       await server.close();
     }

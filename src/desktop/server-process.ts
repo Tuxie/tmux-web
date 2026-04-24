@@ -125,6 +125,7 @@ export interface StartedTmuxWebServer {
 export interface StartTmuxWebServerOptions extends TmuxWebLaunchOptions {
   startupTimeoutMs?: number;
   closeGraceMs?: number;
+  onOutput?: (stream: 'stdout' | 'stderr', text: string) => void;
 }
 
 const OUTPUT_TAIL_LIMIT = 8192;
@@ -234,6 +235,7 @@ export async function startTmuxWebServer(
           const { done, value } = await reader.read();
           if (done) break;
           const text = stdoutDecoder.decode(value, { stream: true });
+          opts.onOutput?.('stdout', text);
           stdoutTail = appendBoundedTail(stdoutTail, text);
           if (settled) continue;
           buffer += text;
@@ -272,10 +274,9 @@ export async function startTmuxWebServer(
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          stderrTail = appendBoundedTail(
-            stderrTail,
-            stderrDecoder.decode(value, { stream: true }),
-          );
+          const text = stderrDecoder.decode(value, { stream: true });
+          opts.onOutput?.('stderr', text);
+          stderrTail = appendBoundedTail(stderrTail, text);
         }
       } catch (err) {
         fail(err);
