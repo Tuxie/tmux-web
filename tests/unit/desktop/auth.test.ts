@@ -1,0 +1,43 @@
+import { describe, expect, test } from 'bun:test';
+import {
+  buildAuthenticatedUrl,
+  generateDesktopCredentials,
+} from '../../../src/desktop/auth.js';
+
+describe('desktop auth helpers', () => {
+  test('generateDesktopCredentials returns stable prefixes and long random secrets', () => {
+    const first = generateDesktopCredentials();
+    const second = generateDesktopCredentials();
+
+    expect(first.username.startsWith('tmux-term-')).toBe(true);
+    expect(second.username.startsWith('tmux-term-')).toBe(true);
+    expect(first.password.length).toBeGreaterThanOrEqual(43);
+    expect(second.password.length).toBeGreaterThanOrEqual(43);
+    expect(first.username).not.toBe(second.username);
+    expect(first.password).not.toBe(second.password);
+    expect(first.password).not.toContain(':');
+    expect(first.username).not.toContain(':');
+  });
+
+  test('generateDesktopCredentials accepts deterministic bytes for tests', () => {
+    const creds = generateDesktopCredentials({
+      randomBytes: (size) => Buffer.alloc(size, 0xab),
+    });
+
+    expect(creds.username).toBe('tmux-term-q6urq6urq6s');
+    expect(creds.password).toBe('q6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6s');
+  });
+
+  test('buildAuthenticatedUrl encodes credentials and uses loopback http', () => {
+    const url = buildAuthenticatedUrl({
+      host: '127.0.0.1',
+      port: 41234,
+      credentials: {
+        username: 'tmux-term-user',
+        password: 'p@ss/w:rd',
+      },
+    });
+
+    expect(url).toBe('http://tmux-term-user:p%40ss%2Fw%3Ard@127.0.0.1:41234/');
+  });
+});
