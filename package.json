@@ -16,7 +16,7 @@
     "coverage:check": "bun test --coverage --coverage-reporter=lcov && bun run scripts/check-coverage.ts",
     "start": "bun src/server/index.ts",
     "desktop:dev": "bun run bun-build.ts && make tmux-web && TMUX_TERM_TMUX_WEB=./tmux-web electrobun dev",
-    "desktop:build": "bun run bun-build.ts && make tmux-web && electrobun build",
+    "desktop:build": "electrobun build",
     "desktop:stable": "bun run bun-build.ts && make tmux-web && electrobun build --env=stable"
   },
   "dependencies": {
