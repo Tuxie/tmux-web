@@ -53,7 +53,11 @@ import {
   clampTuiSaturation,
 } from '../tui-saturation.js';
 import type { SessionInfo } from '../../shared/types.js';
-import { requestDesktopWindowClose } from '../desktop-host.js';
+import {
+  notifyDesktopTitlebarDrag,
+  requestDesktopToggleMaximize,
+  requestDesktopWindowClose,
+} from '../desktop-host.js';
 
 export interface TopbarOptions {
   send: (data: string) => void;
@@ -325,6 +329,15 @@ export class Topbar {
       ev.preventDefault();
       ev.stopPropagation();
       requestDesktopWindowClose();
+    });
+    this.tbTitle.addEventListener('dblclick', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      requestDesktopToggleMaximize();
+    });
+    this.tbTitle.addEventListener('mousedown', (ev) => {
+      if (ev.button !== 0) return;
+      notifyDesktopTitlebarDrag();
     });
   }
 

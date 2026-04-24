@@ -1,4 +1,8 @@
-import { isTmuxTermCloseWindowMessage } from '../shared/desktop-messages.js';
+import {
+  isTmuxTermCloseWindowMessage,
+  isTmuxTermTitlebarDragMessage,
+  isTmuxTermToggleMaximizeMessage,
+} from '../shared/desktop-messages.js';
 
 interface HostMessageWebview {
   on(name: string, handler: (event: unknown) => void): void;
@@ -6,6 +10,9 @@ interface HostMessageWebview {
 
 interface HostMessageWindow {
   close(): void;
+  maximize(): void;
+  unmaximize(): void;
+  isMaximized(): boolean;
   webview: HostMessageWebview;
 }
 
@@ -21,8 +28,14 @@ function hostMessageDetail(event: unknown): unknown {
 
 export function installTmuxTermHostMessages(win: HostMessageWindow): void {
   win.webview.on('host-message', (event) => {
-    if (isTmuxTermCloseWindowMessage(hostMessageDetail(event))) {
+    const message = hostMessageDetail(event);
+    if (isTmuxTermCloseWindowMessage(message)) {
       win.close();
+    } else if (isTmuxTermToggleMaximizeMessage(message)) {
+      if (win.isMaximized()) win.unmaximize();
+      else win.maximize();
+    } else if (isTmuxTermTitlebarDragMessage(message) && win.isMaximized()) {
+      win.unmaximize();
     }
   });
 }
