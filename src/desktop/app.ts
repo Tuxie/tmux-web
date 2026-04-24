@@ -28,6 +28,13 @@ async function main(): Promise<void> {
     extraArgs: desktopExtraArgs(),
   });
   const closeServer = createCloseOnce(server.close);
+  let intentionalShutdown = false;
+  let closingAfterServerExit = false;
+
+  const shutdown = () => {
+    intentionalShutdown = true;
+    void closeServer().finally(() => process.exit(0));
+  };
 
   const url = buildAuthenticatedUrl({
     host: server.endpoint.host,
@@ -46,17 +53,20 @@ async function main(): Promise<void> {
   });
 
   win.on('close', () => {
-    void closeServer().finally(() => process.exit(0));
+    if (closingAfterServerExit) return;
+    shutdown();
   });
 
   void server.process.exited.then((code) => {
+    if (intentionalShutdown) return;
+    closingAfterServerExit = true;
     try { win.close(); } catch {}
     process.exit(code === 0 ? 0 : 1);
   });
 
   for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
     process.on(sig, () => {
-      void closeServer().finally(() => process.exit(0));
+      shutdown();
     });
   }
 }
