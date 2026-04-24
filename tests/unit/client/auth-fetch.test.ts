@@ -23,7 +23,7 @@ describe('makeAuthenticatedFetch', () => {
 
     await fetch('/api/themes');
 
-    expect(seenUrl).toBe('/api/themes?tw_auth=client-token');
+    expect(seenUrl).toBe('http://127.0.0.1:4022/api/themes?tw_auth=client-token');
     expect(decodeAuth(seenHeaders!.get('Authorization'))).toBe('tmux-term-user:p@ss/w:rd');
   });
 
@@ -79,7 +79,7 @@ describe('makeAuthenticatedFetch', () => {
 
     await fetch('/api/session-settings');
 
-    expect(seenUrl).toBe('/api/session-settings?tw_auth=client-token');
+    expect(seenUrl).toBe('http://127.0.0.1:4022/api/session-settings?tw_auth=client-token');
     expect(seenHeaders!.has('Authorization')).toBe(false);
   });
 
@@ -92,6 +92,23 @@ describe('makeAuthenticatedFetch', () => {
       }) as typeof globalThis.fetch,
       'tmux-term-user:secret',
       { href: 'http://tmux-term-user:secret@127.0.0.1:4022/', origin: 'http://127.0.0.1:4022' },
+      'client-token',
+    );
+
+    await fetch('/api/session-settings');
+
+    expect(seenUrl).toBe('http://127.0.0.1:4022/api/session-settings?tw_auth=client-token');
+  });
+
+  test('passes absolute URLs when Basic Auth is active even if href is redacted', async () => {
+    let seenUrl = '';
+    const fetch = makeAuthenticatedFetch(
+      ((url) => {
+        seenUrl = String(url);
+        return Promise.resolve(new Response('ok'));
+      }) as typeof globalThis.fetch,
+      'tmux-term-user:secret',
+      { href: 'http://127.0.0.1:4022/', origin: 'http://127.0.0.1:4022' },
       'client-token',
     );
 
@@ -117,7 +134,7 @@ describe('makeAuthenticatedFetch', () => {
 
       await fetch('/api/themes');
 
-      expect(seenUrl).toBe('/api/themes?tw_auth=client-token');
+      expect(seenUrl).toBe('http://127.0.0.1:4022/api/themes?tw_auth=client-token');
     } finally {
       globalThis.Request = originalRequest;
     }

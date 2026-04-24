@@ -171,14 +171,14 @@ vendor/tmux/configure:
 	git submodule update --init vendor/tmux
 	cd vendor/tmux && ./autogen.sh
 
-vendor/tmux/config.h: vendor/tmux/configure $(STAMPDIR)/libevent $(STAMPDIR)/utf8proc
+vendor/tmux/config.status: vendor/tmux/configure $(STAMPDIR)/libevent $(STAMPDIR)/utf8proc
 	cd vendor/tmux && PKG_CONFIG_PATH="$(VENDOR_PREFIX)/lib/pkgconfig" ./configure \
 	  $(TMUX_STATIC_FLAG) --enable-optimizations \
 	  --enable-utf8proc --enable-sixel \
 	  --prefix="$(VENDOR_PREFIX)" \
 	  CFLAGS="$(VENDOR_CFLAGS)" LDFLAGS="$(VENDOR_LDFLAGS)"
 
-$(STAMPDIR)/tmux: vendor/tmux/config.h | $(STAMPDIR)
+$(STAMPDIR)/tmux: vendor/tmux/config.status | $(STAMPDIR)
 	cd vendor/tmux && $(MAKE) -j install
 	touch $@
 

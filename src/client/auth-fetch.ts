@@ -16,19 +16,8 @@ function requestUrl(input: RequestInfo | URL): string {
   return String(input);
 }
 
-function pageHrefHasUserinfo(loc: Pick<Location, 'href'>): boolean {
-  try {
-    const pageUrl = new URL(loc.href);
-    return pageUrl.username.length > 0 || pageUrl.password.length > 0;
-  } catch {
-    return false;
-  }
-}
-
 function fetchUrl(inputUrl: string, loc: Pick<Location, 'href' | 'origin'>, clientAuthToken?: string): string {
   const authenticated = withClientAuth(inputUrl, clientAuthToken, loc);
-  if (!pageHrefHasUserinfo(loc)) return authenticated;
-
   const absolute = new URL(authenticated, loc.origin);
   absolute.username = '';
   absolute.password = '';
