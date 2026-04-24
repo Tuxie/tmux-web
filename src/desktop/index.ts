@@ -10,6 +10,7 @@ import { desktopExtraArgs } from './tmux-path.js';
 import { openTmuxTermWindow } from './window.js';
 import { installTmuxTermHostMessages } from './window-host-messages.js';
 import { workAreaForFrame } from './display-workarea.js';
+import { toNativeWindowFrame } from './frame-coordinates.js';
 
 function logDesktop(message: string): void {
   console.error(`[tmux-term] ${message}`);
@@ -64,7 +65,7 @@ async function main(): Promise<void> {
       frame,
       Screen.getAllDisplays(),
       Screen.getPrimaryDisplay().workArea,
-    ));
+    ), (frame) => toNativeWindowFrame(frame, Screen.getAllDisplays()));
     logDesktop('window opened');
 
     win.on('close', () => {
