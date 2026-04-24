@@ -54,3 +54,87 @@ test('server-driven session switch applies the target session\'s stored settings
   );
   await expect(page.locator('#inp-colours')).toHaveValue(FX.colours.b);
 });
+
+test('menu session switch waits for server confirmation before applying target settings', async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as any).__wsSent = [];
+    (window as any).__wsInstance = null;
+    class FakeWebSocket {
+      static CONNECTING = 0;
+      static OPEN = 1;
+      static CLOSING = 2;
+      static CLOSED = 3;
+      readyState = FakeWebSocket.CONNECTING;
+      onopen: ((ev: Event) => void) | null = null;
+      onmessage: ((ev: MessageEvent) => void) | null = null;
+      onclose: ((ev: CloseEvent) => void) | null = null;
+      onerror: ((ev: Event) => void) | null = null;
+      url: string;
+      constructor(url: string) {
+        this.url = url;
+        (window as any).__wsInstance = this;
+        queueMicrotask(() => {
+          this.readyState = FakeWebSocket.OPEN;
+          this.onopen?.(new Event('open'));
+        });
+      }
+      send(data: string | ArrayBufferLike | Blob | ArrayBufferView) {
+        (window as any).__wsSent.push(typeof data === 'string' ? data : String(data));
+      }
+      close() {
+        this.readyState = FakeWebSocket.CLOSED;
+        this.onclose?.(new CloseEvent('close'));
+      }
+    }
+    window.WebSocket = FakeWebSocket as any;
+    (window as any).__mockWsReceive = (data: string) => {
+      (window as any).__wsInstance?.onmessage?.({ data } as MessageEvent);
+    };
+  });
+  await mockSessionStore(page, {
+    sessions: {
+      main:  fixtureSessionSettings({ colours: FX.colours.a, opacity: 100 }),
+      other: fixtureSessionSettings({ colours: FX.colours.b, opacity: 100 }),
+    },
+  });
+  await page.route('**/api/sessions', route =>
+    route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify([{ id: '0', name: 'main' }, { id: '1', name: 'other' }]) })
+  );
+  await page.route('**/api/windows**', route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+  );
+
+  await page.goto('/main');
+  await waitForWsOpen(page);
+  await page.waitForFunction(expected =>
+    (window as any).__adapter?.term?.options?.theme?.background === expected,
+    RED_BG_RGBA,
+    { timeout: 3000 }
+  );
+
+  await page.locator('#btn-session-menu').click();
+  await page.locator('.tw-dd-session-item', { hasText: 'other' }).click();
+
+  await page.waitForFunction(() =>
+    (window as any).__wsSent.some((m: string) => m === JSON.stringify({ type: 'switch-session', name: 'other' })),
+    { timeout: 3000 }
+  );
+  await expect(page).toHaveURL(/\/main$/);
+  await expect(page.locator('#tb-session-name')).toHaveText('main');
+  await page.waitForFunction(expected =>
+    (window as any).__adapter?.term?.options?.theme?.background === expected,
+    RED_BG_RGBA,
+    { timeout: 3000 }
+  );
+
+  await sendFromServer(page, { session: 'other' });
+
+  await expect(page).toHaveURL(/\/other$/);
+  await expect(page.locator('#tb-session-name')).toHaveText('other');
+  await page.waitForFunction(expected =>
+    (window as any).__adapter?.term?.options?.theme?.background === expected,
+    BLUE_BG_RGBA,
+    { timeout: 3000 }
+  );
+});

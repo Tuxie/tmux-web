@@ -192,12 +192,11 @@ async function main() {
       adapter.fit();
     },
     onSwitchSession: (name) => {
-      // Switch sessions without a full page navigation — full reloads
-      // exit fullscreen and lose terminal state. updateSession runs the
-      // existing in-place session-change flow (URL replaceState, load
-      // per-session settings, sync UI, fire onSettingsChange). The server
-      // retargets the existing PTY tmux client, so the WebSocket stays open.
-      topbar.updateSession(name);
+      // Ask the server to retarget the existing PTY tmux client. Do not
+      // update the URL/settings optimistically: attach/switch can take time
+      // or fail, and applying the target session's settings before tmux has
+      // actually switched makes the old session appear under the new theme.
+      // The server's TT session notification drives updateSession on success.
       const msg: SwitchSessionMessage = { type: 'switch-session', name };
       connection.send(JSON.stringify(msg));
     },

@@ -489,6 +489,7 @@ async function switchSession(
 
   if (opts.config.testMode) {
     moveWsToSession(ws, oldSession, newSession, opts, reg);
+    if (ws.readyState === WS_OPEN) ws.send(frameTTMessage({ session: newSession }));
     await sendWindowState(ws, newSession, opts);
     return;
   }
@@ -523,6 +524,7 @@ async function switchSession(
 
     moveWsToSession(ws, oldSession, newSession, opts, reg);
     newSessionAttached = false; // now owned by handleClose via registeredSession
+    if (ws.readyState === WS_OPEN) ws.send(frameTTMessage({ session: newSession }));
     await sendWindowState(ws, newSession, opts);
   } catch (err) {
     debug(opts.config, `switch-session(${newSession}) failed: ${(err as Error).message}`);

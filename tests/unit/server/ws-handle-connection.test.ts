@@ -449,6 +449,8 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     expect((switched as string).match(/new-session/g)?.length).toBe(1);
     expect(attached).toEqual(['main', 'dev']);
     expect(detached).toEqual(['main']);
+    const sessionAck = await waitForMsg(o.messages, m => m.session === 'dev', 8000);
+    expect(sessionAck).toBeTruthy();
 
     o.messages.length = 0;
     o.ws.send(JSON.stringify({ type: 'window', action: 'select', index: '1' }));
