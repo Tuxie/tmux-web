@@ -7,10 +7,12 @@ import {
 
 const credentials = { username: 'tmux-term-user', password: 'random-secret' };
 
-function bunEvalLaunch(script: string, startupTimeoutMs = 1_000) {
+async function bunScriptLaunch(script: string, startupTimeoutMs = 1_000) {
+  const scriptPath = `/tmp/tmux-web-child-${crypto.randomUUID()}.ts`;
+  await Bun.write(scriptPath, `#!${process.execPath}\n${script}`);
+  await Bun.spawn(['chmod', '+x', scriptPath]).exited;
   return {
-    executable: process.execPath,
-    executableArgs: ['-e', script],
+    executable: scriptPath,
     credentials,
     startupTimeoutMs,
   };
@@ -89,6 +91,34 @@ describe('desktop tmux-web launch helpers', () => {
     ]);
   });
 
+  test('buildTmuxWebLaunch rejects unsafe executable args', () => {
+    for (const opts of [
+      {
+        executable: '/opt/tmux-term/tmux-web',
+        executableArgs: ['--no-auth'],
+      },
+      {
+        executable: 'bun',
+        executableArgs: ['--no-auth'],
+      },
+      {
+        executable: 'bun',
+        executableArgs: ['src/server/index.ts', '--no-auth'],
+      },
+      {
+        executable: '/opt/tmux-term/tmux-web',
+        executableArgs: ['tmux'],
+      },
+    ]) {
+      expect(() =>
+        buildTmuxWebLaunch({
+          ...opts,
+          credentials,
+        }),
+      ).toThrow('not allowed');
+    }
+  });
+
   test('buildTmuxWebLaunch allows only safe desktop customization args', () => {
     for (const extraArgs of [
       ['--tmux', '/usr/bin/tmux'],
@@ -157,7 +187,7 @@ describe('desktop tmux-web launch helpers', () => {
 
   test('startTmuxWebServer resolves readiness from a partial stdout line', async () => {
     const server = await startTmuxWebServer(
-      bunEvalLaunch(`
+      await bunScriptLaunch(`
         process.stdout.write('tmux-web listening on http://127.0.0.1:');
         setTimeout(() => process.stdout.write('38123\\n'), 10);
         setInterval(() => {}, 1_000);
@@ -178,7 +208,7 @@ describe('desktop tmux-web launch helpers', () => {
   test('startTmuxWebServer rejects when child exits before readiness', async () => {
     await expect(
       startTmuxWebServer(
-        bunEvalLaunch(`
+        await bunScriptLaunch(`
           process.stdout.write('warning: booting\\n');
           process.exit(7);
         `),
@@ -191,7 +221,7 @@ describe('desktop tmux-web launch helpers', () => {
 
     await expect(
       startTmuxWebServer(
-        bunEvalLaunch(
+        await bunScriptLaunch(
           `
             process.on('SIGTERM', async () => {
               await Bun.write(${JSON.stringify(marker)}, 'terminated');
@@ -213,14 +243,14 @@ describe('desktop tmux-web launch helpers', () => {
     await Bun.write(pidFile, '');
     await expect(
       startTmuxWebServer({
-        ...bunEvalLaunch(
+        ...(await bunScriptLaunch(
           `
             await Bun.write(${JSON.stringify(pidFile)}, String(process.pid));
             process.on('SIGTERM', () => {});
             setInterval(() => {}, 1_000);
           `,
           50,
-        ),
+        )),
         closeGraceMs: 50,
       }),
     ).rejects.toThrow('tmux-web did not report readiness within 50ms');
@@ -233,7 +263,7 @@ describe('desktop tmux-web launch helpers', () => {
   test('close terminates a child after readiness', async () => {
     const marker = `/tmp/tmux-web-close-${crypto.randomUUID()}`;
     const server = await startTmuxWebServer(
-      bunEvalLaunch(`
+      await bunScriptLaunch(`
         process.stdout.write('tmux-web listening on http://127.0.0.1:38123\\n');
         process.on('SIGTERM', async () => {
           await Bun.write(${JSON.stringify(marker)}, 'closed');
@@ -250,7 +280,7 @@ describe('desktop tmux-web launch helpers', () => {
 
   test('close uses a kill fallback when a child ignores SIGTERM', async () => {
     const server = await startTmuxWebServer(
-      bunEvalLaunch(`
+      await bunScriptLaunch(`
         process.stdout.write('tmux-web listening on http://127.0.0.1:38123\\n');
         process.on('SIGTERM', () => {});
         setInterval(() => {}, 1_000);

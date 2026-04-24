@@ -25,6 +25,25 @@ export interface ListeningEndpoint {
 
 const ALLOWED_VALUE_EXTRA_ARGS = new Set(['--tmux', '--tmux-conf', '--themes-dir']);
 const ALLOWED_BOOLEAN_EXTRA_ARGS = new Set(['--debug', '-d']);
+const BUN_SERVER_SCRIPT_ARG = 'src/server/index.ts';
+
+function executableBasename(executable: string): string {
+  return executable.split(/[\\/]/).pop() ?? executable;
+}
+
+function validateExecutableArgs(executable: string, executableArgs: string[]): void {
+  if (executableArgs.length === 0) return;
+
+  if (
+    executableBasename(executable) === 'bun' &&
+    executableArgs.length === 1 &&
+    executableArgs[0] === BUN_SERVER_SCRIPT_ARG
+  ) {
+    return;
+  }
+
+  throw new Error('tmux-web desktop executable args are not allowed');
+}
 
 function validateExtraArgs(extraArgs: string[]): void {
   for (let i = 0; i < extraArgs.length; i += 1) {
@@ -52,13 +71,15 @@ function validateExtraArgs(extraArgs: string[]): void {
 }
 
 export function buildTmuxWebLaunch(opts: TmuxWebLaunchOptions): TmuxWebLaunch {
+  const executableArgs = opts.executableArgs ?? [];
   const extraArgs = opts.extraArgs ?? [];
+  validateExecutableArgs(opts.executable, executableArgs);
   validateExtraArgs(extraArgs);
 
   return {
     cmd: opts.executable,
     args: [
-      ...(opts.executableArgs ?? []),
+      ...executableArgs,
       '--listen',
       '127.0.0.1:0',
       '--no-tls',
