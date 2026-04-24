@@ -53,6 +53,13 @@ import {
   clampTuiSaturation,
 } from '../tui-saturation.js';
 import type { SessionInfo } from '../../shared/types.js';
+import {
+  notifyDesktopTitlebarDrag,
+  requestDesktopToggleMaximize,
+  requestDesktopWindowClose,
+} from '../desktop-host.js';
+
+const TITLEBAR_DRAG_RESTORE_THRESHOLD_PX = 4;
 
 export interface TopbarOptions {
   send: (data: string) => void;
@@ -320,12 +327,32 @@ export class Topbar {
       }
     });
 
-    // `#btn-session-plus` is the left half of the `[ + | name ]` control.
-    // Intentionally decoupled from the session dropdown: it's reserved for
-    // its own upcoming menu (a separate UI from the sessions list). Keeping
-    // the element in the DOM today so theme CSS and the DOM contract stay
-    // stable while the menu is designed.
-    void btnPlus;
+    btnPlus?.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      requestDesktopWindowClose();
+    });
+    this.tbTitle.addEventListener('dblclick', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      requestDesktopToggleMaximize();
+    });
+    let pendingTitleDrag: { x: number; y: number; restored: boolean } | null = null;
+    this.tbTitle.addEventListener('mousedown', (ev) => {
+      if (ev.button !== 0) return;
+      pendingTitleDrag = { x: ev.clientX, y: ev.clientY, restored: false };
+    });
+    document.addEventListener('mousemove', (ev) => {
+      if (!pendingTitleDrag || pendingTitleDrag.restored) return;
+      const dx = ev.clientX - pendingTitleDrag.x;
+      const dy = ev.clientY - pendingTitleDrag.y;
+      if (Math.hypot(dx, dy) < TITLEBAR_DRAG_RESTORE_THRESHOLD_PX) return;
+      pendingTitleDrag.restored = true;
+      notifyDesktopTitlebarDrag();
+    });
+    document.addEventListener('mouseup', () => {
+      pendingTitleDrag = null;
+    });
   }
 
   private setupMenu(): void {

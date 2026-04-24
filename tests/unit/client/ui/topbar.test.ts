@@ -310,6 +310,177 @@ describe('Topbar.init + updateTitle / updateWindows / renderWinTabs', () => {
     expect(title.textContent).toBe('hello world');
   });
 
+  it('clicking the top-left button asks Electrobun to close the window', async () => {
+    const hostMessages: unknown[] = [];
+    installGlobals();
+    (globalThis.window as any).__electrobunSendToHost = (message: unknown) => {
+      hostMessages.push(message);
+    };
+    makeDoc();
+    stubFetch(async (url) => {
+      if (url.startsWith('/api/themes')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/fonts')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/colours')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/session-settings')) return { ok: true, json: async () => ({ version: 1, sessions: {} }) } as any;
+      if (url.startsWith('/api/sessions')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/drops')) return { ok: true, json: async () => ({ drops: [] }) } as any;
+      return { ok: true, json: async () => ({}) } as any;
+    });
+
+    const t = await freshTopbarCtor();
+    await t.init();
+    ((globalThis.document as any).getElementById('btn-session-plus') as any).click();
+
+    expect(hostMessages).toEqual([{ type: 'tmux-term:close-window' }]);
+  });
+
+  it('double-clicking the title asks Electrobun to toggle maximize', async () => {
+    const hostMessages: unknown[] = [];
+    installGlobals();
+    (globalThis.window as any).__electrobunSendToHost = (message: unknown) => {
+      hostMessages.push(message);
+    };
+    makeDoc();
+    stubFetch(async (url) => {
+      if (url.startsWith('/api/themes')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/fonts')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/colours')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/session-settings')) return { ok: true, json: async () => ({ version: 1, sessions: {} }) } as any;
+      if (url.startsWith('/api/sessions')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/drops')) return { ok: true, json: async () => ({ drops: [] }) } as any;
+      return { ok: true, json: async () => ({}) } as any;
+    });
+
+    const t = await freshTopbarCtor();
+    await t.init();
+    ((globalThis.document as any).getElementById('tb-title') as any).dispatch('dblclick', {
+      target: (globalThis.document as any).getElementById('tb-title'),
+      preventDefault() {},
+      stopPropagation() {},
+    });
+
+    expect(hostMessages).toEqual([{ type: 'tmux-term:toggle-maximize' }]);
+  });
+
+  it('single-clicking the title does not ask Electrobun to restore', async () => {
+    const hostMessages: unknown[] = [];
+    installGlobals();
+    (globalThis.window as any).__electrobunSendToHost = (message: unknown) => {
+      hostMessages.push(message);
+    };
+    makeDoc();
+    stubFetch(async (url) => {
+      if (url.startsWith('/api/themes')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/fonts')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/colours')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/session-settings')) return { ok: true, json: async () => ({ version: 1, sessions: {} }) } as any;
+      if (url.startsWith('/api/sessions')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/drops')) return { ok: true, json: async () => ({ drops: [] }) } as any;
+      return { ok: true, json: async () => ({}) } as any;
+    });
+
+    const t = await freshTopbarCtor();
+    await t.init();
+    ((globalThis.document as any).getElementById('tb-title') as any).dispatch('mousedown', {
+      target: (globalThis.document as any).getElementById('tb-title'),
+      button: 0,
+      clientX: 10,
+      clientY: 10,
+      preventDefault() {},
+      stopPropagation() {},
+    });
+    (globalThis.document as any).dispatch('mouseup', {
+      button: 0,
+      preventDefault() {},
+      stopPropagation() {},
+    });
+
+    expect(hostMessages).toEqual([]);
+  });
+
+  it('moving the pressed title less than the drag threshold does not restore', async () => {
+    const hostMessages: unknown[] = [];
+    installGlobals();
+    (globalThis.window as any).__electrobunSendToHost = (message: unknown) => {
+      hostMessages.push(message);
+    };
+    makeDoc();
+    stubFetch(async (url) => {
+      if (url.startsWith('/api/themes')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/fonts')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/colours')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/session-settings')) return { ok: true, json: async () => ({ version: 1, sessions: {} }) } as any;
+      if (url.startsWith('/api/sessions')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/drops')) return { ok: true, json: async () => ({ drops: [] }) } as any;
+      return { ok: true, json: async () => ({}) } as any;
+    });
+
+    const t = await freshTopbarCtor();
+    await t.init();
+    ((globalThis.document as any).getElementById('tb-title') as any).dispatch('mousedown', {
+      target: (globalThis.document as any).getElementById('tb-title'),
+      button: 0,
+      clientX: 10,
+      clientY: 10,
+      preventDefault() {},
+      stopPropagation() {},
+    });
+    (globalThis.document as any).dispatch('mousemove', {
+      button: 0,
+      clientX: 12,
+      clientY: 13,
+      preventDefault() {},
+      stopPropagation() {},
+    });
+
+    expect(hostMessages).toEqual([]);
+  });
+
+  it('dragging the title past the threshold asks Electrobun to restore once', async () => {
+    const hostMessages: unknown[] = [];
+    installGlobals();
+    (globalThis.window as any).__electrobunSendToHost = (message: unknown) => {
+      hostMessages.push(message);
+    };
+    makeDoc();
+    stubFetch(async (url) => {
+      if (url.startsWith('/api/themes')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/fonts')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/colours')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/session-settings')) return { ok: true, json: async () => ({ version: 1, sessions: {} }) } as any;
+      if (url.startsWith('/api/sessions')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/drops')) return { ok: true, json: async () => ({ drops: [] }) } as any;
+      return { ok: true, json: async () => ({}) } as any;
+    });
+
+    const t = await freshTopbarCtor();
+    await t.init();
+    ((globalThis.document as any).getElementById('tb-title') as any).dispatch('mousedown', {
+      target: (globalThis.document as any).getElementById('tb-title'),
+      button: 0,
+      clientX: 10,
+      clientY: 10,
+      preventDefault() {},
+      stopPropagation() {},
+    });
+    (globalThis.document as any).dispatch('mousemove', {
+      button: 0,
+      clientX: 16,
+      clientY: 10,
+      preventDefault() {},
+      stopPropagation() {},
+    });
+    (globalThis.document as any).dispatch('mousemove', {
+      button: 0,
+      clientX: 30,
+      clientY: 10,
+      preventDefault() {},
+      stopPropagation() {},
+    });
+
+    expect(hostMessages).toEqual([{ type: 'tmux-term:titlebar-drag' }]);
+  });
+
   it('updateWindows populates the windows tab strip with an active flag', async () => {
     const t = await mountTopbar();
     await t.init();

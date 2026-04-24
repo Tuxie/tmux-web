@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electrobun/bun';
+import { BrowserWindow, Screen } from 'electrobun/bun';
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildAuthenticatedUrl, generateDesktopCredentials } from './auth.js';
@@ -7,11 +7,15 @@ import {
   startTmuxWebServer,
 } from './server-process.js';
 import { desktopExtraArgs } from './tmux-path.js';
-import { openTmuxTermWindow } from './window.js';
+import { installWindowFrameLogging, openTmuxTermWindow } from './window.js';
+import { installTmuxTermHostMessages } from './window-host-messages.js';
+import { debugWorkAreaForPoint, workAreaForPoint } from './display-workarea.js';
 
 function logDesktop(message: string): void {
   console.error(`[tmux-term] ${message}`);
 }
+
+const geometryDebugEnabled = process.env.TMUX_TERM_DEBUG_WINDOW_GEOMETRY === '1';
 
 function logTmuxWebOutput(stream: 'stdout' | 'stderr', text: string): void {
   const prefix = stream === 'stdout' ? '[tmux-web stdout] ' : '[tmux-web stderr] ';
@@ -58,6 +62,29 @@ async function main(): Promise<void> {
 
     logDesktop(`opening window: ${server.endpoint.origin}`);
     const win = openTmuxTermWindow(BrowserWindow, url);
+    installTmuxTermHostMessages(
+      win,
+      (frame) => {
+        const displays = Screen.getAllDisplays();
+        const primaryWorkArea = Screen.getPrimaryDisplay().workArea;
+        const cursor = Screen.getCursorScreenPoint();
+        if (geometryDebugEnabled) {
+          const debug = debugWorkAreaForPoint(cursor, frame, displays, primaryWorkArea);
+          logDesktop(`window-geometry selector frame=${JSON.stringify(frame)} cursor=${JSON.stringify(cursor)} debug=${JSON.stringify(debug)} displays=${JSON.stringify(displays)}`);
+        }
+        return workAreaForPoint(cursor, frame, displays, primaryWorkArea);
+      },
+      geometryDebugEnabled
+        ? (message) => {
+            logDesktop(`window-geometry ${message} displays=${JSON.stringify(Screen.getAllDisplays())}`);
+          }
+        : undefined,
+    );
+    if (geometryDebugEnabled) {
+      installWindowFrameLogging(win, (message) => {
+        logDesktop(message);
+      });
+    }
     logDesktop('window opened');
 
     win.on('close', () => {
