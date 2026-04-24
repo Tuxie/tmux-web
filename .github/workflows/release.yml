@@ -162,11 +162,17 @@ jobs:
         run: |
           # Flat archive layout so Homebrew / other packagers can
           # `bin.install "tmux-web"` without a cd-into-subdir dance.
+          # systemd is Linux-only — omit tmux-web.service from the
+          # macOS tarballs (Homebrew users would have no use for it).
           mkdir -p release
-          cp README.md LICENSE tmux-web.service tmux-web release/
+          cp README.md LICENSE tmux-web release/
+          FILES="tmux-web README.md LICENSE"
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            cp tmux-web.service release/
+            FILES="$FILES tmux-web.service"
+          fi
           cd release
-          tar -cJf ../tmux-web-${{ github.ref_name }}-${{ matrix.name }}.tar.xz \
-            tmux-web README.md LICENSE tmux-web.service
+          tar -cJf ../tmux-web-${{ github.ref_name }}-${{ matrix.name }}.tar.xz $FILES
           cd ..
           mv tmux-web-${{ github.ref_name }}-${{ matrix.name }}.tar.xz release/
           # SHA-256 alongside the archive — consumed by the Homebrew
