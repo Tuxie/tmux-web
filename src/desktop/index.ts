@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electrobun/bun';
+import { BrowserWindow, Screen } from 'electrobun/bun';
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildAuthenticatedUrl, generateDesktopCredentials } from './auth.js';
@@ -59,7 +59,7 @@ async function main(): Promise<void> {
 
     logDesktop(`opening window: ${server.endpoint.origin}`);
     const win = openTmuxTermWindow(BrowserWindow, url);
-    installTmuxTermHostMessages(win);
+    installTmuxTermHostMessages(win, () => Screen.getPrimaryDisplay().workArea);
     logDesktop('window opened');
 
     win.on('close', () => {

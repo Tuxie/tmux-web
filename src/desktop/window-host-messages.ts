@@ -10,11 +10,19 @@ interface HostMessageWebview {
 
 interface HostMessageWindow {
   close(): void;
-  maximize(): void;
-  unmaximize(): void;
-  isMaximized(): boolean;
+  getFrame(): WindowFrame;
+  setFrame(x: number, y: number, width: number, height: number): void;
   webview: HostMessageWebview;
 }
+
+interface WindowFrame {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export type WorkAreaProvider = () => WindowFrame;
 
 function hostMessageDetail(event: unknown): unknown {
   const detail = (event as { data?: { detail?: unknown } })?.data?.detail;
@@ -26,16 +34,34 @@ function hostMessageDetail(event: unknown): unknown {
   }
 }
 
-export function installTmuxTermHostMessages(win: HostMessageWindow): void {
+export function installTmuxTermHostMessages(
+  win: HostMessageWindow,
+  getWorkArea: WorkAreaProvider,
+): void {
+  let preMaximizeFrame: WindowFrame | null = null;
+
+  const setFrame = (frame: WindowFrame) => {
+    win.setFrame(frame.x, frame.y, frame.width, frame.height);
+  };
+
+  const restoreIfMaximized = () => {
+    if (!preMaximizeFrame) return false;
+    setFrame(preMaximizeFrame);
+    preMaximizeFrame = null;
+    return true;
+  };
+
   win.webview.on('host-message', (event) => {
     const message = hostMessageDetail(event);
     if (isTmuxTermCloseWindowMessage(message)) {
       win.close();
     } else if (isTmuxTermToggleMaximizeMessage(message)) {
-      if (win.isMaximized()) win.unmaximize();
-      else win.maximize();
-    } else if (isTmuxTermTitlebarDragMessage(message) && win.isMaximized()) {
-      win.unmaximize();
+      if (!restoreIfMaximized()) {
+        preMaximizeFrame = win.getFrame();
+        setFrame(getWorkArea());
+      }
+    } else if (isTmuxTermTitlebarDragMessage(message)) {
+      restoreIfMaximized();
     }
   });
 }
