@@ -19,8 +19,11 @@ export default {
       'tmux-web': 'tmux-web',
     },
     mac: {
-      bundleCEF: false,
-      defaultRenderer: 'native',
+      bundleCEF: true,
+      defaultRenderer: 'cef',
+      chromiumFlags: {
+        'disable-gpu': false,
+      },
     },
     linux: {
       bundleCEF: false,
