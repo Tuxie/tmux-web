@@ -82,4 +82,27 @@ describe('makeAuthenticatedFetch', () => {
     expect(seenUrl).toBe('/api/session-settings?tw_auth=client-token');
     expect(seenHeaders!.has('Authorization')).toBe(false);
   });
+
+  test('does not throw in webviews without a global Request constructor', async () => {
+    const originalRequest = globalThis.Request;
+    try {
+      (globalThis as any).Request = undefined;
+      let seenUrl = '';
+      const fetch = makeAuthenticatedFetch(
+        ((url) => {
+          seenUrl = String(url);
+          return Promise.resolve(new Response('ok'));
+        }) as typeof globalThis.fetch,
+        undefined,
+        { href: 'http://127.0.0.1:4022/', origin: 'http://127.0.0.1:4022' },
+        'client-token',
+      );
+
+      await fetch('/api/themes');
+
+      expect(seenUrl).toBe('/api/themes?tw_auth=client-token');
+    } finally {
+      globalThis.Request = originalRequest;
+    }
+  });
 });

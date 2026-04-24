@@ -7,8 +7,12 @@ function encodeBasicAuth(userinfo: string): string {
   return btoa(`${decodeURIComponent(username)}:${decodeURIComponent(password)}`);
 }
 
+function isRequest(input: RequestInfo | URL): input is Request {
+  return typeof Request !== 'undefined' && input instanceof Request;
+}
+
 function requestUrl(input: RequestInfo | URL): string {
-  if (input instanceof Request) return input.url;
+  if (isRequest(input)) return input.url;
   return String(input);
 }
 
@@ -25,11 +29,11 @@ export function makeAuthenticatedFetch(
     const url = new URL(requestUrl(input), loc.href);
     if (url.origin !== loc.origin) return baseFetch(input, init);
 
-    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+    const headers = new Headers(init?.headers ?? (isRequest(input) ? input.headers : undefined));
     if (authHeader && !headers.has('Authorization')) headers.set('Authorization', authHeader);
     const nextInput = withClientAuth(requestUrl(input), clientAuthToken, loc);
 
-    return baseFetch(input instanceof Request ? new Request(nextInput, input) : nextInput, { ...init, headers });
+    return baseFetch(isRequest(input) ? new Request(nextInput, input) : nextInput, { ...init, headers });
   }) as typeof fetch;
 }
 
