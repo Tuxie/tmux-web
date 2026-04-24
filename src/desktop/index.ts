@@ -7,13 +7,15 @@ import {
   startTmuxWebServer,
 } from './server-process.js';
 import { desktopExtraArgs } from './tmux-path.js';
-import { openTmuxTermWindow } from './window.js';
+import { installWindowFrameLogging, openTmuxTermWindow } from './window.js';
 import { installTmuxTermHostMessages } from './window-host-messages.js';
-import { workAreaForFrame } from './display-workarea.js';
+import { debugWorkAreaForFrame, workAreaForFrame } from './display-workarea.js';
 
 function logDesktop(message: string): void {
   console.error(`[tmux-term] ${message}`);
 }
+
+const geometryDebugEnabled = process.env.TMUX_TERM_DEBUG_WINDOW_GEOMETRY === '1';
 
 function logTmuxWebOutput(stream: 'stdout' | 'stderr', text: string): void {
   const prefix = stream === 'stdout' ? '[tmux-web stdout] ' : '[tmux-web stderr] ';
@@ -62,12 +64,26 @@ async function main(): Promise<void> {
     const win = openTmuxTermWindow(BrowserWindow, url);
     installTmuxTermHostMessages(
       win,
-      (frame) => workAreaForFrame(
-        frame,
-        Screen.getAllDisplays(),
-        Screen.getPrimaryDisplay().workArea,
-      ),
+      (frame) => {
+        const displays = Screen.getAllDisplays();
+        const primaryWorkArea = Screen.getPrimaryDisplay().workArea;
+        if (geometryDebugEnabled) {
+          const debug = debugWorkAreaForFrame(frame, displays, primaryWorkArea);
+          logDesktop(`window-geometry selector frame=${JSON.stringify(frame)} debug=${JSON.stringify(debug)} displays=${JSON.stringify(displays)}`);
+        }
+        return workAreaForFrame(frame, displays, primaryWorkArea);
+      },
+      geometryDebugEnabled
+        ? (message) => {
+            logDesktop(`window-geometry ${message} displays=${JSON.stringify(Screen.getAllDisplays())}`);
+          }
+        : undefined,
     );
+    if (geometryDebugEnabled) {
+      installWindowFrameLogging(win, (message) => {
+        logDesktop(message);
+      });
+    }
     logDesktop('window opened');
 
     win.on('close', () => {
