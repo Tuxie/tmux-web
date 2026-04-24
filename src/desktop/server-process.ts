@@ -118,23 +118,27 @@ export async function startTmuxWebServer(
   let settled = false;
 
   const endpoint = await new Promise<ListeningEndpoint>((resolve, reject) => {
-    const timer = setTimeout(() => {
+    const rejectAfterCleanup = async (err: unknown, cleanupChild: boolean) => {
       if (settled) return;
       settled = true;
-      terminateProcess(proc);
-      reject(
+      clearTimeout(timer);
+      if (cleanupChild) {
+        await waitForExitWithKill(proc, closeGraceMs);
+      }
+      reject(err instanceof Error ? err : new Error(String(err)));
+    };
+
+    const timer = setTimeout(() => {
+      void rejectAfterCleanup(
         new Error(
           `tmux-web did not report readiness within ${timeoutMs}ms${formatOutputTail('stdout', stdoutTail)}${formatOutputTail('stderr', stderrTail)}`,
         ),
+        true,
       );
     }, timeoutMs);
 
     const fail = (err: unknown) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      terminateProcess(proc);
-      reject(err instanceof Error ? err : new Error(String(err)));
+      void rejectAfterCleanup(err, true);
     };
 
     const ready = (endpoint: ListeningEndpoint) => {
@@ -145,10 +149,11 @@ export async function startTmuxWebServer(
     };
 
     void proc.exited.then((code) => {
-      fail(
+      void rejectAfterCleanup(
         new Error(
           `tmux-web exited before readiness with status ${code}${formatOutputTail('stdout', stdoutTail)}${formatOutputTail('stderr', stderrTail)}`,
         ),
+        false,
       );
     });
 
@@ -175,10 +180,11 @@ export async function startTmuxWebServer(
         }
         if (!settled) {
           const code = await proc.exited;
-          fail(
+          void rejectAfterCleanup(
             new Error(
               `tmux-web exited before readiness with status ${code}${formatOutputTail('stdout', stdoutTail)}${formatOutputTail('stderr', stderrTail)}`,
             ),
+            false,
           );
         }
       } catch (err) {

@@ -29,6 +29,24 @@ async function waitForFile(path: string, timeoutMs = 1_000): Promise<void> {
   throw new Error(`timed out waiting for ${path}`);
 }
 
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function waitForPidExit(pid: number, timeoutMs = 1_000): Promise<void> {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (!isPidAlive(pid)) return;
+    await Bun.sleep(10);
+  }
+  throw new Error(`pid ${pid} is still alive`);
+}
+
 describe('desktop tmux-web launch helpers', () => {
   test('buildTmuxWebLaunch binds loopback port 0 and keeps password out of argv', () => {
     const launch = buildTmuxWebLaunch({
@@ -141,6 +159,29 @@ describe('desktop tmux-web launch helpers', () => {
     ).rejects.toThrow('tmux-web did not report readiness within 50ms');
 
     await waitForFile(marker);
+  });
+
+  test('startTmuxWebServer timeout kills a pre-readiness child that ignores SIGTERM', async () => {
+    const pidFile = `/tmp/tmux-web-timeout-pid-${crypto.randomUUID()}`;
+
+    await Bun.write(pidFile, '');
+    await expect(
+      startTmuxWebServer({
+        ...bunEvalLaunch(
+          `
+            await Bun.write(${JSON.stringify(pidFile)}, String(process.pid));
+            process.on('SIGTERM', () => {});
+            setInterval(() => {}, 1_000);
+          `,
+          50,
+        ),
+        closeGraceMs: 50,
+      }),
+    ).rejects.toThrow('tmux-web did not report readiness within 50ms');
+
+    const pid = Number((await Bun.file(pidFile).text()).trim());
+    expect(Number.isInteger(pid)).toBe(true);
+    await waitForPidExit(pid);
   });
 
   test('close terminates a child after readiness', async () => {
