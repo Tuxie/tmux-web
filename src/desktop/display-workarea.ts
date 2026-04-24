@@ -54,6 +54,14 @@ function pickClosest(target: number, values: number[]): number {
   return best;
 }
 
+function pickY(target: number, values: number[]): number {
+  if (target < 0) {
+    const negative = values.filter((value) => value < 0);
+    if (negative.length > 0) return Math.max(...negative);
+  }
+  return pickClosest(target, values);
+}
+
 function normalizedWorkAreaDetails(display: Display, frame: Rectangle): WorkAreaDebugInfo {
   const { bounds, workArea } = display;
   const xCandidates = uniqueNumbers([
@@ -79,10 +87,10 @@ function normalizedWorkAreaDetails(display: Display, frame: Rectangle): WorkArea
     xCandidates,
     yCandidates,
     selectedWorkArea: {
-    x: pickClosest(frame.x, xCandidates.length > 0 ? xCandidates : [workArea.x]),
-    y: pickClosest(frame.y, yCandidates.length > 0 ? yCandidates : [workArea.y]),
-    width: workArea.width,
-    height: workArea.height,
+      x: pickClosest(frame.x, xCandidates.length > 0 ? xCandidates : [workArea.x]),
+      y: pickY(frame.y, yCandidates.length > 0 ? yCandidates : [workArea.y]),
+      width: workArea.width,
+      height: workArea.height,
     },
   };
 }
