@@ -22,7 +22,7 @@ interface WindowFrame {
   height: number;
 }
 
-export type WorkAreaProvider = () => WindowFrame;
+export type WorkAreaProvider = (frame: WindowFrame) => WindowFrame;
 
 function hostMessageDetail(event: unknown): unknown {
   const detail = (event as { data?: { detail?: unknown } })?.data?.detail;
@@ -58,7 +58,7 @@ export function installTmuxTermHostMessages(
     } else if (isTmuxTermToggleMaximizeMessage(message)) {
       if (!restoreIfMaximized()) {
         preMaximizeFrame = win.getFrame();
-        setFrame(getWorkArea());
+        setFrame(getWorkArea(preMaximizeFrame));
       }
     } else if (isTmuxTermTitlebarDragMessage(message)) {
       restoreIfMaximized();

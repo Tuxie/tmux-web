@@ -1,0 +1,49 @@
+import { describe, expect, test } from 'bun:test';
+import { workAreaForFrame, type Display } from '../../../src/desktop/display-workarea.js';
+
+describe('desktop display work area selection', () => {
+  const primary: Display = {
+    id: 1,
+    bounds: { x: 0, y: 0, width: 1440, height: 900 },
+    workArea: { x: 0, y: 25, width: 1440, height: 875 },
+    scaleFactor: 1,
+    isPrimary: true,
+  };
+  const secondary: Display = {
+    id: 2,
+    bounds: { x: 1440, y: 0, width: 1920, height: 1080 },
+    workArea: { x: 1440, y: 0, width: 1920, height: 1040 },
+    scaleFactor: 1,
+    isPrimary: false,
+  };
+
+  test('chooses the display with the largest overlap with the current window frame', () => {
+    const workArea = workAreaForFrame(
+      { x: 1500, y: 100, width: 900, height: 600 },
+      [primary, secondary],
+      primary.workArea,
+    );
+
+    expect(workArea).toEqual(secondary.workArea);
+  });
+
+  test('falls back to nearest display center when there is no overlap', () => {
+    const workArea = workAreaForFrame(
+      { x: 3800, y: 100, width: 500, height: 500 },
+      [primary, secondary],
+      primary.workArea,
+    );
+
+    expect(workArea).toEqual(secondary.workArea);
+  });
+
+  test('falls back to the primary work area when no displays are available', () => {
+    const workArea = workAreaForFrame(
+      { x: 1500, y: 100, width: 900, height: 600 },
+      [],
+      primary.workArea,
+    );
+
+    expect(workArea).toEqual(primary.workArea);
+  });
+});

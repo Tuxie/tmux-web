@@ -1,0 +1,60 @@
+export interface Rectangle {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface Display {
+  id: number;
+  bounds: Rectangle;
+  workArea: Rectangle;
+  scaleFactor: number;
+  isPrimary: boolean;
+}
+
+function overlapArea(a: Rectangle, b: Rectangle): number {
+  const left = Math.max(a.x, b.x);
+  const right = Math.min(a.x + a.width, b.x + b.width);
+  const top = Math.max(a.y, b.y);
+  const bottom = Math.min(a.y + a.height, b.y + b.height);
+  return Math.max(0, right - left) * Math.max(0, bottom - top);
+}
+
+function centerDistanceSquared(a: Rectangle, b: Rectangle): number {
+  const ax = a.x + a.width / 2;
+  const ay = a.y + a.height / 2;
+  const bx = b.x + b.width / 2;
+  const by = b.y + b.height / 2;
+  return (ax - bx) ** 2 + (ay - by) ** 2;
+}
+
+export function workAreaForFrame(
+  frame: Rectangle,
+  displays: Display[],
+  fallbackWorkArea: Rectangle,
+): Rectangle {
+  if (displays.length === 0) return fallbackWorkArea;
+
+  let best = displays[0]!;
+  let bestOverlap = overlapArea(frame, best.bounds);
+  for (const display of displays.slice(1)) {
+    const area = overlapArea(frame, display.bounds);
+    if (area > bestOverlap) {
+      best = display;
+      bestOverlap = area;
+    }
+  }
+  if (bestOverlap > 0) return best.workArea;
+
+  best = displays[0]!;
+  let bestDistance = centerDistanceSquared(frame, best.bounds);
+  for (const display of displays.slice(1)) {
+    const distance = centerDistanceSquared(frame, display.bounds);
+    if (distance < bestDistance) {
+      best = display;
+      bestDistance = distance;
+    }
+  }
+  return best.workArea;
+}

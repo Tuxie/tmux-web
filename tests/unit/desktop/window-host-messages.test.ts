@@ -39,10 +39,16 @@ describe('tmux-term window host messages', () => {
 
   test('double-click titlebar message instantly fills the work area and remembers the old frame', () => {
     const { win, handlers } = fakeWindow();
+    const workAreaCalls: Array<{ x: number; y: number; width: number; height: number }> = [];
+    const sameMonitorWorkArea: WorkAreaProvider = (frame) => {
+      workAreaCalls.push(frame);
+      return workArea();
+    };
 
-    installTmuxTermHostMessages(win, workArea);
+    installTmuxTermHostMessages(win, sameMonitorWorkArea);
     handlers['host-message']!({ data: { detail: { type: 'tmux-term:toggle-maximize' } } });
 
+    expect(workAreaCalls).toEqual([{ x: 100, y: 120, width: 900, height: 620 }]);
     expect(win.calls()).toEqual(['setFrame:0,25,1440,875']);
     expect(win.frame()).toEqual({ x: 0, y: 25, width: 1440, height: 875 });
   });
