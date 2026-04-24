@@ -13,31 +13,6 @@ export interface Display {
   isPrimary: boolean;
 }
 
-function desktopMaxY(displays: Display[]): number {
-  return Math.max(...displays.map((display) => display.bounds.y + display.bounds.height));
-}
-
-function flipGlobalY(rect: Rectangle, maxY: number): Rectangle {
-  return {
-    x: rect.x,
-    y: maxY - (rect.y + rect.height),
-    width: rect.width,
-    height: rect.height,
-  };
-}
-
-function uniqueRects(rects: Rectangle[]): Rectangle[] {
-  const seen = new Set<string>();
-  const out: Rectangle[] = [];
-  for (const rect of rects) {
-    const key = `${rect.x}:${rect.y}:${rect.width}:${rect.height}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(rect);
-  }
-  return out;
-}
-
 function overlapArea(a: Rectangle, b: Rectangle): number {
   const left = Math.max(a.x, b.x);
   const right = Math.min(a.x + a.width, b.x + b.width);
@@ -54,59 +29,44 @@ function centerDistanceSquared(a: Rectangle, b: Rectangle): number {
   return (ax - bx) ** 2 + (ay - by) ** 2;
 }
 
-function originDistanceSquared(a: Rectangle, b: Rectangle): number {
-  return (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
+function uniqueNumbers(values: number[]): number[] {
+  return [...new Set(values)];
 }
 
-function containsRect(outer: Rectangle, inner: Rectangle): boolean {
-  return inner.x >= outer.x
-    && inner.y >= outer.y
-    && inner.x + inner.width <= outer.x + outer.width
-    && inner.y + inner.height <= outer.y + outer.height;
-}
-
-function candidateBounds(display: Display, maxY: number): Rectangle[] {
-  return uniqueRects([
-    display.bounds,
-    flipGlobalY(display.bounds, maxY),
-  ]);
-}
-
-function candidateWorkAreas(display: Display, maxY: number): Rectangle[] {
-  const { bounds, workArea } = display;
-  const localDirect = {
-    x: bounds.x + workArea.x,
-    y: bounds.y + workArea.y,
-    width: workArea.width,
-    height: workArea.height,
-  };
-  const localFlipped = {
-    x: localDirect.x,
-    y: bounds.y + bounds.height - workArea.y - workArea.height,
-    width: workArea.width,
-    height: workArea.height,
-  };
-  return uniqueRects([
-    workArea,
-    flipGlobalY(workArea, maxY),
-    localDirect,
-    flipGlobalY(localDirect, maxY),
-    localFlipped,
-    flipGlobalY(localFlipped, maxY),
-  ]);
-}
-
-function pickClosestToFrame(frame: Rectangle, candidates: Rectangle[]): Rectangle {
-  let best = candidates[0]!;
-  let bestDistance = originDistanceSquared(frame, best);
-  for (const candidate of candidates.slice(1)) {
-    const distance = originDistanceSquared(frame, candidate);
+function pickClosest(target: number, values: number[]): number {
+  let best = values[0]!;
+  let bestDistance = Math.abs(target - best);
+  for (const value of values.slice(1)) {
+    const distance = Math.abs(target - value);
     if (distance < bestDistance) {
-      best = candidate;
+      best = value;
       bestDistance = distance;
     }
   }
   return best;
+}
+
+function normalizedWorkArea(display: Display, frame: Rectangle): Rectangle {
+  const { bounds, workArea } = display;
+  const xCandidates = uniqueNumbers([
+    workArea.x,
+    bounds.x + workArea.x,
+  ]).filter((x) => x >= bounds.x && x + workArea.width <= bounds.x + bounds.width);
+
+  const topInsetFromGlobal = workArea.y - bounds.y;
+  const yCandidates = uniqueNumbers([
+    workArea.y,
+    bounds.y + workArea.y,
+    bounds.y + bounds.height - topInsetFromGlobal - workArea.height,
+    bounds.y + bounds.height - workArea.y - workArea.height,
+  ]).filter((y) => y >= bounds.y && y + workArea.height <= bounds.y + bounds.height);
+
+  return {
+    x: pickClosest(frame.x, xCandidates.length > 0 ? xCandidates : [workArea.x]),
+    y: pickClosest(frame.y, yCandidates.length > 0 ? yCandidates : [workArea.y]),
+    width: workArea.width,
+    height: workArea.height,
+  };
 }
 
 export function workAreaForFrame(
@@ -115,34 +75,26 @@ export function workAreaForFrame(
   fallbackWorkArea: Rectangle,
 ): Rectangle {
   if (displays.length === 0) return fallbackWorkArea;
-  const maxY = desktopMaxY(displays);
 
-  let best = { display: displays[0]!, bounds: candidateBounds(displays[0]!, maxY)[0]! };
+  let best = displays[0]!;
   let bestOverlap = overlapArea(frame, best.bounds);
-  for (const display of displays) {
-    for (const bounds of candidateBounds(display, maxY)) {
-      const area = overlapArea(frame, bounds);
-      if (area > bestOverlap) {
-        best = { display, bounds };
-        bestOverlap = area;
-      }
+  for (const display of displays.slice(1)) {
+    const area = overlapArea(frame, display.bounds);
+    if (area > bestOverlap) {
+      best = display;
+      bestOverlap = area;
     }
   }
+  if (bestOverlap > 0) return normalizedWorkArea(best, frame);
 
-  if (bestOverlap <= 0) {
-    let bestDistance = centerDistanceSquared(frame, best.bounds);
-    for (const display of displays) {
-      for (const bounds of candidateBounds(display, maxY)) {
-        const distance = centerDistanceSquared(frame, bounds);
-        if (distance < bestDistance) {
-          best = { display, bounds };
-          bestDistance = distance;
-        }
-      }
+  best = displays[0]!;
+  let bestDistance = centerDistanceSquared(frame, best.bounds);
+  for (const display of displays.slice(1)) {
+    const distance = centerDistanceSquared(frame, display.bounds);
+    if (distance < bestDistance) {
+      best = display;
+      bestDistance = distance;
     }
   }
-
-  const candidates = candidateWorkAreas(best.display, maxY);
-  const contained = candidates.filter((candidate) => containsRect(best.bounds, candidate));
-  return pickClosestToFrame(frame, contained.length > 0 ? contained : candidates);
+  return normalizedWorkArea(best, frame);
 }

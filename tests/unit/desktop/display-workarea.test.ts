@@ -86,4 +86,29 @@ describe('desktop display work area selection', () => {
 
     expect(workArea).toEqual({ x: 1440, y: 40, width: 1920, height: 1040 });
   });
+
+  test('uses the monitor-top anchored y from the logged macOS secondary display geometry', () => {
+    const macPrimary: Display = {
+      id: 3,
+      bounds: { x: 0, y: 0, width: 3840, height: 2160 },
+      workArea: { x: 0, y: 30, width: 3840, height: 2130 },
+      scaleFactor: 1,
+      isPrimary: true,
+    };
+    const macSecondary: Display = {
+      id: 1,
+      bounds: { x: -1800, y: 386, width: 1800, height: 1169 },
+      workArea: { x: -1800, y: 425, width: 1800, height: 1130 },
+      scaleFactor: 2,
+      isPrimary: false,
+    };
+
+    const workArea = workAreaForFrame(
+      { x: -1230, y: -486, width: 1200, height: 760 },
+      [macPrimary, macSecondary],
+      macPrimary.workArea,
+    );
+
+    expect(workArea).toEqual({ x: -1800, y: 386, width: 1800, height: 1130 });
+  });
 });
