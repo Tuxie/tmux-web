@@ -484,6 +484,30 @@ describe('Topbar.updateSession', () => {
     await new Promise((r) => setImmediate(r as any));
     expect(settingsSet.length).toBeGreaterThan(0);
   });
+
+  it('loads each target session stored theme when switching among three sessions', async () => {
+    const settingsSet: SessionSettings[] = [];
+    const t = await mountTopbarWithSettings({
+      sessions: {
+        main: { ...DEFAULT_SESSION_SETTINGS, theme: 'Default' },
+        amiga: { ...DEFAULT_SESSION_SETTINGS, theme: 'AmigaOS 3.1', colours: 'Nord' },
+        scene: { ...DEFAULT_SESSION_SETTINGS, theme: 'Amiga Scene 2000', colours: 'Gruvbox Dark' },
+      },
+      onSettingsChange: (s) => { settingsSet.push(s); },
+    });
+
+    t.updateSession('amiga');
+    await new Promise((r) => setImmediate(r as any));
+    expect(settingsSet.at(-1)?.theme).toBe('AmigaOS 3.1');
+    expect(settingsSet.at(-1)?.colours).toBe('Nord');
+    expect(((globalThis.document as any).getElementById('inp-theme') as any).value).toBe('AmigaOS 3.1');
+
+    t.updateSession('scene');
+    await new Promise((r) => setImmediate(r as any));
+    expect(settingsSet.at(-1)?.theme).toBe('Amiga Scene 2000');
+    expect(settingsSet.at(-1)?.colours).toBe('Gruvbox Dark');
+    expect(((globalThis.document as any).getElementById('inp-theme') as any).value).toBe('Amiga Scene 2000');
+  });
 });
 
 describe('Topbar.show', () => {

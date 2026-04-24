@@ -399,6 +399,32 @@ describe('ws handleConnection — OSC 52 write + title change from PTY', () => {
     o.ws.close();
   }, 15000);
 
+  test('OSC title naming an existing unattached tmux session updates session state', async () => {
+    const { path: tmuxBin, dir } = makeFakeTmux();
+    fs.writeFileSync(dir + '/trigger', '\x1b]0;dev:1:zsh\x07');
+    const attachedSessions: string[] = [];
+    const tmuxControl: TmuxControl = {
+      attachSession: async (sessionName) => { attachedSessions.push(sessionName); },
+      detachSession: () => {},
+      run: async (args) => {
+        if (args[0] === 'list-windows') return '0\teditor\t1\n';
+        if (args[0] === 'display-message') return 'pane';
+        return '';
+      },
+      on: () => () => {},
+      hasSession: () => false,
+      close: async () => {},
+    };
+    h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
+    const o = openWs(h.wsUrl);
+    await o.opened;
+
+    const got = await waitForMsg(o.messages, m => m.session === 'dev' && Array.isArray(m.windows) && m.windows.length > 0, 8000);
+    expect(got).toBeTruthy();
+    expect(attachedSessions).toContain('dev');
+    o.ws.close();
+  }, 15000);
+
   test('sendWindowState falls back to tmux binary when control list-windows fails', async () => {
     const { path: tmuxBin } = makeFakeTmux();
     const tmuxControl: TmuxControl = {

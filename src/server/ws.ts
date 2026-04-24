@@ -239,28 +239,7 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
     }
     if (result.titleChanged && result.detectedTitle !== state.lastTitle) {
       state.lastTitle = result.detectedTitle || '';
-      // OSC titles are doubly used: tmux's `set-titles` template encodes
-      // `<session>:<window>:<process>` and is the live signal that an
-      // external `switch-client` retargeted the PTY tmux client to a
-      // different session, but a shell with `allow-passthrough on` will
-      // also emit `\x1b]0;user@host:~/p\x07` from its prompt. Trust the
-      // detected session ONLY when the pool already has an attached
-      // control client for it (i.e. it really is one of our tmux
-      // sessions); otherwise just push the title under the registered
-      // session and leave session identity alone.
-      const detected = result.detectedSession;
-      const isKnownSession = !!detected && opts.tmuxControl.hasSession(detected);
-      if (isKnownSession && detected !== state.registeredSession) {
-        // External session change observed. Mutate registeredSession so
-        // subsequent window/clipboard operations target the new session,
-        // and refresh window state for the new context.
-        state.registeredSession = detected!;
-        state.lastSession = detected!;
-        void sendWindowState(ws, detected!, opts);
-      } else {
-        const sessionForFrame = isKnownSession ? detected! : state.registeredSession;
-        ws.send(frameTTMessage({ session: sessionForFrame, title: state.lastTitle }));
-      }
+      void handleTitleChange(ws, result.detectedSession, state.lastTitle, opts, reg);
     }
   });
 
@@ -309,6 +288,61 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
       try { ws.send(frameTTMessage({ ptyExit: true })); } catch { /* ws gone */ }
     }
   });
+}
+
+async function tmuxSessionExists(sessionName: string, opts: WsServerOptions): Promise<boolean> {
+  if (opts.tmuxControl.hasSession(sessionName)) return true;
+  try {
+    await execFileAsync(opts.config.tmuxBin, ['has-session', '-t', sessionName]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function handleTitleChange(
+  ws: ServerWebSocket<WsData>,
+  detectedSession: string | null,
+  title: string,
+  opts: WsServerOptions,
+  reg: WsRegistry,
+): Promise<void> {
+  if (ws.readyState !== WS_OPEN) return;
+
+  // OSC titles are doubly used: tmux's `set-titles` template encodes
+  // `<session>:<window>:<process>` and is the live signal that an external
+  // `switch-client` retargeted the PTY tmux client, while shells also emit
+  // prompt titles like `user@host:~/p`. Validate the parsed session against
+  // tmux itself before letting it mutate websocket/session state.
+  if (!detectedSession || !(await tmuxSessionExists(detectedSession, opts))) {
+    if (ws.readyState === WS_OPEN) {
+      ws.send(frameTTMessage({ session: ws.data.state.registeredSession, title }));
+    }
+    return;
+  }
+
+  const oldSession = ws.data.state.registeredSession;
+  if (detectedSession === oldSession) {
+    ws.send(frameTTMessage({ session: detectedSession, title }));
+    return;
+  }
+
+  let attached = false;
+  try {
+    await opts.tmuxControl.attachSession(detectedSession, { cols: ws.data.cols, rows: ws.data.rows });
+    attached = true;
+  } catch (err) {
+    debug(opts.config, `attachSession(${detectedSession}) after OSC title failed: ${(err as Error).message}`);
+  }
+
+  if (ws.readyState !== WS_OPEN || ws.data.state.registeredSession !== oldSession) {
+    if (attached) opts.tmuxControl.detachSession(detectedSession);
+    return;
+  }
+
+  moveWsToSession(ws, oldSession, detectedSession, opts, reg);
+  attached = false;
+  await sendWindowState(ws, detectedSession, opts);
 }
 
 function handleMessage(ws: ServerWebSocket<WsData>, msg: string | Buffer, opts: WsServerOptions, reg: WsRegistry): void {
@@ -841,12 +875,15 @@ async function sendStartupWindowState(ws: ServerWebSocket<WsData>, sessionName: 
   for (const delay of retryDelays) {
     if (delay > 0) await Bun.sleep(delay);
     if (ws.readyState !== WS_OPEN) return;
+    if (ws.data.state.registeredSession !== sessionName) return;
 
     const [sessions, windows, title] = await Promise.all([
       listSessionStateDirect(opts),
       listWindowStateDirect(sessionName, opts),
       getPaneTitleDirect(sessionName, opts),
     ]);
+    if (ws.readyState !== WS_OPEN) return;
+    if (ws.data.state.registeredSession !== sessionName) return;
     if (!windows || windows.length === 0) continue;
 
     const msg: ServerMessage = { session: sessionName, windows };
@@ -865,7 +902,7 @@ async function sendWindowState(ws: ServerWebSocket<WsData>, sessionName: string,
       listWindowState(sessionName, opts),
       getPaneTitle(sessionName, opts),
     ]);
-    if (ws.readyState === WS_OPEN) {
+    if (ws.readyState === WS_OPEN && ws.data.state.registeredSession === sessionName) {
       // Tmux sessions always have ≥1 window, so an empty list means our
       // query failed — omit the `windows` field rather than wiping the
       // client's cached list. The client's message-handler is gated by
@@ -877,7 +914,7 @@ async function sendWindowState(ws: ServerWebSocket<WsData>, sessionName: string,
       ws.send(frameTTMessage(msg));
     }
   } catch {
-    if (ws.readyState === WS_OPEN) {
+    if (ws.readyState === WS_OPEN && ws.data.state.registeredSession === sessionName) {
       ws.send(frameTTMessage({ session: sessionName }));
     }
   }

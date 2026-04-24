@@ -34,6 +34,17 @@ case "$1" in
     done
     echo -e "${panePid}\\tbash"
     ;;
+  has-session)
+    TARGET=""
+    while [ "$#" -gt 0 ]; do
+      if [ "$1" = "-t" ]; then shift; TARGET="$1"; fi
+      shift || true
+    done
+    case "$TARGET" in
+      ""|user@host*) exit 1;;
+      *) exit 0;;
+    esac
+    ;;
   list-windows) printf "0\\tone\\t1\\n1\\ttwo\\t0\\n";;
   list-clients)
     if [ -f "${dir}/client.pid" ]; then
