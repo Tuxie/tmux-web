@@ -23,25 +23,31 @@ export interface ListeningEndpoint {
   origin: string;
 }
 
-const FORBIDDEN_EXTRA_ARGS = new Set([
-  '--listen',
-  '-l',
-  '--no-auth',
-  '--username',
-  '-u',
-  '--password',
-  '-p',
-  '--tls',
-  '--tls-cert',
-  '--tls-key',
-]);
+const ALLOWED_VALUE_EXTRA_ARGS = new Set(['--tmux', '--tmux-conf', '--themes-dir']);
+const ALLOWED_BOOLEAN_EXTRA_ARGS = new Set(['--debug', '-d']);
 
 function validateExtraArgs(extraArgs: string[]): void {
-  for (const arg of extraArgs) {
-    const flag = arg.startsWith('-') ? (arg.split('=', 1)[0] ?? arg) : arg;
-    if (FORBIDDEN_EXTRA_ARGS.has(flag)) {
+  for (let i = 0; i < extraArgs.length; i += 1) {
+    const arg = extraArgs[i]!;
+    if (ALLOWED_BOOLEAN_EXTRA_ARGS.has(arg)) continue;
+
+    const equalsIndex = arg.indexOf('=');
+    if (equalsIndex > 0) {
+      const flag = arg.slice(0, equalsIndex);
+      const value = arg.slice(equalsIndex + 1);
+      if (ALLOWED_VALUE_EXTRA_ARGS.has(flag) && value.length > 0) continue;
       throw new Error(`tmux-web desktop extra arg is not allowed: ${flag}`);
     }
+
+    if (ALLOWED_VALUE_EXTRA_ARGS.has(arg)) {
+      const value = extraArgs[i + 1];
+      if (value && !value.startsWith('-')) {
+        i += 1;
+        continue;
+      }
+    }
+
+    throw new Error(`tmux-web desktop extra arg is not allowed: ${arg}`);
   }
 }
 

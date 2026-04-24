@@ -89,12 +89,41 @@ describe('desktop tmux-web launch helpers', () => {
     ]);
   });
 
-  test('buildTmuxWebLaunch rejects security-sensitive extra args', () => {
+  test('buildTmuxWebLaunch allows only safe desktop customization args', () => {
+    for (const extraArgs of [
+      ['--tmux', '/usr/bin/tmux'],
+      ['--tmux=/usr/bin/tmux'],
+      ['--tmux-conf', '/tmp/tmux.conf'],
+      ['--tmux-conf=/tmp/tmux.conf'],
+      ['--themes-dir', '/tmp/themes'],
+      ['--themes-dir=/tmp/themes'],
+      ['--debug'],
+      ['-d'],
+    ]) {
+      expect(
+        buildTmuxWebLaunch({
+          executable: '/opt/tmux-term/tmux-web',
+          credentials,
+          extraArgs,
+        }).args,
+      ).toEqual(['--listen', '127.0.0.1:0', '--no-tls', ...extraArgs]);
+    }
+  });
+
+  test('buildTmuxWebLaunch rejects unsafe or unknown extra args', () => {
     for (const extraArgs of [
       ['--no-auth'],
       ['--listen', '0.0.0.0:0'],
       ['--password=secret'],
       ['-p', 'secret'],
+      ['--test'],
+      ['--allow-origin', '*'],
+      ['--allow-origin=*'],
+      ['--allow-ip', '127.0.0.1'],
+      ['--reset'],
+      ['--help'],
+      ['--version'],
+      ['positional'],
     ]) {
       expect(() =>
         buildTmuxWebLaunch({
