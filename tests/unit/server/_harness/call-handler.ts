@@ -4,8 +4,9 @@ import type { HttpHandler } from '../../../../src/server/http.ts';
  *  HTTP handler directly without a real server. Only `requestIP` is
  *  consulted by the handler today; the rest are stubbed for type
  *  satisfaction. */
-function fakeServer(remoteIp: string): any {
+function fakeServer(remoteIp: string, port?: number): any {
   return {
+    port,
     requestIP: () => ({ address: remoteIp, family: 'IPv4', port: 0 }),
   };
 }
@@ -16,6 +17,7 @@ export interface CallOpts {
   body?: string | Uint8Array | Buffer;
   headers?: Record<string, string>;
   remoteIp?: string;
+  serverPort?: number;
 }
 
 export interface CallResult {
@@ -34,7 +36,7 @@ export async function callHandler(handler: HttpHandler, opts: CallOpts): Promise
     init.body = typeof opts.body === 'string' ? opts.body : new Uint8Array(opts.body);
   }
   const req = new Request(`http://x${opts.url}`, init);
-  const res = await handler(req, fakeServer(opts.remoteIp ?? '127.0.0.1'));
+  const res = await handler(req, fakeServer(opts.remoteIp ?? '127.0.0.1', opts.serverPort));
   const body = await res.text();
   return { status: res.status, body, headers: res.headers };
 }

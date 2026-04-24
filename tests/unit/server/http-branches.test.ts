@@ -459,13 +459,14 @@ async function callRaw(
   handler: HttpHandler,
   method: string,
   url: string,
-  opts: { body?: Buffer; headers?: Record<string,string>; remoteIp?: string } = {},
+  opts: { body?: Buffer; headers?: Record<string,string>; remoteIp?: string; serverPort?: number } = {},
 ): Promise<{ status: number; body: string; headers: Headers }> {
   return await callHandler(handler, {
     method, url,
     body: opts.body,
     headers: opts.headers,
     remoteIp: opts.remoteIp,
+    serverPort: opts.serverPort,
   });
 }
 
@@ -524,6 +525,22 @@ describe('http branches — direct handler (fake req/res)', () => {
   test('debug path logs to stderr (config.debug=true)', async () => {
     const h2 = await mkHandler({ debug: true });
     const r = await callRaw(h2, 'GET', '/');
+    expect(r.status).toBe(200);
+  });
+
+  test('loopback Origin uses actual bound port when configured port is zero', async () => {
+    const h2 = await mkHandler({
+      testMode: false,
+      port: 0,
+      allowedIps: new Set(['127.0.0.1']),
+      auth: { enabled: false },
+    });
+
+    const r = await callRaw(h2, 'GET', '/', {
+      serverPort: 61379,
+      headers: { origin: 'http://127.0.0.1:61379' },
+    });
+
     expect(r.status).toBe(200);
   });
 

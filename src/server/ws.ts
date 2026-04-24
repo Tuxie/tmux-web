@@ -128,7 +128,7 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
       allowedIps: config.allowedIps,
       allowedOrigins: config.allowedOrigins,
       serverScheme: config.tls ? 'https' : 'http',
-      serverPort: config.port,
+      serverPort: config.port || server.port || config.port,
     })) {
       const origin = originHeader ?? '<none>';
       debug(config, `WS upgrade from ${remoteIp} - rejected (Origin: ${origin})`);

@@ -270,7 +270,7 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
       allowedIps: config.allowedIps,
       allowedOrigins: config.allowedOrigins,
       serverScheme: config.tls ? 'https' : 'http',
-      serverPort: config.port,
+      serverPort: config.port || server.port || config.port,
     })) {
       const origin = originHeader ?? '<none>';
       debug(config, `HTTP ${method} ${req.url} from ${remoteIp} - rejected (Origin: ${origin})`);
