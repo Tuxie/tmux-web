@@ -46,6 +46,7 @@ export function createScrollbarController(opts: {
   passThroughWheel: (ev: WheelEvent) => boolean;
   requestFit: () => void;
 }): ScrollbarController {
+  opts.root.classList.add('tw-scrollbar');
   const track = ensureChild(opts.root, '.tw-scrollbar-track', 'tw-scrollbar-track');
   const thumb = ensureChild(track, '.tw-scrollbar-thumb', 'tw-scrollbar-thumb');
 
@@ -85,6 +86,7 @@ export function createScrollbarController(opts: {
 
   function handleWheel(ev: WheelEvent): boolean {
     if (state.unavailable || state.alternateOn) return opts.passThroughWheel(ev);
+    if (ev.deltaY === 0) return false;
 
     const count = Math.max(
       1,

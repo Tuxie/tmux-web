@@ -73,6 +73,7 @@ describe('createScrollbarController', () => {
       requestFit: () => {},
     });
 
+    expect(root.classList.contains('tw-scrollbar')).toBe(true);
     const track = root.children[0]!;
     expect(track.classList.contains('tw-scrollbar-track')).toBe(true);
     expect(track.children[0]!.classList.contains('tw-scrollbar-thumb')).toBe(true);
@@ -151,6 +152,21 @@ describe('createScrollbarController', () => {
     expect(controller.handleWheel(wheel(9999))).toBe(true);
 
     expect(sent).toEqual([{ type: 'scrollbar', action: 'line-down', count: 5 }]);
+  });
+
+  test('zero-delta wheel does not send a scroll action', () => {
+    const sent: unknown[] = [];
+    const root = el('div');
+    const controller = createScrollbarController({
+      root: root as any,
+      send: (msg) => sent.push(msg),
+      passThroughWheel: () => true,
+      requestFit: () => {},
+    });
+    controller.updateState(state());
+
+    expect(controller.handleWheel(wheel(0))).toBe(false);
+    expect(sent).toEqual([]);
   });
 
   test('alternate screen adds unavailable and lets wheel pass through', () => {
