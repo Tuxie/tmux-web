@@ -28,6 +28,18 @@ describe("server scrollbar helpers", () => {
     expect(parseScrollbarState("%5\t10\t0\t0\t0\t\t1")?.alternateOn).toBe(true);
   });
 
+  test("parseScrollbarState treats empty live scroll position as live bottom", () => {
+    expect(parseScrollbarState("%4\t40\t100\t\t0\t\t0")).toEqual({
+      paneId: "%4",
+      paneHeight: 40,
+      historySize: 100,
+      scrollPosition: 0,
+      paneInMode: 0,
+      paneMode: "",
+      alternateOn: false,
+    });
+  });
+
   test("parseScrollbarState returns unavailable for malformed values", () => {
     expect(parseScrollbarState("")).toEqual({
       paneId: null,
@@ -40,6 +52,10 @@ describe("server scrollbar helpers", () => {
       unavailable: true,
     });
     expect(parseScrollbarState("%4\tbad\t1200\t7\t1\tcopy-mode\t0")?.unavailable).toBe(true);
+  });
+
+  test("parseScrollbarState rejects empty copy-mode scroll position", () => {
+    expect(parseScrollbarState("%4\t40\t100\t\t1\tcopy-mode\t0")?.unavailable).toBe(true);
   });
 
   test("parseScrollbarState returns unavailable for malformed alternate screen flag", () => {
@@ -59,7 +75,7 @@ describe("server scrollbar helpers", () => {
     await applyScrollbarAction({
       action: "line-up",
       count: 3,
-      getState: async () => ({ paneId: "%4", paneHeight: 40, historySize: 100, scrollPosition: 0, paneInMode: 0, paneMode: "", alternateOn: false }),
+      getState: async () => parseScrollbarState("%4\t40\t100\t\t0\t\t0"),
       run: async (args) => { calls.push([...args]); return ""; },
     });
     expect(calls).toEqual([

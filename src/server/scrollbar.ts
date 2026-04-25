@@ -35,8 +35,10 @@ export function parseScrollbarState(raw: string): ScrollbarState {
   const [paneId, paneHeightRaw, historySizeRaw, scrollPositionRaw, paneInModeRaw, paneMode, alternateOnRaw] = parts;
   const paneHeight = parseNonNegativeInt(paneHeightRaw);
   const historySize = parseNonNegativeInt(historySizeRaw);
-  const scrollPosition = parseNonNegativeInt(scrollPositionRaw);
   const paneInMode = parseNonNegativeInt(paneInModeRaw);
+  const scrollPosition = scrollPositionRaw === "" && paneInMode === 0
+    ? 0
+    : parseNonNegativeInt(scrollPositionRaw);
   if (
     !paneId ||
     paneHeight === null ||
