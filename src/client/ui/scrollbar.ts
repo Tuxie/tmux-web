@@ -63,6 +63,7 @@ export function createScrollbarController(opts: {
     unavailable: true,
   };
   let autohide = false;
+  let dragging = false;
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
   function render(): void {
@@ -78,6 +79,10 @@ export function createScrollbarController(opts: {
   }
 
   function setVisible(value: boolean): void {
+    if (!value && dragging) {
+      opts.root.classList.add('visible');
+      return;
+    }
     opts.root.classList.toggle('visible', value);
     if (!value && hideTimer) {
       clearTimeout(hideTimer);
@@ -110,6 +115,40 @@ export function createScrollbarController(opts: {
     opts.send(msg);
   }
 
+  function sendPage(action: 'page-up' | 'page-down'): void {
+    const msg: ScrollbarActionMessage = {
+      type: 'scrollbar',
+      action,
+    };
+    if (state.paneId) msg.paneId = state.paneId;
+    opts.send(msg);
+  }
+
+  function sendDrag(position: number): void {
+    const msg: ScrollbarActionMessage = {
+      type: 'scrollbar',
+      action: 'drag',
+      position,
+    };
+    if (state.paneId) msg.paneId = state.paneId;
+    opts.send(msg);
+  }
+
+  function canUsePointerScrollbar(): boolean {
+    return !state.unavailable && !state.alternateOn && state.historySize > 0;
+  }
+
+  function scrollPositionForClientY(clientY: number): number {
+    const rect = track.getBoundingClientRect();
+    const trackHeight = rect.height || track.offsetHeight || 0;
+    const thumbGeometry = computeScrollbarThumb(state, trackHeight);
+    const maxTop = Math.max(1, trackHeight - thumbGeometry.heightPx);
+    const rawTop = clientY - rect.top - (thumbGeometry.heightPx / 2);
+    const top = Math.max(0, Math.min(rawTop, maxTop));
+    const ratioFromTop = top / maxTop;
+    return Math.round((1 - ratioFromTop) * state.historySize);
+  }
+
   function handleWheel(ev: WheelEvent): boolean {
     if (state.unavailable || state.alternateOn) return opts.passThroughWheel(ev);
     if (ev.deltaY === 0) return false;
@@ -129,14 +168,52 @@ export function createScrollbarController(opts: {
     ev.stopPropagation();
   }
 
+  function onTrackMouseDown(ev: MouseEvent): void {
+    if (!canUsePointerScrollbar()) return;
+    if (ev.target === thumb) return;
+
+    const rect = thumb.getBoundingClientRect();
+    sendPage(ev.clientY < rect.top ? 'page-up' : 'page-down');
+    ev.preventDefault();
+    ev.stopPropagation();
+  }
+
+  function onThumbMouseDown(ev: MouseEvent): void {
+    if (!canUsePointerScrollbar()) return;
+
+    dragging = true;
+    opts.root.classList.add('dragging');
+    reveal();
+    ev.preventDefault();
+    ev.stopPropagation();
+  }
+
   function onDocumentMouseMove(ev: MouseEvent): void {
+    if (dragging) {
+      sendDrag(Math.max(0, Math.min(scrollPositionForClientY(ev.clientY), state.historySize)));
+      if (autohide) opts.root.classList.add('visible');
+      ev.preventDefault();
+      ev.stopPropagation();
+      return;
+    }
+
     if (!autohide) return;
     const width = viewportWidth();
     if (width > 0 && ev.clientX >= width - AUTOHIDE_REVEAL_PX) reveal();
   }
 
+  function onDocumentMouseUp(): void {
+    if (!dragging) return;
+    dragging = false;
+    opts.root.classList.remove('dragging');
+    if (autohide) scheduleHide();
+  }
+
   track.addEventListener('wheel', onTrackWheel, { passive: false });
+  track.addEventListener('mousedown', onTrackMouseDown);
+  thumb.addEventListener('mousedown', onThumbMouseDown);
   document.addEventListener('mousemove', onDocumentMouseMove);
+  document.addEventListener('mouseup', onDocumentMouseUp);
   render();
 
   return {
@@ -153,8 +230,13 @@ export function createScrollbarController(opts: {
     handleWheel,
     dispose() {
       if (hideTimer) clearTimeout(hideTimer);
+      dragging = false;
+      opts.root.classList.remove('dragging');
       track.removeEventListener('wheel', onTrackWheel);
+      track.removeEventListener('mousedown', onTrackMouseDown);
+      thumb.removeEventListener('mousedown', onThumbMouseDown);
       document.removeEventListener('mousemove', onDocumentMouseMove);
+      document.removeEventListener('mouseup', onDocumentMouseUp);
     },
   };
 }

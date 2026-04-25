@@ -27,9 +27,33 @@ function wheel(deltaY: number) {
   } as WheelEvent & { readonly prevented: boolean; readonly stopped: boolean };
 }
 
+function mouse(clientY: number, target?: unknown) {
+  let prevented = false;
+  let stopped = false;
+  return {
+    target,
+    clientY,
+    preventDefault() { prevented = true; },
+    stopPropagation() { stopped = true; },
+    get prevented() { return prevented; },
+    get stopped() { return stopped; },
+  } as MouseEvent & { readonly prevented: boolean; readonly stopped: boolean };
+}
+
 function withTrackHeight(track: StubElement, height: number) {
   (track as any).getBoundingClientRect = () => ({ height });
   (track as any).offsetHeight = height;
+}
+
+function withRect(el: StubElement, rect: Partial<DOMRect> & { top: number; height: number }) {
+  (el as any).getBoundingClientRect = () => ({
+    bottom: rect.top + rect.height,
+    left: 0,
+    right: 12,
+    width: 12,
+    ...rect,
+  });
+  (el as any).offsetHeight = rect.height;
 }
 
 describe('computeScrollbarThumb', () => {
@@ -253,5 +277,174 @@ describe('createScrollbarController', () => {
     controller.dispose();
     track.dispatch('wheel', wheel(33));
     expect(sent).toHaveLength(1);
+  });
+
+  test('track mousedown above current thumb sends page-up', () => {
+    const sent: unknown[] = [];
+    const root = el('div');
+    const controller = createScrollbarController({
+      root: root as any,
+      send: (msg) => sent.push(msg),
+      passThroughWheel: () => false,
+      requestFit: () => {},
+    });
+    const track = root.children[0]!;
+    const thumb = track.children[0]!;
+    withRect(track, { top: 0, height: 200 });
+    withRect(thumb, { top: 80, height: 40 });
+    controller.updateState(state({ historySize: 160, scrollPosition: 80 }));
+
+    const ev = mouse(20, track);
+    track.dispatch('mousedown', ev);
+
+    expect(ev.prevented).toBe(true);
+    expect(ev.stopped).toBe(true);
+    expect(sent).toEqual([{ type: 'scrollbar', action: 'page-up', paneId: '%4' }]);
+  });
+
+  test('track mousedown below current thumb sends page-down', () => {
+    const sent: unknown[] = [];
+    const root = el('div');
+    const controller = createScrollbarController({
+      root: root as any,
+      send: (msg) => sent.push(msg),
+      passThroughWheel: () => false,
+      requestFit: () => {},
+    });
+    const track = root.children[0]!;
+    const thumb = track.children[0]!;
+    withRect(track, { top: 0, height: 200 });
+    withRect(thumb, { top: 80, height: 40 });
+    controller.updateState(state({ paneId: null, historySize: 160, scrollPosition: 80 }));
+
+    const ev = mouse(150, track);
+    track.dispatch('mousedown', ev);
+
+    expect(ev.prevented).toBe(true);
+    expect(ev.stopped).toBe(true);
+    expect(sent).toEqual([{ type: 'scrollbar', action: 'page-down' }]);
+  });
+
+  test('track mousedown ignores thumb target', () => {
+    const sent: unknown[] = [];
+    const root = el('div');
+    const controller = createScrollbarController({
+      root: root as any,
+      send: (msg) => sent.push(msg),
+      passThroughWheel: () => false,
+      requestFit: () => {},
+    });
+    const track = root.children[0]!;
+    const thumb = track.children[0]!;
+    withRect(track, { top: 0, height: 200 });
+    withRect(thumb, { top: 80, height: 40 });
+    controller.updateState(state({ historySize: 160, scrollPosition: 80 }));
+
+    const ev = mouse(90, thumb);
+    track.dispatch('mousedown', ev);
+
+    expect(ev.prevented).toBe(false);
+    expect(ev.stopped).toBe(false);
+    expect(sent).toEqual([]);
+  });
+
+  test('track and thumb mousedown no-op when unavailable, alternate screen, or no history', () => {
+    for (const blockedState of [
+      state({ unavailable: true }),
+      state({ alternateOn: true }),
+      state({ historySize: 0 }),
+    ]) {
+      const sent: unknown[] = [];
+      const root = el('div');
+      const controller = createScrollbarController({
+        root: root as any,
+        send: (msg) => sent.push(msg),
+        passThroughWheel: () => false,
+        requestFit: () => {},
+      });
+      const track = root.children[0]!;
+      const thumb = track.children[0]!;
+      withRect(track, { top: 0, height: 200 });
+      withRect(thumb, { top: 80, height: 40 });
+      controller.updateState(blockedState);
+
+      const trackEv = mouse(20, track);
+      track.dispatch('mousedown', trackEv);
+      const thumbEv = mouse(90, thumb);
+      thumb.dispatch('mousedown', thumbEv);
+      (globalThis.document as any).dispatch('mousemove', mouse(20));
+
+      expect(trackEv.prevented).toBe(false);
+      expect(trackEv.stopped).toBe(false);
+      expect(thumbEv.prevented).toBe(false);
+      expect(thumbEv.stopped).toBe(false);
+      expect(root.classList.contains('dragging')).toBe(false);
+      expect(sent).toEqual([]);
+    }
+  });
+
+  test('thumb drag sends absolute scroll position using tmux top-oldest bottom-live semantics', () => {
+    const sent: unknown[] = [];
+    const root = el('div');
+    const controller = createScrollbarController({
+      root: root as any,
+      send: (msg) => sent.push(msg),
+      passThroughWheel: () => false,
+      requestFit: () => {},
+    });
+    const track = root.children[0]!;
+    const thumb = track.children[0]!;
+    withRect(track, { top: 0, height: 200 });
+    withRect(thumb, { top: 160, height: 40 });
+    controller.updateState(state({ historySize: 160, scrollPosition: 0 }));
+
+    const down = mouse(180, thumb);
+    thumb.dispatch('mousedown', down);
+    (globalThis.document as any).dispatch('mousemove', mouse(20));
+    (globalThis.document as any).dispatch('mousemove', mouse(180));
+
+    expect(down.prevented).toBe(true);
+    expect(down.stopped).toBe(true);
+    expect(root.classList.contains('dragging')).toBe(true);
+    expect(sent).toEqual([
+      { type: 'scrollbar', action: 'drag', position: 160, paneId: '%4' },
+      { type: 'scrollbar', action: 'drag', position: 0, paneId: '%4' },
+    ]);
+  });
+
+  test('drag adds and removes dragging, keeps autohide visible, and dispose removes mouse listeners', () => {
+    const sent: unknown[] = [];
+    const root = el('div');
+    const controller = createScrollbarController({
+      root: root as any,
+      send: (msg) => sent.push(msg),
+      passThroughWheel: () => false,
+      requestFit: () => {},
+    });
+    const track = root.children[0]!;
+    const thumb = track.children[0]!;
+    withRect(track, { top: 0, height: 200 });
+    withRect(thumb, { top: 160, height: 40 });
+    controller.updateState(state({ historySize: 160, scrollPosition: 0 }));
+    controller.setAutohide(true);
+
+    thumb.dispatch('mousedown', mouse(180, thumb));
+    expect(root.classList.contains('dragging')).toBe(true);
+    expect(root.classList.contains('visible')).toBe(true);
+
+    (globalThis.document as any).dispatch('mousemove', mouse(100));
+    expect(root.classList.contains('visible')).toBe(true);
+    expect(sent).toHaveLength(1);
+
+    (globalThis.document as any).dispatch('mouseup', mouse(100));
+    expect(root.classList.contains('dragging')).toBe(false);
+
+    thumb.dispatch('mousedown', mouse(180, thumb));
+    controller.dispose();
+    (globalThis.document as any).dispatch('mousemove', mouse(20));
+    (globalThis.document as any).dispatch('mouseup', mouse(20));
+
+    expect(sent).toHaveLength(1);
+    expect(root.classList.contains('dragging')).toBe(false);
   });
 });
