@@ -232,6 +232,12 @@ export class ControlClient {
    *  yet know the cmd-id to mark stale, so we promise to mark the next
    *  unattributed %begin instead. */
   private pendingStaleBegins = 0;
+  /** During probe(), extra display-message attempts imply earlier token
+   *  responses may still be in flight. If one of those responses already
+   *  arrives while the queue is empty, handleBegin logs it as stale-no-head
+   *  and this counter offsets the later pendingStaleBegins reservation. */
+  private probeActive = false;
+  private probeConsumedStaleBegins = 0;
 
   constructor(
     private proc: ControlProc,
@@ -281,16 +287,24 @@ export class ControlClient {
   async probe(): Promise<void> {
     const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
     let iterations = 0;
+    this.probeActive = true;
+    this.probeConsumedStaleBegins = 0;
     this.log?.('tmux-control probe start');
-    for (;;) {
-      if (iterations >= 10) throw new TmuxCommandError(['display-message', '-p', token], 'probe: no matching response in 10 attempts');
-      const result = await this.run(['display-message', '-p', token]);
-      iterations++;
-      this.log?.(`tmux-control probe iteration=${iterations} matched=${result.trim() === token}`);
-      if (result.trim() === token) break;
+    try {
+      for (;;) {
+        if (iterations >= 10) throw new TmuxCommandError(['display-message', '-p', token], 'probe: no matching response in 10 attempts');
+        const result = await this.run(['display-message', '-p', token]);
+        iterations++;
+        this.log?.(`tmux-control probe iteration=${iterations} matched=${result.trim() === token}`);
+        if (result.trim() === token) break;
+      }
+    } finally {
+      this.probeActive = false;
     }
-    this.pendingStaleBegins += iterations - 1;
-    this.log?.(`tmux-control probe ready iterations=${iterations} staleBeginsAdded=${Math.max(0, iterations - 1)}`);
+    const staleBeginsAdded = Math.max(0, iterations - 1 - this.probeConsumedStaleBegins);
+    this.pendingStaleBegins += staleBeginsAdded;
+    this.log?.(`tmux-control probe ready iterations=${iterations} staleBeginsAdded=${staleBeginsAdded} staleBeginsConsumed=${this.probeConsumedStaleBegins}`);
+    this.probeConsumedStaleBegins = 0;
   }
 
   private dispatch(): void {
@@ -324,6 +338,7 @@ export class ControlClient {
       // No pending in flight, or head already has a cmdnum (defensive —
       // shouldn't happen given we serialise writes). Treat as stale.
       this.staleCmdnums.add(cmdnum);
+      if (this.probeActive && !head) this.probeConsumedStaleBegins++;
       this.log?.(`tmux-control command begin stale-no-head tmuxCmdnum=${cmdnum} flags=${flags} queueDepth=${this.queue.length}`);
       return;
     }

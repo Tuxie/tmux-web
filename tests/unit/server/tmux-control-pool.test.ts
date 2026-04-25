@@ -278,6 +278,37 @@ describe('ControlPool', () => {
     expect(await runP).toBe('window-data');
   });
 
+  test('probe does not poison the next command when the stale probe response was already consumed', async () => {
+    // Real journal trace from 2026-04-25: probe iteration 1 received an empty
+    // attach-bookkeeping response, then the actual token response arrived while
+    // the queue was empty and was logged as stale-no-head. In that case there
+    // is no remaining floating response to reserve; the next real command must
+    // be attributed normally instead of being dropped as stale-pending.
+    const spawns: ReturnType<typeof fakeProc>[] = [];
+    const pool = new ControlPool({
+      spawn: () => { const p = fakeProc(); spawns.push(p); return p.proc; },
+      commandTimeoutMs: 20,
+    });
+
+    const attach = pool.attachSession('main');
+    const fake = spawns[0]!;
+    await Promise.resolve();
+
+    const token = extractProbeToken(fake.writes[0]!);
+    fake.stdout.emit(`%begin 1 1 1\n%end 1 1 1\n%begin 2 2 1\n${token}\n%end 2 2 1\n`);
+    await Promise.resolve();
+
+    expect(fake.writes[1]).toBe(`display-message -p ${token}\n`);
+    fake.stdout.emit(`%begin 3 3 1\n${token}\n%end 3 3 1\n`);
+    await attach;
+
+    const runP = pool.run(['list-windows']);
+    await Promise.resolve();
+    fake.stdout.emit('%begin 4 4 1\nwindow-data\n%end 4 4 1\n');
+
+    expect(await runP).toBe('window-data');
+  });
+
   test('tmux 3.6a: flags=1 %begin (user stdin command) is correctly attributed to in-flight command', async () => {
     // In tmux 3.6a, stdin-sent commands receive flags=1 in their %begin line
     // (flags=0 is the internal stray at attach time, handled by !head guard
