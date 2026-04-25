@@ -77,6 +77,7 @@ export class Topbar {
   private winTabs!: HTMLElement;
   private tbTitle!: HTMLElement;
   private autohideChk!: HTMLInputElement;
+  private scrollbarAutohideChk!: HTMLInputElement;
   private autohide = false;
   private hideTimer: ReturnType<typeof setTimeout> | null = null;
   private lastActiveWindowIndex: string | null = null;
@@ -98,6 +99,7 @@ export class Topbar {
     this.winTabs = document.getElementById('win-tabs')!;
     this.tbTitle = document.getElementById('tb-title')!;
     this.autohideChk = document.getElementById('chk-autohide') as HTMLInputElement;
+    this.scrollbarAutohideChk = document.getElementById('chk-scrollbar-autohide') as HTMLInputElement;
 
     this.setupSessionMenu();
     this.setupAutoHide();
@@ -794,8 +796,7 @@ export class Topbar {
     const wasAutohide = this.autohide;
     this.autohide = s.topbarAutohide;
     this.autohideChk.checked = this.autohide;
-    const scrollbarAutohideChk = document.getElementById('chk-scrollbar-autohide') as HTMLInputElement | null;
-    if (scrollbarAutohideChk) scrollbarAutohideChk.checked = s.scrollbarAutohide;
+    this.scrollbarAutohideChk.checked = s.scrollbarAutohide;
     this.applyPinnedClass();
     if (wasAutohide && !this.autohide) {
       if (this.hideTimer) clearTimeout(this.hideTimer);
@@ -806,28 +807,27 @@ export class Topbar {
     }
   }
 
+  private commitAutohide(patch: Pick<Partial<SessionSettings>, 'topbarAutohide' | 'scrollbarAutohide'>): void {
+    const current = loadSessionSettings(this.currentSession, this.opts.getLiveSettings(), {
+      defaults: DEFAULT_SESSION_SETTINGS,
+    });
+    const updated: SessionSettings = { ...current, ...patch };
+    saveSessionSettings(this.currentSession, updated);
+    this.syncAutohideSettings(updated);
+    this.opts.onSettingsChange?.(updated);
+    this.opts.onAutohideChange?.();
+  }
+
   private setupAutoHide(): void {
     const initialSettings = loadSessionSettings(this.currentSession, this.opts.getLiveSettings(), {
       defaults: DEFAULT_SESSION_SETTINGS,
     });
     this.syncAutohideSettings(initialSettings);
     this.autohideChk.addEventListener('change', () => {
-      this.autohide = this.autohideChk.checked;
-      const current = loadSessionSettings(this.currentSession, this.opts.getLiveSettings(), {
-        defaults: DEFAULT_SESSION_SETTINGS,
-      });
-      const updated: SessionSettings = { ...current, topbarAutohide: this.autohide };
-      saveSessionSettings(this.currentSession, updated);
-      this.opts.onSettingsChange?.(updated);
-      this.applyPinnedClass();
-      this.opts.onAutohideChange?.();
-      if (!this.autohide) {
-        if (this.hideTimer) clearTimeout(this.hideTimer);
-        this.hideTimer = null;
-        this.topbar.classList.remove('hidden');
-      } else {
-        this.show();
-      }
+      this.commitAutohide({ topbarAutohide: this.autohideChk.checked });
+    });
+    this.scrollbarAutohideChk.addEventListener('change', () => {
+      this.commitAutohide({ scrollbarAutohide: this.scrollbarAutohideChk.checked });
     });
 
     document.addEventListener('mousemove', (ev) => {

@@ -103,7 +103,7 @@ function ext(e: StubElement): any {
 }
 
 const REQUIRED_IDS = [
-  'topbar', 'tb-session-name', 'win-tabs', 'tb-title', 'chk-autohide',
+  'topbar', 'tb-session-name', 'win-tabs', 'tb-title', 'chk-autohide', 'chk-scrollbar-autohide',
   'btn-session-menu', 'btn-session-plus', 'menu-wrap', 'btn-menu',
   'menu-dropdown', 'menu-footer', 'menu-footer-left', 'menu-footer-right',
   'chk-fullscreen', 'inp-theme', 'inp-colours', 'inp-font-bundled',
@@ -817,6 +817,29 @@ describe('Topbar menu and autohide DOM behaviour', () => {
     expect(captured[0].topbarAutohide).toBe(true);
     expect(captured[0].scrollbarAutohide).toBe(false);
     expect((globalThis.document as any).body.classList.has('topbar-pinned')).toBe(false);
+  });
+
+  it('syncs per-session toolbar and scrollbar autohide checkboxes', async () => {
+    const live = { ...DEFAULT_SESSION_SETTINGS, topbarAutohide: true, scrollbarAutohide: true };
+    const changes: SessionSettings[] = [];
+    const t = await mountTopbar({
+      getLiveSettings: () => live,
+      onSettingsChange: (s) => { changes.push(s); },
+    });
+    await t.init();
+    const toolbarChk = (globalThis.document as any).getElementById('chk-autohide');
+    const scrollbarChk = (globalThis.document as any).getElementById('chk-scrollbar-autohide');
+
+    expect(toolbarChk.checked).toBe(true);
+    expect(scrollbarChk.checked).toBe(true);
+
+    scrollbarChk.checked = false;
+    scrollbarChk.dispatch('change', { target: scrollbarChk });
+    expect(changes.at(-1)?.scrollbarAutohide).toBe(false);
+
+    scrollbarChk.checked = true;
+    scrollbarChk.dispatch('change', { target: scrollbarChk });
+    expect(changes.at(-1)?.scrollbarAutohide).toBe(true);
   });
 
   it('autohide hides the topbar after the scheduled inactivity timer', async () => {

@@ -4,6 +4,7 @@ import { Connection, buildWsUrl } from './connection.js';
 import { handleServerData } from './message-handler.js';
 import { Topbar } from './ui/topbar.js';
 import { installMouseHandler, buildWheelSgrSequences } from './ui/mouse.js';
+import { createScrollbarController } from './ui/scrollbar.js';
 import { installKeyboardHandler } from './ui/keyboard.js';
 import { handleClipboard } from './ui/clipboard.js';
 import { showClipboardPrompt } from './ui/clipboard-prompt.js';
@@ -162,6 +163,13 @@ async function main() {
     return getComputedStyle(document.body).backgroundColor;
   };
   let connection: Connection;
+  let scrollbar: ReturnType<typeof createScrollbarController>;
+  const applyScrollbarLayout = (autohide: boolean): void => {
+    document.body.classList.toggle('scrollbar-autohide', autohide);
+    document.body.classList.toggle('scrollbar-pinned', !autohide);
+    scrollbar?.setAutohide(autohide);
+    adapter.fit();
+  };
   const colourControls = createColourControls(colours, {
     page,
     setTheme: (theme) => adapter.setTheme(theme),
@@ -212,6 +220,8 @@ async function main() {
       const colourChanged = s.colours !== settings.colours;
       settings = s;
       saveSessionSettings(getSession(), s);
+      document.body.classList.toggle('topbar-pinned', !s.topbarAutohide);
+      applyScrollbarLayout(s.scrollbarAutohide);
       if (colourChanged) colourControls.sendVariant(s.colours);
 
       if (themeChanged) {
@@ -311,6 +321,7 @@ async function main() {
         void handleClipboardPrompt(prompt.reqId, prompt.exePath, prompt.commandName);
       },
       onDropsChanged: () => { void dropsPanel?.refresh(); },
+      onScrollbar: (state) => scrollbar.updateState(state),
       onPtyExit: () => {
         // Server signals the underlying PTY/tmux process exited. The
         // server intentionally does not initiate the close itself (Bun
@@ -350,6 +361,19 @@ async function main() {
       }
     },
   });
+  const scrollbarRoot = document.getElementById('tmux-scrollbar')!;
+  scrollbar = createScrollbarController({
+    root: scrollbarRoot,
+    send: (msg) => connection.send(JSON.stringify(msg)),
+    passThroughWheel: (ev) => {
+      const canvas = document.querySelector('#terminal canvas') as HTMLElement;
+      const rect = canvas?.getBoundingClientRect() || container.getBoundingClientRect();
+      for (const seq of buildWheelSgrSequences(ev, adapter.metrics, rect)) connection.send(seq);
+      return false;
+    },
+    requestFit: () => adapter.fit(),
+  });
+  applyScrollbarLayout(settings.scrollbarAutohide);
   connection.connect();
 
   if (window.__TMUX_WEB_CONFIG.testMode) {
@@ -421,10 +445,7 @@ async function main() {
 
   adapter.attachCustomWheelEventHandler((ev) => {
     if (ev.shiftKey) return false;
-    const canvas = document.querySelector('#terminal canvas') as HTMLElement;
-    const rect = canvas?.getBoundingClientRect() || container.getBoundingClientRect();
-    for (const seq of buildWheelSgrSequences(ev, adapter.metrics, rect)) connection.send(seq);
-    return true;
+    return scrollbar.handleWheel(ev);
   });
 
   const uninstallKeyboard = installKeyboardHandler({
@@ -453,6 +474,7 @@ async function main() {
     },
   });
   disposers.push(uninstallFileDrop);
+  disposers.push(() => scrollbar.dispose());
 
   // Connection + adapter own their own internal state; calling their
   // `.dispose()` lives at the tail so handlers higher up run first.

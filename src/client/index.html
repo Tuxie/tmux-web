@@ -60,7 +60,10 @@
             <div id="drops-list"></div>
           </div>
           <hr class="tw-menu-hr">
-          <label class="tw-menu-row"><input type="checkbox" id="chk-autohide"> Autohide toolbar</label>
+          <div class="tw-menu-row tw-menu-row-static tw-menu-row-inline">
+            <label><input type="checkbox" id="chk-autohide"> Autohide toolbar</label>
+            <label><input type="checkbox" id="chk-scrollbar-autohide"> Autohide scrollbar</label>
+          </div>
           <label class="tw-menu-row"><input type="checkbox" id="chk-fullscreen"> Fullscreen</label>
 
           <div class="tw-menu-section">GUI</div>
@@ -171,6 +174,11 @@
           <div id="menu-footer" class="tw-menu-row tw-menu-row-static"><span id="menu-footer-left"></span><span id="menu-footer-right"></span></div>
         </div>
       </div>
+    </div>
+  </div>
+  <div id="tmux-scrollbar" class="tw-scrollbar tw-scrollbar-pinned" aria-hidden="true">
+    <div class="tw-scrollbar-track">
+      <div class="tw-scrollbar-thumb"></div>
     </div>
   </div>
   <div id="terminal"></div>

@@ -15,3 +15,11 @@ describe('index.html Electrobun titlebar affordance', () => {
     expect(html).toContain('id="tb-title" class="electrobun-webkit-app-region-drag"');
   });
 });
+
+describe('index.html scrollbar DOM contract', () => {
+  it('includes scrollbar autohide control and scrollbar shell', () => {
+    expect(html).toContain('id="chk-scrollbar-autohide"');
+    expect(html).toContain('id="tmux-scrollbar"');
+    expect(html).toContain('class="tw-scrollbar');
+  });
+});
