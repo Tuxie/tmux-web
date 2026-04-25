@@ -11,6 +11,12 @@ describe('release workflow desktop artifacts', () => {
     expect(workflow).toContain('artifacts/${PREFIX}*');
   });
 
+  test('skips tmux-term Electrobun artifacts on macOS until signing is available', () => {
+    const tmuxTermStepCount = (workflow.match(/if: matrix\.desktop_platform != 'macos'/g) ?? []).length;
+
+    expect(tmuxTermStepCount).toBe(4);
+  });
+
   test('attaches tmux-term artifacts to the GitHub release', () => {
     expect(workflow).toContain("pattern: '*-${{ github.ref_name }}-*-artifact'");
     expect(workflow).toContain('artifacts/*');

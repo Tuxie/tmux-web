@@ -190,12 +190,17 @@ jobs:
             > tmux-web-${{ github.ref_name }}-${{ matrix.name }}.tar.xz.sha256
 
       - name: Build tmux-term desktop app
+        # Temporarily skip macOS tmux-term artifacts until we can sign them
+        # with an Apple Developer certificate.
+        if: matrix.desktop_platform != 'macos'
         run: bun run desktop:stable
 
       - name: Verify tmux-term desktop app
+        if: matrix.desktop_platform != 'macos'
         run: bun scripts/verify-electrobun-bundle.ts build stable
 
       - name: Package tmux-term desktop app
+        if: matrix.desktop_platform != 'macos'
         shell: bash
         run: |
           set -euo pipefail
@@ -230,6 +235,7 @@ jobs:
           retention-days: 1
 
       - name: Upload tmux-term artifact
+        if: matrix.desktop_platform != 'macos'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: tmux-term-${{ github.ref_name }}-${{ matrix.name }}-artifact
