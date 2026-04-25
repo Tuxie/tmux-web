@@ -61,7 +61,7 @@ export function parseScrollbarState(raw: string): ScrollbarState {
 }
 
 export function buildScrollbarSubscriptionArgs(name: string): string[] {
-  return ["refresh-client", "-B", `${name}:%*:${SCROLLBAR_FORMAT}`];
+  return ["refresh-client", "-B", `${name}::${SCROLLBAR_FORMAT}`];
 }
 
 function countFrom(action: { count?: number }, fallback: number): number {

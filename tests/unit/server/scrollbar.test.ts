@@ -62,11 +62,11 @@ describe("server scrollbar helpers", () => {
     expect(parseScrollbarState("%4\t42\t1200\t7\t1\tcopy-mode\tbad")?.unavailable).toBe(true);
   });
 
-  test("buildScrollbarSubscriptionArgs uses refresh-client -B", () => {
+  test("buildScrollbarSubscriptionArgs subscribes to the attached session active pane", () => {
     expect(buildScrollbarSubscriptionArgs("tw-scroll-main")).toEqual([
       "refresh-client",
       "-B",
-      "tw-scroll-main:%*:" + SCROLLBAR_FORMAT,
+      "tw-scroll-main::" + SCROLLBAR_FORMAT,
     ]);
   });
 

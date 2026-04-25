@@ -26,6 +26,19 @@ async function wheelOverTerminal(page: Page, deltaY: number): Promise<void> {
   await page.mouse.wheel(0, deltaY);
 }
 
+async function scrollbarThumbRatio(page: Page): Promise<number> {
+  return await page.locator('#tmux-scrollbar').evaluate(root => {
+    const track = root.querySelector('.tw-scrollbar-track') as HTMLElement | null;
+    const thumb = root.querySelector('.tw-scrollbar-thumb') as HTMLElement | null;
+    if (!track || !thumb) return 1;
+    const rawHeight = getComputedStyle(thumb).getPropertyValue('--tw-scrollbar-thumb-height');
+    const thumbHeight = Number.parseFloat(rawHeight);
+    const trackHeight = track.getBoundingClientRect().height;
+    if (!Number.isFinite(thumbHeight) || !Number.isFinite(trackHeight) || trackHeight <= 0) return 1;
+    return thumbHeight / trackHeight;
+  });
+}
+
 test('wheel over terminal scrolls tmux copy-mode and updates scroll position', async ({ page }, testInfo) => {
   const port = workerPort(WHEEL_PORT_BASE, testInfo);
   const isolatedTmux = createIsolatedTmux('tw-scrollbar-e2e');
@@ -63,6 +76,10 @@ test('wheel over terminal scrolls tmux copy-mode and updates scroll position', a
       timeout: 5000,
       message: 'scrollbar should become available for a normal tmux pane with history',
     }).toBe(true);
+    await expect.poll(() => scrollbarThumbRatio(page), {
+      timeout: 5000,
+      message: 'initial scrollbar thumb should reflect existing tmux history before wheel input',
+    }).toBeLessThan(0.95);
 
     await wheelOverTerminal(page, -180);
 
