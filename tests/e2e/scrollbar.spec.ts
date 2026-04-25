@@ -4,9 +4,13 @@ import { startServer, killServer, createIsolatedTmux, hasTmux } from './helpers.
 test.skip(!hasTmux(), 'tmux not available');
 
 const WHEEL_PORT_BASE = 4120;
-const ALT_SCREEN_PORT_BASE = 4130;
+const ALT_SCREEN_PORT_BASE = 5120;
+const PORT_RANGE_SIZE = 1000;
 
 function workerPort(base: number, testInfo: TestInfo): number {
+  if (testInfo.parallelIndex >= PORT_RANGE_SIZE) {
+    throw new Error(`scrollbar e2e port range supports ${PORT_RANGE_SIZE} workers, got parallelIndex ${testInfo.parallelIndex}`);
+  }
   return base + testInfo.parallelIndex;
 }
 
