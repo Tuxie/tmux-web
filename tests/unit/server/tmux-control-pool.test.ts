@@ -97,7 +97,7 @@ describe('ControlPool', () => {
     expect(notes).toHaveLength(2);
   });
 
-  test('window notifications from non-primary sessions are delivered with their session name', async () => {
+  test('session-scoped notifications from non-primary sessions are delivered with their session name', async () => {
     const spawns: ReturnType<typeof fakeProc>[] = [];
     const pool = new ControlPool({ spawn: () => { const p = fakeProc(); spawns.push(p); return p.proc; } });
 
@@ -107,17 +107,30 @@ describe('ControlPool', () => {
     const adds: TmuxNotification[] = [];
     const closes: TmuxNotification[] = [];
     const renames: TmuxNotification[] = [];
+    const subscriptions: TmuxNotification[] = [];
     pool.on('windowAdd', (n) => adds.push(n));
     pool.on('windowClose', (n) => closes.push(n));
     pool.on('windowRenamed', (n) => renames.push(n));
+    pool.on('subscriptionChanged', (n) => subscriptions.push(n));
 
     spawns[1]!.stdout.emit('%window-add @7\n');
     spawns[1]!.stdout.emit('%window-close @8\n');
     spawns[1]!.stdout.emit('%window-renamed @9 devname\n');
+    spawns[1]!.stdout.emit('%subscription-changed tw-scroll $1 @2 3 %4 : %4\t42\t1200\t7\t1\tcopy-mode\t0\n');
 
     expect(adds).toEqual([{ type: 'windowAdd', window: '@7', session: 'dev' }]);
     expect(closes).toEqual([{ type: 'windowClose', window: '@8', session: 'dev' }]);
     expect(renames).toEqual([{ type: 'windowRenamed', window: '@9', name: 'devname', session: 'dev' }]);
+    expect(subscriptions).toEqual([{
+      type: 'subscriptionChanged',
+      name: 'tw-scroll',
+      sessionId: '$1',
+      windowId: '@2',
+      windowIndex: '3',
+      paneId: '%4',
+      value: '%4\t42\t1200\t7\t1\tcopy-mode\t0',
+      session: 'dev',
+    }]);
   });
 
   test('run() rejects NoControlClientError when the pool is empty', async () => {

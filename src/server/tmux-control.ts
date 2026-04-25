@@ -20,6 +20,7 @@ export type TmuxNotification =
       windowIndex: string;
       paneId: string;
       value: string;
+      session?: string;
     };
 
 export class TmuxCommandError extends Error {
@@ -483,6 +484,7 @@ export class ControlPool implements TmuxControl {
   private listeners: { [K in TmuxNotification['type']]: Array<(n: any) => void> } = {
     sessionsChanged: [], sessionRenamed: [], sessionClosed: [],
     windowAdd: [], windowClose: [], windowRenamed: [],
+    subscriptionChanged: [],
   };
 
   constructor(private opts: ControlPoolOpts) {}
