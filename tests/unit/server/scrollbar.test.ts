@@ -9,11 +9,14 @@ import {
 
 describe("server scrollbar helpers", () => {
   test("SCROLLBAR_FORMAT is the agreed tab-separated tmux format", () => {
-    expect(SCROLLBAR_FORMAT).toBe("#{pane_id}\\t#{pane_height}\\t#{history_size}\\t#{scroll_position}\\t#{pane_in_mode}\\t#{pane_mode}\\t#{alternate_on}");
+    expect(SCROLLBAR_FORMAT).toBe("#{pane_id}\t#{pane_height}\t#{history_size}\t#{scroll_position}\t#{pane_in_mode}\t#{pane_mode}\t#{alternate_on}");
+    expect(SCROLLBAR_FORMAT).toContain("\t");
+    expect(SCROLLBAR_FORMAT).not.toContain("\\t");
   });
 
   test("parseScrollbarState parses numeric fields and alternate screen", () => {
-    expect(parseScrollbarState("%4\t42\t1200\t7\t1\tcopy-mode\t0")).toEqual({
+    const raw = ["%4", "42", "1200", "7", "1", "copy-mode", "0"].join("\t");
+    expect(parseScrollbarState(raw)).toEqual({
       paneId: "%4",
       paneHeight: 42,
       historySize: 1200,
@@ -39,6 +42,10 @@ describe("server scrollbar helpers", () => {
     expect(parseScrollbarState("%4\tbad\t1200\t7\t1\tcopy-mode\t0")?.unavailable).toBe(true);
   });
 
+  test("parseScrollbarState returns unavailable for malformed alternate screen flag", () => {
+    expect(parseScrollbarState("%4\t42\t1200\t7\t1\tcopy-mode\tbad")?.unavailable).toBe(true);
+  });
+
   test("buildScrollbarSubscriptionArgs uses refresh-client -B", () => {
     expect(buildScrollbarSubscriptionArgs("tw-scroll-main")).toEqual([
       "refresh-client",
@@ -48,13 +55,12 @@ describe("server scrollbar helpers", () => {
   });
 
   test("line-up enters copy-mode -e and scrolls active pane", async () => {
-    const calls: readonly string[][] = [];
-    const mutableCalls: string[][] = calls as string[][];
+    const calls: string[][] = [];
     await applyScrollbarAction({
       action: "line-up",
       count: 3,
       getState: async () => ({ paneId: "%4", paneHeight: 40, historySize: 100, scrollPosition: 0, paneInMode: 0, paneMode: "", alternateOn: false }),
-      run: async (args) => { mutableCalls.push([...args]); return ""; },
+      run: async (args) => { calls.push([...args]); return ""; },
     });
     expect(calls).toEqual([
       ["copy-mode", "-e", "-t", "%4"],
@@ -62,7 +68,7 @@ describe("server scrollbar helpers", () => {
     ]);
   });
 
-  test("line-down sends scroll-down without entering copy mode", async () => {
+  test("line-down sends scroll-down-and-cancel without entering copy mode", async () => {
     const calls: string[][] = [];
     await applyScrollbarAction({
       action: "line-down",
@@ -71,8 +77,26 @@ describe("server scrollbar helpers", () => {
       run: async (args) => { calls.push([...args]); return ""; },
     });
     expect(calls).toEqual([
-      ["send-keys", "-X", "-t", "%4", "-N", "2", "scroll-down"],
+      ["send-keys", "-X", "-t", "%4", "-N", "2", "scroll-down-and-cancel"],
     ]);
+  });
+
+  test("line-down no-ops when not in copy mode or at live bottom", async () => {
+    const states = [
+      { paneId: "%4", paneHeight: 40, historySize: 100, scrollPosition: 10, paneInMode: 0, paneMode: "", alternateOn: false },
+      { paneId: "%4", paneHeight: 40, historySize: 100, scrollPosition: 0, paneInMode: 1, paneMode: "copy-mode", alternateOn: false },
+    ];
+
+    for (const state of states) {
+      const calls: string[][] = [];
+      await applyScrollbarAction({
+        action: "line-down",
+        count: 2,
+        getState: async () => state,
+        run: async (args) => { calls.push([...args]); return ""; },
+      });
+      expect(calls).toEqual([]);
+    }
   });
 
   test("line-up and line-down use fallback count and clamp count to 500", async () => {
@@ -92,11 +116,11 @@ describe("server scrollbar helpers", () => {
     await applyScrollbarAction({
       action: "line-down",
       count: 999,
-      getState: async () => ({ paneId: "%4", paneHeight: 40, historySize: 100, scrollPosition: 0, paneInMode: 1, paneMode: "copy-mode", alternateOn: false }),
+      getState: async () => ({ paneId: "%4", paneHeight: 40, historySize: 100, scrollPosition: 10, paneInMode: 1, paneMode: "copy-mode", alternateOn: false }),
       run: async (args) => { lineDownCalls.push([...args]); return ""; },
     });
     expect(lineDownCalls).toEqual([
-      ["send-keys", "-X", "-t", "%4", "-N", "500", "scroll-down"],
+      ["send-keys", "-X", "-t", "%4", "-N", "500", "scroll-down-and-cancel"],
     ]);
   });
 
@@ -134,8 +158,25 @@ describe("server scrollbar helpers", () => {
       run: async (args) => { calls.push([...args]); return ""; },
     });
     expect(calls).toEqual([
-      ["send-keys", "-X", "-t", "%4", "-N", "39", "scroll-down"],
+      ["send-keys", "-X", "-t", "%4", "-N", "39", "scroll-down-and-cancel"],
     ]);
+  });
+
+  test("page-down no-ops when not in copy mode or at live bottom", async () => {
+    const states = [
+      { paneId: "%4", paneHeight: 40, historySize: 100, scrollPosition: 10, paneInMode: 0, paneMode: "", alternateOn: false },
+      { paneId: "%4", paneHeight: 40, historySize: 100, scrollPosition: 0, paneInMode: 1, paneMode: "copy-mode", alternateOn: false },
+    ];
+
+    for (const state of states) {
+      const calls: string[][] = [];
+      await applyScrollbarAction({
+        action: "page-down",
+        getState: async () => state,
+        run: async (args) => { calls.push([...args]); return ""; },
+      });
+      expect(calls).toEqual([]);
+    }
   });
 
   test("page-down scroll count has minimum one", async () => {
@@ -146,7 +187,7 @@ describe("server scrollbar helpers", () => {
       run: async (args) => { calls.push([...args]); return ""; },
     });
     expect(calls).toEqual([
-      ["send-keys", "-X", "-t", "%4", "-N", "1", "scroll-down"],
+      ["send-keys", "-X", "-t", "%4", "-N", "1", "scroll-down-and-cancel"],
     ]);
   });
 
@@ -174,8 +215,26 @@ describe("server scrollbar helpers", () => {
     });
     expect(calls).toEqual([
       ["copy-mode", "-e", "-t", "%4"],
-      ["send-keys", "-X", "-t", "%4", "-N", "15", "scroll-down"],
+      ["send-keys", "-X", "-t", "%4", "-N", "15", "scroll-down-and-cancel"],
     ]);
+  });
+
+  test("drag downward no-ops when not in copy mode or at live bottom", async () => {
+    const states = [
+      { paneId: "%4", paneHeight: 40, historySize: 100, scrollPosition: 25, paneInMode: 0, paneMode: "", alternateOn: false },
+      { paneId: "%4", paneHeight: 40, historySize: 100, scrollPosition: 0, paneInMode: 1, paneMode: "copy-mode", alternateOn: false },
+    ];
+
+    for (const state of states) {
+      const calls: string[][] = [];
+      await applyScrollbarAction({
+        action: "drag",
+        position: 0,
+        getState: async () => state,
+        run: async (args) => { calls.push([...args]); return ""; },
+      });
+      expect(calls).toEqual([]);
+    }
   });
 
   test("drag target clamps to zero and history size", async () => {
@@ -188,7 +247,7 @@ describe("server scrollbar helpers", () => {
     });
     expect(beforeHistoryCalls).toEqual([
       ["copy-mode", "-e", "-t", "%4"],
-      ["send-keys", "-X", "-t", "%4", "-N", "25", "scroll-down"],
+      ["send-keys", "-X", "-t", "%4", "-N", "25", "scroll-down-and-cancel"],
     ]);
 
     const pastHistoryCalls: string[][] = [];

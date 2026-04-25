@@ -1,7 +1,7 @@
 import type { ScrollbarState } from "../shared/types.js";
 import type { RunCmd } from "./tmux-control.js";
 
-export const SCROLLBAR_FORMAT = "#{pane_id}\\t#{pane_height}\\t#{history_size}\\t#{scroll_position}\\t#{pane_in_mode}\\t#{pane_mode}\\t#{alternate_on}";
+export const SCROLLBAR_FORMAT = "#{pane_id}\t#{pane_height}\t#{history_size}\t#{scroll_position}\t#{pane_in_mode}\t#{pane_mode}\t#{alternate_on}";
 
 export type ScrollbarAction =
   | { action: "line-up"; count?: number }
@@ -37,7 +37,14 @@ export function parseScrollbarState(raw: string): ScrollbarState {
   const historySize = parseNonNegativeInt(historySizeRaw);
   const scrollPosition = parseNonNegativeInt(scrollPositionRaw);
   const paneInMode = parseNonNegativeInt(paneInModeRaw);
-  if (!paneId || paneHeight === null || historySize === null || scrollPosition === null || paneInMode === null) {
+  if (
+    !paneId ||
+    paneHeight === null ||
+    historySize === null ||
+    scrollPosition === null ||
+    paneInMode === null ||
+    (alternateOnRaw !== "0" && alternateOnRaw !== "1")
+  ) {
     return unavailableScrollbarState();
   }
   return {
@@ -64,8 +71,12 @@ async function ensureCopyMode(run: RunCmd, paneId: string): Promise<void> {
   await run(["copy-mode", "-e", "-t", paneId]);
 }
 
-async function sendCopyScroll(run: RunCmd, paneId: string, count: number, direction: "scroll-up" | "scroll-down"): Promise<void> {
+async function sendCopyScroll(run: RunCmd, paneId: string, count: number, direction: "scroll-up" | "scroll-down-and-cancel"): Promise<void> {
   await run(["send-keys", "-X", "-t", paneId, "-N", String(count), direction]);
+}
+
+function canScrollDown(state: ScrollbarState): boolean {
+  return state.paneInMode > 0 && state.scrollPosition > 0;
 }
 
 export async function applyScrollbarAction(opts: {
@@ -84,7 +95,8 @@ export async function applyScrollbarAction(opts: {
     return;
   }
   if (opts.action === "line-down") {
-    await sendCopyScroll(opts.run, state.paneId, countFrom(opts, 1), "scroll-down");
+    if (!canScrollDown(state)) return;
+    await sendCopyScroll(opts.run, state.paneId, countFrom(opts, 1), "scroll-down-and-cancel");
     return;
   }
   if (opts.action === "page-up") {
@@ -93,7 +105,8 @@ export async function applyScrollbarAction(opts: {
     return;
   }
   if (opts.action === "page-down") {
-    await sendCopyScroll(opts.run, state.paneId, Math.max(1, state.paneHeight - 1), "scroll-down");
+    if (!canScrollDown(state)) return;
+    await sendCopyScroll(opts.run, state.paneId, Math.max(1, state.paneHeight - 1), "scroll-down-and-cancel");
     return;
   }
   if (opts.action === "drag") {
@@ -102,7 +115,8 @@ export async function applyScrollbarAction(opts: {
       : state.scrollPosition;
     const delta = target - state.scrollPosition;
     if (delta === 0) return;
+    if (delta < 0 && !canScrollDown(state)) return;
     await ensureCopyMode(opts.run, state.paneId);
-    await sendCopyScroll(opts.run, state.paneId, Math.abs(delta), delta > 0 ? "scroll-up" : "scroll-down");
+    await sendCopyScroll(opts.run, state.paneId, Math.abs(delta), delta > 0 ? "scroll-up" : "scroll-down-and-cancel");
   }
 }
