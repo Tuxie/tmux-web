@@ -565,6 +565,21 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
       cb({
         type: 'subscriptionChanged',
         name: subscriptionName,
+        session: 'other',
+        sessionId: '$2',
+        windowId: '@3',
+        windowIndex: '0',
+        paneId: '%9',
+        value: '%9\t40\t1200\t99\t1\tcopy-mode\t0',
+      });
+    }
+    expect(o.messages.find(m => 'scrollbar' in m)).toBeUndefined();
+
+    for (const cb of listeners.get('subscriptionChanged') ?? []) {
+      cb({
+        type: 'subscriptionChanged',
+        name: subscriptionName,
+        session: 'main',
         sessionId: '$1',
         windowId: '@2',
         windowIndex: '0',
@@ -585,6 +600,47 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
         alternateOn: false,
       },
     });
+
+    o.ws.close();
+  }, 15000);
+
+  test('scrollbar setup waits for attach and uses the session control client', async () => {
+    const { path: tmuxBin } = makeFakeTmux();
+    let resolveAttach!: () => void;
+    const attachDone = new Promise<void>(r => { resolveAttach = r; });
+    let attached = false;
+    const runCalls: Array<{ session: string; args: string[] }> = [];
+    const tmuxControl: TmuxControl = {
+      attachSession: async () => { await attachDone; attached = true; },
+      detachSession: () => {},
+      run: async (args) => {
+        if (args[0] === 'list-windows') return '0\tone\t1\n';
+        throw new NoControlClientError();
+      },
+      runInSession: async (session, args) => {
+        expect(attached).toBe(true);
+        runCalls.push({ session, args: [...args] });
+        if (args[0] === 'list-windows') return '0\tone\t1\n';
+        if (args[0] === 'display-message' && args.includes(SCROLLBAR_FORMAT)) return '%4\t40\t1200\t0\t0\t\t0';
+        return '';
+      },
+      on: () => () => {},
+      hasSession: () => false,
+      close: async () => {},
+    };
+    h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
+    const o = openWs(h.wsUrl);
+    await o.opened;
+
+    await new Promise(r => setTimeout(r, 20));
+    expect(runCalls).toEqual([]);
+
+    resolveAttach();
+    await waitFor(() => runCalls.some(c => c.args[0] === 'refresh-client' && c.args[1] === '-B'), 8000);
+    expect(runCalls.find(c => c.args[0] === 'refresh-client')?.session).toBe('main');
+    expect(runCalls.find(c => c.args[0] === 'display-message')?.session).toBe('main');
+    const got = await waitForMsg(o.messages, m => 'scrollbar' in m, 8000);
+    expect(got?.scrollbar?.paneId).toBe('%4');
 
     o.ws.close();
   }, 15000);

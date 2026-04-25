@@ -165,6 +165,7 @@ export interface TmuxControl {
   attachSession(session: string, hint?: AttachSizeHint): Promise<void>;
   detachSession(session: string): void;
   run: RunCmd;
+  runInSession?: (session: string, args: readonly string[]) => Promise<string>;
   on<T extends TmuxNotification['type']>(
     event: T,
     cb: (n: Extract<TmuxNotification, { type: T }>) => void,
@@ -604,6 +605,16 @@ export class ControlPool implements TmuxControl {
     }
     this.opts.log?.(`tmux-control run primary args=${formatArgs(args)} ready=${this.clients.size} starting=${this.startingClients.size}`);
     return primary.run(args);
+  };
+
+  runInSession = (session: string, args: readonly string[]): Promise<string> => {
+    const client = this.clients.get(session);
+    if (!client) {
+      this.opts.log?.(`tmux-control run session=${session} no-client args=${formatArgs(args)} ready=${this.clients.size} starting=${this.startingClients.size} pendingReady=${this.readyPromises.size}`);
+      return Promise.reject(new NoControlClientError());
+    }
+    this.opts.log?.(`tmux-control run session=${session} args=${formatArgs(args)} ready=${this.clients.size} starting=${this.startingClients.size}`);
+    return client.run(args);
   };
 
   hasSession(session: string): boolean {

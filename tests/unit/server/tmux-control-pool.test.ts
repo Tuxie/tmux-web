@@ -138,6 +138,22 @@ describe('ControlPool', () => {
     await expect(pool.run(['list-sessions'])).rejects.toBeInstanceOf(NoControlClientError);
   });
 
+  test('runInSession dispatches to the named session control client', async () => {
+    const spawns: ReturnType<typeof fakeProc>[] = [];
+    const pool = new ControlPool({ spawn: () => { const p = fakeProc(); spawns.push(p); return p.proc; } });
+    await attachHappy(pool, 'main', spawns);
+    await attachHappy(pool, 'dev', spawns);
+
+    const p = pool.runInSession('dev', ['display-message', '-p', 'hello']);
+    await Promise.resolve();
+    expect(spawns[0]!.writes.at(-1)).not.toBe('display-message -p hello\n');
+    expect(spawns[1]!.writes.at(-1)).toBe('display-message -p hello\n');
+    spawns[1]!.stdout.emit('%begin 2 2 1\nok\n%end 2 2 1\n');
+    await expect(p).resolves.toBe('ok');
+
+    await expect(pool.runInSession('missing', ['list-windows'])).rejects.toBeInstanceOf(NoControlClientError);
+  });
+
   test('debug log records no-primary runs and attach lifecycle', async () => {
     const logs: string[] = [];
     const spawns: ReturnType<typeof fakeProc>[] = [];

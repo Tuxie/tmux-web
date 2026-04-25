@@ -124,7 +124,7 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
     if (n.session) void broadcastWindowsForSession(reg, n.session, opts);
   }));
   unsubscribers.push(opts.tmuxControl.on('subscriptionChanged', (n) => {
-    handleScrollbarSubscriptionChanged(n.name, n.value, reg);
+    handleScrollbarSubscriptionChanged(n.name, n.value, n.session, reg);
   }));
 
   const upgrade = (req: Request, server: BunServer<WsData>): Response | undefined => {
@@ -268,7 +268,6 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
     // `new-session -A` has started the PTY client; retry briefly for the
     // cold-start race where the session is still being created.
     void sendStartupWindowState(ws, session, opts);
-    void setupScrollbarState(ws, session, opts);
 
     // Pass the WS's cols/rows so the control client's `refresh-client -C`
     // mirrors the sibling PTY client's size — otherwise tmux's
@@ -276,7 +275,10 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
     // control client's size and then snaps back when the PTY client's
     // size arrives, which the user sees as a flash + redraw on attach.
     void opts.tmuxControl.attachSession(session, { cols, rows })
-      .then(() => sendWindowState(ws, session, opts))
+      .then(async () => {
+        await sendWindowState(ws, session, opts);
+        await setupScrollbarState(ws, session, opts);
+      })
       .catch((err) => {
         debug(config, `attachSession(${session}) failed: ${(err as Error).message}`);
       });
@@ -363,6 +365,7 @@ async function handleTitleChange(
   moveWsToSession(ws, oldSession, detectedSession, opts, reg);
   attached = false;
   await sendWindowState(ws, detectedSession, opts);
+  await setupScrollbarState(ws, detectedSession, opts);
 }
 
 function handleMessage(ws: ServerWebSocket<WsData>, msg: string | Buffer, opts: WsServerOptions, reg: WsRegistry): void {
@@ -397,8 +400,10 @@ function nextScrollbarSubscriptionName(): string {
   return `tw-scroll-${Date.now().toString(36)}-${(nextScrollbarSubscriptionId++).toString(36)}`;
 }
 
-function handleScrollbarSubscriptionChanged(name: string, value: string, reg: WsRegistry): void {
-  for (const clients of reg.wsClientsBySession.values()) {
+function handleScrollbarSubscriptionChanged(name: string, value: string, session: string | undefined, reg: WsRegistry): void {
+  const clientSets = session ? [reg.wsClientsBySession.get(session)] : Array.from(reg.wsClientsBySession.values());
+  for (const clients of clientSets) {
+    if (!clients) continue;
     for (const ws of clients) {
       if (ws.readyState !== WS_OPEN) continue;
       const { state } = ws.data;
@@ -410,19 +415,25 @@ function handleScrollbarSubscriptionChanged(name: string, value: string, reg: Ws
   }
 }
 
+function runTmuxForSession(opts: WsServerOptions, sessionName: string, args: readonly string[]): Promise<string> {
+  return opts.tmuxControl.runInSession
+    ? opts.tmuxControl.runInSession(sessionName, args)
+    : opts.tmuxControl.run(args);
+}
+
 async function setupScrollbarState(
   ws: ServerWebSocket<WsData>,
   sessionName: string,
   opts: WsServerOptions,
 ): Promise<void> {
   try {
-    await opts.tmuxControl.run(buildScrollbarSubscriptionArgs(ws.data.state.scrollbarSubscriptionName));
+    await runTmuxForSession(opts, sessionName, buildScrollbarSubscriptionArgs(ws.data.state.scrollbarSubscriptionName));
   } catch (err) {
     debug(opts.config, `scrollbar subscription failed for ${sessionName}: ${(err as Error).message}`);
   }
 
   try {
-    const raw = await opts.tmuxControl.run(['display-message', '-p', '-t', sessionName, '-F', SCROLLBAR_FORMAT]);
+    const raw = await runTmuxForSession(opts, sessionName, ['display-message', '-p', '-t', sessionName, '-F', SCROLLBAR_FORMAT]);
     if (ws.readyState !== WS_OPEN || ws.data.state.registeredSession !== sessionName) return;
     const next = parseScrollbarState(raw.trim());
     ws.data.state.scrollbarState = next;
@@ -745,6 +756,8 @@ async function switchSession(
     if (!sawRedraw) debug(opts.config, `switch-session(${newSession}) timed out waiting for PTY redraw`);
     if (isCancelled()) return;
     await sendWindowState(ws, newSession, opts);
+    if (isCancelled()) return;
+    await setupScrollbarState(ws, newSession, opts);
   } catch (err) {
     const detail = err instanceof TmuxCommandError
       ? `${err.message} running ${err.args.join(' ')}`
