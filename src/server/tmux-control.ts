@@ -11,7 +11,16 @@ export type TmuxNotification =
   | { type: 'sessionClosed'; id: string }
   | { type: 'windowAdd'; window: string; session?: string }
   | { type: 'windowClose'; window: string; session?: string }
-  | { type: 'windowRenamed'; window: string; name: string; session?: string };
+  | { type: 'windowRenamed'; window: string; name: string; session?: string }
+  | {
+      type: 'subscriptionChanged';
+      name: string;
+      sessionId: string;
+      windowId: string;
+      windowIndex: string;
+      paneId: string;
+      value: string;
+    };
 
 export class TmuxCommandError extends Error {
   constructor(
@@ -116,6 +125,26 @@ export function parseNotification(line: string): TmuxNotification | null {
       const sp2 = rest.indexOf(' ');
       if (sp2 < 0) return null;
       return { type: 'windowRenamed', window: rest.slice(0, sp2), name: rest.slice(sp2 + 1) };
+    }
+    case '%subscription-changed': {
+      const marker = ' : ';
+      const markerIdx = rest.indexOf(marker);
+      if (markerIdx < 0) return null;
+      const head = rest.slice(0, markerIdx);
+      const value = rest.slice(markerIdx + marker.length);
+      const parts = head.split(' ');
+      if (parts.length < 5) return null;
+      const [name, sessionId, windowId, windowIndex, paneId] = parts;
+      if (!name || !sessionId || !windowId || !windowIndex || !paneId) return null;
+      return {
+        type: 'subscriptionChanged',
+        name,
+        sessionId,
+        windowId,
+        windowIndex,
+        paneId,
+        value,
+      };
     }
     default:
       return null;

@@ -103,6 +103,44 @@ describe('ControlParser', () => {
     ]);
   });
 
+  test("parses %subscription-changed notification", () => {
+    const notes: TmuxNotification[] = [];
+    const parser = new ControlParser({
+      onResponse: () => {},
+      onError: () => {},
+      onNotification: (n) => notes.push(n),
+    });
+    parser.push("%subscription-changed tw-scroll $1 @2 3 %4 : %4\\t42\\t1200\\t7\\t1\\tcopy-mode\\t0\n");
+    expect(notes).toEqual([{
+      type: "subscriptionChanged",
+      name: "tw-scroll",
+      sessionId: "$1",
+      windowId: "@2",
+      windowIndex: "3",
+      paneId: "%4",
+      value: "%4\\t42\\t1200\\t7\\t1\\tcopy-mode\\t0",
+    }]);
+  });
+
+  test("parses %subscription-changed with empty value", () => {
+    const notes: TmuxNotification[] = [];
+    const parser = new ControlParser({
+      onResponse: () => {},
+      onError: () => {},
+      onNotification: (n) => notes.push(n),
+    });
+    parser.push("%subscription-changed tw-scroll $1 @2 3 %4 : \n");
+    expect(notes).toEqual([{
+      type: "subscriptionChanged",
+      name: "tw-scroll",
+      sessionId: "$1",
+      windowId: "@2",
+      windowIndex: "3",
+      paneId: "%4",
+      value: "",
+    }]);
+  });
+
   test('discards %output (consumed elsewhere under scope B: it is not)', () => {
     const notes: TmuxNotification[] = [];
     const parser = new ControlParser({
