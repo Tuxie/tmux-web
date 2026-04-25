@@ -34,13 +34,12 @@ test('rename-session emits \\x00TT:session push to attached WS', async ({ page }
     // %session-renamed → primary forwards → ws broadcast.
     isolatedTmux.tmux(['rename-session', '-t', 'e2e-main', 'e2e-renamed']);
 
-    // Expect at least one new \x00TT:session payload within 1500ms
-    // (bumped from 500ms for slow CI machines).
+    // Expect a new \x00TT:session payload within 1500ms (bumped from
+    // 500ms for slow CI machines). Other TT pushes, such as scrollbar
+    // state, can race with the session notification.
     await expect
-      .poll(() => events.length > before, { timeout: 1500 })
+      .poll(() => events.slice(before).some(msg => /^\x00TT:.*"session"/.test(msg)), { timeout: 1500 })
       .toBe(true);
-    const msg = events[events.length - 1]!;
-    expect(msg).toMatch(/^\x00TT:.*"session"/);
   } finally {
     killServer(server);
     isolatedTmux.cleanup();
