@@ -54,6 +54,9 @@ interface WsConnState {
   scrollbarRefreshTimer: ReturnType<typeof setTimeout> | null;
   scrollbarRefreshInFlight: boolean;
   scrollbarRefreshPending: boolean;
+  scrollbarDragRunning: boolean;
+  scrollbarPendingDragQueued: boolean;
+  scrollbarPendingDragPosition?: number;
   /** Monotonically-increasing counter. Each new switchSession call bumps
    *  this so prior in-flight switches detect they've been superseded. */
   switchSerial: number;
@@ -194,6 +197,9 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
         scrollbarRefreshTimer: null,
         scrollbarRefreshInFlight: false,
         scrollbarRefreshPending: false,
+        scrollbarDragRunning: false,
+        scrollbarPendingDragQueued: false,
+        scrollbarPendingDragPosition: undefined,
         switchSerial: 0,
         ptyOutputSerial: 0,
         ptyOutputWaiters: [],
@@ -494,6 +500,9 @@ function clearScrollbarRefresh(state: WsConnState): void {
   state.scrollbarRefreshTimer = null;
   state.scrollbarRefreshInFlight = false;
   state.scrollbarRefreshPending = false;
+  state.scrollbarDragRunning = false;
+  state.scrollbarPendingDragQueued = false;
+  state.scrollbarPendingDragPosition = undefined;
 }
 
 function scheduleScrollbarRefresh(
@@ -541,6 +550,72 @@ async function refreshScrollbarState(
     if (state.scrollbarRefreshPending) {
       state.scrollbarRefreshPending = false;
       scheduleScrollbarRefresh(ws, sessionName, opts, SCROLLBAR_PTY_REFRESH_DELAY_MS);
+    }
+  }
+}
+
+async function readScrollbarState(
+  ws: ServerWebSocket<WsData>,
+  sessionName: string,
+  opts: WsServerOptions,
+): Promise<ScrollbarState> {
+  const raw = await runTmuxForSession(opts, sessionName, ['display-message', '-p', '-t', sessionName, '-F', SCROLLBAR_FORMAT]);
+  if (ws.readyState !== WS_OPEN || ws.data.state.registeredSession !== sessionName || ws.data.state.scrollbarSubscriptionSession !== sessionName) {
+    return unavailableScrollbarState();
+  }
+  const next = parseScrollbarState(raw.trim());
+  ws.data.state.scrollbarState = next;
+  return next;
+}
+
+function enqueueScrollbarDrag(
+  ws: ServerWebSocket<WsData>,
+  position: number | undefined,
+  opts: WsServerOptions,
+): void {
+  const { state } = ws.data;
+  state.scrollbarPendingDragQueued = true;
+  state.scrollbarPendingDragPosition = position;
+  if (state.scrollbarDragRunning) return;
+  void drainScrollbarDragQueue(ws, state.registeredSession, opts);
+}
+
+async function drainScrollbarDragQueue(
+  ws: ServerWebSocket<WsData>,
+  sessionName: string,
+  opts: WsServerOptions,
+): Promise<void> {
+  const { state } = ws.data;
+  state.scrollbarDragRunning = true;
+  try {
+    while (
+      state.scrollbarPendingDragQueued &&
+      ws.readyState === WS_OPEN &&
+      state.registeredSession === sessionName &&
+      state.scrollbarSubscriptionSession === sessionName
+    ) {
+      const position = state.scrollbarPendingDragPosition;
+      state.scrollbarPendingDragQueued = false;
+      state.scrollbarPendingDragPosition = undefined;
+      await applyScrollbarAction({
+        action: 'drag',
+        position,
+        getState: () => readScrollbarState(ws, sessionName, opts),
+        run: opts.tmuxControl.run,
+      });
+      await refreshScrollbarState(ws, sessionName, opts);
+    }
+  } catch (err) {
+    debug(opts.config, `scrollbar drag failed: ${(err as Error).message}`);
+  } finally {
+    state.scrollbarDragRunning = false;
+    if (
+      state.scrollbarPendingDragQueued &&
+      ws.readyState === WS_OPEN &&
+      state.registeredSession === sessionName &&
+      state.scrollbarSubscriptionSession === sessionName
+    ) {
+      void drainScrollbarDragQueue(ws, sessionName, opts);
     }
   }
 }
@@ -689,6 +764,10 @@ function dispatchAction(ws: ServerWebSocket<WsData>, act: WsAction, opts: WsServ
       void applySessionAction(state.lastSession, { action: act.action, name: act.name }, opts);
       return;
     case 'scrollbar':
+      if (act.action === 'drag') {
+        enqueueScrollbarDrag(ws, act.position, opts);
+        return;
+      }
       void applyScrollbarAction({
         action: act.action,
         count: act.count,

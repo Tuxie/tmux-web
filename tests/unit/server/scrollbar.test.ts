@@ -304,7 +304,7 @@ describe("server scrollbar helpers", () => {
     ]);
   });
 
-  test("drag scroll count clamps to 500", async () => {
+  test("drag scroll count uses the full target delta", async () => {
     const calls: string[][] = [];
     await applyScrollbarAction({
       action: "drag",
@@ -314,7 +314,7 @@ describe("server scrollbar helpers", () => {
     });
     expect(calls).toEqual([
       ["copy-mode", "-e", "-t", "%4"],
-      ["send-keys", "-X", "-t", "%4", "-N", "500", "scroll-up"],
+      ["send-keys", "-X", "-t", "%4", "-N", "875", "scroll-up"],
     ]);
   });
 

@@ -687,6 +687,63 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     o.ws.close();
   }, 15000);
 
+  test('rapid scrollbar drags use fresh state instead of compounding stale deltas', async () => {
+    const { path: tmuxBin } = makeFakeTmux();
+    const runCalls: string[][] = [];
+    let scrollPosition = 25;
+    let releaseFirstScroll!: () => void;
+    const firstScroll = new Promise<void>(r => { releaseFirstScroll = r; });
+    let blockedFirstScroll = false;
+    const tmuxControl: TmuxControl = {
+      attachSession: async () => {},
+      detachSession: () => {},
+      run: async (args) => {
+        runCalls.push([...args]);
+        if (args[0] === 'list-windows') return '0\tone\t1\n';
+        if (args[0] === 'display-message' && args.includes(SCROLLBAR_FORMAT)) {
+          return `%4\t40\t1200\t${scrollPosition}\t1\tcopy-mode\t0`;
+        }
+        if (args[0] === 'send-keys' && args[1] === '-X') {
+          const count = Number(args[5]);
+          const command = args[6];
+          if (!blockedFirstScroll) {
+            blockedFirstScroll = true;
+            await firstScroll;
+          }
+          if (command === 'scroll-up') scrollPosition = Math.min(1200, scrollPosition + count);
+          if (command === 'scroll-down-and-cancel') scrollPosition = Math.max(0, scrollPosition - count);
+          return '';
+        }
+        if (args[0] === 'display-message') return 'pane';
+        return '';
+      },
+      on: () => () => {},
+      hasSession: () => false,
+      close: async () => {},
+    };
+    h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
+    const o = openWs(h.wsUrl);
+    await o.opened;
+    await waitForMsg(o.messages, m => 'scrollbar' in m, 8000);
+
+    o.ws.send(JSON.stringify({ type: 'scrollbar', action: 'drag', position: 900 }));
+    await waitFor(() => blockedFirstScroll, 8000);
+    o.ws.send(JSON.stringify({ type: 'scrollbar', action: 'drag', position: 100 }));
+    o.ws.send(JSON.stringify({ type: 'scrollbar', action: 'drag', position: 110 }));
+    releaseFirstScroll();
+
+    const updated = await waitForMsg(o.messages, m => m.scrollbar?.scrollPosition === 110, 8000);
+    expect(updated?.scrollbar?.scrollPosition).toBe(110);
+    const scrollCommands = runCalls.filter(args => args[0] === 'send-keys' && args[1] === '-X').map(args => args.slice(3));
+    expect(scrollCommands).toEqual([
+      ['%4', '-N', '875', 'scroll-up'],
+      ['%4', '-N', '800', 'scroll-down-and-cancel'],
+      ['%4', '-N', '10', 'scroll-up'],
+    ]);
+
+    o.ws.close();
+  }, 15000);
+
   test('switch-session reuses the open PTY and moves session bookkeeping', async () => {
     const { path: tmuxBin, logFile, dir } = makeFakeTmux();
     const attached: string[] = [];

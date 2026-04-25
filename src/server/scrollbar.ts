@@ -73,6 +73,10 @@ function clampScrollCount(n: number): number {
   return Math.max(1, Math.min(n, 500));
 }
 
+function dragScrollCount(n: number): number {
+  return Math.max(1, Math.round(n));
+}
+
 async function ensureCopyMode(run: RunCmd, paneId: string): Promise<void> {
   await run(["copy-mode", "-e", "-t", paneId]);
 }
@@ -123,6 +127,6 @@ export async function applyScrollbarAction(opts: {
     if (delta === 0) return;
     if (delta < 0 && !canScrollDown(state)) return;
     await ensureCopyMode(opts.run, state.paneId);
-    await sendCopyScroll(opts.run, state.paneId, clampScrollCount(Math.abs(delta)), delta > 0 ? "scroll-up" : "scroll-down-and-cancel");
+    await sendCopyScroll(opts.run, state.paneId, dragScrollCount(Math.abs(delta)), delta > 0 ? "scroll-up" : "scroll-down-and-cancel");
   }
 }
