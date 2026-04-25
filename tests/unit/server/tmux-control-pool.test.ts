@@ -177,15 +177,23 @@ describe('ControlPool', () => {
 
   test('debug log records attach failure from probe timeout', async () => {
     const logs: string[] = [];
+    let killed = false;
     const pool = new ControlPool({
-      spawn: () => fakeProc().proc,
+      spawn: () => {
+        const p = fakeProc();
+        const origKill = p.proc.kill;
+        p.proc.kill = () => { killed = true; origKill(); };
+        return p.proc;
+      },
       log: (line) => logs.push(line),
       commandTimeoutMs: 5,
     });
 
     await expect(pool.attachSession('main')).rejects.toMatchObject({ stderr: 'timeout' });
 
+    expect(killed).toBe(true);
     expect(logs.some(line => line.includes('attach probe start') && line.includes('session=main'))).toBe(true);
+    expect(logs.some(line => line.includes('attach probe failed') && line.includes('session=main'))).toBe(true);
     expect(logs.some(line => line.includes('attach failed') && line.includes('session=main'))).toBe(true);
   });
 

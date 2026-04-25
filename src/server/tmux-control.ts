@@ -546,10 +546,17 @@ export class ControlPool implements TmuxControl {
           return;
         }
       }
-      // Readiness probe. If it fails, the client is dead/unusable; propagate.
+      // Readiness probe. If it fails, the client is dead/unusable; kill it
+      // before propagating so a failed attach cannot leave an untracked child.
       const probeStartedAtMs = nowMs();
       this.opts.log?.(`tmux-control attach probe start session=${session}`);
-      await client.probe();
+      try {
+        await client.probe();
+      } catch (err) {
+        this.opts.log?.(`tmux-control attach probe failed session=${session} elapsedMs=${nowMs() - probeStartedAtMs} error=${err instanceof Error ? err.message : String(err)}`);
+        client.kill();
+        throw err;
+      }
       this.opts.log?.(`tmux-control attach probe ok session=${session} elapsedMs=${nowMs() - probeStartedAtMs}`);
       if (wasCancelled()) {
         this.opts.log?.(`tmux-control attach cancelled-after-probe session=${session}`);

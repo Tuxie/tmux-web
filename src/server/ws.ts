@@ -50,6 +50,7 @@ interface WsConnState {
   unsubscribeDrops?: () => void;
   scrollbarState: ScrollbarState;
   scrollbarSubscriptionName: string;
+  scrollbarSubscriptionSession: string | null;
   /** Monotonically-increasing counter. Each new switchSession call bumps
    *  this so prior in-flight switches detect they've been superseded. */
   switchSerial: number;
@@ -185,6 +186,7 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
         nextReqId: 0,
         scrollbarState: unavailableScrollbarState(),
         scrollbarSubscriptionName: nextScrollbarSubscriptionName(),
+        scrollbarSubscriptionSession: null,
         switchSerial: 0,
         ptyOutputSerial: 0,
         ptyOutputWaiters: [],
@@ -362,6 +364,7 @@ async function handleTitleChange(
     return;
   }
 
+  await teardownScrollbarState(ws, oldSession, opts);
   moveWsToSession(ws, oldSession, detectedSession, opts, reg);
   attached = false;
   await sendWindowState(ws, detectedSession, opts);
@@ -389,9 +392,13 @@ function handleClose(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: Ws
   const next = (reg.sessionRefs.get(session) ?? 1) - 1;
   if (next <= 0) {
     reg.sessionRefs.delete(session);
-    if (!config.testMode) opts.tmuxControl.detachSession(session);
+    if (!config.testMode) {
+      void teardownScrollbarState(ws, session, opts)
+        .finally(() => opts.tmuxControl.detachSession(session));
+    }
   } else {
     reg.sessionRefs.set(session, next);
+    if (!config.testMode) void teardownScrollbarState(ws, session, opts);
   }
   state.pty?.kill();
 }
@@ -421,13 +428,39 @@ function runTmuxForSession(opts: WsServerOptions, sessionName: string, args: rea
     : opts.tmuxControl.run(args);
 }
 
+async function teardownScrollbarState(
+  ws: ServerWebSocket<WsData>,
+  sessionName: string,
+  opts: WsServerOptions,
+): Promise<void> {
+  const { state } = ws.data;
+  if (state.scrollbarSubscriptionSession !== sessionName) return;
+  state.scrollbarSubscriptionSession = null;
+  state.scrollbarState = unavailableScrollbarState();
+  try {
+    await runTmuxForSession(opts, sessionName, ['refresh-client', '-B', state.scrollbarSubscriptionName]);
+  } catch (err) {
+    debug(opts.config, `scrollbar unsubscribe failed for ${sessionName}: ${(err as Error).message}`);
+  }
+}
+
 async function setupScrollbarState(
   ws: ServerWebSocket<WsData>,
   sessionName: string,
   opts: WsServerOptions,
 ): Promise<void> {
+  const { state } = ws.data;
+  if (state.scrollbarSubscriptionSession && state.scrollbarSubscriptionSession !== sessionName) {
+    await teardownScrollbarState(ws, state.scrollbarSubscriptionSession, opts);
+  } else if (state.scrollbarSubscriptionSession === sessionName) {
+    await teardownScrollbarState(ws, sessionName, opts);
+  }
+
   try {
     await runTmuxForSession(opts, sessionName, buildScrollbarSubscriptionArgs(ws.data.state.scrollbarSubscriptionName));
+    if (ws.readyState === WS_OPEN && ws.data.state.registeredSession === sessionName) {
+      ws.data.state.scrollbarSubscriptionSession = sessionName;
+    }
   } catch (err) {
     debug(opts.config, `scrollbar subscription failed for ${sessionName}: ${(err as Error).message}`);
   }
@@ -742,6 +775,9 @@ async function switchSession(
       debug(opts.config, `switch-session(${newSession}) failed: PTY tmux client still on ${reportedSession ?? '<unknown>'}`);
       return;
     }
+
+    await teardownScrollbarState(ws, oldSession, opts);
+    if (isCancelled()) return;
 
     moveWsToSession(ws, oldSession, newSession, opts, reg);
     newSessionAttached = false; // now owned by handleClose via registeredSession

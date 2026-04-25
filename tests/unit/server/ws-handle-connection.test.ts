@@ -642,7 +642,10 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     const got = await waitForMsg(o.messages, m => 'scrollbar' in m, 8000);
     expect(got?.scrollbar?.paneId).toBe('%4');
 
+    const subscribeName = runCalls.find(c => c.args[0] === 'refresh-client' && c.args[1] === '-B')?.args[2]?.split(':')[0];
+    expect(subscribeName).toBeTruthy();
     o.ws.close();
+    await waitFor(() => runCalls.some(c => c.args[0] === 'refresh-client' && c.args[1] === '-B' && c.args[2] === subscribeName), 8000);
   }, 15000);
 
   test('scrollbar action dispatches through tmux control using current scrollbar state', async () => {
@@ -682,15 +685,25 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     const { path: tmuxBin, logFile, dir } = makeFakeTmux();
     const attached: string[] = [];
     const detached: string[] = [];
+    const controlEvents: string[] = [];
     const tmuxControl: TmuxControl = {
-      attachSession: async (session) => { attached.push(session); },
-      detachSession: (session) => { detached.push(session); },
+      attachSession: async (session) => { attached.push(session); controlEvents.push(`attach:${session}`); },
+      detachSession: (session) => { detached.push(session); controlEvents.push(`detach:${session}`); },
       run: async (args) => {
         if (args[0] === 'list-clients' && args.includes('#{client_tty}\t#{client_name}\t#{client_session}')) {
           return '/dev/pts/fake\tfake\tdev\n';
         }
         const { stdout } = await execFileAsync(tmuxBin, args);
         return stdout;
+      },
+      runInSession: async (session, args) => {
+        if (args[0] === 'refresh-client' && args[1] === '-B') {
+          const mode = String(args[2]).includes(':') ? 'subscribe' : 'unsubscribe';
+          controlEvents.push(`${mode}:${session}`);
+          return '';
+        }
+        if (args[0] === 'display-message' && args.includes(SCROLLBAR_FORMAT)) return '%4\t40\t1200\t0\t0\t\t0';
+        return tmuxControl.run(args);
       },
       on: () => () => {},
       hasSession: () => false,
@@ -703,6 +716,7 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
       try { return fs.readFileSync(`${dir}/client.pid`, 'utf8').trim(); }
       catch { return ''; }
     }, 8000);
+    await waitFor(() => controlEvents.includes('subscribe:main'), 8000);
 
     o.ws.send(JSON.stringify({ type: 'switch-session', name: 'dev' }));
     await waitFor(() => attached.includes('dev'), 8000);
@@ -718,6 +732,11 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     expect(attached).toEqual(['main', 'dev']);
     await waitFor(() => detached.includes('main'), 8000);
     expect(detached).toEqual(['main']);
+    const mainUnsubscribeIdx = controlEvents.indexOf('unsubscribe:main');
+    const mainDetachIdx = controlEvents.indexOf('detach:main');
+    expect(mainUnsubscribeIdx).toBeGreaterThan(-1);
+    expect(mainDetachIdx).toBeGreaterThan(-1);
+    expect(mainUnsubscribeIdx).toBeLessThan(mainDetachIdx);
     await waitFor(() => {
       try { return fs.readFileSync(logFile, 'utf8').includes('refresh-client -t /dev/pts/fake'); }
       catch { return false; }
