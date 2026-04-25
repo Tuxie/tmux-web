@@ -867,6 +867,54 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     o.ws.close();
   }, 15000);
 
+  test('debug log records window action control fallback timing', async () => {
+    const { path: tmuxBin, logFile } = makeFakeTmux();
+
+    let resolveAttach!: () => void;
+    const attachDone = new Promise<void>(r => { resolveAttach = r; });
+
+    const tmuxControl: TmuxControl = {
+      attachSession: async () => { await attachDone; },
+      detachSession: () => {},
+      run: async () => { throw new NoControlClientError(); },
+      on: () => () => {},
+      hasSession: () => false,
+      close: async () => {},
+    };
+
+    const stderr: string[] = [];
+    const originalWrite = process.stderr.write;
+    process.stderr.write = ((chunk: string | Uint8Array, ...args: unknown[]) => {
+      stderr.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
+      return (originalWrite as any).call(process.stderr, chunk, ...args);
+    }) as typeof process.stderr.write;
+    try {
+      h = await startTestServer({ testMode: false, tmuxBin, tmuxControl, configOverrides: { debug: true } });
+      const o = openWs(h.wsUrl);
+      await o.opened;
+
+      o.ws.send(JSON.stringify({ type: 'window', action: 'select', index: '1' }));
+
+      const sawSelect = await waitFor(() => {
+        const log = fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8') : '';
+        return log.includes('select-window -t main:1');
+      }, 1000);
+      expect(sawSelect).toBe(true);
+
+      const text = stderr.join('');
+      expect(text).toContain('window action start');
+      expect(text).toContain('action=select');
+      expect(text).toContain('control=no-primary');
+      expect(text).toContain('fallback=exec');
+      expect(text).toContain('window action done');
+
+      resolveAttach();
+      o.ws.close();
+    } finally {
+      process.stderr.write = originalWrite;
+    }
+  }, 15000);
+
   test('windows populated even when shell passthrough title corrupts state.lastSession', async () => {
     // Regression: with `allow-passthrough on`, the shell may send an OSC
     // title like `user@host: ~` AFTER tmux's own set-titles output. The last

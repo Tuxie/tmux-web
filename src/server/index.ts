@@ -475,7 +475,11 @@ Options:
 
   const tmuxControl = config.testMode
     ? null
-    : createTmuxControl({ tmuxBin: config.tmuxBin, tmuxConfPath: effectiveTmuxConfPath });
+    : createTmuxControl({
+      tmuxBin: config.tmuxBin,
+      tmuxConfPath: effectiveTmuxConfPath,
+      log: config.debug ? (line) => process.stderr.write(`[debug] ${line}\n`) : undefined,
+    });
 
   const handler = await createHttpHandler({
     config,

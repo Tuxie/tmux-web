@@ -169,6 +169,8 @@ interface Pending {
   resolve: (stdout: string) => void;
   reject: (err: unknown) => void;
   timer: ReturnType<typeof setTimeout> | null;
+  queuedAtMs: number;
+  dispatchedAtMs: number | null;
 }
 
 const DEFAULT_COMMAND_TIMEOUT_MS = 5_000;
@@ -190,10 +192,21 @@ export function quoteTmuxArg(arg: string): string {
   return '"' + arg.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$') + '"';
 }
 
+export type TmuxControlLogger = (line: string) => void;
+
+function nowMs(): number {
+  return Date.now();
+}
+
+function formatArgs(args: readonly string[]): string {
+  return args.map(quoteTmuxArg).join(' ');
+}
+
 export interface ControlClientOpts {
   /** Override the per-command soft timeout. Default 5 s. Tests use
    *  short values to exercise the timeout path without wall-clock wait. */
   commandTimeoutMs?: number;
+  log?: TmuxControlLogger;
 }
 
 export class ControlClient {
@@ -204,6 +217,7 @@ export class ControlClient {
   private alive = true;
   private readonly notifyCb: (n: TmuxNotification) => void;
   private readonly commandTimeoutMs: number;
+  private readonly log?: TmuxControlLogger;
   /** Cmd-ids echoed by tmux that we've already abandoned via timeout —
    *  any %end/%error carrying these ids is dropped. */
   private staleCmdnums = new Set<number>();
@@ -226,6 +240,7 @@ export class ControlClient {
   ) {
     this.notifyCb = onNotification;
     this.commandTimeoutMs = opts.commandTimeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS;
+    this.log = opts.log;
     this.parser = new ControlParser({
       onBegin: (cmdnum, flags) => this.handleBegin(cmdnum, flags),
       onResponse: (cmdnum, output) => this.handleResponse(cmdnum, output),
@@ -247,8 +262,11 @@ export class ControlClient {
         tmuxCmdnum: null,
         args, resolve, reject,
         timer: null,
+        queuedAtMs: nowMs(),
+        dispatchedAtMs: null,
       };
       this.queue.push(pending);
+      this.log?.(`tmux-control command queued id=${pending.id} depth=${this.queue.length} args=${formatArgs(args)}`);
       if (this.queue.length === 1) this.dispatch();
     });
   }
@@ -263,19 +281,24 @@ export class ControlClient {
   async probe(): Promise<void> {
     const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
     let iterations = 0;
+    this.log?.('tmux-control probe start');
     for (;;) {
       if (iterations >= 10) throw new TmuxCommandError(['display-message', '-p', token], 'probe: no matching response in 10 attempts');
       const result = await this.run(['display-message', '-p', token]);
       iterations++;
+      this.log?.(`tmux-control probe iteration=${iterations} matched=${result.trim() === token}`);
       if (result.trim() === token) break;
     }
     this.pendingStaleBegins += iterations - 1;
+    this.log?.(`tmux-control probe ready iterations=${iterations} staleBeginsAdded=${Math.max(0, iterations - 1)}`);
   }
 
   private dispatch(): void {
     const head = this.queue[0];
     if (!head) return;
-    this.proc.stdin.write(head.args.map(quoteTmuxArg).join(' ') + '\n');
+    head.dispatchedAtMs = nowMs();
+    this.log?.(`tmux-control command dispatch id=${head.id} waitMs=${head.dispatchedAtMs - head.queuedAtMs} args=${formatArgs(head.args)}`);
+    this.proc.stdin.write(formatArgs(head.args) + '\n');
     head.timer = setTimeout(() => this.handleTimeout(head.id), this.commandTimeoutMs);
   }
 
@@ -293,6 +316,7 @@ export class ControlClient {
     if (this.pendingStaleBegins > 0) {
       this.pendingStaleBegins--;
       this.staleCmdnums.add(cmdnum);
+      this.log?.(`tmux-control command begin stale-pending tmuxCmdnum=${cmdnum} flags=${flags} pendingStaleBegins=${this.pendingStaleBegins}`);
       return;
     }
     const head = this.queue[0];
@@ -300,9 +324,11 @@ export class ControlClient {
       // No pending in flight, or head already has a cmdnum (defensive —
       // shouldn't happen given we serialise writes). Treat as stale.
       this.staleCmdnums.add(cmdnum);
+      this.log?.(`tmux-control command begin stale-no-head tmuxCmdnum=${cmdnum} flags=${flags} queueDepth=${this.queue.length}`);
       return;
     }
     head.tmuxCmdnum = cmdnum;
+    this.log?.(`tmux-control command begin id=${head.id} tmuxCmdnum=${cmdnum} flags=${flags} args=${formatArgs(head.args)}`);
   }
 
   private handleResponse(cmdnum: number, output: string): void {
@@ -314,11 +340,14 @@ export class ControlClient {
       // so the soft-timeout path can't kill a live primary just because a
       // slow tmux finally answered.
       this.staleCmdnums.delete(cmdnum);
+      this.log?.(`tmux-control command response stale tmuxCmdnum=${cmdnum} queueDepth=${this.queue.length} bytes=${output.length}`);
       return;
     }
     if (head.timer) clearTimeout(head.timer);
     this.consecutiveTimeouts = 0;
     this.queue.shift();
+    const elapsedMs = head.dispatchedAtMs === null ? 0 : nowMs() - head.dispatchedAtMs;
+    this.log?.(`tmux-control command response id=${head.id} tmuxCmdnum=${cmdnum} elapsedMs=${elapsedMs} bytes=${output.length} args=${formatArgs(head.args)}`);
     head.resolve(output);
     this.dispatch();
   }
@@ -328,11 +357,14 @@ export class ControlClient {
     if (!head || head.tmuxCmdnum !== cmdnum) {
       // Same rationale as in handleResponse.
       this.staleCmdnums.delete(cmdnum);
+      this.log?.(`tmux-control command error stale tmuxCmdnum=${cmdnum} queueDepth=${this.queue.length} bytes=${stderr.length}`);
       return;
     }
     if (head.timer) clearTimeout(head.timer);
     this.consecutiveTimeouts = 0;
     this.queue.shift();
+    const elapsedMs = head.dispatchedAtMs === null ? 0 : nowMs() - head.dispatchedAtMs;
+    this.log?.(`tmux-control command error id=${head.id} tmuxCmdnum=${cmdnum} elapsedMs=${elapsedMs} bytes=${stderr.length} args=${formatArgs(head.args)}`);
     head.reject(new TmuxCommandError(head.args, stderr));
     this.dispatch();
   }
@@ -348,6 +380,8 @@ export class ControlClient {
     if (head.tmuxCmdnum !== null) this.staleCmdnums.add(head.tmuxCmdnum);
     else this.pendingStaleBegins++;
     this.queue.shift();
+    const elapsedMs = head.dispatchedAtMs === null ? 0 : nowMs() - head.dispatchedAtMs;
+    this.log?.(`tmux-control command timeout id=${head.id} tmuxCmdnum=${head.tmuxCmdnum ?? 'pending'} elapsedMs=${elapsedMs} backlog=${this.queue.length} args=${formatArgs(head.args)}`);
     head.reject(new TmuxCommandError(head.args, 'timeout'));
     // Drain the entire backlog immediately. Queued commands were never written
     // to tmux stdin, so no stale accounting is needed. Failing them now lets
@@ -355,12 +389,16 @@ export class ControlClient {
     // instead of waiting N × commandTimeoutMs for each to be dispatched and
     // time out in turn — the root cause of the sessions-menu 502 regression.
     const backlog = this.queue.splice(0);
-    for (const p of backlog) p.reject(new TmuxCommandError(p.args, 'timeout'));
+    for (const p of backlog) {
+      this.log?.(`tmux-control command backlog-timeout id=${p.id} args=${formatArgs(p.args)}`);
+      p.reject(new TmuxCommandError(p.args, 'timeout'));
+    }
     this.consecutiveTimeouts++;
     if (this.consecutiveTimeouts >= CONSECUTIVE_TIMEOUT_KILL_THRESHOLD) {
       // Client is stuck (N sequential dispatched-command timeouts with no
       // success). Kill the proc so onExit fires and evicts this client from
       // the pool; the next WebSocket attach will spawn a fresh one.
+      this.log?.(`tmux-control command timeout-threshold consecutive=${this.consecutiveTimeouts}; killing control client`);
       this.proc.kill();
       return;
     }
@@ -371,6 +409,7 @@ export class ControlClient {
     if (!this.alive) return;
     this.alive = false;
     const queued = this.queue.splice(0);
+    this.log?.(`tmux-control process exit queued=${queued.length}`);
     for (const p of queued) {
       if (p.timer) clearTimeout(p.timer);
       p.reject(new TmuxCommandError(p.args, 'control client exited'));
@@ -388,6 +427,8 @@ export interface ControlPoolOpts {
   /** Spawn a tmux -C control-mode child for the given session. Returns
    *  the proc-like handle ControlClient wraps. Injectable for tests. */
   spawn: (session: string) => ControlProc;
+  log?: TmuxControlLogger;
+  commandTimeoutMs?: number;
 }
 
 export class ControlPool implements TmuxControl {
@@ -404,18 +445,27 @@ export class ControlPool implements TmuxControl {
 
   attachSession(session: string, hint?: AttachSizeHint): Promise<void> {
     const existing = this.readyPromises.get(session);
+    this.opts.log?.(`tmux-control attach requested session=${session} existing=${existing ? 'yes' : 'no'} hint=${hint ? `${hint.cols}x${hint.rows}` : 'none'} ready=${this.clients.size} starting=${this.startingClients.size}`);
     if (existing) return existing;
     const ready = this.startSession(session, hint);
     this.readyPromises.set(session, ready);
-    ready.catch(() => this.readyPromises.delete(session));
+    ready.catch((err) => {
+      this.opts.log?.(`tmux-control attach failed session=${session} error=${err instanceof Error ? err.message : String(err)}`);
+      this.readyPromises.delete(session);
+    });
     return ready;
   }
 
   private async startSession(session: string, hint?: AttachSizeHint): Promise<void> {
+    const startedAtMs = nowMs();
+    this.opts.log?.(`tmux-control attach start session=${session}`);
     const proc = this.opts.spawn(session);
     // Forward-reference: the notification callback captures `client`. Safe
     // because stdout 'data' is async; `client` is always bound when it fires.
-    const client = new ControlClient(proc, (n) => this.onNotification(client, session, n));
+    const client = new ControlClient(proc, (n) => this.onNotification(client, session, n), {
+      commandTimeoutMs: this.opts.commandTimeoutMs,
+      log: this.opts.log,
+    });
     this.startingClients.set(session, client);
     // Guard: detachSession called before probe resolves must not leak the
     // child. Check cancellation after each await and kill the client if so.
@@ -433,16 +483,36 @@ export class ControlPool implements TmuxControl {
       // can only happen DURING an await, and the no-hint path skips the
       // refresh-client await entirely (so no check needed before it).
       if (hint) {
-        try { await client.run(['refresh-client', '-C', `${hint.cols}x${hint.rows}`]); }
-        catch { /* best-effort */ }
-        if (wasCancelled()) { client.kill(); return; }
+        const refreshStartedAtMs = nowMs();
+        const size = `${hint.cols}x${hint.rows}`;
+        this.opts.log?.(`tmux-control attach refresh-client start session=${session} size=${size}`);
+        try {
+          await client.run(['refresh-client', '-C', size]);
+          this.opts.log?.(`tmux-control attach refresh-client ok session=${session} elapsedMs=${nowMs() - refreshStartedAtMs}`);
+        }
+        catch (err) {
+          this.opts.log?.(`tmux-control attach refresh-client failed session=${session} elapsedMs=${nowMs() - refreshStartedAtMs} error=${err instanceof Error ? err.message : String(err)}`);
+        }
+        if (wasCancelled()) {
+          this.opts.log?.(`tmux-control attach cancelled-after-refresh session=${session}`);
+          client.kill();
+          return;
+        }
       }
       // Readiness probe. If it fails, the client is dead/unusable; propagate.
+      const probeStartedAtMs = nowMs();
+      this.opts.log?.(`tmux-control attach probe start session=${session}`);
       await client.probe();
-      if (wasCancelled()) { client.kill(); return; }
+      this.opts.log?.(`tmux-control attach probe ok session=${session} elapsedMs=${nowMs() - probeStartedAtMs}`);
+      if (wasCancelled()) {
+        this.opts.log?.(`tmux-control attach cancelled-after-probe session=${session}`);
+        client.kill();
+        return;
+      }
       this.startingClients.delete(session);
       this.clients.set(session, client);
       this.insertionOrder.push(client);
+      this.opts.log?.(`tmux-control attach ready session=${session} elapsedMs=${nowMs() - startedAtMs} ready=${this.clients.size} primary=${this.insertionOrder[0] === client ? 'yes' : 'no'}`);
       // When the process exits unexpectedly, evict it from the pool so that
       // the next-oldest entry can promote to primary.
       void proc.exited.then(() => this.evictClient(client, session));
@@ -452,6 +522,7 @@ export class ControlPool implements TmuxControl {
   }
 
   private evictClient(client: ControlClient, session: string): void {
+    this.opts.log?.(`tmux-control evict session=${session} readyBefore=${this.clients.size} starting=${this.startingClients.size}`);
     // Remove from insertionOrder (primary promotion happens automatically
     // since insertionOrder[0] is checked at notification-dispatch time).
     const idx = this.insertionOrder.indexOf(client);
@@ -466,7 +537,12 @@ export class ControlPool implements TmuxControl {
 
   detachSession(session: string): void {
     const client = this.clients.get(session);
-    if (!client) { this.readyPromises.delete(session); return; }
+    if (!client) {
+      this.opts.log?.(`tmux-control detach session=${session} state=${this.startingClients.has(session) ? 'starting' : 'none'}`);
+      this.readyPromises.delete(session);
+      return;
+    }
+    this.opts.log?.(`tmux-control detach session=${session} state=ready`);
     this.clients.delete(session);
     const idx = this.insertionOrder.indexOf(client);
     if (idx >= 0) this.insertionOrder.splice(idx, 1);
@@ -476,7 +552,11 @@ export class ControlPool implements TmuxControl {
 
   run = (args: readonly string[]): Promise<string> => {
     const primary = this.insertionOrder[0];
-    if (!primary) return Promise.reject(new NoControlClientError());
+    if (!primary) {
+      this.opts.log?.(`tmux-control run no-primary args=${formatArgs(args)} ready=${this.clients.size} starting=${this.startingClients.size} pendingReady=${this.readyPromises.size}`);
+      return Promise.reject(new NoControlClientError());
+    }
+    this.opts.log?.(`tmux-control run primary args=${formatArgs(args)} ready=${this.clients.size} starting=${this.startingClients.size}`);
     return primary.run(args);
   };
 
@@ -498,6 +578,7 @@ export class ControlPool implements TmuxControl {
 
   async close(): Promise<void> {
     const clients = new Set([...this.insertionOrder, ...this.startingClients.values()]);
+    this.opts.log?.(`tmux-control close clients=${this.clients.size} starting=${this.startingClients.size} killCount=${clients.size}`);
     this.insertionOrder.splice(0);
     this.startingClients.clear();
     this.clients.clear();
@@ -525,6 +606,7 @@ export class ControlPool implements TmuxControl {
 export interface CreateTmuxControlOpts {
   tmuxBin: string;
   tmuxConfPath: string;
+  log?: TmuxControlLogger;
 }
 
 /** Build the argv for `tmux -C attach-session -t <session>`. Exported so
@@ -572,7 +654,7 @@ export function createTmuxControl(opts: CreateTmuxControlOpts): TmuxControl {
       kill: () => proc.kill(),
     };
   };
-  return new ControlPool({ spawn });
+  return new ControlPool({ spawn, log: opts.log });
 }
 
 /** No-op TmuxControl for `--test` mode (and anywhere else tmux must

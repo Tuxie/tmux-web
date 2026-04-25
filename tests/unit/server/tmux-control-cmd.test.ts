@@ -36,6 +36,22 @@ describe('ControlClient', () => {
     expect(await p).toBe('foo\nbar');
   });
 
+  test('debug log records command queue, dispatch, begin, and response timing', async () => {
+    const { writes, stdout, proc } = makeStdio();
+    const logs: string[] = [];
+    const client = new ControlClient(proc as any, () => {}, { log: (line) => logs.push(line) });
+    const p = client.run(['list-sessions']);
+    await Promise.resolve();
+    expect(writes).toEqual(['list-sessions\n']);
+    stdout.emit('%begin 1 77 1\nok\n%end 1 77 1\n');
+    expect(await p).toBe('ok');
+
+    expect(logs.some(line => line.includes('command queued') && line.includes('args=list-sessions'))).toBe(true);
+    expect(logs.some(line => line.includes('command dispatch') && line.includes('args=list-sessions'))).toBe(true);
+    expect(logs.some(line => line.includes('command begin') && line.includes('tmuxCmdnum=77'))).toBe(true);
+    expect(logs.some(line => line.includes('command response') && line.includes('tmuxCmdnum=77'))).toBe(true);
+  });
+
   test('advances the backlog after each response', async () => {
     const { writes, stdout, proc } = makeStdio();
     const client = new ControlClient(proc as any);

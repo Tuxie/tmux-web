@@ -125,6 +125,41 @@ describe('ControlPool', () => {
     await expect(pool.run(['list-sessions'])).rejects.toBeInstanceOf(NoControlClientError);
   });
 
+  test('debug log records no-primary runs and attach lifecycle', async () => {
+    const logs: string[] = [];
+    const spawns: ReturnType<typeof fakeProc>[] = [];
+    const pool = new ControlPool({
+      spawn: () => { const p = fakeProc(); spawns.push(p); return p.proc; },
+      log: (line) => logs.push(line),
+    });
+
+    await expect(pool.run(['list-sessions'])).rejects.toBeInstanceOf(NoControlClientError);
+    expect(logs.some(line => line.includes('run no-primary') && line.includes('args=list-sessions'))).toBe(true);
+
+    const attach = pool.attachSession('main', { cols: 80, rows: 24 });
+    await driveHandshake(attach, spawns[0]!);
+
+    expect(logs.some(line => line.includes('attach requested') && line.includes('session=main'))).toBe(true);
+    expect(logs.some(line => line.includes('attach start') && line.includes('session=main'))).toBe(true);
+    expect(logs.some(line => line.includes('attach refresh-client start') && line.includes('80x24'))).toBe(true);
+    expect(logs.some(line => line.includes('attach probe start') && line.includes('session=main'))).toBe(true);
+    expect(logs.some(line => line.includes('attach ready') && line.includes('session=main'))).toBe(true);
+  });
+
+  test('debug log records attach failure from probe timeout', async () => {
+    const logs: string[] = [];
+    const pool = new ControlPool({
+      spawn: () => fakeProc().proc,
+      log: (line) => logs.push(line),
+      commandTimeoutMs: 5,
+    });
+
+    await expect(pool.attachSession('main')).rejects.toMatchObject({ stderr: 'timeout' });
+
+    expect(logs.some(line => line.includes('attach probe start') && line.includes('session=main'))).toBe(true);
+    expect(logs.some(line => line.includes('attach failed') && line.includes('session=main'))).toBe(true);
+  });
+
   test('detachSession kills the client and removes it from primary tracking', async () => {
     const spawns: ReturnType<typeof fakeProc>[] = [];
     const pool = new ControlPool({ spawn: () => { const p = fakeProc(); spawns.push(p); return p.proc; } });

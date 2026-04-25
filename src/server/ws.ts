@@ -10,7 +10,7 @@ import { getForegroundProcess } from './foreground-process.js';
 import { resolvePolicy, recordGrant } from './clipboard-policy.js';
 import { onDropsChange } from './file-drop.js';
 import { routeClientMessage, type WsAction, type PendingRead as RouterPendingRead } from './ws-router.js';
-import { NoControlClientError, TmuxCommandError, type TmuxControl } from './tmux-control.js';
+import { NoControlClientError, TmuxCommandError, quoteTmuxArg, type TmuxControl } from './tmux-control.js';
 import { execFileAsync } from './exec.js';
 
 export interface WsServerOptions {
@@ -75,6 +75,10 @@ interface WsRegistry {
 
 function debug(config: ServerConfig, ...args: unknown[]): void {
   if (config.debug) process.stderr.write(`[debug] ${args.join(' ')}\n`);
+}
+
+function debugTmuxArgs(args: readonly string[]): string {
+  return args.map(quoteTmuxArg).join(' ');
 }
 
 export interface WsHandlers {
@@ -755,13 +759,23 @@ async function applyWindowAction(
       return;
   }
 
+  const startedAtMs = Date.now();
+  debug(opts.config, `window action start session=${sessionName} action=${msg.action} args=${debugTmuxArgs(args)}`);
   try {
     await opts.tmuxControl.run(args);
+    debug(opts.config, `window action done session=${sessionName} action=${msg.action} control=primary elapsedMs=${Date.now() - startedAtMs}`);
   } catch (err) {
     if (err instanceof NoControlClientError) {
+      debug(opts.config, `window action control=no-primary session=${sessionName} action=${msg.action} elapsedMs=${Date.now() - startedAtMs}; fallback=exec`);
       try { await execFileAsync(opts.config.tmuxBin, args); }
-      catch { /* ignore — window may have already been closed, etc. */ }
+      catch (execErr) {
+        debug(opts.config, `window action fallback=exec failed session=${sessionName} action=${msg.action} elapsedMs=${Date.now() - startedAtMs} error=${execErr instanceof Error ? execErr.message : String(execErr)}`);
+        return;
+      }
+      debug(opts.config, `window action done session=${sessionName} action=${msg.action} fallback=exec elapsedMs=${Date.now() - startedAtMs}`);
+      return;
     }
+    debug(opts.config, `window action failed session=${sessionName} action=${msg.action} elapsedMs=${Date.now() - startedAtMs} error=${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
