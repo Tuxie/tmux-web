@@ -110,7 +110,7 @@ describe('ControlParser', () => {
       onError: () => {},
       onNotification: (n) => notes.push(n),
     });
-    parser.push("%subscription-changed tw-scroll $1 @2 3 %4 : %4\\t42\\t1200\\t7\\t1\\tcopy-mode\\t0\n");
+    parser.push("%subscription-changed tw-scroll $1 @2 3 %4 : %4\t42\t1200\t7\t1\tcopy-mode\t0\n");
     expect(notes).toEqual([{
       type: "subscriptionChanged",
       name: "tw-scroll",
@@ -118,7 +118,7 @@ describe('ControlParser', () => {
       windowId: "@2",
       windowIndex: "3",
       paneId: "%4",
-      value: "%4\\t42\\t1200\\t7\\t1\\tcopy-mode\\t0",
+      value: "%4\t42\t1200\t7\t1\tcopy-mode\t0",
     }]);
   });
 
