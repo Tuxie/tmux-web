@@ -95,7 +95,23 @@ export function _resetInotifyProbe(): void {
 
 /** Active auto-unlink watchers keyed by the drop's subdir so purge and
  *  server-exit can kill them. */
-const activeWatchers = new Map<string, ChildProcess>();
+type WatcherProcess = Pick<ChildProcess, 'on' | 'kill'>;
+interface ActiveWatcher {
+  child: WatcherProcess;
+  settled: Promise<void>;
+}
+type WatcherSpawn = (filePath: string) => WatcherProcess;
+let watcherSpawn: WatcherSpawn = (filePath) => spawn('inotifywait', [
+  '-q', '-e', 'close_write,close_nowrite', filePath,
+], { stdio: ['ignore', 'ignore', 'ignore'] });
+
+export function _setAutoUnlinkSpawnForTest(spawnFn: WatcherSpawn | undefined): void {
+  watcherSpawn = spawnFn ?? ((filePath) => spawn('inotifywait', [
+    '-q', '-e', 'close_write,close_nowrite', filePath,
+  ], { stdio: ['ignore', 'ignore', 'ignore'] }));
+}
+
+const activeWatchers = new Map<string, ActiveWatcher>();
 const pendingAutoUnlinks = new Map<string, ReturnType<typeof setTimeout>>();
 
 export const AUTO_UNLINK_GRACE_MS = 2000;
@@ -144,32 +160,38 @@ function scheduleAutoUnlink(dropDir: string, filePath: string): void {
 function armAutoUnlink(dropDir: string, filePath: string): void {
   if (activeWatchers.has(dropDir)) return;
   try {
-    const child = spawn('inotifywait', [
-      '-q', '-e', 'close_write,close_nowrite', filePath,
-    ], { stdio: ['ignore', 'ignore', 'ignore'] });
-    activeWatchers.set(dropDir, child);
+    const child = watcherSpawn(filePath);
+    let resolveSettled!: () => void;
+    const settled = new Promise<void>(resolve => { resolveSettled = resolve; });
+    activeWatchers.set(dropDir, { child, settled });
     const finish = () => {
-      if (activeWatchers.get(dropDir) !== child) return;
-      activeWatchers.delete(dropDir);
-      scheduleAutoUnlink(dropDir, filePath);
+      if (activeWatchers.get(dropDir)?.child === child) {
+        activeWatchers.delete(dropDir);
+        scheduleAutoUnlink(dropDir, filePath);
+      }
+      resolveSettled();
     };
     child.on('exit', finish);
     child.on('error', () => {
-      if (activeWatchers.get(dropDir) === child) activeWatchers.delete(dropDir);
+      if (activeWatchers.get(dropDir)?.child === child) activeWatchers.delete(dropDir);
+      resolveSettled();
     });
   } catch {
     /* spawn threw synchronously — TTL handles it */
   }
 }
 
-function stopAllWatchers(): void {
-  for (const [dropDir, child] of activeWatchers) {
+function stopAllWatchers(): Promise<void> {
+  const pending: Promise<void>[] = [];
+  for (const [dropDir, watcher] of activeWatchers) {
     activeWatchers.delete(dropDir);
-    try { child.kill('SIGTERM'); } catch { /* best-effort */ }
+    pending.push(watcher.settled);
+    try { watcher.child.kill('SIGTERM'); } catch { /* best-effort */ }
   }
   for (const dropDir of Array.from(pendingAutoUnlinks.keys())) {
     clearPendingAutoUnlink(dropDir);
   }
+  return Promise.allSettled(pending).then(() => undefined);
 }
 
 /** Drop sanitisation. `name` is the filename the browser supplied; we
@@ -235,7 +257,7 @@ function rmDrop(dropDir: string): void {
   const watcher = activeWatchers.get(dropDir);
   if (watcher) {
     activeWatchers.delete(dropDir);
-    try { watcher.kill('SIGTERM'); } catch { /* best-effort */ }
+    try { watcher.child.kill('SIGTERM'); } catch { /* best-effort */ }
   }
 }
 
@@ -342,7 +364,8 @@ export function deleteDrop(storage: DropStorage, dropId: string): boolean {
 /** Remove every drop under the storage root. Call once on server
  *  shutdown to avoid leaving drops around across restarts. Also stops
  *  any pending auto-unlink watchers. */
-export function cleanupAll(storage: DropStorage): void {
-  stopAllWatchers();
+export async function cleanupAll(storage: DropStorage): Promise<void> {
+  const stopped = stopAllWatchers();
   try { fs.rmSync(storage.root, { recursive: true, force: true }); } catch { /* ignore */ }
+  await stopped;
 }

@@ -14,6 +14,7 @@ import {
   hasInotifywait,
   _resetInotifyProbe,
   AUTO_UNLINK_GRACE_MS,
+  _setAutoUnlinkSpawnForTest,
   type DropStorage,
 } from "../../../src/server/file-drop.ts";
 
@@ -26,6 +27,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  _setAutoUnlinkSpawnForTest(undefined);
   fs.rmSync(root, { recursive: true, force: true });
 });
 
@@ -152,6 +154,38 @@ describe("cleanupAll", () => {
     writeDrop(storage, "f.bin", Buffer.from("x"));
     cleanupAll(storage);
     expect(fs.existsSync(root)).toBe(false);
+  });
+
+  test("waits for active auto-unlink watchers to exit after SIGTERM", async () => {
+    let killed = false;
+    let resolveExit!: () => void;
+    const exitPromise = new Promise<void>(resolve => { resolveExit = resolve; });
+    const listeners = new Map<string, Array<() => void>>();
+    _setAutoUnlinkSpawnForTest(() => ({
+      on: (event: string, cb: () => void) => {
+        const arr = listeners.get(event) ?? [];
+        arr.push(cb);
+        listeners.set(event, arr);
+        return undefined;
+      },
+      kill: () => {
+        killed = true;
+        queueMicrotask(() => {
+          for (const cb of listeners.get("exit") ?? []) cb();
+          resolveExit();
+        });
+        return true;
+      },
+    }));
+
+    const s: DropStorage = { root, maxFilesPerSession: 5, ttlMs: 60_000, autoUnlinkOnClose: true };
+    writeDrop(s, "watched.bin", Buffer.from("x"));
+
+    await cleanupAll(s);
+
+    expect(killed).toBe(true);
+    expect(fs.existsSync(root)).toBe(false);
+    await expect(exitPromise).resolves.toBeUndefined();
   });
 });
 

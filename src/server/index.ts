@@ -12,8 +12,29 @@ import { DEFAULT_HOST, DEFAULT_PORT, LOCALHOST_IPS } from '../shared/constants.j
 import { parseAllowOriginFlag } from './origin.js';
 import { embeddedAssets } from './assets-embedded.js';
 import pkg from '../../package.json' with { type: 'json' };
+import type { DropStorage } from './file-drop.js';
 
 const VERSION: string = (pkg as { version: string }).version;
+
+export interface ServerCleanupResources {
+  ws: { close: () => void };
+  tmuxControl?: { close: () => Promise<void> } | null;
+  dropStorage: DropStorage;
+  cleanupDrops?: (storage: DropStorage) => void | Promise<void>;
+}
+
+export async function runServerCleanup(resources: ServerCleanupResources): Promise<void> {
+  const cleanupDropStorage = resources.cleanupDrops ?? cleanupDrops;
+  try { resources.ws.close(); } catch { /* best-effort */ }
+  await Promise.allSettled([
+    (async () => {
+      try { await resources.tmuxControl?.close(); } catch { /* best-effort */ }
+    })(),
+    (async () => {
+      try { await cleanupDropStorage(resources.dropStorage); } catch { /* best-effort */ }
+    })(),
+  ]);
+}
 
 // Force a UTF-8 locale on the server process so every child (including the
 // tmux subcommands fired from ws.ts: display-message, list-windows,
@@ -531,16 +552,16 @@ Options:
   // orphans turn each subsequent session attach into a multi-second
   // operation that the user sees as a slow session switch.
   let cleanupRan = false;
-  const runCleanup = (): void => {
-    if (cleanupRan) return;
+  const runCleanup = (): Promise<void> => {
+    if (cleanupRan) return Promise.resolve();
     cleanupRan = true;
-    try { ws.close(); } catch { /* best-effort */ }
-    try { void tmuxControl?.close(); } catch { /* best-effort */ }
-    try { cleanupDrops(dropStorage); } catch { /* best-effort */ }
+    return runServerCleanup({ ws, tmuxControl, dropStorage });
   };
-  process.on('exit', runCleanup);
+  process.on('exit', () => { void runCleanup(); });
   for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
-    process.on(sig, () => { runCleanup(); process.exit(0); });
+    process.on(sig, () => {
+      void runCleanup().finally(() => process.exit(0));
+    });
   }
 
   const server = Bun.serve<WsData, never>({

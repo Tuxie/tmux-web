@@ -50,3 +50,9 @@ and the server shutdown path in `src/server/index.ts`:
 Leaked watchers accumulate inside the user service cgroup across restarts,
 increase process count, and can keep stale file-drop paths or tmux-web service
 state alive longer than intended.
+
+## Fixed
+
+Fixed by making file-drop cleanup wait for active watcher `exit` events after
+`SIGTERM`, and by making the server signal handlers await cleanup before
+calling `process.exit(0)`.
