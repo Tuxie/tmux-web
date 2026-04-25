@@ -441,6 +441,7 @@ describe('createScrollbarController', () => {
 
     thumb.dispatch('mousedown', mouse(180, thumb));
     controller.dispose();
+    expect(root.classList.contains('visible')).toBe(false);
     (globalThis.document as any).dispatch('mousemove', mouse(20));
     (globalThis.document as any).dispatch('mouseup', mouse(20));
 

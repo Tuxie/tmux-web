@@ -232,6 +232,7 @@ export function createScrollbarController(opts: {
       if (hideTimer) clearTimeout(hideTimer);
       dragging = false;
       opts.root.classList.remove('dragging');
+      opts.root.classList.remove('visible');
       track.removeEventListener('wheel', onTrackWheel);
       track.removeEventListener('mousedown', onTrackMouseDown);
       thumb.removeEventListener('mousedown', onThumbMouseDown);
