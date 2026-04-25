@@ -39,6 +39,8 @@ export interface StoredSessionSettings {
   backgroundSaturation?: number;
   backgroundBrightest?: number;
   backgroundDarkest?: number;
+  topbarAutohide?: boolean;
+  scrollbarAutohide?: boolean;
   /** OSC 52 per-binary policy. Keyed by absolute exe path. */
   clipboard?: Record<string, ClipboardPolicyEntry>;
 }

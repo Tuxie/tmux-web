@@ -66,6 +66,26 @@ describe("sessions-store", () => {
     expect(next.lastActive).toBe("a");
   });
 
+  test("mergeConfig preserves per-session autohide fields", () => {
+    const current = emptyConfig();
+    const next = mergeConfig(current, {
+      sessions: {
+        main: {
+          theme: "Default",
+          colours: "Gruvbox Dark",
+          fontFamily: "Iosevka Nerd Font Mono",
+          fontSize: 18,
+          spacing: 0.85,
+          opacity: 0,
+          topbarAutohide: true,
+          scrollbarAutohide: true,
+        },
+      },
+    });
+    expect(next.sessions.main?.topbarAutohide).toBe(true);
+    expect(next.sessions.main?.scrollbarAutohide).toBe(true);
+  });
+
   test("loadConfig drops sessions with garbage keys (e.g. '[object HTMLSpanElement]')", () => {
     const file = path.join(tmp, "sessions.json");
     fs.writeFileSync(file, JSON.stringify({

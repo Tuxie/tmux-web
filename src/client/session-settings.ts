@@ -36,6 +36,8 @@ export interface SessionSettings {
   themeLtn: number;              // 0..100, --tw-theme-ltn GUI chrome lightness
   themeContrast: number;         // -100..+100, gradient spread (0 = 1x, +50 = 2x, +100 = 3x)
   depth: number;                 // 0..100, bevel opacity (0 = flat, 100 = opaque B/W)
+  topbarAutohide: boolean;
+  scrollbarAutohide: boolean;
 }
 
 /** Clamp helpers matching the HTML slider `min`/`max` attributes.
@@ -76,6 +78,8 @@ export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
   themeLtn: DEFAULT_THEME_LTN,
   themeContrast: DEFAULT_THEME_CONTRAST,
   depth: DEFAULT_DEPTH,
+  topbarAutohide: false,
+  scrollbarAutohide: false,
 };
 
 export interface ThemeDefaults {

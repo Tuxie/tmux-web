@@ -49,6 +49,33 @@ describe("session-settings", () => {
     expect(s.tuiBgOpacity).toBe(100);
   });
 
+  test("autohide settings default to false when missing", async () => {
+    await initSessionStore();
+    const s = loadSessionSettings("main", null, { defaults: DEFAULT_SESSION_SETTINGS });
+    expect(s.topbarAutohide).toBe(false);
+    expect(s.scrollbarAutohide).toBe(false);
+  });
+
+  test("stored autohide settings round-trip through cache and PUT body", async () => {
+    const calls = setupFakeFetch({ sessions: {} });
+    await initSessionStore();
+    const s = {
+      ...DEFAULT_SESSION_SETTINGS,
+      topbarAutohide: true,
+      scrollbarAutohide: true,
+    };
+    saveSessionSettings("main", s);
+    const loaded = loadSessionSettings("main", null, { defaults: DEFAULT_SESSION_SETTINGS });
+    expect(loaded.topbarAutohide).toBe(true);
+    expect(loaded.scrollbarAutohide).toBe(true);
+    await new Promise(r => setTimeout(r, 0));
+    const put = calls.find(c => c.init?.method === "PUT");
+    expect(put).toBeDefined();
+    const body = JSON.parse(put!.init!.body as string);
+    expect(body.sessions.main.topbarAutohide).toBe(true);
+    expect(body.sessions.main.scrollbarAutohide).toBe(true);
+  });
+
   test("overlays theme defaults when no stored + no live", async () => {
     await initSessionStore();
     const s = loadSessionSettings("foo", null, {

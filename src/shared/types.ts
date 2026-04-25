@@ -65,6 +65,25 @@ export interface SessionInfo {
   name: string;
 }
 
+export interface ScrollbarState {
+  paneId: string | null;
+  paneHeight: number;
+  historySize: number;
+  scrollPosition: number;
+  paneInMode: number;
+  paneMode: string;
+  alternateOn: boolean;
+  unavailable?: boolean;
+}
+
+export interface ScrollbarActionMessage {
+  type: "scrollbar";
+  action: "line-up" | "line-down" | "page-up" | "page-down" | "drag";
+  count?: number;
+  position?: number;
+  paneId?: string;
+}
+
 /**
  * Server-to-client out-of-band message.
  * Framed as \x00TT:<json> in the WebSocket data stream.
@@ -74,6 +93,7 @@ export interface ServerMessage {
   session?: string;
   sessions?: SessionInfo[];
   windows?: WindowInfo[];
+  scrollbar?: ScrollbarState;
   clipboard?: string; // base64-encoded
   title?: string;    // active pane title (shell window title)
   /** OSC 52 read request needs a user decision. Client pops a modal and
