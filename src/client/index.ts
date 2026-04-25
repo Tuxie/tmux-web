@@ -445,7 +445,7 @@ async function main() {
 
   adapter.attachCustomWheelEventHandler((ev) => {
     if (ev.shiftKey) return false;
-    return scrollbar.handleWheel(ev);
+    return !scrollbar.handleWheel(ev);
   });
 
   const uninstallKeyboard = installKeyboardHandler({

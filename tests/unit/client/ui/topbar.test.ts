@@ -822,9 +822,11 @@ describe('Topbar menu and autohide DOM behaviour', () => {
   it('syncs per-session toolbar and scrollbar autohide checkboxes', async () => {
     const live = { ...DEFAULT_SESSION_SETTINGS, topbarAutohide: true, scrollbarAutohide: true };
     const changes: SessionSettings[] = [];
+    let autohideChanges = 0;
     const t = await mountTopbar({
       getLiveSettings: () => live,
       onSettingsChange: (s) => { changes.push(s); },
+      onAutohideChange: () => { autohideChanges++; },
     });
     await t.init();
     const toolbarChk = (globalThis.document as any).getElementById('chk-autohide');
@@ -836,10 +838,12 @@ describe('Topbar menu and autohide DOM behaviour', () => {
     scrollbarChk.checked = false;
     scrollbarChk.dispatch('change', { target: scrollbarChk });
     expect(changes.at(-1)?.scrollbarAutohide).toBe(false);
+    expect(autohideChanges).toBe(1);
 
     scrollbarChk.checked = true;
     scrollbarChk.dispatch('change', { target: scrollbarChk });
     expect(changes.at(-1)?.scrollbarAutohide).toBe(true);
+    expect(autohideChanges).toBe(2);
   });
 
   it('autohide hides the topbar after the scheduled inactivity timer', async () => {

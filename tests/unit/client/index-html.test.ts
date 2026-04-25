@@ -18,8 +18,8 @@ describe('index.html Electrobun titlebar affordance', () => {
 
 describe('index.html scrollbar DOM contract', () => {
   it('includes scrollbar autohide control and scrollbar shell', () => {
-    expect(html).toContain('id="chk-scrollbar-autohide"');
-    expect(html).toContain('id="tmux-scrollbar"');
-    expect(html).toContain('class="tw-scrollbar');
+    expect(html).toContain('<div class="tw-menu-row tw-menu-row-static tw-menu-row-inline">');
+    expect(html).toMatch(/<label><input type="checkbox" id="chk-autohide"> Autohide toolbar<\/label>\s*<label><input type="checkbox" id="chk-scrollbar-autohide"> Autohide scrollbar<\/label>/);
+    expect(html).toMatch(/<div id="tmux-scrollbar" class="tw-scrollbar tw-scrollbar-pinned" aria-hidden="true">\s*<div class="tw-scrollbar-track">\s*<div class="tw-scrollbar-thumb"><\/div>\s*<\/div>\s*<\/div>\s*<div id="terminal"><\/div>/);
   });
 });
