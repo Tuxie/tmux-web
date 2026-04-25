@@ -679,6 +679,29 @@ describe('Topbar.updateSession', () => {
     expect(settingsSet.at(-1)?.colours).toBe('Gruvbox Dark');
     expect(((globalThis.document as any).getElementById('inp-theme') as any).value).toBe('Amiga Scene 2000');
   });
+
+  it('syncs runtime autohide state from target session settings', async () => {
+    const t = await mountTopbarWithSettings({
+      sessions: {
+        main: { ...DEFAULT_SESSION_SETTINGS, topbarAutohide: true },
+        pinned: { ...DEFAULT_SESSION_SETTINGS, topbarAutohide: false },
+      },
+    });
+    const chk = (globalThis.document as any).getElementById('chk-autohide');
+    const tb = (globalThis.document as any).getElementById('topbar');
+    tb.classList.add('hidden');
+
+    expect((t as any).autohide).toBe(true);
+    expect(chk.checked).toBe(true);
+    expect((globalThis.document as any).body.classList.has('topbar-pinned')).toBe(false);
+
+    t.updateSession('pinned');
+
+    expect((t as any).autohide).toBe(false);
+    expect(chk.checked).toBe(false);
+    expect((globalThis.document as any).body.classList.has('topbar-pinned')).toBe(true);
+    expect(tb.classList.has('hidden')).toBe(false);
+  });
 });
 
 describe('Topbar.show', () => {

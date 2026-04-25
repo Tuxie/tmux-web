@@ -627,6 +627,7 @@ export class Topbar {
     }
 
     const syncUi = (s: SessionSettings) => {
+      this.syncAutohideSettings(s);
       ddTheme.setValue(s.theme);
       ddColours.setValue(s.colours);
       ddFont.setValue(s.fontFamily);
@@ -789,13 +790,25 @@ export class Topbar {
     document.body.classList.toggle('topbar-pinned', !this.autohide);
   }
 
+  private syncAutohideSettings(s: SessionSettings): void {
+    const wasAutohide = this.autohide;
+    this.autohide = s.topbarAutohide;
+    this.autohideChk.checked = this.autohide;
+    const scrollbarAutohideChk = document.getElementById('chk-scrollbar-autohide') as HTMLInputElement | null;
+    if (scrollbarAutohideChk) scrollbarAutohideChk.checked = s.scrollbarAutohide;
+    this.applyPinnedClass();
+    if (wasAutohide && !this.autohide) {
+      if (this.hideTimer) clearTimeout(this.hideTimer);
+      this.hideTimer = null;
+      this.topbar.classList.remove('hidden');
+    }
+  }
+
   private setupAutoHide(): void {
     const initialSettings = loadSessionSettings(this.currentSession, this.opts.getLiveSettings(), {
       defaults: DEFAULT_SESSION_SETTINGS,
     });
-    this.autohide = initialSettings.topbarAutohide;
-    this.autohideChk.checked = this.autohide;
-    this.applyPinnedClass();
+    this.syncAutohideSettings(initialSettings);
     this.autohideChk.addEventListener('change', () => {
       this.autohide = this.autohideChk.checked;
       const current = loadSessionSettings(this.currentSession, this.opts.getLiveSettings(), {
