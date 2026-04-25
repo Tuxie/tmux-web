@@ -6,12 +6,18 @@ const buildRoot = path.resolve(process.argv[2] ?? 'build');
 const environment = process.argv[3] ?? 'dev';
 
 function targetOS(): string {
+  if (process.env.ELECTROBUN_OS === 'macos' || process.env.ELECTROBUN_OS === 'linux') {
+    return process.env.ELECTROBUN_OS;
+  }
   if (process.platform === 'darwin') return 'macos';
   if (process.platform === 'linux') return 'linux';
   throw new Error(`Unsupported tmux-term desktop build platform: ${process.platform}`);
 }
 
 function targetArch(): string {
+  if (process.env.ELECTROBUN_ARCH === 'x64' || process.env.ELECTROBUN_ARCH === 'arm64') {
+    return process.env.ELECTROBUN_ARCH;
+  }
   if (process.arch === 'x64' || process.arch === 'arm64') return process.arch;
   throw new Error(`Unsupported tmux-term desktop build architecture: ${process.arch}`);
 }
@@ -23,10 +29,11 @@ const appRoot =
   platform === 'macos'
     ? path.join(platformBuildRoot, `${appFileName}.app`)
     : path.join(platformBuildRoot, appFileName);
-const resourcesApp =
+const resourcesDir =
   platform === 'macos'
-    ? path.join(appRoot, 'Contents', 'Resources', 'app')
-    : path.join(appRoot, 'Resources', 'app');
+    ? path.join(appRoot, 'Contents', 'Resources')
+    : path.join(appRoot, 'Resources');
+const resourcesApp = path.join(resourcesDir, 'app');
 const executableDir =
   platform === 'macos'
     ? path.join(appRoot, 'Contents', 'MacOS')
@@ -46,39 +53,60 @@ function tarZstEntries(archive: string): string[] {
   return result.stdout.split('\n').filter(Boolean);
 }
 
-if (platform === 'linux') {
-  const metadataPath = path.join(appRoot, 'Resources', 'metadata.json');
-  if (!fs.existsSync(metadataPath)) {
-    console.error(`tmux-term Linux bundle is missing metadata: ${metadataPath}`);
-    process.exit(1);
-  }
+function verifyCompressedPayload(): boolean {
+  const metadataPath = path.join(resourcesDir, 'metadata.json');
+  if (!fs.existsSync(metadataPath)) return false;
 
   const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8')) as { hash?: unknown };
   if (typeof metadata.hash !== 'string' || !metadata.hash) {
-    console.error(`tmux-term Linux bundle metadata has no hash: ${metadataPath}`);
+    console.error(`tmux-term bundle metadata has no hash: ${metadataPath}`);
     process.exit(1);
   }
 
-  const payload = path.join(appRoot, 'Resources', `${metadata.hash}.tar.zst`);
+  const payload = path.join(resourcesDir, `${metadata.hash}.tar.zst`);
   if (!fs.existsSync(payload)) {
-    console.error(`tmux-term Linux bundle is missing app payload: ${payload}`);
+    console.error(`tmux-term bundle is missing app payload: ${payload}`);
     process.exit(1);
   }
 
   const entries = new Set(tarZstEntries(payload));
-  const payloadPrefix = `${appFileName}/Resources/app`;
-  const payloadTmuxWeb = `${payloadPrefix}/tmux-web`;
-  const payloadEntrypoint = `${payloadPrefix}/bun/index.js`;
+  const payloadRoot = platform === 'macos' ? `${appFileName}.app` : appFileName;
+  const payloadResourcesApp =
+    platform === 'macos'
+      ? `${payloadRoot}/Contents/Resources/app`
+      : `${payloadRoot}/Resources/app`;
+  const payloadExecutableDir =
+    platform === 'macos'
+      ? `${payloadRoot}/Contents/MacOS`
+      : payloadResourcesApp;
+  const payloadTmuxWeb = `${payloadExecutableDir}/tmux-web`;
+  const payloadEntrypoint = `${payloadResourcesApp}/bun/index.js`;
   if (!entries.has(payloadTmuxWeb)) {
-    console.error(`tmux-term Linux payload is missing tmux-web: ${payloadTmuxWeb}`);
+    console.error(`tmux-term payload is missing tmux-web: ${payloadTmuxWeb}`);
     process.exit(1);
   }
   if (!entries.has(payloadEntrypoint)) {
-    console.error(`tmux-term Linux payload is missing Electrobun app entrypoint: ${payloadEntrypoint}`);
+    console.error(`tmux-term payload is missing Electrobun app entrypoint: ${payloadEntrypoint}`);
     process.exit(1);
   }
+  if (platform === 'macos') {
+    const payloadTmux = `${payloadExecutableDir}/tmux`;
+    const misplacedPayloadTmuxWeb = `${payloadResourcesApp}/tmux-web`;
+    if (!entries.has(payloadTmux)) {
+      console.error(`tmux-term macOS payload is missing vendored tmux: ${payloadTmux}`);
+      process.exit(1);
+    }
+    if (entries.has(misplacedPayloadTmuxWeb)) {
+      console.error(`tmux-term macOS payload should not keep tmux-web in Resources/app: ${misplacedPayloadTmuxWeb}`);
+      process.exit(1);
+    }
+  }
 
-  console.log(`Verified tmux-term Linux payload contains tmux-web: ${payload}`);
+  console.log(`Verified tmux-term compressed payload contains tmux-web: ${payload}`);
+  return true;
+}
+
+if (verifyCompressedPayload()) {
   process.exit(0);
 }
 
