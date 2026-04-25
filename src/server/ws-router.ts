@@ -30,6 +30,7 @@ export type WsAction =
   | { type: 'switch-session'; name: string }
   | { type: 'window'; action: string; index?: string; name?: string }
   | { type: 'session'; action: string; name?: string }
+  | { type: 'scrollbar'; action: 'line-up' | 'line-down' | 'page-up' | 'page-down' | 'drag'; count?: number; position?: number }
   | { type: 'clipboard-deny'; reqId: string; selection: string }
   | { type: 'clipboard-grant-persist'; reqId: string; exePath: string; allow: boolean; expiresAt: string | null; pinHash: boolean }
   | { type: 'clipboard-request-content'; reqId: string }
@@ -74,6 +75,14 @@ export function routeClientMessage(raw: string, state: RouterState): WsAction[] 
       name: typeof parsed.name === 'string' ? parsed.name : undefined,
     }];
   }
+  if (parsed?.type === 'scrollbar' && isScrollbarAction(parsed.action)) {
+    return [{
+      type: 'scrollbar',
+      action: parsed.action,
+      count: typeof parsed.count === 'number' && Number.isFinite(parsed.count) ? parsed.count : undefined,
+      position: typeof parsed.position === 'number' && Number.isFinite(parsed.position) ? parsed.position : undefined,
+    }];
+  }
   if (parsed?.type === 'clipboard-decision' && typeof parsed.reqId === 'string') {
     const pending = state.pendingReads.get(parsed.reqId);
     if (!pending) return [];
@@ -109,4 +118,12 @@ export function routeClientMessage(raw: string, state: RouterState): WsAction[] 
     return [{ type: 'clipboard-reply', selection: pending.selection, base64: clipped }];
   }
   return [{ type: 'pty-write', data: raw }];
+}
+
+function isScrollbarAction(value: unknown): value is 'line-up' | 'line-down' | 'page-up' | 'page-down' | 'drag' {
+  return value === 'line-up'
+    || value === 'line-down'
+    || value === 'page-up'
+    || value === 'page-down'
+    || value === 'drag';
 }

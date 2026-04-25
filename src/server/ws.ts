@@ -1,5 +1,5 @@
 import type { Server as BunServer, ServerWebSocket, WebSocketHandler } from 'bun';
-import type { ServerConfig, ServerMessage, SessionInfo, WindowInfo } from '../shared/types.js';
+import type { ScrollbarState, ServerConfig, ServerMessage, SessionInfo, WindowInfo } from '../shared/types.js';
 import { processData, frameTTMessage } from './protocol.js';
 import { deliverOsc52Reply } from './osc52-reply.js';
 import { buildPtyCommand, buildPtyEnv, spawnPty, sanitizeSession, type BunPty } from './pty.js';
@@ -12,6 +12,13 @@ import { onDropsChange } from './file-drop.js';
 import { routeClientMessage, type WsAction, type PendingRead as RouterPendingRead } from './ws-router.js';
 import { NoControlClientError, TmuxCommandError, quoteTmuxArg, type TmuxControl } from './tmux-control.js';
 import { execFileAsync } from './exec.js';
+import {
+  SCROLLBAR_FORMAT,
+  applyScrollbarAction,
+  buildScrollbarSubscriptionArgs,
+  parseScrollbarState,
+  unavailableScrollbarState,
+} from './scrollbar.js';
 
 export interface WsServerOptions {
   config: ServerConfig;
@@ -41,6 +48,8 @@ interface WsConnState {
   pendingReads: Map<string, RouterPendingRead>;
   nextReqId: number;
   unsubscribeDrops?: () => void;
+  scrollbarState: ScrollbarState;
+  scrollbarSubscriptionName: string;
   /** Monotonically-increasing counter. Each new switchSession call bumps
    *  this so prior in-flight switches detect they've been superseded. */
   switchSerial: number;
@@ -58,6 +67,7 @@ interface WsConnState {
 type PtyOutputWaiter = WsConnState['ptyOutputWaiters'][number];
 
 const WS_OPEN = 1;
+let nextScrollbarSubscriptionId = 0;
 
 /** Per-`createWsHandlers` instance state. Two test runs that bring up
  *  fresh harnesses in the same process must not share registry entries
@@ -112,6 +122,9 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
   }));
   unsubscribers.push(opts.tmuxControl.on('windowRenamed', (n) => {
     if (n.session) void broadcastWindowsForSession(reg, n.session, opts);
+  }));
+  unsubscribers.push(opts.tmuxControl.on('subscriptionChanged', (n) => {
+    handleScrollbarSubscriptionChanged(n.name, n.value, reg);
   }));
 
   const upgrade = (req: Request, server: BunServer<WsData>): Response | undefined => {
@@ -170,6 +183,8 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
         lastTitle: '',
         pendingReads: new Map(),
         nextReqId: 0,
+        scrollbarState: unavailableScrollbarState(),
+        scrollbarSubscriptionName: nextScrollbarSubscriptionName(),
         switchSerial: 0,
         ptyOutputSerial: 0,
         ptyOutputWaiters: [],
@@ -253,6 +268,7 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
     // `new-session -A` has started the PTY client; retry briefly for the
     // cold-start race where the session is still being created.
     void sendStartupWindowState(ws, session, opts);
+    void setupScrollbarState(ws, session, opts);
 
     // Pass the WS's cols/rows so the control client's `refresh-client -C`
     // mirrors the sibling PTY client's size — otherwise tmux's
@@ -375,6 +391,49 @@ function handleClose(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: Ws
     reg.sessionRefs.set(session, next);
   }
   state.pty?.kill();
+}
+
+function nextScrollbarSubscriptionName(): string {
+  return `tw-scroll-${Date.now().toString(36)}-${(nextScrollbarSubscriptionId++).toString(36)}`;
+}
+
+function handleScrollbarSubscriptionChanged(name: string, value: string, reg: WsRegistry): void {
+  for (const clients of reg.wsClientsBySession.values()) {
+    for (const ws of clients) {
+      if (ws.readyState !== WS_OPEN) continue;
+      const { state } = ws.data;
+      if (state.scrollbarSubscriptionName !== name) continue;
+      const next = parseScrollbarState(value);
+      state.scrollbarState = next;
+      ws.send(frameTTMessage({ scrollbar: next }));
+    }
+  }
+}
+
+async function setupScrollbarState(
+  ws: ServerWebSocket<WsData>,
+  sessionName: string,
+  opts: WsServerOptions,
+): Promise<void> {
+  try {
+    await opts.tmuxControl.run(buildScrollbarSubscriptionArgs(ws.data.state.scrollbarSubscriptionName));
+  } catch (err) {
+    debug(opts.config, `scrollbar subscription failed for ${sessionName}: ${(err as Error).message}`);
+  }
+
+  try {
+    const raw = await opts.tmuxControl.run(['display-message', '-p', '-t', sessionName, '-F', SCROLLBAR_FORMAT]);
+    if (ws.readyState !== WS_OPEN || ws.data.state.registeredSession !== sessionName) return;
+    const next = parseScrollbarState(raw.trim());
+    ws.data.state.scrollbarState = next;
+    ws.send(frameTTMessage({ scrollbar: next }));
+  } catch (err) {
+    debug(opts.config, `scrollbar initial state failed for ${sessionName}: ${(err as Error).message}`);
+    if (ws.readyState !== WS_OPEN || ws.data.state.registeredSession !== sessionName) return;
+    const next = unavailableScrollbarState();
+    ws.data.state.scrollbarState = next;
+    ws.send(frameTTMessage({ scrollbar: next }));
+  }
 }
 
 function nextReqId(state: WsConnState): string {
@@ -519,6 +578,17 @@ function dispatchAction(ws: ServerWebSocket<WsData>, act: WsAction, opts: WsServ
       return;
     case 'session':
       void applySessionAction(state.lastSession, { action: act.action, name: act.name }, opts);
+      return;
+    case 'scrollbar':
+      void applyScrollbarAction({
+        action: act.action,
+        count: act.count,
+        position: act.position,
+        getState: async () => state.scrollbarState,
+        run: opts.tmuxControl.run,
+      }).catch((err) => {
+        debug(opts.config, `scrollbar action failed: ${(err as Error).message}`);
+      });
       return;
     case 'clipboard-deny':
       void replyToRead(ws, act.selection, '', opts);

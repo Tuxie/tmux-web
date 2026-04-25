@@ -39,6 +39,29 @@ describe('routeClientMessage', () => {
       .toEqual([{ type: 'session', action: 'rename', name: 'dev' }]);
   });
 
+  test('scrollbar line and page actions validate action and numeric count', () => {
+    expect(routeClientMessage('{"type":"scrollbar","action":"line-up","count":3}', state()))
+      .toEqual([{ type: 'scrollbar', action: 'line-up', count: 3, position: undefined }]);
+    expect(routeClientMessage('{"type":"scrollbar","action":"line-down"}', state()))
+      .toEqual([{ type: 'scrollbar', action: 'line-down', count: undefined, position: undefined }]);
+    expect(routeClientMessage('{"type":"scrollbar","action":"page-up","count":12}', state()))
+      .toEqual([{ type: 'scrollbar', action: 'page-up', count: 12, position: undefined }]);
+    expect(routeClientMessage('{"type":"scrollbar","action":"page-down","count":"12"}', state()))
+      .toEqual([{ type: 'scrollbar', action: 'page-down', count: undefined, position: undefined }]);
+  });
+
+  test('scrollbar drag validates numeric position', () => {
+    expect(routeClientMessage('{"type":"scrollbar","action":"drag","position":41}', state()))
+      .toEqual([{ type: 'scrollbar', action: 'drag', count: undefined, position: 41 }]);
+    expect(routeClientMessage('{"type":"scrollbar","action":"drag","position":"41"}', state()))
+      .toEqual([{ type: 'scrollbar', action: 'drag', count: undefined, position: undefined }]);
+  });
+
+  test('invalid scrollbar action passes through as pty write', () => {
+    const raw = '{"type":"scrollbar","action":"jump","position":41}';
+    expect(routeClientMessage(raw, state())).toEqual([{ type: 'pty-write', data: raw }]);
+  });
+
   test('switch-session action', () => {
     expect(routeClientMessage('{"type":"switch-session","name":"dev"}', state()))
       .toEqual([{ type: 'switch-session', name: 'dev' }]);

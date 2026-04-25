@@ -5,6 +5,7 @@ import { startTestServer, type Harness } from './_harness/spawn-server.ts';
 import { makeFakeTmux } from './_harness/fake-tmux.ts';
 import { execFileAsync } from '../../../src/server/exec.ts';
 import { NoControlClientError, type TmuxControl, type TmuxNotification } from '../../../src/server/tmux-control.ts';
+import { SCROLLBAR_FORMAT } from '../../../src/server/scrollbar.ts';
 
 function postDrop(baseUrl: string, filename: string, body: Buffer): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -521,6 +522,104 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
 
     main.ws.close();
     dev.ws.close();
+  }, 15000);
+
+  test('scrollbar subscription update emits scrollbar TT message for matching websocket', async () => {
+    const { path: tmuxBin } = makeFakeTmux();
+    const listeners = new Map<TmuxNotification['type'], Array<(n: any) => void>>();
+    const runCalls: string[][] = [];
+    const tmuxControl: TmuxControl = {
+      attachSession: async () => {},
+      detachSession: () => {},
+      run: async (args) => {
+        runCalls.push([...args]);
+        if (args[0] === 'list-windows') return '0\tone\t1\n';
+        if (args[0] === 'display-message' && args.includes(SCROLLBAR_FORMAT)) {
+          return '%4\t40\t1200\t0\t0\t\t0';
+        }
+        if (args[0] === 'display-message') return 'pane';
+        return '';
+      },
+      on: (event, cb) => {
+        const arr = listeners.get(event) ?? [];
+        arr.push(cb);
+        listeners.set(event, arr);
+        return () => {
+          const idx = arr.indexOf(cb);
+          if (idx >= 0) arr.splice(idx, 1);
+        };
+      },
+      hasSession: () => false,
+      close: async () => {},
+    };
+    h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
+    const o = openWs(h.wsUrl);
+    await o.opened;
+
+    await waitFor(() => runCalls.find(args => args[0] === 'refresh-client' && args[1] === '-B'), 8000);
+    const subscriptionArgs = runCalls.find(args => args[0] === 'refresh-client' && args[1] === '-B')!;
+    const subscriptionName = subscriptionArgs[2]!.split(':')[0]!;
+
+    o.messages.length = 0;
+    for (const cb of listeners.get('subscriptionChanged') ?? []) {
+      cb({
+        type: 'subscriptionChanged',
+        name: subscriptionName,
+        sessionId: '$1',
+        windowId: '@2',
+        windowIndex: '0',
+        paneId: '%4',
+        value: '%4\t40\t1200\t17\t1\tcopy-mode\t0',
+      });
+    }
+
+    const got = await waitForMsg(o.messages, m => 'scrollbar' in m, 8000);
+    expect(got).toEqual({
+      scrollbar: {
+        paneId: '%4',
+        paneHeight: 40,
+        historySize: 1200,
+        scrollPosition: 17,
+        paneInMode: 1,
+        paneMode: 'copy-mode',
+        alternateOn: false,
+      },
+    });
+
+    o.ws.close();
+  }, 15000);
+
+  test('scrollbar action dispatches through tmux control using current scrollbar state', async () => {
+    const { path: tmuxBin } = makeFakeTmux();
+    const runCalls: string[][] = [];
+    const tmuxControl: TmuxControl = {
+      attachSession: async () => {},
+      detachSession: () => {},
+      run: async (args) => {
+        runCalls.push([...args]);
+        if (args[0] === 'list-windows') return '0\tone\t1\n';
+        if (args[0] === 'display-message' && args.includes(SCROLLBAR_FORMAT)) {
+          return '%4\t40\t1200\t17\t1\tcopy-mode\t0';
+        }
+        if (args[0] === 'display-message') return 'pane';
+        return '';
+      },
+      on: () => () => {},
+      hasSession: () => false,
+      close: async () => {},
+    };
+    h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
+    const o = openWs(h.wsUrl);
+    await o.opened;
+    await waitForMsg(o.messages, m => 'scrollbar' in m, 8000);
+
+    runCalls.length = 0;
+    o.ws.send(JSON.stringify({ type: 'scrollbar', action: 'line-down', count: 2 }));
+
+    await waitFor(() => runCalls.some(args => args.join(' ') === 'send-keys -X -t %4 -N 2 scroll-down-and-cancel'), 8000);
+    expect(runCalls).toContainEqual(['send-keys', '-X', '-t', '%4', '-N', '2', 'scroll-down-and-cancel']);
+
+    o.ws.close();
   }, 15000);
 
   test('switch-session reuses the open PTY and moves session bookkeeping', async () => {
