@@ -66,6 +66,10 @@ export function buildScrollbarSubscriptionArgs(name: string): string[] {
 
 function countFrom(action: { count?: number }, fallback: number): number {
   const n = typeof action.count === "number" && Number.isFinite(action.count) ? Math.round(action.count) : fallback;
+  return clampScrollCount(n);
+}
+
+function clampScrollCount(n: number): number {
   return Math.max(1, Math.min(n, 500));
 }
 
@@ -103,12 +107,12 @@ export async function applyScrollbarAction(opts: {
   }
   if (opts.action === "page-up") {
     await ensureCopyMode(opts.run, state.paneId);
-    await sendCopyScroll(opts.run, state.paneId, Math.max(1, state.paneHeight - 1), "scroll-up");
+    await sendCopyScroll(opts.run, state.paneId, clampScrollCount(state.paneHeight - 1), "scroll-up");
     return;
   }
   if (opts.action === "page-down") {
     if (!canScrollDown(state)) return;
-    await sendCopyScroll(opts.run, state.paneId, Math.max(1, state.paneHeight - 1), "scroll-down-and-cancel");
+    await sendCopyScroll(opts.run, state.paneId, clampScrollCount(state.paneHeight - 1), "scroll-down-and-cancel");
     return;
   }
   if (opts.action === "drag") {
@@ -119,6 +123,6 @@ export async function applyScrollbarAction(opts: {
     if (delta === 0) return;
     if (delta < 0 && !canScrollDown(state)) return;
     await ensureCopyMode(opts.run, state.paneId);
-    await sendCopyScroll(opts.run, state.paneId, Math.abs(delta), delta > 0 ? "scroll-up" : "scroll-down-and-cancel");
+    await sendCopyScroll(opts.run, state.paneId, clampScrollCount(Math.abs(delta)), delta > 0 ? "scroll-up" : "scroll-down-and-cancel");
   }
 }

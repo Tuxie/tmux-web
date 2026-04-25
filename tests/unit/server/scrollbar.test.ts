@@ -166,6 +166,19 @@ describe("server scrollbar helpers", () => {
     ]);
   });
 
+  test("page-up scroll count clamps to 500", async () => {
+    const calls: string[][] = [];
+    await applyScrollbarAction({
+      action: "page-up",
+      getState: async () => ({ paneId: "%4", paneHeight: 1000, historySize: 1200, scrollPosition: 0, paneInMode: 0, paneMode: "", alternateOn: false }),
+      run: async (args) => { calls.push([...args]); return ""; },
+    });
+    expect(calls).toEqual([
+      ["copy-mode", "-e", "-t", "%4"],
+      ["send-keys", "-X", "-t", "%4", "-N", "500", "scroll-up"],
+    ]);
+  });
+
   test("page-down scrolls pane height minus one without entering copy mode", async () => {
     const calls: string[][] = [];
     await applyScrollbarAction({
@@ -204,6 +217,18 @@ describe("server scrollbar helpers", () => {
     });
     expect(calls).toEqual([
       ["send-keys", "-X", "-t", "%4", "-N", "1", "scroll-down-and-cancel"],
+    ]);
+  });
+
+  test("page-down scroll count clamps to 500", async () => {
+    const calls: string[][] = [];
+    await applyScrollbarAction({
+      action: "page-down",
+      getState: async () => ({ paneId: "%4", paneHeight: 1000, historySize: 1200, scrollPosition: 800, paneInMode: 1, paneMode: "copy-mode", alternateOn: false }),
+      run: async (args) => { calls.push([...args]); return ""; },
+    });
+    expect(calls).toEqual([
+      ["send-keys", "-X", "-t", "%4", "-N", "500", "scroll-down-and-cancel"],
     ]);
   });
 
@@ -276,6 +301,20 @@ describe("server scrollbar helpers", () => {
     expect(pastHistoryCalls).toEqual([
       ["copy-mode", "-e", "-t", "%4"],
       ["send-keys", "-X", "-t", "%4", "-N", "75", "scroll-up"],
+    ]);
+  });
+
+  test("drag scroll count clamps to 500", async () => {
+    const calls: string[][] = [];
+    await applyScrollbarAction({
+      action: "drag",
+      position: 900,
+      getState: async () => ({ paneId: "%4", paneHeight: 40, historySize: 1200, scrollPosition: 25, paneInMode: 1, paneMode: "copy-mode", alternateOn: false }),
+      run: async (args) => { calls.push([...args]); return ""; },
+    });
+    expect(calls).toEqual([
+      ["copy-mode", "-e", "-t", "%4"],
+      ["send-keys", "-X", "-t", "%4", "-N", "500", "scroll-up"],
     ]);
   });
 
