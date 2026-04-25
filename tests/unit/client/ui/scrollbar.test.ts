@@ -412,6 +412,29 @@ describe('createScrollbarController', () => {
     ]);
   });
 
+  test('thumb drag preserves the initial pointer grab offset', () => {
+    const sent: unknown[] = [];
+    const root = el('div');
+    const controller = createScrollbarController({
+      root: root as any,
+      send: (msg) => sent.push(msg),
+      passThroughWheel: () => false,
+      requestFit: () => {},
+    });
+    const track = root.children[0]!;
+    const thumb = track.children[0]!;
+    withRect(track, { top: 0, height: 200 });
+    withRect(thumb, { top: 160, height: 40 });
+    controller.updateState(state({ historySize: 160, scrollPosition: 0 }));
+
+    thumb.dispatch('mousedown', mouse(160, thumb));
+    (globalThis.document as any).dispatch('mousemove', mouse(160));
+
+    expect(sent).toEqual([
+      { type: 'scrollbar', action: 'drag', position: 0, paneId: '%4' },
+    ]);
+  });
+
   test('drag adds and removes dragging, keeps autohide visible, and dispose removes mouse listeners', () => {
     const sent: unknown[] = [];
     const root = el('div');

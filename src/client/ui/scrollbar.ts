@@ -64,6 +64,7 @@ export function createScrollbarController(opts: {
   };
   let autohide = false;
   let dragging = false;
+  let dragGrabOffsetPx = 0;
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
   function render(): void {
@@ -138,12 +139,12 @@ export function createScrollbarController(opts: {
     return !state.unavailable && !state.alternateOn && state.historySize > 0;
   }
 
-  function scrollPositionForClientY(clientY: number): number {
+  function scrollPositionForClientY(clientY: number, grabOffsetPx: number): number {
     const rect = track.getBoundingClientRect();
     const trackHeight = rect.height || track.offsetHeight || 0;
     const thumbGeometry = computeScrollbarThumb(state, trackHeight);
     const maxTop = Math.max(1, trackHeight - thumbGeometry.heightPx);
-    const rawTop = clientY - rect.top - (thumbGeometry.heightPx / 2);
+    const rawTop = clientY - rect.top - grabOffsetPx;
     const top = Math.max(0, Math.min(rawTop, maxTop));
     const ratioFromTop = top / maxTop;
     return Math.round((1 - ratioFromTop) * state.historySize);
@@ -182,6 +183,8 @@ export function createScrollbarController(opts: {
     if (!canUsePointerScrollbar()) return;
 
     dragging = true;
+    const rect = thumb.getBoundingClientRect();
+    dragGrabOffsetPx = Math.max(0, Math.min(ev.clientY - rect.top, rect.height || thumb.offsetHeight || 0));
     opts.root.classList.add('dragging');
     reveal();
     ev.preventDefault();
@@ -190,7 +193,7 @@ export function createScrollbarController(opts: {
 
   function onDocumentMouseMove(ev: MouseEvent): void {
     if (dragging) {
-      sendDrag(Math.max(0, Math.min(scrollPositionForClientY(ev.clientY), state.historySize)));
+      sendDrag(Math.max(0, Math.min(scrollPositionForClientY(ev.clientY, dragGrabOffsetPx), state.historySize)));
       if (autohide) opts.root.classList.add('visible');
       ev.preventDefault();
       ev.stopPropagation();
@@ -205,6 +208,7 @@ export function createScrollbarController(opts: {
   function onDocumentMouseUp(): void {
     if (!dragging) return;
     dragging = false;
+    dragGrabOffsetPx = 0;
     opts.root.classList.remove('dragging');
     if (autohide) scheduleHide();
   }
@@ -231,6 +235,7 @@ export function createScrollbarController(opts: {
     dispose() {
       if (hideTimer) clearTimeout(hideTimer);
       dragging = false;
+      dragGrabOffsetPx = 0;
       opts.root.classList.remove('dragging');
       opts.root.classList.remove('visible');
       track.removeEventListener('wheel', onTrackWheel);
