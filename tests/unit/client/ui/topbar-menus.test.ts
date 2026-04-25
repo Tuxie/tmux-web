@@ -81,7 +81,7 @@ function ext(e: StubElement): any {
 }
 
 const REQUIRED_IDS = [
-  'topbar', 'tb-session-name', 'win-tabs', 'tb-title', 'chk-autohide',
+  'topbar', 'tb-session-name', 'win-tabs', 'tb-title', 'chk-autohide', 'chk-scrollbar-autohide',
   'btn-session-menu', 'btn-session-plus', 'menu-wrap', 'btn-menu',
   'menu-dropdown', 'menu-footer', 'menu-footer-left', 'menu-footer-right',
   'chk-fullscreen', 'inp-theme', 'inp-colours', 'inp-font-bundled',
