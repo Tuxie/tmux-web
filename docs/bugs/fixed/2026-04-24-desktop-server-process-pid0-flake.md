@@ -31,3 +31,9 @@ Suggested future fix: inspect `tests/unit/desktop/server-process.test.ts`
 around the failing test's PID capture and `waitForPidExit`; ensure the test
 never passes `0` as a real child PID, or treats `0` as "no captured pid" and
 fails with a clearer setup error.
+
+## Fixed
+
+Fixed by waiting for the PID file to contain a positive integer before
+calling `waitForPidExit`, and by making `isPidAlive` reject invalid PIDs such
+as `0` as test setup errors.

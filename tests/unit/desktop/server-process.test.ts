@@ -46,6 +46,9 @@ async function waitForText(read: () => string, expected: string, timeoutMs = 1_0
 }
 
 function isPidAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    throw new Error(`invalid pid ${pid}`);
+  }
   try {
     process.kill(pid, 0);
     return true;
@@ -61,6 +64,18 @@ async function waitForPidExit(pid: number, timeoutMs = 1_000): Promise<void> {
     await Bun.sleep(10);
   }
   throw new Error(`pid ${pid} is still alive`);
+}
+
+async function waitForPidFile(path: string, timeoutMs = 1_000): Promise<number> {
+  const startedAt = Date.now();
+  let lastText = '';
+  while (Date.now() - startedAt < timeoutMs) {
+    lastText = (await Bun.file(path).text()).trim();
+    const pid = Number(lastText);
+    if (Number.isInteger(pid) && pid > 0) return pid;
+    await Bun.sleep(10);
+  }
+  throw new Error(`timed out waiting for valid pid in ${path}; last value=${JSON.stringify(lastText)}`);
 }
 
 describe('desktop tmux-web launch helpers', () => {
@@ -384,8 +399,7 @@ describe('desktop tmux-web launch helpers', () => {
       }),
     ).rejects.toThrow('tmux-web did not report readiness within 50ms');
 
-    const pid = Number((await Bun.file(pidFile).text()).trim());
-    expect(Number.isInteger(pid)).toBe(true);
+    const pid = await waitForPidFile(pidFile);
     await waitForPidExit(pid);
   });
 
