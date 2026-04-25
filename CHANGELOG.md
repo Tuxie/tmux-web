@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 1.9.0-beta1 — 2026-04-25
+## 1.9.0 — 2026-04-25
 
 ### Added
 
@@ -22,6 +22,37 @@
   default to 18.5 pt terminal text. AmigaOS 3.1 defaults to 1.05 line height
   and Scene 2000 defaults to 1.1. The AmigaOS 3.1 GUI chrome also uses the
   larger Topaz size; Scene 2000's GUI chrome is unchanged.
+- **macOS tmux-term release artifacts are temporarily skipped.** The release
+  matrix still builds and verifies the macOS `tmux-web` binaries, but skips the
+  macOS Electrobun `tmux-term` artifact steps until Apple Developer signing is
+  available. Linux tmux-term artifacts still ship.
+
+### Fixed
+
+- **Window buttons are responsive while tmux control attach is still warming
+  up.** Early window actions now use direct tmux fallback paths instead of
+  waiting behind the control-client attach/probe lifecycle, so the tab buttons
+  and menu entries do not appear frozen after startup.
+- **Tmux control probe bookkeeping no longer poisons the next command.** Stale
+  probe responses are counted only when a stale response is actually observed,
+  fixing follow-on command attribution after attach.
+- **File-drop `inotifywait` watchers are cleaned up on service restart.**
+  Shutdown now waits for active drop auto-unlink watchers so restarts do not
+  leave orphaned watcher processes behind.
+
+### Internal
+
+- **Debug logging around tmux control lifecycle.** Window action dispatch,
+  attach/probe timing, stale-response handling, and fallback paths now produce
+  enough debug evidence to distinguish a genuinely slow tmux client from broken
+  backend sequencing.
+- **Colour-control coverage moved from Playwright to unit tests.** The colour
+  switch/theme-application and `colour-variant` message checks now run in a DOM
+  unit test against a small extracted client colour controller.
+- **`make test-unit` no longer uses Bun's parallel worker dispatcher.** The
+  Makefile unit target runs each unit file in a fresh `bun test <file>` process,
+  avoiding the `bun test --parallel` hang while preserving process isolation
+  for server and desktop tests.
 
 ## 1.8.1 — 2026-04-24
 
