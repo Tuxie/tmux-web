@@ -78,6 +78,30 @@ describe('createScrollbarController', () => {
     expect(track.children[0]!.classList.contains('tw-scrollbar-thumb')).toBe(true);
   });
 
+  test('reuses existing track and thumb children under the root', () => {
+    const root = el('div');
+    const track = el('div');
+    const thumb = el('div');
+    track.classList.add('tw-scrollbar-track');
+    thumb.classList.add('tw-scrollbar-thumb');
+    track.appendChild(thumb);
+    root.appendChild(track);
+    (root as any).querySelector = (selector: string) => selector === '.tw-scrollbar-track' ? track : null;
+    (track as any).querySelector = (selector: string) => selector === '.tw-scrollbar-thumb' ? thumb : null;
+
+    createScrollbarController({
+      root: root as any,
+      send: () => {},
+      passThroughWheel: () => false,
+      requestFit: () => {},
+    });
+
+    expect(root.children).toHaveLength(1);
+    expect(root.children[0]).toBe(track);
+    expect(track.children).toHaveLength(1);
+    expect(track.children[0]).toBe(thumb);
+  });
+
   test('updates thumb custom properties from tmux scroll state', () => {
     const root = el('div');
     const controller = createScrollbarController({
@@ -188,6 +212,7 @@ describe('createScrollbarController', () => {
     controller.updateState(state({ unavailable: true }));
     const passedWheel = wheel(33);
     track.dispatch('wheel', passedWheel);
+    expect(root.classList.contains('unavailable')).toBe(true);
     expect(passedWheel.prevented).toBe(false);
     expect(passedWheel.stopped).toBe(false);
 

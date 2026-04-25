@@ -79,13 +79,15 @@ describe('handleServerData', () => {
 
   test('dispatches scrollbar TT messages', () => {
     const states: unknown[] = [];
+    const titles: string[] = [];
 
-    handleServerData('\x00TT:{"scrollbar":{"paneId":"%4","paneHeight":40,"historySize":100,"scrollPosition":0,"paneInMode":0,"paneMode":"","alternateOn":false}}', {
+    handleServerData('\x00TT:{"title":"zsh","scrollbar":{"paneId":"%4","paneHeight":40,"historySize":100,"scrollPosition":0,"paneInMode":0,"paneMode":"","alternateOn":false}}', {
       adapter: { write: () => {} },
-      topbar: {},
+      topbar: { updateTitle: (title) => titles.push(title) },
       onScrollbar: (state) => states.push(state),
     });
 
+    expect(titles).toEqual(['zsh']);
     expect(states).toEqual([{
       paneId: '%4',
       paneHeight: 40,
@@ -95,5 +97,15 @@ describe('handleServerData', () => {
       paneMode: '',
       alternateOn: false,
     }]);
+  });
+
+  test('ignores scrollbar TT messages when no scrollbar handler is registered', () => {
+    const writes: string[] = [];
+    handleServerData('\x00TT:{"scrollbar":{"paneId":"%4","paneHeight":40,"historySize":100,"scrollPosition":0,"paneInMode":0,"paneMode":"","alternateOn":false}}plain', {
+      adapter: { write: (data) => writes.push(data) },
+      topbar: {},
+    });
+
+    expect(writes).toEqual(['plain']);
   });
 });
