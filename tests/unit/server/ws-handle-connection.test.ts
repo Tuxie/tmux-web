@@ -651,6 +651,7 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
   test('scrollbar action dispatches through tmux control using current scrollbar state', async () => {
     const { path: tmuxBin } = makeFakeTmux();
     const runCalls: string[][] = [];
+    let scrollbarReads = 0;
     const tmuxControl: TmuxControl = {
       attachSession: async () => {},
       detachSession: () => {},
@@ -658,7 +659,10 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
         runCalls.push([...args]);
         if (args[0] === 'list-windows') return '0\tone\t1\n';
         if (args[0] === 'display-message' && args.includes(SCROLLBAR_FORMAT)) {
-          return '%4\t40\t1200\t17\t1\tcopy-mode\t0';
+          scrollbarReads++;
+          return scrollbarReads === 1
+            ? '%4\t40\t1200\t17\t1\tcopy-mode\t0'
+            : '%4\t40\t1200\t15\t1\tcopy-mode\t0';
         }
         if (args[0] === 'display-message') return 'pane';
         return '';
@@ -677,6 +681,8 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
 
     await waitFor(() => runCalls.some(args => args.join(' ') === 'send-keys -X -t %4 -N 2 scroll-down-and-cancel'), 8000);
     expect(runCalls).toContainEqual(['send-keys', '-X', '-t', '%4', '-N', '2', 'scroll-down-and-cancel']);
+    const updated = await waitForMsg(o.messages, m => m.scrollbar?.scrollPosition === 15, 8000);
+    expect(updated?.scrollbar?.scrollPosition).toBe(15);
 
     o.ws.close();
   }, 15000);

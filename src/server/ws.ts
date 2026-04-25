@@ -51,6 +51,9 @@ interface WsConnState {
   scrollbarState: ScrollbarState;
   scrollbarSubscriptionName: string;
   scrollbarSubscriptionSession: string | null;
+  scrollbarRefreshTimer: ReturnType<typeof setTimeout> | null;
+  scrollbarRefreshInFlight: boolean;
+  scrollbarRefreshPending: boolean;
   /** Monotonically-increasing counter. Each new switchSession call bumps
    *  this so prior in-flight switches detect they've been superseded. */
   switchSerial: number;
@@ -69,6 +72,7 @@ type PtyOutputWaiter = WsConnState['ptyOutputWaiters'][number];
 
 const WS_OPEN = 1;
 let nextScrollbarSubscriptionId = 0;
+const SCROLLBAR_PTY_REFRESH_DELAY_MS = 50;
 
 /** Per-`createWsHandlers` instance state. Two test runs that bring up
  *  fresh harnesses in the same process must not share registry entries
@@ -187,6 +191,9 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
         scrollbarState: unavailableScrollbarState(),
         scrollbarSubscriptionName: nextScrollbarSubscriptionName(),
         scrollbarSubscriptionSession: null,
+        scrollbarRefreshTimer: null,
+        scrollbarRefreshInFlight: false,
+        scrollbarRefreshPending: false,
         switchSerial: 0,
         ptyOutputSerial: 0,
         ptyOutputWaiters: [],
@@ -257,6 +264,7 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
     if (result.output) {
       ws.send(result.output);
       markPtyOutputForwarded(state);
+      scheduleScrollbarRefresh(ws, state.registeredSession, opts, SCROLLBAR_PTY_REFRESH_DELAY_MS);
     }
     if (result.titleChanged && result.detectedTitle !== state.lastTitle) {
       state.lastTitle = result.detectedTitle || '';
@@ -437,6 +445,7 @@ async function teardownScrollbarState(
   if (state.scrollbarSubscriptionSession !== sessionName) return;
   state.scrollbarSubscriptionSession = null;
   state.scrollbarState = unavailableScrollbarState();
+  clearScrollbarRefresh(state);
   try {
     await runTmuxForSession(opts, sessionName, ['refresh-client', '-B', state.scrollbarSubscriptionName]);
   } catch (err) {
@@ -477,6 +486,62 @@ async function setupScrollbarState(
     const next = unavailableScrollbarState();
     ws.data.state.scrollbarState = next;
     ws.send(frameTTMessage({ scrollbar: next }));
+  }
+}
+
+function clearScrollbarRefresh(state: WsConnState): void {
+  if (state.scrollbarRefreshTimer) clearTimeout(state.scrollbarRefreshTimer);
+  state.scrollbarRefreshTimer = null;
+  state.scrollbarRefreshInFlight = false;
+  state.scrollbarRefreshPending = false;
+}
+
+function scheduleScrollbarRefresh(
+  ws: ServerWebSocket<WsData>,
+  sessionName: string,
+  opts: WsServerOptions,
+  delayMs: number,
+): void {
+  const { state } = ws.data;
+  if (ws.readyState !== WS_OPEN) return;
+  if (state.registeredSession !== sessionName) return;
+  if (state.scrollbarSubscriptionSession !== sessionName) return;
+  if (state.scrollbarRefreshInFlight) {
+    state.scrollbarRefreshPending = true;
+    return;
+  }
+  if (state.scrollbarRefreshTimer) return;
+  state.scrollbarRefreshTimer = setTimeout(() => {
+    state.scrollbarRefreshTimer = null;
+    void refreshScrollbarState(ws, sessionName, opts);
+  }, Math.max(0, delayMs));
+}
+
+async function refreshScrollbarState(
+  ws: ServerWebSocket<WsData>,
+  sessionName: string,
+  opts: WsServerOptions,
+): Promise<void> {
+  const { state } = ws.data;
+  if (state.scrollbarRefreshInFlight) {
+    state.scrollbarRefreshPending = true;
+    return;
+  }
+  state.scrollbarRefreshInFlight = true;
+  try {
+    const raw = await runTmuxForSession(opts, sessionName, ['display-message', '-p', '-t', sessionName, '-F', SCROLLBAR_FORMAT]);
+    if (ws.readyState !== WS_OPEN || state.registeredSession !== sessionName || state.scrollbarSubscriptionSession !== sessionName) return;
+    const next = parseScrollbarState(raw.trim());
+    state.scrollbarState = next;
+    ws.send(frameTTMessage({ scrollbar: next }));
+  } catch (err) {
+    debug(opts.config, `scrollbar refresh failed for ${sessionName}: ${(err as Error).message}`);
+  } finally {
+    state.scrollbarRefreshInFlight = false;
+    if (state.scrollbarRefreshPending) {
+      state.scrollbarRefreshPending = false;
+      scheduleScrollbarRefresh(ws, sessionName, opts, SCROLLBAR_PTY_REFRESH_DELAY_MS);
+    }
   }
 }
 
@@ -630,9 +695,11 @@ function dispatchAction(ws: ServerWebSocket<WsData>, act: WsAction, opts: WsServ
         position: act.position,
         getState: async () => state.scrollbarState,
         run: opts.tmuxControl.run,
-      }).catch((err) => {
-        debug(opts.config, `scrollbar action failed: ${(err as Error).message}`);
-      });
+      })
+        .then(() => scheduleScrollbarRefresh(ws, state.registeredSession, opts, 0))
+        .catch((err) => {
+          debug(opts.config, `scrollbar action failed: ${(err as Error).message}`);
+        });
       return;
     case 'clipboard-deny':
       void replyToRead(ws, act.selection, '', opts);
