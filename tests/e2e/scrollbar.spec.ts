@@ -1,10 +1,14 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import { startServer, killServer, createIsolatedTmux, hasTmux } from './helpers.js';
 
 test.skip(!hasTmux(), 'tmux not available');
 
-const PORT = 4120;
-const BASE = `http://127.0.0.1:${PORT}`;
+const WHEEL_PORT_BASE = 4120;
+const ALT_SCREEN_PORT_BASE = 4130;
+
+function workerPort(base: number, testInfo: TestInfo): number {
+  return base + testInfo.parallelIndex;
+}
 
 async function waitForTerminal(page: Page): Promise<void> {
   await page.waitForFunction(() => !!(window as any).__adapter?.term, { timeout: 10000 });
@@ -18,7 +22,8 @@ async function wheelOverTerminal(page: Page, deltaY: number): Promise<void> {
   await page.mouse.wheel(0, deltaY);
 }
 
-test('wheel over terminal scrolls tmux copy-mode and updates scroll position', async ({ page }) => {
+test('wheel over terminal scrolls tmux copy-mode and updates scroll position', async ({ page }, testInfo) => {
+  const port = workerPort(WHEEL_PORT_BASE, testInfo);
   const isolatedTmux = createIsolatedTmux('tw-scrollbar-e2e');
   let server: Awaited<ReturnType<typeof startServer>> | undefined;
 
@@ -41,12 +46,12 @@ test('wheel over terminal scrolls tmux copy-mode and updates scroll position', a
 
     server = await startServer('bun', [
       'src/server/index.ts',
-      '--listen', `127.0.0.1:${PORT}`,
+      '--listen', `127.0.0.1:${port}`,
       '--no-auth', '--no-tls',
       '--tmux', isolatedTmux.wrapperPath,
     ]);
 
-    await page.goto(`${BASE}/scroll`);
+    await page.goto(`http://127.0.0.1:${port}/scroll`);
     await waitForTerminal(page);
     await expect.poll(async () => {
       return await page.locator('#tmux-scrollbar').evaluate(el => !el.classList.contains('unavailable'));
@@ -71,7 +76,8 @@ test('wheel over terminal scrolls tmux copy-mode and updates scroll position', a
   }
 });
 
-test('alternate screen marks tmux scrollbar unavailable', async ({ page }) => {
+test('alternate screen marks tmux scrollbar unavailable', async ({ page }, testInfo) => {
+  const port = workerPort(ALT_SCREEN_PORT_BASE, testInfo);
   const isolatedTmux = createIsolatedTmux('tw-scrollbar-alt-e2e');
   let server: Awaited<ReturnType<typeof startServer>> | undefined;
 
@@ -95,12 +101,12 @@ test('alternate screen marks tmux scrollbar unavailable', async ({ page }) => {
 
     server = await startServer('bun', [
       'src/server/index.ts',
-      '--listen', `127.0.0.1:${PORT}`,
+      '--listen', `127.0.0.1:${port}`,
       '--no-auth', '--no-tls',
       '--tmux', isolatedTmux.wrapperPath,
     ]);
 
-    await page.goto(`${BASE}/alt`);
+    await page.goto(`http://127.0.0.1:${port}/alt`);
     await waitForTerminal(page);
 
     await expect.poll(async () => {
