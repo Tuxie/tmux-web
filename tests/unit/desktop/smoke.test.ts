@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
+import http from 'node:http';
 import { generateDesktopCredentials } from '../../../src/desktop/auth.js';
 import {
   startTmuxWebServer,
@@ -6,6 +7,16 @@ import {
 } from '../../../src/desktop/server-process.js';
 
 let server: StartedTmuxWebServer | null = null;
+
+function getStatus(url: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const req = http.get(url, (res) => {
+      res.resume();
+      res.on('end', () => resolve(res.statusCode ?? 0));
+    });
+    req.on('error', reject);
+  });
+}
 
 afterEach(async () => {
   if (server) {
@@ -29,7 +40,6 @@ describe('desktop tmux-web smoke', () => {
     expect(server.endpoint.host).toBe('127.0.0.1');
     expect(server.endpoint.port).toBeGreaterThan(0);
 
-    const noAuth = await fetch(`${server.endpoint.origin}/`);
-    expect(noAuth.status).toBe(401);
+    await expect(getStatus(`${server.endpoint.origin}/`)).resolves.toBe(401);
   });
 });
