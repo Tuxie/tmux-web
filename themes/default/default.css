@@ -275,5 +275,5 @@ body {
   white-space: nowrap;
 }
 
-#terminal { position: absolute; left: 3px; right: 3px; bottom: 3px; top: 3px; }
+#terminal { --tw-terminal-right: 3px; position: absolute; left: 3px; right: var(--tw-terminal-right); bottom: 3px; top: 3px; }
 body.topbar-pinned #terminal { top: 31px; }

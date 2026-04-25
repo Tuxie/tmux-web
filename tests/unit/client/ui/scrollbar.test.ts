@@ -207,6 +207,24 @@ describe('createScrollbarController', () => {
     expect(fits).toBe(2);
   });
 
+  test('autohide reveals near the right edge and hides when pinned', () => {
+    const root = el('div');
+    const controller = createScrollbarController({
+      root: root as any,
+      send: () => {},
+      passThroughWheel: () => false,
+      requestFit: () => {},
+    });
+    (globalThis as any).window = { innerWidth: 200 };
+
+    controller.setAutohide(true);
+    (globalThis.document as any).dispatch('mousemove', { clientX: 180 });
+    expect(root.classList.contains('visible')).toBe(true);
+
+    controller.setAutohide(false);
+    expect(root.classList.contains('visible')).toBe(false);
+  });
+
   test('track listener prevents default only when wheel is handled and dispose removes it', () => {
     const sent: unknown[] = [];
     const root = el('div');

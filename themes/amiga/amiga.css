@@ -506,6 +506,7 @@ input { accent-color: var(--tw-chrome); }
  * ------------------------------------------------------------------- */
 #terminal {
   position: absolute;
-  top: 9px; left: 9px; right: 9px; bottom: 9px;
+  --tw-terminal-right: 9px;
+  top: 9px; left: 9px; right: var(--tw-terminal-right); bottom: 9px;
 }
 body.topbar-pinned #terminal { top: 29px; }

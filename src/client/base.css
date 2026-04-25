@@ -80,9 +80,13 @@ html, body { height: 100%; overflow: hidden; }
    * carve-out endorsed by CLAUDE.md "CSS" rule. */
   background-color: var(--tw-page-bg);
 }
-#terminal { background-color: #0000; position: absolute; }
-body.scrollbar-pinned #terminal { right: var(--tw-scrollbar-width); }
-body.scrollbar-autohide #terminal { right: 0; }
+#terminal {
+  --tw-terminal-right: 0px;
+  background-color: #0000;
+  position: absolute;
+}
+body.scrollbar-pinned #terminal { right: calc(var(--tw-terminal-right) + var(--tw-scrollbar-width)); }
+body.scrollbar-autohide #terminal { right: var(--tw-terminal-right); }
 #terminal .terminal,
 .xterm-scrollable-element { background-color: #0000 !important; }
 .xterm .xterm-viewport { overflow-y: hidden !important; background-color: #0000 !important; }

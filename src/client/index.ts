@@ -164,11 +164,13 @@ async function main() {
   };
   let connection: Connection;
   let scrollbar: ReturnType<typeof createScrollbarController>;
+  let appliedScrollbarAutohide: boolean | null = null;
   const applyScrollbarLayout = (autohide: boolean): void => {
     document.body.classList.toggle('scrollbar-autohide', autohide);
     document.body.classList.toggle('scrollbar-pinned', !autohide);
+    if (appliedScrollbarAutohide === autohide) return;
+    appliedScrollbarAutohide = autohide;
     scrollbar?.setAutohide(autohide);
-    adapter.fit();
   };
   const colourControls = createColourControls(colours, {
     page,
@@ -218,10 +220,11 @@ async function main() {
       const themeChanged = s.theme !== settings.theme;
       const fontChanged = s.fontFamily !== appliedFontKey;
       const colourChanged = s.colours !== settings.colours;
+      const scrollbarAutohideChanged = s.scrollbarAutohide !== settings.scrollbarAutohide;
       settings = s;
       saveSessionSettings(getSession(), s);
       document.body.classList.toggle('topbar-pinned', !s.topbarAutohide);
-      applyScrollbarLayout(s.scrollbarAutohide);
+      if (scrollbarAutohideChanged) applyScrollbarLayout(s.scrollbarAutohide);
       if (colourChanged) colourControls.sendVariant(s.colours);
 
       if (themeChanged) {
