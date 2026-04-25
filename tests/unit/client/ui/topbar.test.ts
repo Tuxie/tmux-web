@@ -702,6 +702,40 @@ describe('Topbar.updateSession', () => {
     expect((globalThis.document as any).body.classList.has('topbar-pinned')).toBe(true);
     expect(tb.classList.has('hidden')).toBe(false);
   });
+
+  it('schedules hide when target session enables autohide', async () => {
+    const t = await mountTopbarWithSettings({
+      sessions: {
+        main: { ...DEFAULT_SESSION_SETTINGS, topbarAutohide: false },
+        auto: { ...DEFAULT_SESSION_SETTINGS, topbarAutohide: true },
+      },
+    });
+    const chk = (globalThis.document as any).getElementById('chk-autohide');
+    const tb = (globalThis.document as any).getElementById('topbar');
+    const menu = (globalThis.document as any).getElementById('menu-dropdown');
+    menu.hidden = true;
+
+    expect((t as any).autohide).toBe(false);
+    expect(chk.checked).toBe(false);
+    expect((globalThis.document as any).body.classList.has('topbar-pinned')).toBe(true);
+
+    const timers: Array<() => void> = [];
+    (globalThis as any).setTimeout = (fn: () => void) => {
+      timers.push(fn);
+      return timers.length;
+    };
+    (globalThis as any).clearTimeout = () => {};
+
+    t.updateSession('auto');
+
+    expect((t as any).autohide).toBe(true);
+    expect(chk.checked).toBe(true);
+    expect((globalThis.document as any).body.classList.has('topbar-pinned')).toBe(false);
+    expect(tb.classList.has('hidden')).toBe(false);
+
+    timers.forEach(fn => fn());
+    expect(tb.classList.has('hidden')).toBe(true);
+  });
 });
 
 describe('Topbar.show', () => {

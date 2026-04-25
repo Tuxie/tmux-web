@@ -801,6 +801,8 @@ export class Topbar {
       if (this.hideTimer) clearTimeout(this.hideTimer);
       this.hideTimer = null;
       this.topbar.classList.remove('hidden');
+    } else if (!wasAutohide && this.autohide) {
+      this.show();
     }
   }
 
