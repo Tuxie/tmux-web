@@ -76,4 +76,24 @@ describe('handleServerData', () => {
     expect(sessions).toEqual([[{ id: '1', name: 'main' }]]);
     expect(windows).toEqual([[{ index: '0', name: 'zsh', active: true }]]);
   });
+
+  test('dispatches scrollbar TT messages', () => {
+    const states: unknown[] = [];
+
+    handleServerData('\x00TT:{"scrollbar":{"paneId":"%4","paneHeight":40,"historySize":100,"scrollPosition":0,"paneInMode":0,"paneMode":"","alternateOn":false}}', {
+      adapter: { write: () => {} },
+      topbar: {},
+      onScrollbar: (state) => states.push(state),
+    });
+
+    expect(states).toEqual([{
+      paneId: '%4',
+      paneHeight: 40,
+      historySize: 100,
+      scrollPosition: 0,
+      paneInMode: 0,
+      paneMode: '',
+      alternateOn: false,
+    }]);
+  });
 });

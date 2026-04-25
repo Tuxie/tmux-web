@@ -1,4 +1,4 @@
-import type { SessionInfo, WindowInfo } from '../shared/types.js';
+import type { ScrollbarState, SessionInfo, WindowInfo } from '../shared/types.js';
 import { extractTTMessages } from './protocol.js';
 
 export interface HandleServerDataOptions {
@@ -14,6 +14,7 @@ export interface HandleServerDataOptions {
   onClipboardPrompt?(prompt: { reqId: string; exePath: string | null; commandName: string | null }): void;
   onDropsChanged?(): void;
   onPtyExit?(): void;
+  onScrollbar?(state: ScrollbarState): void;
 }
 
 export function handleServerData(data: string, opts: HandleServerDataOptions): void {
@@ -30,5 +31,6 @@ export function handleServerData(data: string, opts: HandleServerDataOptions): v
     if (msg.clipboardPrompt) opts.onClipboardPrompt?.(msg.clipboardPrompt);
     if (msg.dropsChanged) opts.onDropsChanged?.();
     if (msg.ptyExit) opts.onPtyExit?.();
+    if (msg.scrollbar) opts.onScrollbar?.(msg.scrollbar);
   }
 }
