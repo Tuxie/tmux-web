@@ -15,6 +15,7 @@ Playwright's current config runs test files serially per project (no `fullyParal
 | 4117  | tests/e2e/control-mode-notifications.spec.ts | real-tmux rename-session push |
 | 4118  | tests/e2e/control-mode-window-size.spec.ts | control client window-size regression guard |
 | 4119  | tests/e2e/menu-session-switch-content.spec.ts | real-tmux repeated menu session switches |
-| 4120+ | new tests                                  | pick the next unused port here |
+| 4120  | tests/e2e/scrollbar.spec.ts            | real-tmux scrollbar behavior |
+| 4121+ | new tests                                  | pick the next unused port here |
 
 If you add a new e2e test that spawns its own server, append a row and use the next free port.
