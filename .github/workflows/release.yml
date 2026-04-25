@@ -68,15 +68,23 @@ jobs:
           - os: ubuntu-latest        # x64 host
             target: bun-linux-x64
             name: linux-x64
+            desktop_platform: linux
+            desktop_arch: x64
           - os: ubuntu-24.04-arm     # arm64 host (free for public repos)
             target: bun-linux-arm64
             name: linux-arm64
+            desktop_platform: linux
+            desktop_arch: arm64
           - os: macos-26-intel       # Intel x64 host (macos-13 was retired)
             target: bun-darwin-x64
             name: darwin-x64
+            desktop_platform: macos
+            desktop_arch: x64
           - os: macos-latest         # arm64 host (Apple Silicon)
             target: bun-darwin-arm64
             name: darwin-arm64
+            desktop_platform: macos
+            desktop_arch: arm64
 
     steps:
       - name: Checkout repository
@@ -181,6 +189,37 @@ jobs:
           shasum -a 256 tmux-web-${{ github.ref_name }}-${{ matrix.name }}.tar.xz \
             > tmux-web-${{ github.ref_name }}-${{ matrix.name }}.tar.xz.sha256
 
+      - name: Build tmux-term desktop app
+        run: bun run desktop:stable
+
+      - name: Verify tmux-term desktop app
+        run: bun scripts/verify-electrobun-bundle.ts build stable
+
+      - name: Package tmux-term desktop app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          PREFIX="stable-${{ matrix.desktop_platform }}-${{ matrix.desktop_arch }}-"
+          found=0
+          for src in artifacts/${PREFIX}*; do
+            [ -e "$src" ] || continue
+            found=1
+            base="$(basename "$src")"
+            suffix="${base#$PREFIX}"
+            if [ "$suffix" = "update.json" ]; then
+              dest="release/tmux-term-${{ github.ref_name }}-${{ matrix.name }}-update.json"
+            else
+              dest="release/tmux-term-${{ github.ref_name }}-${{ matrix.name }}${suffix#tmux-term}"
+            fi
+            cp "$src" "$dest"
+            shasum -a 256 "$dest" > "$dest.sha256"
+          done
+          if [ "$found" -ne 1 ]; then
+            echo "No tmux-term Electrobun artifacts found for ${PREFIX}" >&2
+            exit 1
+          fi
+
       - name: Upload artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -188,6 +227,15 @@ jobs:
           path: |
             release/tmux-web-${{ github.ref_name }}-${{ matrix.name }}.tar.xz
             release/tmux-web-${{ github.ref_name }}-${{ matrix.name }}.tar.xz.sha256
+          retention-days: 1
+
+      - name: Upload tmux-term artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: tmux-term-${{ github.ref_name }}-${{ matrix.name }}-artifact
+          path: |
+            release/tmux-term-${{ github.ref_name }}-${{ matrix.name }}*
+          if-no-files-found: error
           retention-days: 1
 
   release:
@@ -203,7 +251,7 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          pattern: tmux-web-*-artifact
+          pattern: '*-${{ github.ref_name }}-*-artifact'
           path: artifacts
           merge-multiple: true
 
@@ -232,8 +280,7 @@ jobs:
         with:
           body_path: release-notes.md
           files: |
-            artifacts/*.tar.xz
-            artifacts/*.tar.xz.sha256
+            artifacts/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
