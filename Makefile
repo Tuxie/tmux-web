@@ -61,7 +61,7 @@ tmux-term:
 test: typecheck test-unit test-e2e
 
 test-unit:
-	$(BUN) test --parallel
+	sh scripts/test-unit-files.sh $(BUN)
 
 typecheck: src/server/assets-embedded.ts
 	$(BUN) x tsc --noEmit -p tsconfig.json
