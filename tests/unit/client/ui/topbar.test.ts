@@ -733,6 +733,35 @@ describe('Topbar menu and autohide DOM behaviour', () => {
     expect(stopped).toBe(2);
   });
 
+  it('initializes autohide from live session settings', async () => {
+    const live = { ...DEFAULT_SESSION_SETTINGS, topbarAutohide: true };
+    const t = await mountTopbar({ getLiveSettings: () => live });
+    await t.init();
+    const chk = (globalThis.document as any).getElementById('chk-autohide');
+    expect((t as any).autohide).toBe(true);
+    expect(chk.checked).toBe(true);
+    expect((globalThis.document as any).body.classList.has('topbar-pinned')).toBe(false);
+  });
+
+  it('commits autohide checkbox changes through session settings', async () => {
+    const live = { ...DEFAULT_SESSION_SETTINGS, topbarAutohide: false };
+    const captured: SessionSettings[] = [];
+    const t = await mountTopbar({
+      getLiveSettings: () => live,
+      onSettingsChange: (s) => { captured.push(s); },
+    });
+    await t.init();
+    const chk = (globalThis.document as any).getElementById('chk-autohide');
+
+    chk.checked = true;
+    chk.dispatch('change', { target: chk });
+
+    expect(captured).toHaveLength(1);
+    expect(captured[0].topbarAutohide).toBe(true);
+    expect(captured[0].scrollbarAutohide).toBe(false);
+    expect((globalThis.document as any).body.classList.has('topbar-pinned')).toBe(false);
+  });
+
   it('autohide hides the topbar after the scheduled inactivity timer', async () => {
     const t = await mountTopbar();
     await t.init();

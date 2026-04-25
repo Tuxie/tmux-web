@@ -13,7 +13,7 @@ import { consumeBootErrorDetails, consumeBootErrors } from './boot-errors.js';
 import { installAuthenticatedFetch } from './auth-fetch.js';
 import { clientLog } from './client-log.js';
 import { installDropsPanel } from './ui/drops-panel.js';
-import { getTopbarAutohide, getFontSubpixelAA } from './prefs.js';
+import { getFontSubpixelAA } from './prefs.js';
 import { applyTheme, loadAllFonts, listThemes } from './theme.js';
 import { fetchColours } from './colours.js';
 import { createColourControls } from './colour-controls.js';
@@ -65,8 +65,6 @@ async function main() {
 
   const adapter: TerminalAdapter = new XtermAdapter();
   const container = document.getElementById('terminal')!;
-
-  if (!getTopbarAutohide()) document.body.classList.add('topbar-pinned');
 
   clientLog('boot-fetch:start');
   const [themes, colours] = await Promise.all([listThemes(), fetchColours()]);

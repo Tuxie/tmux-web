@@ -1,5 +1,4 @@
 import {
-  getTopbarAutohide, setTopbarAutohide,
   getShowWindowTabs, setShowWindowTabs,
   getFontSubpixelAA, setFontSubpixelAA,
 } from '../prefs.js';
@@ -791,12 +790,20 @@ export class Topbar {
   }
 
   private setupAutoHide(): void {
-    this.autohide = getTopbarAutohide();
+    const initialSettings = loadSessionSettings(this.currentSession, this.opts.getLiveSettings(), {
+      defaults: DEFAULT_SESSION_SETTINGS,
+    });
+    this.autohide = initialSettings.topbarAutohide;
     this.autohideChk.checked = this.autohide;
     this.applyPinnedClass();
     this.autohideChk.addEventListener('change', () => {
       this.autohide = this.autohideChk.checked;
-      setTopbarAutohide(this.autohide);
+      const current = loadSessionSettings(this.currentSession, this.opts.getLiveSettings(), {
+        defaults: DEFAULT_SESSION_SETTINGS,
+      });
+      const updated: SessionSettings = { ...current, topbarAutohide: this.autohide };
+      saveSessionSettings(this.currentSession, updated);
+      this.opts.onSettingsChange?.(updated);
       this.applyPinnedClass();
       this.opts.onAutohideChange?.();
       if (!this.autohide) {

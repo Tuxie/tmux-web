@@ -61,7 +61,22 @@ export function el(tag = 'div'): StubElement {
     add: (c: string) => { setAdd(c); },
     remove: (c: string) => { setDelete(c); },
     contains: (c: string) => setHas(c),
-    toggle: (c: string) => (setHas(c) ? setDelete(c) : setAdd(c)),
+    toggle: (c: string, force?: boolean) => {
+      if (force === true) {
+        setAdd(c);
+        return true;
+      }
+      if (force === false) {
+        setDelete(c);
+        return false;
+      }
+      if (setHas(c)) {
+        setDelete(c);
+        return false;
+      }
+      setAdd(c);
+      return true;
+    },
   });
   return self as StubElement;
 }
