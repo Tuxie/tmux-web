@@ -15,7 +15,8 @@ import { clientLog } from './client-log.js';
 import { installDropsPanel } from './ui/drops-panel.js';
 import { getTopbarAutohide, getFontSubpixelAA } from './prefs.js';
 import { applyTheme, loadAllFonts, listThemes } from './theme.js';
-import { fetchColours, composeBgColor, composeTheme, type ITheme } from './colours.js';
+import { fetchColours } from './colours.js';
+import { createColourControls } from './colour-controls.js';
 import {
   applyBackgroundHue,
   applyBackgroundSaturation,
@@ -136,17 +137,6 @@ async function main() {
   applyThemeContrast(settings.themeContrast);
   applyDepth(settings.depth);
 
-  const colourByName = new Map(colours.map(c => [c.name, c.theme]));
-  const coloursOrDefault = (name: string): ITheme =>
-    colourByName.get(name) ?? { foreground: '#d4d4d4', background: '#1e1e1e' };
-  const variantByName = new Map(colours.map(c => [c.name, c.variant]));
-  const sendColourVariant = (colourName: string): void => {
-    const v = variantByName.get(colourName);
-    if (v === 'dark' || v === 'light') {
-      connection?.send(JSON.stringify({ type: 'colour-variant', variant: v }));
-    }
-  };
-
   const page = document.getElementById('page')!;
   // The atlas needs a representative colour of whatever sits behind the
   // terminal so glyph-edge AA doesn't fringe against the scheme bg when
@@ -173,12 +163,19 @@ async function main() {
     }
     return getComputedStyle(document.body).backgroundColor;
   };
-  page.style.setProperty('--tw-page-bg', composeBgColor(coloursOrDefault(settings.colours), settings.opacity));
+  let connection: Connection;
+  const colourControls = createColourControls(colours, {
+    page,
+    setTheme: (theme) => adapter.setTheme(theme),
+    getBodyBg,
+    send: (data) => connection?.send(data),
+  });
+  page.style.setProperty('--tw-page-bg', colourControls.pageBgFor(settings));
   await adapter.init(container, {
     fontFamily: `"${settings.fontFamily}", monospace`,
     fontSize: settings.fontSize,
     lineHeight: settings.spacing,
-    theme: composeTheme(coloursOrDefault(settings.colours), settings.opacity, getBodyBg()),
+    theme: colourControls.terminalThemeFor(settings),
     opacity: settings.opacity,
     tuiBgOpacity: settings.tuiBgOpacity,
     tuiFgOpacity: settings.tuiFgOpacity,
@@ -191,7 +188,6 @@ async function main() {
   window.__adapter = adapter;
 
   let appliedFontKey = settings.fontFamily;
-  let connection: Connection;
   // Forward-declared so handleMessage can refresh the drops panel on
   // server-push notifications. Assigned after topbar init below.
   let dropsPanel: ReturnType<typeof installDropsPanel> | null = null;
@@ -218,7 +214,7 @@ async function main() {
       const colourChanged = s.colours !== settings.colours;
       settings = s;
       saveSessionSettings(getSession(), s);
-      if (colourChanged) sendColourVariant(s.colours);
+      if (colourChanged) colourControls.sendVariant(s.colours);
 
       if (themeChanged) {
         await applyTheme(s.theme);
@@ -233,8 +229,7 @@ async function main() {
       applyThemeContrast(s.themeContrast);
       applyDepth(s.depth);
 
-      page.style.setProperty('--tw-page-bg', composeBgColor(coloursOrDefault(s.colours), s.opacity));
-      adapter.setTheme(composeTheme(coloursOrDefault(s.colours), s.opacity, getBodyBg()));
+      colourControls.apply(s);
 
       if (fontChanged && adapter.requiresReloadForFontChange) {
         const _dd = document.getElementById('menu-dropdown') as HTMLElement | null;
@@ -344,7 +339,7 @@ async function main() {
     onOpen: () => {
       wsErrorToasted = false;
       connection.sendResize(adapter.cols, adapter.rows);
-      sendColourVariant(settings.colours);
+      colourControls.sendVariant(settings.colours);
     },
     onClose: () => {
       adapter.write('\r\n\x1b[33mDisconnected. Reconnecting...\x1b[0m\r\n');
