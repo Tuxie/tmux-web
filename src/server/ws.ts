@@ -10,7 +10,7 @@ import { getForegroundProcess } from './foreground-process.js';
 import { resolvePolicy, recordGrant } from './clipboard-policy.js';
 import { onDropsChange } from './file-drop.js';
 import { routeClientMessage, type WsAction, type PendingRead as RouterPendingRead } from './ws-router.js';
-import { TmuxCommandError, type TmuxControl } from './tmux-control.js';
+import { NoControlClientError, TmuxCommandError, type TmuxControl } from './tmux-control.js';
 import { execFileAsync } from './exec.js';
 
 export interface WsServerOptions {
@@ -730,31 +730,39 @@ async function applyWindowAction(
 ): Promise<void> {
   if (opts.config.testMode) return;
   const target = typeof msg.index === 'string' ? `${sessionName}:${msg.index}` : sessionName;
-  try {
-    switch (msg.action) {
-      case 'select':
-        if (typeof msg.index !== 'string') return;
-        await opts.tmuxControl.run(['select-window', '-t', target]);
-        break;
-      case 'new': {
-        const args = ['new-window', '-t', sessionName];
-        if (typeof msg.name === 'string' && isSafeTmuxName(msg.name)) {
-          args.push('-n', msg.name.trim());
-        }
-        await opts.tmuxControl.run(args);
-        break;
+  let args: string[] | null = null;
+  switch (msg.action) {
+    case 'select':
+      if (typeof msg.index !== 'string') return;
+      args = ['select-window', '-t', target];
+      break;
+    case 'new':
+      args = ['new-window', '-t', sessionName];
+      if (typeof msg.name === 'string' && isSafeTmuxName(msg.name)) {
+        args.push('-n', msg.name.trim());
       }
-      case 'close':
-        if (typeof msg.index !== 'string') return;
-        await opts.tmuxControl.run(['kill-window', '-t', target]);
-        break;
-      case 'rename':
-        if (typeof msg.index !== 'string' || typeof msg.name !== 'string') return;
-        if (!isSafeTmuxName(msg.name)) return;
-        await opts.tmuxControl.run(['rename-window', '-t', target, '--', msg.name.trim()]);
-        break;
+      break;
+    case 'close':
+      if (typeof msg.index !== 'string') return;
+      args = ['kill-window', '-t', target];
+      break;
+    case 'rename':
+      if (typeof msg.index !== 'string' || typeof msg.name !== 'string') return;
+      if (!isSafeTmuxName(msg.name)) return;
+      args = ['rename-window', '-t', target, '--', msg.name.trim()];
+      break;
+    default:
+      return;
+  }
+
+  try {
+    await opts.tmuxControl.run(args);
+  } catch (err) {
+    if (err instanceof NoControlClientError) {
+      try { await execFileAsync(opts.config.tmuxBin, args); }
+      catch { /* ignore — window may have already been closed, etc. */ }
     }
-  } catch { /* ignore — window may have already been closed, etc. */ }
+  }
 }
 
 /**

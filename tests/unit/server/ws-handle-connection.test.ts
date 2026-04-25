@@ -4,7 +4,7 @@ import http from 'node:http';
 import { startTestServer, type Harness } from './_harness/spawn-server.ts';
 import { makeFakeTmux } from './_harness/fake-tmux.ts';
 import { execFileAsync } from '../../../src/server/exec.ts';
-import type { TmuxControl, TmuxNotification } from '../../../src/server/tmux-control.ts';
+import { NoControlClientError, type TmuxControl, type TmuxNotification } from '../../../src/server/tmux-control.ts';
 
 function postDrop(baseUrl: string, filename: string, body: Buffer): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -830,6 +830,40 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     resolveAttach();
     await new Promise(r => setTimeout(r, 0));
 
+    o.ws.close();
+  }, 15000);
+
+  test('window select works before slow attachSession resolves', async () => {
+    // UI tab clicks must not be dropped while the startup control client is
+    // still probing. tmux itself is already usable through the PTY at this
+    // point, so server-side UI actions should fall back to direct tmux.
+    const { path: tmuxBin, logFile } = makeFakeTmux();
+
+    let resolveAttach!: () => void;
+    const attachDone = new Promise<void>(r => { resolveAttach = r; });
+
+    const tmuxControl: TmuxControl = {
+      attachSession: async () => { await attachDone; },
+      detachSession: () => {},
+      run: async () => { throw new NoControlClientError(); },
+      on: () => () => {},
+      hasSession: () => false,
+      close: async () => {},
+    };
+
+    h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
+    const o = openWs(h.wsUrl);
+    await o.opened;
+
+    o.ws.send(JSON.stringify({ type: 'window', action: 'select', index: '1' }));
+
+    const sawSelect = await waitFor(() => {
+      const log = fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8') : '';
+      return log.includes('select-window -t main:1');
+    }, 1000);
+    expect(sawSelect).toBe(true);
+
+    resolveAttach();
     o.ws.close();
   }, 15000);
 
