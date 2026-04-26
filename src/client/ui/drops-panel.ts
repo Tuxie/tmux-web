@@ -59,6 +59,7 @@ export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promis
       row.appendChild(meta);
 
       const revoke = document.createElement('button');
+      revoke.type = 'button';
       revoke.className = 'tb-btn tw-drops-revoke';
       // Nerd Font nf-cod-trash (U+EA81). Topaz8 NF ships this glyph.
       revoke.textContent = '\uEA81';
