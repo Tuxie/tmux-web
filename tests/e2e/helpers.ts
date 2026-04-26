@@ -53,7 +53,17 @@ export function createIsolatedTmux(prefix: string, sessions: string[] = []): Iso
     wrapperPath,
     tmux,
     cleanup: () => {
-      try { tmux(['kill-server']); } catch { /* already gone */ }
+      try {
+        tmux(['kill-server']);
+      } catch (err) {
+        // Don't swallow silently: a leaked tmux server can leave a stale UNIX
+        // socket at <root>/sock that survives until the OS reaps /tmp.
+        // Logging makes the leak debuggable when CI hosts accumulate
+        // `mkdtemp`-prefixed dirs. Helpers run under the Playwright test
+        // runner (not the bunfig silencer preload), so console.warn lands
+        // on the e2e reporter's stderr where it belongs.
+        console.warn(`[e2e] kill-server failed (already gone?): ${err}`);
+      }
       try { fs.rmSync(root, { recursive: true, force: true }); } catch { /* best-effort */ }
     },
   };

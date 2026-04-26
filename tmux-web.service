@@ -8,6 +8,8 @@ ExecStart=tmux-web --listen=127.0.0.1:4022
 Restart=on-failure
 RestartSec=2s
 
+# Environment=TMUX_WEB_USERNAME=youruser
+# Environment=TMUX_WEB_PASSWORD=changeme
 Environment=PATH=/home/linuxbrew/.linuxbrew/bin:/usr/local/bin:/usr/bin:/bin
 
 [Install]

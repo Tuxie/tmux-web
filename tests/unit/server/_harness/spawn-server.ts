@@ -77,6 +77,8 @@ export async function startTestServer(opts: HarnessOpts = {}): Promise<Harness> 
     maxFilesPerSession: 20,
     ttlMs: 60_000,
     autoUnlinkOnClose: false,
+    // Generous; tests don't exercise the global quota path here.
+    maxRootBytes: 4 * 1024 * 1024 * 1024,
   };
 
   const tmuxControl = opts.tmuxControl

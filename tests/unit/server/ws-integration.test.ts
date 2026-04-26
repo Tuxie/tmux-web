@@ -133,6 +133,32 @@ describe('ws upgrade rejections', () => {
     expect(raw).toContain('WWW-Authenticate');
   });
 
+  test('tw_auth query token is honoured on WS upgrade (parity with HTTP)', async () => {
+    // Mirrors the HTTP path at src/server/http.ts:323-325. Cluster 03
+    // (docs/code-analysis/2026-04-26) records the rationale: a future
+    // client (e.g. Safari WKWebView) that can't preserve URL userinfo
+    // through the WebSocket handshake must still authenticate via the
+    // `tw_auth` query parameter the desktop wrapper hands out.
+    h = await startTestServer({
+      testMode: false,
+      auth: { enabled: true, username: 'u', password: 'p' },
+      configOverrides: { exposeClientAuth: true, clientAuthToken: 'client-token' },
+    });
+    const port = Number(new URL(h.url).port);
+
+    // Without the token: 401.
+    const denied = await rawUpgrade(port, '/ws?session=main&cols=80&rows=24');
+    expect(denied.statusCode).toBe(401);
+
+    // With the token: upgrade is accepted (101 Switching Protocols).
+    const accepted = await rawUpgrade(port, '/ws?session=main&cols=80&rows=24&tw_auth=client-token');
+    expect(accepted.statusCode).toBe(101);
+
+    // Wrong token: still 401.
+    const wrong = await rawUpgrade(port, '/ws?session=main&cols=80&rows=24&tw_auth=nope');
+    expect(wrong.statusCode).toBe(401);
+  });
+
   // Note: we cannot exercise the IP-reject branch from a localhost client —
   // `isAllowed()` unconditionally accepts LOCALHOST_IPS (127.0.0.1, ::1)
   // regardless of the allowlist. That branch is covered by the pure-unit

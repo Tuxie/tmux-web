@@ -5,6 +5,7 @@ import {
   isIpLiteral,
   isOriginAllowed,
   logOriginReject,
+  canonicaliseAllowedIp,
   _resetRecentOriginRejects,
 } from '../../../src/server/origin.js';
 
@@ -178,6 +179,88 @@ describe('isOriginAllowed', () => {
     // "return ip" fallback in normaliseIpV4Mapped.
     const ctx = mkCtx({ allowedIps: new Set(['127.0.0.1', '::1']) });
     expect(isOriginAllowed(mkReq('http://[::ffff:1:2:3]:4022'), ctx)).toBe(false);
+  });
+});
+
+describe('canonicaliseAllowedIp (F4 — IPv6 allowlist canonicalisation)', () => {
+  // Cluster 04, finding F4 (docs/code-analysis/2026-04-26): a user passing
+  // a non-canonical IPv6 form to `--allow-ip` would silently fail-closed
+  // against the canonical form `parseOriginHeader` returns. The fix runs
+  // every `--allow-ip` entry through this normaliser at parse time so
+  // `--allow-ip ::0001` matches an Origin of `http://[::1]:4022`.
+
+  it('passes IPv4 entries through unchanged', () => {
+    expect(canonicaliseAllowedIp('127.0.0.1')).toBe('127.0.0.1');
+    expect(canonicaliseAllowedIp('192.168.2.4')).toBe('192.168.2.4');
+    expect(canonicaliseAllowedIp('10.0.0.1')).toBe('10.0.0.1');
+  });
+
+  it('canonicalises ::0001 to ::1 (zero-padded → compressed)', () => {
+    expect(canonicaliseAllowedIp('::0001')).toBe('::1');
+  });
+
+  it('canonicalises full-form 0:0:0:0:0:0:0:1 to ::1 (zero-run compression)', () => {
+    expect(canonicaliseAllowedIp('0:0:0:0:0:0:0:1')).toBe('::1');
+  });
+
+  it('leaves already-canonical IPv6 entries unchanged', () => {
+    expect(canonicaliseAllowedIp('::1')).toBe('::1');
+    expect(canonicaliseAllowedIp('::')).toBe('::');
+    expect(canonicaliseAllowedIp('2001:db8::1')).toBe('2001:db8::1');
+    expect(canonicaliseAllowedIp('fe80::1')).toBe('fe80::1');
+  });
+
+  it('lower-cases mixed-case IPv6 hex digits', () => {
+    expect(canonicaliseAllowedIp('FE80::1')).toBe('fe80::1');
+    expect(canonicaliseAllowedIp('2001:DB8::ABCD')).toBe('2001:db8::abcd');
+  });
+
+  it('returns hostnames untouched (operator typo: don\'t silently rewrite)', () => {
+    // A hostname slipped to --allow-ip should fail to match later, not
+    // be rewritten to something that accidentally matches.
+    expect(canonicaliseAllowedIp('myserver.lan')).toBe('myserver.lan');
+    expect(canonicaliseAllowedIp('localhost')).toBe('localhost');
+  });
+
+  it('returns garbage IPv6-shaped input untouched (URL parse fails)', () => {
+    // Contains a colon but is not a valid IPv6 literal; the URL constructor
+    // throws and we return the input as-is so the operator can debug it.
+    expect(canonicaliseAllowedIp('not:a:valid:ipv6:zzz')).toBe('not:a:valid:ipv6:zzz');
+  });
+
+  it('canonicalises ::ffff:127.0.0.1 to its hex-group form (URL behaviour)', () => {
+    // The browser URL parser rewrites the IPv4-mapped dotted suffix to
+    // hex groups: ::ffff:127.0.0.1 → ::ffff:7f00:1. The matching path
+    // in isOriginAllowed already understands both forms via
+    // normaliseIpV4Mapped, so canonicalising here keeps both sides on
+    // the same wire format.
+    expect(canonicaliseAllowedIp('::ffff:127.0.0.1')).toBe('::ffff:7f00:1');
+  });
+
+  it('non-canonical --allow-ip matches a canonical Origin via isOriginAllowed', () => {
+    // The end-to-end invariant: an operator who configures `--allow-ip ::0001`
+    // (non-canonical) MUST end up with an allowlist entry that matches an
+    // Origin of `http://[::1]:4022` (canonical, the form
+    // parseOriginHeader produces).
+    const allowedIps = new Set<string>(['127.0.0.1', '::1', canonicaliseAllowedIp('::0001')]);
+    const ctx = {
+      allowedIps,
+      allowedOrigins: [],
+      serverScheme: 'http' as const,
+      serverPort: 4022,
+    };
+    expect(isOriginAllowed('http://[::1]:4022', ctx)).toBe(true);
+  });
+
+  it('full-form --allow-ip matches a canonical Origin (the regression case)', () => {
+    const allowedIps = new Set<string>(['127.0.0.1', '::1', canonicaliseAllowedIp('0:0:0:0:0:0:0:1')]);
+    const ctx = {
+      allowedIps,
+      allowedOrigins: [],
+      serverScheme: 'http' as const,
+      serverPort: 4022,
+    };
+    expect(isOriginAllowed('http://[::1]:4022', ctx)).toBe(true);
   });
 });
 

@@ -101,6 +101,27 @@ describe("--allow-origin / --allow-ip defaults", () => {
   test("throws on malformed --allow-origin", () => {
     expect(() => parseConfig(["--no-auth", "-o", "not-a-url"])).toThrow();
   });
+
+  // Cluster 04, finding F4 (docs/code-analysis/2026-04-26):
+  // non-canonical IPv6 in --allow-ip must canonicalise so it matches the
+  // canonical form parseOriginHeader produces for the request's Origin.
+  test("canonicalises IPv6 --allow-ip entries (::0001 → ::1)", () => {
+    const { config } = parseConfig(["--no-auth", "-i", "::0001"]);
+    expect(config?.allowedIps.has("::1")).toBe(true);
+    // The non-canonical form must NOT survive — otherwise it would create
+    // a phantom entry that never matches anything on the request side.
+    expect(config?.allowedIps.has("::0001")).toBe(false);
+  });
+
+  test("canonicalises full-form IPv6 --allow-ip entries", () => {
+    const { config } = parseConfig(["--no-auth", "-i", "0:0:0:0:0:0:0:1"]);
+    expect(config?.allowedIps.has("::1")).toBe(true);
+  });
+
+  test("leaves IPv4 --allow-ip entries unchanged", () => {
+    const { config } = parseConfig(["--no-auth", "-i", "192.168.2.4"]);
+    expect(config?.allowedIps.has("192.168.2.4")).toBe(true);
+  });
 });
 
 import { warnIfDangerousOriginConfig } from "../../../src/server/index.js";

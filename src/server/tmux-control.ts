@@ -3,6 +3,8 @@
  * notification dispatch. Consumed by http.ts / ws.ts / foreground-process.ts
  * / tmux-inject.ts / osc52-reply.ts to replace execFileAsync fork-per-op. */
 
+import { randomBytes } from 'node:crypto';
+
 export type RunCmd = (args: readonly string[]) => Promise<string>;
 
 export type TmuxNotification =
@@ -284,11 +286,28 @@ export class ControlClient {
       onError: (cmdnum, stderr) => this.handleError(cmdnum, stderr),
       onNotification: (n) => this.notifyCb(n),
     });
+    // Per-client streaming UTF-8 decoder so multi-byte codepoints that
+    // straddle a Bun/Node stdout chunk boundary aren't corrupted into
+    // U+FFFD. `chunk.toString('utf8')` decoded each Buffer in isolation
+    // and lost any trailing partial sequence; mirroring pty.ts's
+    // approach (TextDecoder with `{stream: true}`) handles the carry
+    // correctly. Strings are passed through unchanged.
+    const decoder = new TextDecoder('utf-8');
     proc.stdout.on('data', (chunk: Buffer | string) => {
-      const s = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+      const s = typeof chunk === 'string'
+        ? chunk
+        : decoder.decode(chunk, { stream: true });
       this.parser.push(s);
     });
-    void proc.exited.then(() => this.onExit());
+    void proc.exited.then(() => {
+      // Flush any pending partial sequence carried in the decoder.
+      // A clean UTF-8 stream produces an empty flush; a stream that
+      // ended mid-codepoint produces the U+FFFD that would otherwise
+      // be silently dropped — better visible than lost.
+      const tail = decoder.decode();
+      if (tail) this.parser.push(tail);
+      this.onExit();
+    });
   }
 
   run(args: readonly string[]): Promise<string> {
@@ -316,7 +335,7 @@ export class ControlClient {
    *  tmux. We pre-mark them stale via pendingStaleBegins so they cannot
    *  be attributed to the next command in the queue. */
   async probe(): Promise<void> {
-    const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    const token = randomBytes(8).toString('hex');
     let iterations = 0;
     this.probeActive = true;
     this.probeConsumedStaleBegins = 0;

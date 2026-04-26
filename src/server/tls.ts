@@ -1,5 +1,5 @@
 import { execFileSync } from 'child_process';
-import { mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, renameSync, existsSync, statSync } from 'fs';
+import { mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, renameSync, existsSync, statSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
@@ -73,8 +73,17 @@ export function generateSelfSignedCert(configDir?: string): TlsCert {
   mkdirSync(tlsDir, { recursive: true, mode: 0o700 });
   const certTmp = certPath + '.part';
   const keyTmp = keyPath + '.part';
-  writeFileSync(certTmp, fresh.cert, { mode: 0o600 });
-  writeFileSync(keyTmp, fresh.key, { mode: 0o600 });
+  // Clear any stale .part files from a prior crashed run so the
+  // exclusive-create (`flag: 'wx'`) write below succeeds. Wrapped in
+  // try/catch because the common case is "no stale file"; ENOENT is
+  // expected and not an error. The exclusive-create then guarantees we
+  // are writing to a regular file we just created — defending against a
+  // hostile-symlink-at-<tlsDir>/selfsigned.key.part attack on shared
+  // hosts.
+  try { unlinkSync(certTmp); } catch {}
+  try { unlinkSync(keyTmp); } catch {}
+  writeFileSync(certTmp, fresh.cert, { mode: 0o600, flag: 'wx' });
+  writeFileSync(keyTmp, fresh.key, { mode: 0o600, flag: 'wx' });
   renameSync(certTmp, certPath);
   renameSync(keyTmp, keyPath);
 

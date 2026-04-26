@@ -15,6 +15,34 @@ export interface DropStorage {
    *  after its first reader closes it. Falls back to TTL-only when the
    *  binary is missing. */
   autoUnlinkOnClose: boolean;
+  /** Optional global byte cap across every drop currently on disk under
+   *  `root`. A new drop that would push the total above this is rejected
+   *  with `DropQuotaExceededError` rather than silently evicting older
+   *  drops — eviction is the ring-buffer's job (`maxFilesPerSession`).
+   *  The cap exists so an authenticated client can't fill
+   *  `/run/user/<uid>` by spamming distinct upload requests faster than
+   *  the inotify-driven unlink pipeline reclaims them. Omit (or set to
+   *  ≤ 0) to disable; `defaultDropStorage` populates a generous 4 GiB
+   *  default. See cluster 03 (docs/code-analysis/2026-04-26) for the
+   *  calibration. */
+  maxRootBytes?: number;
+}
+
+/** Thrown by `writeDrop` when accepting the drop would push the global
+ *  byte usage above `storage.maxRootBytes`. The HTTP handler maps this
+ *  to a 413 (Payload Too Large), matching the existing per-upload cap
+ *  rejection shape. */
+export class DropQuotaExceededError extends Error {
+  readonly currentBytes: number;
+  readonly attemptedBytes: number;
+  readonly capBytes: number;
+  constructor(currentBytes: number, attemptedBytes: number, capBytes: number) {
+    super(`drop quota exceeded: ${currentBytes} + ${attemptedBytes} > ${capBytes}`);
+    this.name = 'DropQuotaExceededError';
+    this.currentBytes = currentBytes;
+    this.attemptedBytes = attemptedBytes;
+    this.capBytes = capBytes;
+  }
 }
 
 export interface DropRootOptions {
@@ -48,6 +76,14 @@ export function resolveDropRoot(opts: DropRootOptions = {}): string {
     : path.join(tmpBase, `tmux-web-drop-${uid}`);
 }
 
+/** 4 GiB global ceiling on the drop root: per-upload cap (50 MiB in
+ *  http.ts) × ring-buffer size (20) × four-session breathing room. The
+ *  ring-buffer + TTL evict in steady-state, but a burst of distinct
+ *  upload requests can still race the inotify-driven unlink; the global
+ *  cap is the backstop. Pickable per-storage so tests can pin a small
+ *  number. See cluster 03 (docs/code-analysis/2026-04-26). */
+const DEFAULT_MAX_ROOT_BYTES = 4 * 1024 * 1024 * 1024;
+
 /** Build a default per-user drop storage under $XDG_RUNTIME_DIR when set
  *  (Linux: /run/user/<uid>/tmux-web/drop), otherwise under os.tmpdir()
  *  scoped by uid to keep multi-user hosts from colliding. Mode 0700.
@@ -59,27 +95,88 @@ export function resolveDropRoot(opts: DropRootOptions = {}): string {
 export function defaultDropStorage(): DropStorage {
   const base = resolveDropRoot({ override: process.env.TMUX_WEB_DROP_ROOT });
   fs.mkdirSync(base, { recursive: true, mode: 0o700 });
-  return {
+  const storage: DropStorage = {
     root: base,
     maxFilesPerSession: 20,
     ttlMs: 10 * 60 * 1000,
     autoUnlinkOnClose: hasInotifywait(),
+    maxRootBytes: DEFAULT_MAX_ROOT_BYTES,
   };
+  startPeriodicSweep(storage);
+  return storage;
+}
+
+/** Active periodic sweeps keyed by storage object. Tracked so the same
+ *  storage isn't double-armed and so test cleanup can stop the timer
+ *  via `cleanupAll`. */
+const activeSweepIntervals = new Map<DropStorage, ReturnType<typeof setInterval>>();
+
+/** Arm a periodic sweep at `ttlMs / 2` so stale drops are reclaimed
+ *  proactively rather than only on the next `writeDrop`. The interval
+ *  is `unref()`d so it does not keep the event loop alive past
+ *  `server.stop()` / process exit. Idempotent: re-arming the same
+ *  storage is a no-op. */
+export function startPeriodicSweep(storage: DropStorage): void {
+  if (activeSweepIntervals.has(storage)) return;
+  if (storage.ttlMs <= 0) return;
+  const intervalMs = Math.max(1, Math.floor(storage.ttlMs / 2));
+  const timer = setInterval(() => {
+    try { sweepRoot(storage); } catch { /* best-effort */ }
+  }, intervalMs);
+  // Don't block `server.stop()` / process exit on a future sweep tick.
+  if (typeof timer.unref === 'function') timer.unref();
+  activeSweepIntervals.set(storage, timer);
+}
+
+/** Stop the periodic sweep for `storage`. Called from `cleanupAll`;
+ *  exported so tests can stop sweeps they explicitly armed. */
+export function stopPeriodicSweep(storage: DropStorage): void {
+  const timer = activeSweepIntervals.get(storage);
+  if (!timer) return;
+  clearInterval(timer);
+  activeSweepIntervals.delete(storage);
 }
 
 let _inotifywaitProbed: boolean | null = null;
+/** Probe deps — extracted into an interface so tests can inject a fake
+ *  spawnSync (verifying the 2 s timeout shape) and a fake platform
+ *  string (verifying the non-Linux short-circuit) without monkey-patching
+ *  globals. Production callers rely on the defaults. */
+export interface InotifyProbeDeps {
+  spawnSync?: (cmd: string[], opts: { stdio: ['ignore', 'ignore', 'ignore']; timeout: number }) => { exitCode: number | null };
+  platform?: NodeJS.Platform;
+}
+
 /** One-shot feature probe. Inotify-tools isn't guaranteed everywhere; on
  *  macOS / BSD / broken installs we quietly fall back to TTL-only.
  *
  *  Note: inotifywait prints its help text and exits 1 (not 0), which is
  *  the tool's convention. We treat any "it ran without the kernel / OS
  *  rejecting the executable" as success — a failed spawn raises
- *  ENOENT/EACCES and lands us in the catch. */
-export function hasInotifywait(): boolean {
+ *  ENOENT/EACCES and lands us in the catch.
+ *
+ *  Skipped entirely on non-Linux platforms — inotifywait is Linux-only,
+ *  so the spawn cost is wasted and any incidentally-installed binary
+ *  would not actually deliver close events the kernel doesn't emit.
+ *
+ *  Bounded by a 2 s timeout on the spawn (Bun 1.3+ `timeout` option) so
+ *  a wedged `inotifywait` (e.g. an aging container with broken /proc)
+ *  cannot hang server startup. The timeout is best-effort — if Bun's
+ *  `timeout` semantics on a wedged child don't actually fire, the
+ *  fallback is the same 'spawn failed' branch. Cluster 15 / F2 —
+ *  docs/code-analysis/2026-04-26. */
+export function hasInotifywait(deps?: InotifyProbeDeps): boolean {
   if (_inotifywaitProbed !== null) return _inotifywaitProbed;
+  const platform = deps?.platform ?? process.platform;
+  if (platform !== 'linux') {
+    _inotifywaitProbed = false;
+    return _inotifywaitProbed;
+  }
+  const spawn = deps?.spawnSync ?? ((cmd, opts) => Bun.spawnSync(cmd, opts) as { exitCode: number | null });
   try {
-    const res = Bun.spawnSync(['inotifywait', '--help'], {
+    const res = spawn(['inotifywait', '--help'], {
       stdio: ['ignore', 'ignore', 'ignore'],
+      timeout: 2000,
     });
     _inotifywaitProbed = res.exitCode !== null;
   } catch {
@@ -194,12 +291,12 @@ function stopAllWatchers(): Promise<void> {
   return Promise.allSettled(pending).then(() => undefined);
 }
 
-/** Drop sanitisation. `name` is the filename the browser supplied; we
+/** Drop sanitization. `name` is the filename the browser supplied; we
  *  strip anything path-like, collapse control chars, cap length, and
  *  rescue empty / dot / dot-dot results to a stable "file" placeholder.
  *  The original name is preserved as-is otherwise (so spaces, unicode,
  *  etc. come through unchanged). */
-export function sanitiseFilename(name: string): string {
+export function sanitizeFilename(name: string): string {
   let out = (name ?? '')
     .replace(/[\/\\\x00]/g, '')
     .replace(/[\x01-\x1f\x7f]/g, '_')
@@ -213,6 +310,29 @@ export function sanitiseFilename(name: string): string {
  *  time; collision-free. Used as the subdir name for each drop. */
 function newDropId(): string {
   return `${Date.now().toString(36)}-${crypto.randomBytes(4).toString('hex')}`;
+}
+
+/** Sum the on-disk byte size of every drop file currently under
+ *  `storage.root`. Returns 0 if the root is missing. Best-effort:
+ *  drop subdirs that race a delete are skipped silently. */
+export function currentRootBytes(storage: DropStorage): number {
+  let total = 0;
+  let entries: string[];
+  try { entries = fs.readdirSync(storage.root); }
+  catch { return 0; }
+  for (const id of entries) {
+    const dir = path.join(storage.root, id);
+    let inner: string[];
+    try { inner = fs.readdirSync(dir); }
+    catch { continue; }
+    for (const name of inner) {
+      try {
+        const stat = fs.statSync(path.join(dir, name));
+        if (stat.isFile()) total += stat.size;
+      } catch { /* raced delete — skip */ }
+    }
+  }
+  return total;
 }
 
 /** Sweep the storage root: any drop subdir whose mtime is older than the
@@ -285,7 +405,20 @@ export function writeDrop(
   fs.mkdirSync(storage.root, { recursive: true, mode: 0o700 });
   sweepRoot(storage);
 
-  const filename = sanitiseFilename(rawName);
+  // Enforce the global byte cap *after* the sweep so a fresh upload
+  // following a TTL-driven eviction can succeed. The check is on the
+  // post-sweep total so the cap reflects what's actually on disk, not
+  // a stale snapshot. Quota math uses byteLength so Buffer + Uint8Array
+  // both report the wire size.
+  if (typeof storage.maxRootBytes === 'number' && storage.maxRootBytes > 0) {
+    const current = currentRootBytes(storage);
+    const incoming = data.byteLength;
+    if (current + incoming > storage.maxRootBytes) {
+      throw new DropQuotaExceededError(current, incoming, storage.maxRootBytes);
+    }
+  }
+
+  const filename = sanitizeFilename(rawName);
   const dropId = newDropId();
   const dropDir = path.join(storage.root, dropId);
   fs.mkdirSync(dropDir, { mode: 0o700 });
@@ -363,8 +496,9 @@ export function deleteDrop(storage: DropStorage, dropId: string): boolean {
 
 /** Remove every drop under the storage root. Call once on server
  *  shutdown to avoid leaving drops around across restarts. Also stops
- *  any pending auto-unlink watchers. */
+ *  any pending auto-unlink watchers and the periodic sweep timer. */
 export async function cleanupAll(storage: DropStorage): Promise<void> {
+  stopPeriodicSweep(storage);
   const stopped = stopAllWatchers();
   try { fs.rmSync(storage.root, { recursive: true, force: true }); } catch { /* ignore */ }
   await stopped;

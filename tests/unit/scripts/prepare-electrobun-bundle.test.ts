@@ -71,4 +71,42 @@ describe('prepare-electrobun-bundle', () => {
     expect(fs.existsSync(path.join(appRoot, 'Contents', 'MacOS', 'tmux-web'))).toBe(true);
     expect(fs.existsSync(path.join(appRoot, 'Contents', 'Resources', 'app', 'tmux-web'))).toBe(false);
   });
+
+  test('resolveMacosAppRoot derives the stable appName when ELECTROBUN_APP_NAME is omitted', () => {
+    const root = makeTempRoot();
+    const buildRoot = path.join(root, 'build');
+    const appRoot = makeApp(root, 'build/stable-macos-arm64/tmux-term.app');
+
+    expect(resolveMacosAppRoot({
+      ELECTROBUN_BUILD_DIR: buildRoot,
+      ELECTROBUN_BUILD_ENV: 'stable',
+      ELECTROBUN_ARCH: 'arm64',
+    })).toBe(appRoot);
+  });
+
+  test('resolveMacosAppRoot derives the dev-suffixed appName when ELECTROBUN_APP_NAME is omitted', () => {
+    const root = makeTempRoot();
+    const buildRoot = path.join(root, 'build');
+    const appRoot = makeApp(root, 'build/dev-macos-arm64/tmux-term-dev.app');
+
+    expect(resolveMacosAppRoot({
+      ELECTROBUN_BUILD_DIR: buildRoot,
+      ELECTROBUN_BUILD_ENV: 'dev',
+      ELECTROBUN_ARCH: 'arm64',
+    })).toBe(appRoot);
+  });
+
+  test('prepareMacosBundle throws when the source executable is missing', () => {
+    const root = makeTempRoot();
+    const buildDir = path.join(root, 'build', 'dev-macos-arm64');
+    const appRoot = makeApp(root, 'build/dev-macos-arm64/tmux-term-dev.app');
+    fs.rmSync(path.join(appRoot, 'Contents', 'Resources', 'app', 'tmux-web'));
+
+    expect(() => prepareMacosBundle({
+      ELECTROBUN_BUILD_DIR: buildDir,
+      ELECTROBUN_BUILD_ENV: 'dev',
+      ELECTROBUN_ARCH: 'arm64',
+      ELECTROBUN_APP_NAME: 'tmux-term-dev',
+    })).toThrow(/missing executable for tmux-term bundle/);
+  });
 });

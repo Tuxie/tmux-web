@@ -21,14 +21,15 @@ import {
   writeDrop,
   listDrops,
   deleteDrop,
+  DropQuotaExceededError,
   type DropStorage,
 } from './file-drop.js';
 import { getForegroundProcess } from './foreground-process.js';
 import { sendBytesToPane } from './tmux-inject.js';
 import { formatBracketedPasteForDrop } from './drop-paste.js';
 import { sanitizeSession } from './pty.js';
-import { execFileAsync } from './exec.js';
 import { type TmuxControl } from './tmux-control.js';
+import { listSessionsViaTmux, listWindowsViaTmux } from './tmux-listings.js';
 import pkg from '../../package.json' with { type: 'json' };
 
 export interface HttpHandlerOptions {
@@ -58,7 +59,12 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' };
 /** Detect whether a `PUT /api/session-settings` patch tries to write a
  *  `clipboard` entry on any session. Clipboard grants are consent-only
  *  (recorded via `recordGrant` from `clipboard-policy.ts`); any PUT
- *  that carries one must be rejected. */
+ *  that carries one must be rejected.
+ *
+ *  Kept alongside `validateSessionPatch` (cluster 15 / F7) as a belt-
+ *  and-braces check — the validator subsumes the same rule but the
+ *  string-walking shape here is a useful regression guard against
+ *  future refactors that bypass the validator. */
 function hasClipboardField(patch: unknown): boolean {
   if (!patch || typeof patch !== 'object') return false;
   const sessions = (patch as { sessions?: unknown }).sessions;
@@ -70,6 +76,68 @@ function hasClipboardField(patch: unknown): boolean {
     }
   }
   return false;
+}
+
+/** Hand-rolled typed validator for the `PUT /api/session-settings`
+ *  patch shape. Replaces a previous reliance on `JSON.parse` casting
+ *  the body straight into `SessionsConfigPatch` with no runtime
+ *  schema gate.
+ *
+ *  Accepts: `{lastActive?: string, sessions?: {[name]: StoredSessionSettings}}`.
+ *  Rejects:
+ *    - non-object root,
+ *    - non-string `lastActive`,
+ *    - non-object `sessions`,
+ *    - any session entry that's not a plain object,
+ *    - any session entry that carries a `clipboard` field (consent-only,
+ *      see `hasClipboardField` above),
+ *    - any unknown top-level key — fail closed so a future refactor that
+ *      adds another protected field can't be silently bypassed by an
+ *      authenticated client sending the field via this PUT.
+ *
+ *  Returns `{ok: false, reason}` or `{ok: true, patch}`. The patch
+ *  returned is the same object the caller passed in (no defensive
+ *  copy) — `applyPatch` does its own sanitization via
+ *  `sanitizeSessions`. Cluster 15 / F7 — docs/code-analysis/2026-04-26. */
+export type SessionPatchValidationResult =
+  | { ok: true; patch: SessionsConfigPatch }
+  | { ok: false; reason: string };
+
+const ALLOWED_PATCH_TOP_KEYS = new Set(['lastActive', 'sessions']);
+
+export function validateSessionPatch(value: unknown): SessionPatchValidationResult {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { ok: false, reason: 'patch must be a JSON object' };
+  }
+  const obj = value as Record<string, unknown>;
+  for (const key of Object.keys(obj)) {
+    if (!ALLOWED_PATCH_TOP_KEYS.has(key)) {
+      return { ok: false, reason: `unknown top-level key: ${key}` };
+    }
+  }
+  if ('lastActive' in obj && obj.lastActive !== undefined) {
+    if (typeof obj.lastActive !== 'string') {
+      return { ok: false, reason: 'lastActive must be a string' };
+    }
+  }
+  if ('sessions' in obj && obj.sessions !== undefined) {
+    if (!obj.sessions || typeof obj.sessions !== 'object' || Array.isArray(obj.sessions)) {
+      return { ok: false, reason: 'sessions must be an object' };
+    }
+    const sessions = obj.sessions as Record<string, unknown>;
+    for (const [name, entry] of Object.entries(sessions)) {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        return { ok: false, reason: `session ${name} must be an object` };
+      }
+      if ('clipboard' in (entry as object)) {
+        return {
+          ok: false,
+          reason: 'clipboard entries are not writable via PUT — use the consent prompt',
+        };
+      }
+    }
+  }
+  return { ok: true, patch: obj as SessionsConfigPatch };
 }
 
 /** Thin wrapper that resolves the foreground process (so we know
@@ -108,6 +176,24 @@ function getAssetPath(key: string): string | null {
   return embeddedAssets[key] || null;
 }
 
+// Holds the most recently registered exit listener so a re-run of
+// `materializeBundledThemes` (e.g. tests re-instantiating
+// `createHttpHandler` in-process) replaces it instead of stacking a
+// second one on top — without this guard, repeated mounts trip Node's
+// >10-listener warning. Cluster 16 / F3 — docs/code-analysis/2026-04-26.
+let activeMaterializedExitListener: (() => void) | null = null;
+
+// ACCEPTED (cluster 16 F1, decided 2026-04-26): the "extract every
+// embedded theme asset to $TMPDIR/tmux-web-themes-${pid} on startup,
+// register a `process.on('exit')` cleanup hook" pattern is
+// scale-fragile but explicitly accepted at T2 (current scope: a 2-pack
+// embedded-theme repo, single user-instance per --listen host:port,
+// solo maintainer). Cluster 16 finding F1 is closed-by-decision,
+// not deferred-pending: revisit only if the repo grows past T2 or if
+// embedded themes scale into the dozens. The follow-up shape, if
+// it ever ships, is one-shot extraction on first request (keyed by
+// content hash) or always-from-buffer reads inside `themes.ts`. See
+// docs/code-analysis/2026-04-26/clusters/16-theme-pack-runtime.md.
 async function materializeBundledThemes(): Promise<string | null> {
   const keys = Object.keys(embeddedAssets).filter(key => key.startsWith('themes/'));
   if (keys.length === 0) return null;
@@ -120,11 +206,18 @@ async function materializeBundledThemes(): Promise<string | null> {
     const bytes = new Uint8Array(await Bun.file(src).arrayBuffer());
     fs.writeFileSync(dest, bytes);
   }
-  process.on('exit', () => {
+  // Drop any prior listener registered by an earlier call in the same
+  // process so the listener count stays bounded across re-mounts.
+  if (activeMaterializedExitListener) {
+    process.removeListener('exit', activeMaterializedExitListener);
+  }
+  const listener = () => {
     try {
       fs.rmSync(root, { recursive: true, force: true });
     } catch {}
-  });
+  };
+  activeMaterializedExitListener = listener;
+  process.on('exit', listener);
   return root;
 }
 
@@ -163,14 +256,29 @@ function notFound(): Response {
   return new Response('Not Found', { status: 404 });
 }
 
+/** Cached terminal version strings for `/api/terminal-versions`.
+ *
+ *  Reads the `dist/client/xterm-version.json` sidecar emitted by
+ *  bun-build.ts (Cluster 16 / F2 — docs/code-analysis/2026-04-26).
+ *  Replaces the previous approach of regex-scanning the ~1.5 MB
+ *  `xterm.js` bundle on every startup to recover a 7-char SHA the
+ *  build step already knows. The build-time sentinel comment in the
+ *  bundle is still the source of truth for `verify-vendor-xterm.ts`
+ *  — that path is unchanged. */
 function getTerminalVersions(projectRoot: string): Record<string, string> {
   const versions: Record<string, string> = {};
-  const xtermAssetPath = embeddedAssets['dist/client/xterm.js']
-    ?? path.join(projectRoot, 'dist/client/xterm.js');
+  const versionAssetPath = embeddedAssets['dist/client/xterm-version.json']
+    ?? path.join(projectRoot, 'dist/client/xterm-version.json');
   try {
-    const bundle = fs.readFileSync(xtermAssetPath, 'utf-8');
-    const m = bundle.match(/tmux-web: vendor xterm\.js rev ([0-9a-f]{40})/);
-    versions['xterm'] = m ? `xterm.js (HEAD, ${m[1].slice(0, 7)})` : 'xterm.js (unknown)';
+    const raw = fs.readFileSync(versionAssetPath, 'utf-8');
+    const parsed = JSON.parse(raw) as { rev?: unknown; sha?: unknown };
+    if (typeof parsed.rev === 'string' && /^[0-9a-f]{7}$/.test(parsed.rev)) {
+      versions['xterm'] = `xterm.js (HEAD, ${parsed.rev})`;
+    } else if (typeof parsed.sha === 'string' && /^[0-9a-f]{40}$/.test(parsed.sha)) {
+      versions['xterm'] = `xterm.js (HEAD, ${parsed.sha.slice(0, 7)})`;
+    } else {
+      versions['xterm'] = 'xterm.js (unknown)';
+    }
   } catch {
     versions['xterm'] = 'xterm.js (unknown)';
   }
@@ -220,8 +328,16 @@ export type HttpHandler = (req: Request, server: BunServer<unknown>) => Response
 
 /** Read the request body into a Buffer, enforcing a byte cap mid-stream
  *  so a malicious client can't OOM the process. Returns `null` when the
- *  cap is exceeded. */
-async function readBodyCapped(req: Request, max: number): Promise<Buffer | null> {
+ *  cap is exceeded.
+ *
+ *  When the cap is exceeded we call `reader.cancel()` to signal the
+ *  underlying source to abort. The WHATWG Streams spec describes cancel
+ *  as "may signal the underlying source to abort" — Bun's Request body
+ *  reader has been observed to hang when the upstream connection is
+ *  alive but slow-feeding bytes. We race the cancel against a 500 ms
+ *  timeout so a slow / wedged upstream cannot hold this handler up.
+ *  Cluster 15 / F3 — docs/code-analysis/2026-04-26. */
+export async function readBodyCapped(req: Request, max: number): Promise<Buffer | null> {
   if (!req.body) return Buffer.alloc(0);
   const reader = req.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -232,7 +348,16 @@ async function readBodyCapped(req: Request, max: number): Promise<Buffer | null>
       if (done) break;
       total += value.byteLength;
       if (total > max) {
-        try { await reader.cancel(); } catch {}
+        try {
+          await Promise.race([
+            reader.cancel(),
+            new Promise((_, reject) => setTimeout(
+              () => reject(new Error('cancel timeout')),
+              500,
+            )),
+          ]);
+        } catch { /* swallow cancel errors and timeout — the body is past
+                     the cap regardless and we want to release the lock */ }
         return null;
       }
       chunks.push(value);
@@ -386,56 +511,44 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
 
     if (pathname === '/api/sessions') {
       if (method !== 'GET') return new Response(null, { status: 405 });
-      let stdout: string;
-      try {
-        stdout = await opts.tmuxControl.run(['list-sessions', '-F', '#{session_id}:#{session_name}']);
-      } catch {
-        // Control client unavailable or stuck (NoControlClientError / TmuxCommandError).
-        // Fall back to execFileAsync so a stuck control client never causes
-        // the sessions menu to return an empty list or hang.
-        try {
-          const r = await execFileAsync(config.tmuxBin, ['list-sessions', '-F', '#{session_id}:#{session_name}']);
-          stdout = r.stdout;
-        } catch {
-          return new Response('[]', { headers: JSON_HEADERS });
-        }
-      }
-      // tmux's #{session_id} is the `$N` internal id — monotonic
-      // across the tmux server's lifetime, not 1-indexed per list.
-      // Strip the `$` so the client can render it like window ids.
-      const sessions = stdout.trim().split('\n').filter(Boolean).map((line) => {
-        const [rawId, ...rest] = line.split(':');
-        const name = rest.join(':');
-        return { id: (rawId ?? '').replace(/^\$/, ''), name };
+      // tmux's #{session_id} is the `$N` internal id — monotonic across
+      // the tmux server's lifetime, not 1-indexed per list. The shared
+      // helper strips the `$` so the client can render it like window
+      // ids. Tab-separated session_id/session_name (instead of `:`)
+      // mirrors the v1.7.0 windows decision and tolerates session names
+      // containing colons (an external tmux client can create them
+      // even though the WS path rejects `:`). Falls back to
+      // execFileAsync if the control client is unavailable / stuck.
+      const sessions = await listSessionsViaTmux({
+        tmuxControl: opts.tmuxControl,
+        tmuxBin: config.tmuxBin,
+        preferControl: true,
       });
-      return new Response(JSON.stringify(sessions), { headers: JSON_HEADERS });
+      return new Response(JSON.stringify(sessions ?? []), { headers: JSON_HEADERS });
     }
 
     if (pathname === '/api/windows') {
       if (method !== 'GET') return new Response(null, { status: 405 });
       const sess = url.searchParams.get('session') || 'main';
-      const LIST_WINDOWS_ARGS = ['list-windows', '-t', sess, '-F', '#{window_index}\t#{window_name}\t#{window_active}'] as const;
-      const parseWindows = (raw: string) =>
-        raw.trim().split('\n').filter(Boolean).map(line => {
-          const [index, name, active] = line.split('\t');
-          return { index, name, active: active === '1' };
-        });
-      try {
-        // Tab-separated — see matching comment in ws.ts sendWindowState.
-        const stdout = await opts.tmuxControl.run(LIST_WINDOWS_ARGS);
-        return new Response(JSON.stringify(parseWindows(stdout)), { headers: JSON_HEADERS });
-      } catch {
-        try {
-          const r = await execFileAsync(config.tmuxBin, LIST_WINDOWS_ARGS);
-          return new Response(JSON.stringify(parseWindows(r.stdout)), { headers: JSON_HEADERS });
-        } catch {
-          return new Response('[]', { headers: JSON_HEADERS });
-        }
-      }
+      // Tab-separated — see matching comment in ws.ts sendWindowState.
+      // The shared helper handles the control-client-first / fallback
+      // flow uniformly.
+      const windows = await listWindowsViaTmux(sess, {
+        tmuxControl: opts.tmuxControl,
+        tmuxBin: config.tmuxBin,
+        preferControl: true,
+      });
+      return new Response(JSON.stringify(windows ?? []), { headers: JSON_HEADERS });
     }
 
     if (pathname === '/api/drops/paste') {
       if (method !== 'POST') return new Response(null, { status: 405 });
+      // The `session` query param is accepted as-is (only sanitized, not
+      // cross-checked against an open WS for the requesting auth
+      // context). Drops are a per-user pool, not session-scoped, and
+      // cross-session paste is intentional behaviour — see cluster 03
+      // (docs/code-analysis/2026-04-26) for the explicit decision and
+      // the rejected "scope to live-WS sessions" alternative.
       const session = sanitizeSession(url.searchParams.get('session') || 'main');
       const id = url.searchParams.get('id');
       if (!id) return new Response('Missing id', { status: 400 });
@@ -501,6 +614,9 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
 
     if (pathname === '/api/drop') {
       if (method !== 'POST') return new Response(null, { status: 405 });
+      // Same per-user-pool semantics as `/api/drops/paste` above —
+      // cross-session paste is intentional, not a bug. Cluster 03
+      // (docs/code-analysis/2026-04-26) records the decision.
       const session = sanitizeSession(url.searchParams.get('session') || 'main');
       // Browser encodes the original filename so arbitrary UTF-8 / special
       // chars survive HTTP headers (which are latin-1 by default).
@@ -526,6 +642,13 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
         absolutePath = wrote.absolutePath;
         filename = wrote.filename;
       } catch (err) {
+        if (err instanceof DropQuotaExceededError) {
+          // Match the per-upload-cap rejection shape so the client's
+          // "too large" branch handles both. The message includes the
+          // bytes-vs-cap math for the debug log only.
+          debug(config, `drop write rejected: ${err.message}`);
+          return new Response('Drop quota exceeded', { status: 413 });
+        }
         debug(config, `drop write failed: ${err}`);
         return new Response('Write failed', { status: 500 });
       }
@@ -568,29 +691,29 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
           debug(config, `session-settings PUT error: ${(err as Error).message}`);
           return new Response('Bad Request', { status: 400 });
         }
-        let patch: SessionsConfigPatch;
+        let parsed: unknown;
         try {
-          patch = JSON.parse(body);
+          parsed = JSON.parse(body);
         } catch {
           return new Response('Bad JSON', { status: 400 });
         }
-        if (!patch || typeof patch !== 'object') {
-          return new Response('Bad payload', { status: 400 });
+        // Central typed schema gate — rejects unknown top-level keys,
+        // unfit shapes, and (notably) any session patch carrying a
+        // `clipboard` field. Cluster 15 / F7 — docs/code-analysis/2026-04-26.
+        const validation = validateSessionPatch(parsed);
+        if (!validation.ok) {
+          return new Response(validation.reason, { status: 400 });
         }
-        // Clipboard grants are only writable via the consent-prompt
-        // pipeline (`recordGrant`, keyed by a live BLAKE3 of the
-        // requesting binary). Accepting them through this PUT would let
-        // an authenticated client pre-seed allow-grants for arbitrary
-        // `exePath` strings and bypass the prompt for any binary they
-        // control at that path. The client never sends this field —
-        // reject rather than silently drop so any future regression
-        // surfaces immediately.
+        const patch: SessionsConfigPatch = validation.patch;
+        // Belt-and-braces: hasClipboardField walks the tree once more
+        // looking for the literal 'clipboard' key. Defensive against a
+        // future refactor that loosens the validator. Both must agree.
         if (hasClipboardField(patch)) {
           return new Response('clipboard entries are not writable via PUT — use the consent prompt',
             { status: 400 });
         }
         try {
-          const next = applyPatch(opts.sessionsStorePath, patch);
+          const next = await applyPatch(opts.sessionsStorePath, patch);
           return new Response(JSON.stringify(next), { headers: JSON_HEADERS });
         } catch (err) {
           return new Response('Save failed', { status: 500 });
@@ -600,7 +723,7 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
         const name = url.searchParams.get('name');
         if (!name) return new Response('Missing name', { status: 400 });
         try {
-          const next = deleteSession(opts.sessionsStorePath, name);
+          const next = await deleteSession(opts.sessionsStorePath, name);
           return new Response(JSON.stringify(next), { headers: JSON_HEADERS });
         } catch {
           return new Response('Delete failed', { status: 500 });
@@ -615,11 +738,34 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
     }
 
     if (pathname === '/api/exit' && method === 'POST') {
+      // Intentionally not gated beyond Basic Auth (and the IP / Origin
+      // checks above). Deployment doc says non-credentialed kill paths
+      // should use the systemd unit + SIGTERM; the API exists as a
+      // convenience for the desktop wrapper that already holds the
+      // password. Kept as a maintainer decision — see cluster 03
+      // (docs/code-analysis/2026-04-26) for the rejected alternatives
+      // (re-prompt password, loopback-only, --allow-exit-api opt-in).
       const action = url.searchParams.get('action') ?? 'quit';
       const code = action === 'restart' ? 2 : 0;
-      setTimeout(() => process.exit(code), 100);
-      return new Response(action === 'restart' ? 'restarting' : 'quitting',
+      const response = new Response(action === 'restart' ? 'restarting' : 'quitting',
         { headers: { 'Content-Type': 'text/plain' } });
+      // Server-aware shutdown. Replaces a 100ms `setTimeout(process.exit)`
+      // that guessed at "long enough for Bun to flush the response and
+      // close the socket" — under load the response could still be
+      // in-flight when `process.exit` ran, dropping the body.
+      // `server.stop({ closeActiveConnections: false })` waits for
+      // in-flight responses (this one!) before resolving; only then do we
+      // exit. Used by `--reset` and the desktop wrapper's quit path; both
+      // continue to observe the response. Cluster 15 / F1 —
+      // docs/code-analysis/2026-04-26.
+      queueMicrotask(() => {
+        void (async () => {
+          try { await server.stop(false); }
+          catch { /* best-effort — fall through to process.exit anyway */ }
+          process.exit(code);
+        })();
+      });
+      return response;
     }
 
     return new Response(makeHtml(), { headers: { 'Content-Type': 'text/html' } });

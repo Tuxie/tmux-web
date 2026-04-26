@@ -708,19 +708,57 @@ describe('session button: click and menu interactions', () => {
     expect(switched).toContain('scratch');
   });
 
-  it('Kill session row sends kill message after confirm', async () => {
+  it('Kill session row sends kill message after confirm-modal Kill click', async () => {
     const sent: string[] = [];
     const t = await mountTopbar({ session: 'main', send: s => sent.push(s) });
     (t as any).cachedSessions = [{ id: '1', name: 'main' }];
     const menu = (globalThis.document as any).createElement('div');
     (t as any).renderSessionsMenu(menu, () => {});
-    (globalThis as any).confirm = () => true;
     const killItem = menu.children.find(
       (c: any) => typeof c.className === 'string' && c.className.includes('tw-dropdown-item')
         && !c.className.includes('tw-dd-session-item'),
     );
     killItem.click();
+    // The native confirm() has been replaced by an in-DOM modal.
+    // Find it by the title text and click the Kill session button.
+    await Promise.resolve();
+    const backdrop = (globalThis.document as any).body.children.find(
+      (c: any) => typeof c.className === 'string'
+        && c.className.includes('tw-clip-prompt-backdrop'),
+    );
+    expect(backdrop).toBeDefined();
+    const card = backdrop.children[0];
+    const btnRow = card.children[card.children.length - 1];
+    const killBtn = btnRow.children.find((b: any) => b.textContent === 'Kill session');
+    killBtn.dispatch('click', {});
+    // The modal resolution is async (Promise.then chain in topbar.ts);
+    // give microtasks a chance to flush before asserting.
+    await new Promise(r => setTimeout(r, 0));
     expect(sent).toContain(JSON.stringify({ type: 'session', action: 'kill' }));
+  });
+
+  it('Kill session row sends nothing when the confirm-modal Cancel is clicked', async () => {
+    const sent: string[] = [];
+    const t = await mountTopbar({ session: 'main', send: s => sent.push(s) });
+    (t as any).cachedSessions = [{ id: '1', name: 'main' }];
+    const menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+    const killItem = menu.children.find(
+      (c: any) => typeof c.className === 'string' && c.className.includes('tw-dropdown-item')
+        && !c.className.includes('tw-dd-session-item'),
+    );
+    killItem.click();
+    await Promise.resolve();
+    const backdrop = (globalThis.document as any).body.children.find(
+      (c: any) => typeof c.className === 'string'
+        && c.className.includes('tw-clip-prompt-backdrop'),
+    );
+    const card = backdrop.children[0];
+    const btnRow = card.children[card.children.length - 1];
+    const cancelBtn = btnRow.children.find((b: any) => b.textContent === 'Cancel');
+    cancelBtn.dispatch('click', {});
+    await new Promise(r => setTimeout(r, 0));
+    expect(sent.some(s => s.includes('"action":"kill"'))).toBe(false);
   });
 
   it('left-click on session button opens the sessions dropdown menu', async () => {

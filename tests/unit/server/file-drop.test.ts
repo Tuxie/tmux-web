@@ -3,7 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import {
-  sanitiseFilename,
+  sanitizeFilename,
   writeDrop,
   cleanupAll,
   listDrops,
@@ -15,6 +15,10 @@ import {
   _resetInotifyProbe,
   AUTO_UNLINK_GRACE_MS,
   _setAutoUnlinkSpawnForTest,
+  startPeriodicSweep,
+  stopPeriodicSweep,
+  currentRootBytes,
+  DropQuotaExceededError,
   type DropStorage,
 } from "../../../src/server/file-drop.ts";
 
@@ -31,36 +35,36 @@ afterEach(() => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-describe("sanitiseFilename", () => {
+describe("sanitizeFilename", () => {
   test("strips directory separators", () => {
-    expect(sanitiseFilename("/etc/passwd")).toBe("etcpasswd");
-    expect(sanitiseFilename("a/b/c.txt")).toBe("abc.txt");
-    expect(sanitiseFilename("a\\b\\c.txt")).toBe("abc.txt");
+    expect(sanitizeFilename("/etc/passwd")).toBe("etcpasswd");
+    expect(sanitizeFilename("a/b/c.txt")).toBe("abc.txt");
+    expect(sanitizeFilename("a\\b\\c.txt")).toBe("abc.txt");
   });
 
   test("strips NUL bytes", () => {
-    expect(sanitiseFilename("foo\x00.txt")).toBe("foo.txt");
+    expect(sanitizeFilename("foo\x00.txt")).toBe("foo.txt");
   });
 
   test("replaces control characters with underscore", () => {
-    expect(sanitiseFilename("foo\x01\x1f\x7fbar.txt")).toBe("foo___bar.txt");
+    expect(sanitizeFilename("foo\x01\x1f\x7fbar.txt")).toBe("foo___bar.txt");
   });
 
   test("keeps ordinary leading dots (hidden files allowed)", () => {
-    expect(sanitiseFilename(".env")).toBe(".env");
-    expect(sanitiseFilename(".bashrc")).toBe(".bashrc");
+    expect(sanitizeFilename(".env")).toBe(".env");
+    expect(sanitizeFilename(".bashrc")).toBe(".bashrc");
   });
 
   test("empty / single-dot / double-dot names become 'file'", () => {
-    expect(sanitiseFilename("")).toBe("file");
-    expect(sanitiseFilename(".")).toBe("file");
-    expect(sanitiseFilename("..")).toBe("file");
-    expect(sanitiseFilename("   ")).toBe("file");
+    expect(sanitizeFilename("")).toBe("file");
+    expect(sanitizeFilename(".")).toBe("file");
+    expect(sanitizeFilename("..")).toBe("file");
+    expect(sanitizeFilename("   ")).toBe("file");
   });
 
   test("caps length at 200 chars (trailing)", () => {
     const long = "a".repeat(400) + ".txt";
-    const out = sanitiseFilename(long);
+    const out = sanitizeFilename(long);
     expect(out.length).toBe(200);
     expect(out.endsWith(".txt")).toBe(true);
   });
@@ -85,7 +89,7 @@ describe("writeDrop", () => {
     expect(path.dirname(a.absolutePath)).not.toBe(path.dirname(b.absolutePath));
   });
 
-  test("sanitises a traversal attempt and keeps the file inside the root", () => {
+  test("sanitizes a traversal attempt and keeps the file inside the root", () => {
     const res = writeDrop(storage, "../../etc/passwd", Buffer.from("x"));
     expect(res.absolutePath.startsWith(root + path.sep)).toBe(true);
     expect(res.filename).toBe("....etcpasswd");
@@ -351,6 +355,71 @@ describe("hasInotifywait / _resetInotifyProbe", () => {
     const c = hasInotifywait();
     expect(typeof c).toBe("boolean");
   });
+
+  test("non-Linux platform short-circuits to false without spawning (cluster 15 / F2)", () => {
+    _resetInotifyProbe();
+    let spawnCalled = false;
+    const result = hasInotifywait({
+      platform: "darwin",
+      spawnSync: () => { spawnCalled = true; return { exitCode: 0 }; },
+    });
+    expect(result).toBe(false);
+    expect(spawnCalled).toBe(false);
+    _resetInotifyProbe();
+  });
+
+  test("passes timeout: 2000 to spawnSync on Linux (cluster 15 / F2)", () => {
+    _resetInotifyProbe();
+    let observedTimeout: number | undefined;
+    const result = hasInotifywait({
+      platform: "linux",
+      spawnSync: (_cmd, opts) => {
+        observedTimeout = opts.timeout;
+        return { exitCode: 1 }; // inotifywait --help exits 1 by convention
+      },
+    });
+    expect(result).toBe(true);
+    expect(observedTimeout).toBe(2000);
+    _resetInotifyProbe();
+  });
+
+  test("returns false within 2s when spawnSync reports a timed-out / hung child (cluster 15 / F2)", async () => {
+    // Bun.spawnSync's `timeout` option is best-effort: when it trips, it
+    // SIGTERMs the child and the call returns with `exitCode: null`. Our
+    // contract is that a wedged inotifywait yields false, never hangs the
+    // calling thread past the configured timeout. We simulate the
+    // timed-out spawn by returning exitCode:null and assert the call is
+    // bounded.
+    _resetInotifyProbe();
+    const start = Date.now();
+    const result = hasInotifywait({
+      platform: "linux",
+      spawnSync: (_cmd, opts) => {
+        // Production: Bun.spawnSync would have killed the child and
+        // returned. We mirror that with exitCode:null. If the test ever
+        // observed `opts.timeout` < 2000, the real call would not be
+        // bounded the way we promise.
+        expect(opts.timeout).toBe(2000);
+        return { exitCode: null };
+      },
+    });
+    const elapsed = Date.now() - start;
+    expect(result).toBe(false);
+    // Sanity bound — the test mock returns immediately. Real-world bound
+    // is the timeout itself (2s), enforced by Bun.spawnSync.
+    expect(elapsed).toBeLessThan(2000);
+    _resetInotifyProbe();
+  });
+
+  test("spawnSync throwing (ENOENT) yields false (cluster 15 / F2)", () => {
+    _resetInotifyProbe();
+    const result = hasInotifywait({
+      platform: "linux",
+      spawnSync: () => { throw new Error("ENOENT: inotifywait not found"); },
+    });
+    expect(result).toBe(false);
+    _resetInotifyProbe();
+  });
 });
 
 describe("armAutoUnlink (autoUnlinkOnClose=true)", () => {
@@ -399,5 +468,103 @@ describe("armAutoUnlink (autoUnlinkOnClose=true)", () => {
     // way the drop is gone.
     expect(deleteDrop(s, r.dropId)).toBe(true);
     expect(fs.existsSync(path.dirname(r.absolutePath))).toBe(false);
+  });
+});
+
+describe("global byte cap (DropQuotaExceededError)", () => {
+  test("rejects a drop that would push total bytes over maxRootBytes", () => {
+    // 100-byte cap; a 60-byte drop succeeds, the next 50-byte one would
+    // total 110 > 100 → reject with DropQuotaExceededError. Cluster 03
+    // (docs/code-analysis/2026-04-26).
+    const s: DropStorage = {
+      root, maxFilesPerSession: 50, ttlMs: 60_000, autoUnlinkOnClose: false,
+      maxRootBytes: 100,
+    };
+    writeDrop(s, "first.bin", Buffer.alloc(60));
+    expect(currentRootBytes(s)).toBe(60);
+
+    let caught: unknown = null;
+    try { writeDrop(s, "second.bin", Buffer.alloc(50)); }
+    catch (err) { caught = err; }
+
+    expect(caught).toBeInstanceOf(DropQuotaExceededError);
+    const e = caught as DropQuotaExceededError;
+    expect(e.currentBytes).toBe(60);
+    expect(e.attemptedBytes).toBe(50);
+    expect(e.capBytes).toBe(100);
+    // Existing drop must remain on disk; the rejection happens before
+    // the file is created.
+    expect(currentRootBytes(s)).toBe(60);
+  });
+
+  test("accepts a drop that exactly hits the cap", () => {
+    const s: DropStorage = {
+      root, maxFilesPerSession: 50, ttlMs: 60_000, autoUnlinkOnClose: false,
+      maxRootBytes: 100,
+    };
+    expect(() => writeDrop(s, "exact.bin", Buffer.alloc(100))).not.toThrow();
+    expect(currentRootBytes(s)).toBe(100);
+  });
+
+  test("a TTL-expired drop is swept before the cap check (room re-opens)", () => {
+    // Pre-populate a drop that's older than the TTL. The pre-write sweep
+    // inside writeDrop should reclaim it, leaving room for a fresh upload
+    // that would otherwise trip the cap.
+    const s: DropStorage = {
+      root, maxFilesPerSession: 50, ttlMs: 1_000, autoUnlinkOnClose: false,
+      maxRootBytes: 100,
+    };
+    const old = writeDrop(s, "old.bin", Buffer.alloc(80));
+    const past = (Date.now() - 60_000) / 1000;
+    fs.utimesSync(path.dirname(old.absolutePath), past, past);
+
+    expect(() => writeDrop(s, "fresh.bin", Buffer.alloc(80))).not.toThrow();
+  });
+
+  test("missing or non-positive maxRootBytes disables the cap entirely", () => {
+    // No cap at all → arbitrary writes succeed.
+    const s: DropStorage = {
+      root, maxFilesPerSession: 50, ttlMs: 60_000, autoUnlinkOnClose: false,
+    };
+    for (let i = 0; i < 3; i++) {
+      expect(() => writeDrop(s, `f${i}.bin`, Buffer.alloc(1024))).not.toThrow();
+    }
+  });
+});
+
+describe("startPeriodicSweep (proactive TTL reclamation)", () => {
+  test("registers an unref'd setInterval; idempotent re-arm; cleanupAll stops it", async () => {
+    // Use a small TTL so the interval fires within the test window.
+    const s: DropStorage = {
+      root, maxFilesPerSession: 50, ttlMs: 100, autoUnlinkOnClose: false,
+    };
+    // Pre-populate a drop and back-date it so the sweep will collect it.
+    const old = writeDrop(s, "stale.bin", Buffer.from("x"));
+    const past = (Date.now() - 60_000) / 1000;
+    fs.utimesSync(path.dirname(old.absolutePath), past, past);
+
+    startPeriodicSweep(s);
+    // Idempotent — re-arm is a no-op (no second timer queued).
+    startPeriodicSweep(s);
+
+    // ttlMs/2 = 50 ms; give the timer a few cycles to fire.
+    const deadline = Date.now() + 1500;
+    while (fs.existsSync(path.dirname(old.absolutePath)) && Date.now() < deadline) {
+      await new Promise(res => setTimeout(res, 25));
+    }
+    expect(fs.existsSync(path.dirname(old.absolutePath))).toBe(false);
+
+    // cleanupAll stops the interval; subsequent stop is a no-op.
+    await cleanupAll(s);
+    stopPeriodicSweep(s);
+  });
+
+  test("ttlMs <= 0 is a no-op (no timer registered)", () => {
+    const s: DropStorage = {
+      root, maxFilesPerSession: 50, ttlMs: 0, autoUnlinkOnClose: false,
+    };
+    // Should not throw, should not register a timer that would block exit.
+    startPeriodicSweep(s);
+    stopPeriodicSweep(s);
   });
 });

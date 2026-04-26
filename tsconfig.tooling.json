@@ -1,0 +1,43 @@
+// Tooling typecheck — wired into both `make typecheck` (Makefile:51) and
+// release.yml's Typecheck step. Widens the typecheck scope to cover
+// load-bearing release-pipeline files that none of the three primary
+// tsconfigs reach: scripts/**, bun-build.ts, playwright.config.ts.
+//
+// Scope (this revision): scripts/ + bun-build.ts + playwright.config.ts.
+// tests/** is intentionally excluded — see the deferral note below.
+//
+// Why a separate tsconfig: extending tsconfig.json's include would force
+// noEmit/rootDir gymnastics onto the existing server/desktop emit path.
+// A dedicated noEmit config keeps the three primary projects' rootDir
+// semantics clean.
+//
+// Deferred follow-up — tests/** typecheck:
+//   tests/** is NOT covered by this gate. Surfacing those errors was
+//   outside the cluster-06 budget (the dominant contributor was
+//   tests/unit/client/xterm-adapter.test.ts, where adapter test fakes
+//   have drifted from current xterm.js types — ~18 errors alone). The
+//   remaining test-side errors are mostly fixture-shape drift
+//   (HttpHandlerOptions.tmuxControl, DropStorage.autoUnlinkOnClose,
+//   RouterState.currentSession) plus a handful of unit-test type
+//   regressions. See docs/code-analysis/2026-04-26/clusters/06-ci-and-release-improvements.md
+//   for the cluster context. The orchestrator will track follow-up via a
+//   docs/ideas note (TODO: filed by orchestrator).
+//
+// To run manually:   bun x tsc --noEmit -p tsconfig.tooling.json
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "types": ["node", "bun"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "scripts/**/*.ts",
+    "bun-build.ts",
+    "playwright.config.ts"
+  ],
+  "exclude": ["node_modules", "dist", "vendor", "tests"]
+}

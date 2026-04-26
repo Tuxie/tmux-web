@@ -10,8 +10,8 @@ SRCS_SERVER := $(shell find src/server src/shared -name "*.ts")
 
 .PHONY: all dev build build-client build-server tmux-term \
         vendor \
-        test typecheck test-unit test-e2e test-e2e-headed \
-        bench fuzz install clean distclean
+        test typecheck test-unit test-e2e test-e2e-headed test-post-compile \
+        bench bench-check fuzz install clean distclean
 
 all: tmux-web
 
@@ -48,6 +48,7 @@ typecheck: src/server/assets-embedded.ts
 	$(BUN) x tsc --noEmit -p tsconfig.json
 	$(BUN) x tsc --noEmit -p tsconfig.client.json
 	$(BUN) x tsc --noEmit -p tsconfig.electrobun.json
+	$(BUN) x tsc --noEmit -p tsconfig.tooling.json
 
 test-e2e: dist/client/xterm.js
 	$(BUN) x playwright test
@@ -55,10 +56,27 @@ test-e2e: dist/client/xterm.js
 test-e2e-headed: dist/client/xterm.js
 	$(BUN) x playwright test --headed
 
+# Post-compile binary smoke tests. Runs against the *compiled*
+# `./tmux-web` binary at the project root (or $TMUX_WEB_BINARY if
+# set). Build first if missing. Not part of `make test` — invoked
+# explicitly from CI after the release binary is produced and from
+# this target locally. Source-mode tests cannot catch compiled-binary
+# regressions like the v1.8.0 bunfs/embedded-tmux miss
+# (CHANGELOG.md `1.8.1`).
+test-post-compile: tmux-web
+	$(BUN) test tests/post-compile/
+
 # --- Benchmarks ---
 
 bench:
 	$(BUN) run scripts/bench-render-math.ts
+
+# Compare a fresh bench run against the checked-in baseline at
+# `bench/baseline.json`. Fails if any case regressed by more than 20%
+# (see `scripts/bench-compare.ts`). Run before tagging a release; see
+# AGENTS.md "Before pushing a release tag".
+bench-check:
+	$(BUN) run bench:check
 
 # --- Property / fuzz tests ---
 # Not part of `make test` (the release path) — bunfig.toml pins the

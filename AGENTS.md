@@ -35,20 +35,74 @@ The upload-artifact step fails under `act` (no runtime token) — that
 is expected and fine. Everything preceding it, including unit tests
 and `verify-vendor-xterm.ts`, must succeed.
 
-After `act` is green, also run the property / fuzz pass before pushing
-the tag:
+The invocation above only validates the linux-x64 leg of the four-leg
+build matrix, and it does **not** include the `e2e` job (which gates
+the `build` job in CI). For full local-CI parity before a release,
+also run the e2e gate:
+
+```bash
+act -j e2e -P ubuntu-latest=catthehacker/ubuntu:act-latest
+```
+
+Caveat: Playwright under `act` requires Chromium to be installed in
+the container. The `e2e` job already runs `bunx playwright install
+--with-deps chromium`, but the install fetches ~150 MB and needs the
+container to have the apt deps `--with-deps` pulls in. If your `act`
+image is minimal, either pre-warm it (build a derived image with
+Chromium baked in) or expect the install step to dominate the run
+time. A regression that only manifests in Playwright will pass `act
+-j build` and only fail on the GitHub-side run, so this gate matters.
+
+After `act -j build` and `act -j e2e` are green, also run the
+property / fuzz pass before pushing the tag:
 
 ```bash
 make fuzz
 ```
 
+Then run the WebGL render-math bench against the checked-in baseline
+to catch hot-path regressions before tagging:
+
+```bash
+make bench-check
+```
+
 Fuzz tests live under `tests/fuzz/` and target the nine
 security-sensitive parsers (shell quoting, filename / session
-sanitisation, OSC 52 extraction, origin parsing, WS router, TOML
+sanitization, OSC 52 extraction, origin parsing, WS router, TOML
 colour parsing, `/proc/<pid>/stat` parsing, TT message extraction).
 They're excluded from `bun test` / the release CI path (bunfig's
-`root = "tests/unit"`) so the per-release cost is zero; the trade-off
-is that discovering a new fuzz regression is a manual pre-tag step.
+`root = "tests/unit"`) so the per-release cost is zero. A scheduled
+GitHub Actions run (`.github/workflows/fuzz-nightly.yml`, daily at
+06:00 UTC) executes `make fuzz` against `main` as a belt; the manual
+pre-tag pass is the braces and remains the recommended pre-release
+step.
+
+### Per-OS coverage gap (intentional)
+
+The release workflow's coverage gate runs on Linux only. The macOS
+legs run `bun test` without `coverage:check`, because a handful of
+linux-specific paths (inotify-driven auto-unlink in `file-drop.ts`,
+`/proc/<pid>/exe` → BLAKE3 pinning in `foreground-process.ts` /
+`ws.ts` OSC 52 flows) drop those three files below their per-file
+thresholds on macOS. Net effect: a macOS-only regression in OSC 52,
+file-drop, or foreground-process logic would not be blocked by the
+coverage gate before shipping. This is a deliberate trade-off for a
+T2 solo-maintainer project; the alternative (per-OS coverage gates
+with platform-specific thresholds) is T3-tier infra. If you change
+any of those modules, run `make test-unit` on macOS locally as well.
+
+### Post-compile binary smoke (`tests/post-compile/`)
+
+`tests/post-compile/` contains a bun-test suite that exercises the
+**compiled** `tmux-web` binary (not the `bun src/server/index.ts`
+source path). It is invoked from the release workflow against the
+extracted tarball binary, not from `make test` / `make test-unit` /
+`make test-e2e`. The bunfig default test root (`tests/unit`) and the
+Playwright `testDir` (`./tests/e2e`) explicitly exclude it. Run it
+locally via `make test-post-compile` (against the project-root
+`./tmux-web` you already built) or by setting
+`TMUX_WEB_BINARY=/path/to/tmux-web bun test tests/post-compile/`.
 
 ---
 
@@ -94,10 +148,40 @@ src/
   shared/            # Shared
     types.ts         # Protocol types, interfaces
     constants.ts     # Constants
+  desktop/           # Electrobun desktop wrapper (tmux-term)
+    index.ts         # Electrobun entry point
+    server-process.ts # Spawn/manage private tmux-web child server
+    auth.ts          # Random per-launch Basic Auth secret
+    tmux-path.ts     # Resolve tmux binary for the desktop build
+    window.ts        # Desktop window lifecycle
+    display-workarea.ts # Native display workarea queries
+    window-host-messages.ts # IPC contract with the renderer
+    electrobun-types.d.ts # Vendored Electrobun ambient types — DO NOT EDIT
 tests/
   unit/              # bun test (mirrors src/)
   e2e/               # Playwright
 ```
+
+### Desktop wrapper (`tmux-term`)
+
+`tmux-term` is an optional Electrobun desktop wrapper around tmux-web,
+living under `src/desktop/`. It spawns a private `tmux-web` child
+server bound to `127.0.0.1` with a random per-launch Basic Auth
+secret, opens it in a native desktop window, and shuts the server
+down when the window closes. Toolchain is Electrobun (pinned in
+`package.json` devDependencies). Local dev uses `bun run desktop:dev`
+(or `bun-build` runs `scripts/build-desktop-prereqs.ts` first via the
+npm script); the packaged build target is `make tmux-term`. As of
+v1.9.0 the desktop build bundles **CEF on both macOS and Linux** —
+the native Electrobun webview heavily posterized the Amiga Scene 2000
+radial background on macOS, so Chromium GPU rendering is forced on
+both desktop targets for smoother gradients. Windows is not a target.
+
+**Do not touch `src/desktop/electrobun-types.d.ts`.** It is a vendored
+ambient-type file copied from Electrobun and must move in lockstep
+with the Electrobun version pin — treat it parallel to the
+`vendor/xterm.js` rule above. If the Electrobun version changes,
+regenerate the file from upstream rather than hand-editing it.
 
 ## Development
 
@@ -313,7 +397,7 @@ WS reconnect: call `adapter.fit()`, send `{"type":"resize"}` on `ws.onopen`. `sr
 
 32px toolbar overlay terminal. `src/client/ui/topbar.ts`:
 
-- **Session menu button** (`#btn-session-menu`) — the right half of the `[ + | <session name> ]` control. Opens a custom dropdown listing sessions from `/api/sessions`, a "New session:" text-input row, and a "Kill session X…" entry at the bottom. Label is `#tb-session-name`. Button gets `.open` while dropdown is showing. The `+` half is `#btn-session-plus`, currently an unwired placeholder (fate tracked in cluster 11).
+- **Session menu button** (`#btn-session-menu`) — the right half of the `[ + | <session name> ]` control. Opens a custom dropdown listing sessions from `/api/sessions`, a "New session:" text-input row, and a "Kill session X…" entry at the bottom. Label is `#tb-session-name`. Button gets `.open` while dropdown is showing. The `+` half is `#btn-session-plus`, which closes the desktop window when running under `tmux-term` (calls `requestDesktopWindowClose()` in `src/client/desktop-host.ts`); harmless no-op in the browser.
 - **Window tabs** (`#win-tabs`) — one per tmux window; click sends a `{type:'window', action:'select', index}` WS message, which the server translates to `tmux select-window`
 - **Fullscreen checkbox** (`#chk-fullscreen`) — inside the settings menu
 
@@ -357,7 +441,7 @@ URL path = tmux session name (e.g. `/dev`). URL update via `history.replaceState
 
 IDs (do not rename):
 - `#terminal` — container
-- `#btn-session-plus` — left half of the session control (currently unwired; fate tracked in cluster 11)
+- `#btn-session-plus` — left half of the session control; in tmux-term, click closes the desktop window
 - `#btn-session-menu` — right half of the session control, opens the sessions dropdown
 - `#tb-session-name` — text label inside `#btn-session-menu` (the `<name>` part)
 - `#win-tabs` — window buttons

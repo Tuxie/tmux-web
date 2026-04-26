@@ -284,3 +284,58 @@ describe('ControlClient', () => {
     expect(args[args.length - 1]).toBe('main');
   });
 });
+
+describe('ControlClient UTF-8 chunk handling', () => {
+  /** Same scripted-stdio scaffold as makeStdio(), but lets the test split
+   *  arbitrary byte payloads at chosen boundaries. */
+  function makeBufferStdio() {
+    const writes: string[] = [];
+    const stdin = {
+      write: (s: string) => { writes.push(s); return true; },
+      end: () => {},
+    };
+    type Listener = (chunk: Buffer) => void;
+    const listeners: Listener[] = [];
+    const stdout = {
+      on: (_e: string, cb: Listener) => { listeners.push(cb); },
+      emitBytes: (bytes: Buffer | Uint8Array) => {
+        const buf = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+        for (const l of listeners) l(buf);
+      },
+    };
+    let exitCb: (() => void) | null = null;
+    const proc = {
+      stdin, stdout,
+      exited: new Promise<void>(resolve => { exitCb = resolve; }),
+      kill: () => { exitCb?.(); },
+    };
+    return { writes, stdout, proc, exit: () => exitCb?.() };
+  }
+
+  test('reassembles multi-byte UTF-8 codepoints split across chunk boundaries (no U+FFFD)', async () => {
+    // The bug this regression-tests: tmux control output contains a
+    // window name with a non-ASCII glyph (here: katakana ナ which is
+    // 0xE3 0x83 0x8A in UTF-8). Bun's stdout reads can hand the bytes
+    // to us across a chunk boundary; the previous `chunk.toString('utf8')`
+    // would decode each chunk independently and emit U+FFFD for the
+    // incomplete trailing byte sequence. The streaming TextDecoder
+    // path must produce the original codepoint intact.
+    const { stdout, proc } = makeBufferStdio();
+    const client = new ControlClient(proc as any);
+    const p = client.run(['display-message', '-p', '#{window_name}']);
+    await Promise.resolve();
+    // Build one logical %begin/payload/%end frame, then split it at a
+    // byte boundary that lands inside the multi-byte 'ナ' sequence
+    // (between 0xE3 and 0x83 0x8A).
+    const head = Buffer.from('%begin 1 1 0\n', 'utf8');
+    const nameStart = Buffer.from('win-', 'utf8');
+    const naBytes = Buffer.from([0xE3, 0x83, 0x8A]); // 'ナ'
+    const tail = Buffer.from('\n%end 1 1 0\n', 'utf8');
+    // Chunk 1 ends one byte into 'ナ'; chunk 2 has the remaining two.
+    const chunk1 = Buffer.concat([head, nameStart, naBytes.slice(0, 1)]);
+    const chunk2 = Buffer.concat([naBytes.slice(1), tail]);
+    stdout.emitBytes(chunk1);
+    stdout.emitBytes(chunk2);
+    expect(await p).toBe('win-ナ');
+  });
+});

@@ -24,10 +24,14 @@ export function showClipboardPrompt(opts: PromptOpts): Promise<PromptDecision> {
 
     const card = document.createElement('div');
     card.className = 'tw-clip-prompt-card';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
 
     const title = document.createElement('div');
     title.className = 'tw-clip-prompt-title';
     title.textContent = 'Allow clipboard read?';
+    title.id = 'tw-clip-prompt-title';
+    card.setAttribute('aria-labelledby', title.id);
     card.appendChild(title);
 
     const label = opts.exePath ?? opts.commandName ?? '(unknown process)';
@@ -50,6 +54,7 @@ export function showClipboardPrompt(opts: PromptOpts): Promise<PromptDecision> {
 
     const makeBtn = (text: string, variant: 'deny' | 'allow-once' | 'allow-always'): HTMLButtonElement => {
       const b = document.createElement('button');
+      b.type = 'button';
       b.textContent = text;
       b.className = 'tw-clip-prompt-btn tw-clip-prompt-btn-'
         + (variant === 'allow-always' ? 'always'
@@ -76,10 +81,41 @@ export function showClipboardPrompt(opts: PromptOpts): Promise<PromptDecision> {
     alwaysBtn.addEventListener('click', () =>
       finish({ allow: true, persist: true, pinHash: !!opts.exePath && pinCheckbox.checked, expiresAt: null }));
 
+    // Tab/Shift+Tab cycles focus among the three modal buttons. Per WCAG
+    // 2.1.2, focus must not leak out of an open modal — without this trap,
+    // tabbing past the last button walks back into the terminal / settings
+    // menu underneath. We always stop propagation while the modal is up so
+    // the document-level "snap focus back to terminal on any keypress"
+    // handler in client/index.ts doesn't undo our refocus.
+    const focusables = (): HTMLButtonElement[] => [denyBtn, onceBtn, alwaysBtn];
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key === 'Escape') {
         ev.preventDefault();
+        ev.stopPropagation();
         finish({ allow: false, persist: false, pinHash: false, expiresAt: null });
+        return;
+      }
+      if (ev.key === 'Tab') {
+        ev.stopPropagation();
+        const order = focusables();
+        const focused = document.activeElement;
+        const idx = order.indexOf(focused as HTMLButtonElement);
+        // If focus is somewhere outside the modal entirely, pull it back in.
+        if (idx === -1) {
+          ev.preventDefault();
+          (ev.shiftKey ? order[order.length - 1] : order[0]).focus();
+          return;
+        }
+        if (ev.shiftKey && idx === 0) {
+          ev.preventDefault();
+          order[order.length - 1].focus();
+        } else if (!ev.shiftKey && idx === order.length - 1) {
+          ev.preventDefault();
+          order[0].focus();
+        }
+        // Mid-cycle Tab/Shift+Tab (e.g. Deny → Allow once) lets the
+        // browser do its native focus advance — we still stopPropagation
+        // above to keep the terminal-refocus handler from interfering.
       }
     };
     document.addEventListener('keydown', onKey, true);

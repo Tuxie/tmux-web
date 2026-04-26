@@ -140,12 +140,65 @@ export async function initSessionStore(): Promise<void> {
   }
 }
 
-function persist(patch: { lastActive?: string; sessions?: Record<string, SessionSettings> }): void {
+/** PUT debounce: a slider drag fires up to one input event per pixel
+ *  (e.g. Hue 0→360 ≈ 360 events). Coalescing on a 300 ms idle window
+ *  collapses that to a single PUT once the drag settles, while still
+ *  feeling instant for one-off edits. The merge is latest-wins on the
+ *  client side — every `persist({sessions:{name:s}})` call carries the
+ *  *full* current `s`, so dropping intermediate writes can't reorder or
+ *  half-apply. The `lastActive` patch is structurally separate from
+ *  `sessions`, so we merge them into one pending object rather than
+ *  letting the latest call clobber whichever key the previous one
+ *  set. */
+const PERSIST_DEBOUNCE_MS = 300;
+let pendingPatch: { lastActive?: string; sessions?: Record<string, SessionSettings> } | null = null;
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flushNow(): void {
+  if (debounceTimer !== null) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  const patch = pendingPatch;
+  if (!patch) return;
+  pendingPatch = null;
   void fetch('/api/session-settings', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
   }).catch(() => {});
+}
+
+function persist(patch: { lastActive?: string; sessions?: Record<string, SessionSettings> }): void {
+  if (!pendingPatch) {
+    pendingPatch = {};
+  }
+  if (patch.lastActive !== undefined) {
+    pendingPatch.lastActive = patch.lastActive;
+  }
+  if (patch.sessions) {
+    pendingPatch.sessions = { ...(pendingPatch.sessions ?? {}), ...patch.sessions };
+  }
+  if (debounceTimer !== null) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(flushNow, PERSIST_DEBOUNCE_MS);
+}
+
+/** Flush any pending debounced PUT immediately. Wire from `beforeunload`
+ *  so a tab close mid-drag doesn't lose the last 300 ms of edits. Safe
+ *  to call when nothing is pending (no-op). */
+export function flushPersist(): void {
+  flushNow();
+}
+
+/** Test/internal: cancel any in-flight debounce timer and drop the
+ *  pending patch without firing it. Lets unit tests swap fetch impls
+ *  between cases without leaking a queued PUT into the next test. */
+export function _resetPersistDebounce(): void {
+  if (debounceTimer !== null) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
+  pendingPatch = null;
 }
 
 export function loadSessionSettings(name: string, live: SessionSettings | null, opts: LoadOpts): SessionSettings {

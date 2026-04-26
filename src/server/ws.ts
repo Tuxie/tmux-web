@@ -13,6 +13,12 @@ import { routeClientMessage, type WsAction, type PendingRead as RouterPendingRea
 import { NoControlClientError, TmuxCommandError, quoteTmuxArg, type TmuxControl } from './tmux-control.js';
 import { execFileAsync } from './exec.js';
 import {
+  listSessionsViaTmux,
+  listWindowsViaTmux,
+  getPaneTitleViaTmux,
+  type TmuxListingsDeps,
+} from './tmux-listings.js';
+import {
   SCROLLBAR_FORMAT,
   applyScrollbarAction,
   buildScrollbarSubscriptionArgs,
@@ -41,6 +47,13 @@ export interface WsData {
 
 interface WsConnState {
   pty?: BunPty;
+  /** Set to `true` in handleOpen when spawnPty returned a structured
+   *  spawnError (cluster 15 F5). The WS is closed before being added
+   *  to `reg.sessionRefs` / `reg.wsClientsBySession`; handleClose must
+   *  early-return so it does not decrement a refcount the failed open
+   *  never incremented — a peer client on the same session would
+   *  otherwise see the shared control client get torn down. */
+  spawnFailed?: boolean;
   sessionSet?: Set<ServerWebSocket<WsData>>;
   registeredSession: string;
   lastSession: string;
@@ -161,8 +174,18 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
       return new Response('Forbidden', { status: 403 });
     }
 
+    // Parse the URL once so both the `tw_auth` query-token check below
+    // and the `/ws` path validation share a single parse — and so the
+    // auth gate sees the token. Mirrors the HTTP handler at
+    // `src/server/http.ts:323-325` so the desktop wrapper's
+    // `clientAuthToken` flow works on the WS leg too (notably for
+    // browsers like Safari WKWebView where URL userinfo is stripped
+    // before the handshake).
+    const url = new URL(req.url);
     const authHeader = req.headers.get('authorization') ?? undefined;
-    if (!isAuthorized(authHeader, config)) {
+    const clientAuthToken = url.searchParams.get('tw_auth') ?? undefined;
+    const isClientAuthorized = !!config.clientAuthToken && clientAuthToken === config.clientAuthToken;
+    if (!isClientAuthorized && !isAuthorized(authHeader, config)) {
       debug(config, `WS upgrade from ${remoteIp} - unauthorized`);
       return new Response('Unauthorized', {
         status: 401,
@@ -170,7 +193,6 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
       });
     }
 
-    const url = new URL(req.url);
     if (!url.pathname.startsWith('/ws')) {
       // Mirror the prior `socket.destroy()` for non-/ws upgrade attempts.
       return new Response(null, { status: 404, headers: { 'Connection': 'close' } });
@@ -251,6 +273,32 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
   const env = buildPtyEnv();
   const pty = spawnPty({ command, env, cols, rows });
   state.pty = pty;
+  // Bun.spawn threw — typically "tmux binary was deleted between the `-V`
+  // probe at startup and the WS open just now" or a misconfigured
+  // `--tmux <path>` that no longer points to anything runnable. Surface
+  // a structured exit to the client (xterm side prints the reason) and
+  // close the WS cleanly so the user is not left staring at a dead but
+  // still-open terminal. Cluster 15 / F5 — docs/code-analysis/2026-04-26.
+  if (pty.spawnError) {
+    debug(config, `PTY spawn failed for session=${session}: ${pty.spawnError.message}`);
+    // Mark the connection so handleClose skips the ref-count decrement
+    // it would otherwise apply to a session this WS was never registered
+    // against. Without this, a peer client on the same session sees its
+    // shared control client detached when our close fires. (codex review,
+    // PR #2 — cluster 15 F5 follow-up.)
+    state.spawnFailed = true;
+    if (ws.readyState === WS_OPEN) {
+      try {
+        ws.send(frameTTMessage({
+          ptyExit: true,
+          exitCode: -1,
+          exitReason: pty.spawnError.message,
+        }));
+      } catch { /* ws gone */ }
+      try { ws.close(1011, 'pty spawn failed'); } catch { /* best-effort */ }
+    }
+    return;
+  }
   debug(config, `PTY spawned for session=${session} cmd=${command.file}`);
 
   // Register onData *immediately* after spawn — any data the child
@@ -352,6 +400,15 @@ async function handleTitleChange(
   // `switch-client` retargeted the PTY tmux client, while shells also emit
   // prompt titles like `user@host:~/p`. Validate the parsed session against
   // tmux itself before letting it mutate websocket/session state.
+  //
+  // Cross-pane horizontal-move is accepted risk: a hostile script running
+  // in one pane can `printf '\x1b]0;target-session:foo\x07'` to retarget
+  // the browser view to a different tmux session belonging to the same
+  // user (cluster 04, finding F1 — docs/code-analysis/2026-04-26).
+  // Maintainer interview 2026-04-26 chose to keep this behaviour and
+  // NOT add an opt-in `--allow-osc-session-switch` flag; tmux is a
+  // single-user server and the existing tmuxSessionExists gate is the
+  // load-bearing check.
   if (!detectedSession || !(await tmuxSessionExists(detectedSession, opts))) {
     if (ws.readyState === WS_OPEN) {
       ws.send(frameTTMessage({ session: ws.data.state.registeredSession, title }));
@@ -399,6 +456,13 @@ function handleClose(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: Ws
   const { remoteIp, state } = ws.data;
   const session = state.registeredSession;
   debug(config, `WS closed from ${remoteIp} session=${session}`);
+  // Spawn-failed opens never registered in sessionRefs / wsClientsBySession,
+  // never subscribed to drops, never set up scrollbar state. Skip the entire
+  // teardown body so we don't undercount refs or detach a control client a
+  // peer is still using. (codex review, PR #2 — cluster 15 F5 follow-up.)
+  if (state.spawnFailed) {
+    return;
+  }
   cancelPtyOutputWaiters(state);
   state.unsubscribeDrops?.();
   state.sessionSet?.delete(ws);
@@ -665,9 +729,16 @@ function cancelPtyOutputWaiters(state: WsConnState): void {
  *  Bytes can't just be written to the tmux-client PTY: tmux parses its
  *  client-keyboard channel as an outer-terminal reply stream and drops
  *  an OSC 52 WRITE that doesn't match a pending query. Inject directly
- *  into the focused pane's stdin via `tmux send-keys -H <hex bytes>`. */
+ *  into the focused pane's stdin via `tmux send-keys -H <hex bytes>`.
+ *
+ *  `target` is the session name **snapshotted at request creation
+ *  time** — never `state.lastSession` at the moment this function runs.
+ *  An OSC title emitted between request and reply could otherwise rotate
+ *  `state.lastSession` and divert the bytes to the rotated session's
+ *  active pane (cluster 04, finding F2 — docs/code-analysis/2026-04-26). */
 async function replyToRead(
   ws: ServerWebSocket<WsData>,
+  target: string,
   selection: string,
   base64: string,
   opts: WsServerOptions,
@@ -677,7 +748,7 @@ async function replyToRead(
   try {
     await deliverOsc52Reply({
       run: opts.tmuxControl.run,
-      target: state.lastSession,
+      target,
       selection,
       base64,
       directWrite: config.testMode ? (bytes) => state.pty?.write(bytes) : undefined,
@@ -702,26 +773,31 @@ async function handleReadRequest(
 ): Promise<void> {
   const { config, sessionsStorePath } = opts;
   const { state } = ws.data;
+  // Snapshot the session at request entry. Every subsequent reply
+  // (deny / allow / clipboard-read-reply) must target this session,
+  // not whatever `state.lastSession` happens to be at delivery time —
+  // see PendingRead.session and `replyToRead` for the full rationale.
+  const session = state.lastSession;
   // Find who asked so we can gate policy on the exe path.
-  const fg = await getForegroundProcess(opts.tmuxControl.run, state.lastSession);
+  const fg = await getForegroundProcess(opts.tmuxControl.run, session);
   const exePath = fg.exePath;
   if (!exePath) {
     // Can't identify the caller — deny silently. Most apps handle an
     // empty reply gracefully (nothing gets pasted).
     debug(config, `OSC 52 read: unknown foreground process, denying`);
-    void replyToRead(ws, selection, '', opts);
+    void replyToRead(ws, session, selection, '', opts);
     return;
   }
 
-  const decision = await resolvePolicy(sessionsStorePath, state.lastSession, exePath, 'read');
+  const decision = await resolvePolicy(sessionsStorePath, session, exePath, 'read');
   if (decision === 'deny') {
     debug(config, `OSC 52 read: denied by policy for ${exePath}`);
-    void replyToRead(ws, selection, '', opts);
+    void replyToRead(ws, session, selection, '', opts);
     return;
   }
 
   const reqId = nextReqId(state);
-  state.pendingReads.set(reqId, { selection, exePath, commandName: fg.commandName });
+  state.pendingReads.set(reqId, { selection, exePath, commandName: fg.commandName, session });
 
   if (decision === 'allow') {
     state.pendingReads.get(reqId)!.awaitingContent = true;
@@ -781,12 +857,12 @@ function dispatchAction(ws: ServerWebSocket<WsData>, act: WsAction, opts: WsServ
         });
       return;
     case 'clipboard-deny':
-      void replyToRead(ws, act.selection, '', opts);
+      void replyToRead(ws, act.session, act.selection, '', opts);
       return;
     case 'clipboard-grant-persist':
       void recordGrant({
         filePath: opts.sessionsStorePath,
-        session: state.lastSession,
+        session: act.session,
         exePath: act.exePath,
         action: 'read',
         allow: act.allow,
@@ -795,7 +871,7 @@ function dispatchAction(ws: ServerWebSocket<WsData>, act: WsAction, opts: WsServ
       }).catch(() => { /* store failure is non-fatal for this request */ });
       return;
     case 'clipboard-request-content': requestClipboardFromClient(ws, act.reqId); return;
-    case 'clipboard-reply': void replyToRead(ws, act.selection, act.base64, opts); return;
+    case 'clipboard-reply': void replyToRead(ws, act.session, act.selection, act.base64, opts); return;
   }
 }
 
@@ -1068,92 +1144,38 @@ async function applyColourVariant(
   }
 }
 
-async function listSessionState(opts: WsServerOptions): Promise<SessionInfo[] | null> {
-  const args = ['list-sessions', '-F', '#{session_id}:#{session_name}'] as const;
-  let stdout: string;
-  try {
-    stdout = await opts.tmuxControl.run(args);
-  } catch {
-    try {
-      stdout = (await execFileAsync(opts.config.tmuxBin, args)).stdout;
-    } catch {
-      return null;
-    }
-  }
-  const sessions = stdout.trim().split('\n').filter(Boolean).map((line) => {
-    const [rawId, ...rest] = line.split(':');
-    return { id: (rawId ?? '').replace(/^\$/, ''), name: rest.join(':') };
-  });
-  return sessions.length > 0 ? sessions : null;
+/** WS-attached path: try the live control client first, fall back to
+ *  execFileAsync. All six former inline parsers (three on this attached
+ *  path, three on the startup probe path below) collapse into the
+ *  shared `tmux-listings.ts` helper. */
+function listingsDeps(opts: WsServerOptions, preferControl: boolean): TmuxListingsDeps {
+  return { tmuxControl: opts.tmuxControl, tmuxBin: opts.config.tmuxBin, preferControl };
 }
 
-async function listWindowState(sessionName: string, opts: WsServerOptions): Promise<WindowInfo[] | null> {
-  const args = ['list-windows', '-t', sessionName, '-F', '#{window_index}\t#{window_name}\t#{window_active}'] as const;
-  let stdout: string;
-  try {
-    stdout = await opts.tmuxControl.run(args);
-  } catch {
-    try {
-      stdout = (await execFileAsync(opts.config.tmuxBin, args)).stdout;
-    } catch {
-      return null;
-    }
-  }
-  const windows: WindowInfo[] = stdout.trim().split('\n').filter(Boolean).map(line => {
-    const [index, name, active] = line.split('\t');
-    return { index: index!, name: name!, active: active === '1' };
-  });
-  return windows.length > 0 ? windows : null;
+function listSessionState(opts: WsServerOptions): Promise<SessionInfo[] | null> {
+  return listSessionsViaTmux(listingsDeps(opts, true));
 }
 
-async function getPaneTitle(sessionName: string, opts: WsServerOptions): Promise<string | undefined> {
-  const args = ['display-message', '-t', sessionName, '-p', '#{pane_title}'] as const;
-  try {
-    return (await opts.tmuxControl.run(args)).trim();
-  } catch {
-    try {
-      return (await execFileAsync(opts.config.tmuxBin, args)).stdout.trim();
-    } catch {
-      return undefined;
-    }
-  }
+function listWindowState(sessionName: string, opts: WsServerOptions): Promise<WindowInfo[] | null> {
+  return listWindowsViaTmux(sessionName, listingsDeps(opts, true));
 }
 
-async function listSessionStateDirect(opts: WsServerOptions): Promise<SessionInfo[] | null> {
-  const args = ['list-sessions', '-F', '#{session_id}:#{session_name}'] as const;
-  try {
-    const { stdout } = await execFileAsync(opts.config.tmuxBin, args);
-    const sessions = stdout.trim().split('\n').filter(Boolean).map((line) => {
-      const [rawId, ...rest] = line.split(':');
-      return { id: (rawId ?? '').replace(/^\$/, ''), name: rest.join(':') };
-    });
-    return sessions.length > 0 ? sessions : null;
-  } catch {
-    return null;
-  }
+function getPaneTitle(sessionName: string, opts: WsServerOptions): Promise<string | undefined> {
+  return getPaneTitleViaTmux(sessionName, listingsDeps(opts, true));
 }
 
-async function listWindowStateDirect(sessionName: string, opts: WsServerOptions): Promise<WindowInfo[] | null> {
-  const args = ['list-windows', '-t', sessionName, '-F', '#{window_index}\t#{window_name}\t#{window_active}'] as const;
-  try {
-    const { stdout } = await execFileAsync(opts.config.tmuxBin, args);
-    const windows: WindowInfo[] = stdout.trim().split('\n').filter(Boolean).map(line => {
-      const [index, name, active] = line.split('\t');
-      return { index: index!, name: name!, active: active === '1' };
-    });
-    return windows.length > 0 ? windows : null;
-  } catch {
-    return null;
-  }
+/** Startup probe path: control client may not be attached yet, so go
+ *  straight to execFileAsync (preferControl=false). */
+function listSessionStateDirect(opts: WsServerOptions): Promise<SessionInfo[] | null> {
+  return listSessionsViaTmux(listingsDeps(opts, false));
 }
 
-async function getPaneTitleDirect(sessionName: string, opts: WsServerOptions): Promise<string | undefined> {
-  const args = ['display-message', '-t', sessionName, '-p', '#{pane_title}'] as const;
-  try {
-    return (await execFileAsync(opts.config.tmuxBin, args)).stdout.trim();
-  } catch {
-    return undefined;
-  }
+function listWindowStateDirect(sessionName: string, opts: WsServerOptions): Promise<WindowInfo[] | null> {
+  return listWindowsViaTmux(sessionName, listingsDeps(opts, false));
+}
+
+function getPaneTitleDirect(sessionName: string, opts: WsServerOptions): Promise<string | undefined> {
+  return getPaneTitleViaTmux(sessionName, listingsDeps(opts, false));
 }
 
 async function sendStartupWindowState(ws: ServerWebSocket<WsData>, sessionName: string, opts: WsServerOptions): Promise<void> {
@@ -1209,7 +1231,15 @@ async function sendWindowState(ws: ServerWebSocket<WsData>, sessionName: string,
 
 /** Fire a {session: name} push to every connected WS client. The client's
  *  on-session handler re-fetches /api/sessions and /api/windows, so this
- *  push is just a "refresh your session list" signal. */
+ *  push is just a "refresh your session list" signal.
+ *
+ *  Iteration-safety invariant: the body of both `for` loops below must
+ *  remain synchronous. The registry maps `sessionName → Set<ws>`, and
+ *  `handleTitleChange` → `moveWsToSession` mutates that set when a WS
+ *  migrates between sessions. Today the body is sync (only `ws.send`)
+ *  so the iterator's view is stable; if you add an `await` inside,
+ *  switch to `Array.from(clients)` before iterating to snapshot the
+ *  set — otherwise mutations during the await will be observed mid-loop. */
 function broadcastSessionRefresh(reg: WsRegistry): void {
   if (reg.wsClientsBySession.size === 0) return;
   for (const [sessionName, clients] of reg.wsClientsBySession) {
@@ -1227,22 +1257,22 @@ async function broadcastWindowsForSession(
 ): Promise<void> {
   const clients = reg.wsClientsBySession.get(sessionName);
   if (!clients || clients.size === 0) return;
-  try {
-    const stdout = await opts.tmuxControl.run([
-      'list-windows', '-t', sessionName, '-F',
-      '#{window_index}\t#{window_name}\t#{window_active}',
-    ]);
-    const windows: WindowInfo[] = stdout.split('\n').filter(Boolean).map(line => {
-      const [index, name, active] = line.split('\t');
-      return { index: index!, name: name!, active: active === '1' };
-    });
-    // Tmux sessions always have ≥1 window — empty means our query
-    // raced a window-close or hit a transient parse failure. Don't
-    // wipe the client's cached list.
-    if (windows.length === 0) return;
-    for (const ws of clients) {
-      if (ws.readyState !== WS_OPEN) continue;
-      ws.send(frameTTMessage({ session: sessionName, windows }));
-    }
-  } catch { /* non-fatal — command might fail while session dying */ }
+  // Reuses the shared helper so the wire format and `.trim()`-before-split
+  // shape match `listWindowState` exactly. The previous inline copy
+  // omitted `.trim()` and only worked by luck (every parsed entry had a
+  // truthy `index`/`name` so the stray empty trailing line survived
+  // `filter(Boolean)`). The helper trims uniformly.
+  const windows = await listWindowState(sessionName, opts);
+  // Tmux sessions always have ≥1 window — null/empty means our query
+  // raced a window-close or hit a transient parse failure. Don't wipe
+  // the client's cached list.
+  if (!windows || windows.length === 0) return;
+  // Iteration-safety: the body is synchronous (no awaits between this
+  // point and `ws.send`) so the iterator's view of `clients` is stable
+  // even though `moveWsToSession` mutates the set on session migration.
+  // Convert to `Array.from(clients)` if any future change adds an await.
+  for (const ws of clients) {
+    if (ws.readyState !== WS_OPEN) continue;
+    ws.send(frameTTMessage({ session: sessionName, windows }));
+  }
 }

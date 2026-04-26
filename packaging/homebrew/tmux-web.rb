@@ -1,18 +1,44 @@
-# Homebrew formula for tmux-web.
+# =============================================================================
+# BOOTSTRAP TEMPLATE — NOT CONSUMED BY THE RELEASE PIPELINE
+# =============================================================================
 #
-# To ship it: create a new GitHub repo named `homebrew-<something>`
-# (e.g. `homebrew-tuxie`), drop this file in at `Formula/tmux-web.rb`,
-# paste the four SHA-256 values from the v<version> release page into
-# the `sha256 "..."` lines below, and commit. Users then:
+# This file is retained as a starter template only. It is NOT updated by
+# releases and is NOT the formula `brew install` resolves against.
+#
+# The live formula lives in the separate `Tuxie/homebrew-tap` repo and is
+# rewritten on every release by `.github/workflows/bump-homebrew-tap.yml`.
+# That workflow generates the URLs and SHA-256 values from the just-built
+# release artifacts and commits the result to the tap repo — none of it
+# touches this file.
+#
+# Why the placeholder SHAs and frozen version (1.4.1) are intentional:
+#   - The placeholders (`PASTE_..._HERE`) are deliberate. Editing them here
+#     would have no effect on shipped releases; the values are computed at
+#     release time and written into the tap repo.
+#   - The version is pinned to 1.4.1 — the tag at which this template was
+#     last hand-curated — and is not bumped on each release for the same
+#     reason: this is a snapshot, not a live artifact. Treat the version
+#     here as "schema example", not "current release".
+#
+# Use this file as the seed when standing up a fresh tap repo from scratch:
+#
+#   1. Create a new GitHub repo named `homebrew-<something>`
+#      (e.g. `homebrew-tuxie`).
+#   2. Drop this file in at `Formula/tmux-web.rb`.
+#   3. Replace the four `sha256 "PASTE_..._HERE"` placeholders with the
+#      values from the v<version> release page, and bump `version` to match.
+#   4. Commit and push.
+#
+# After bootstrap, ongoing maintenance is automated — let
+# `bump-homebrew-tap.yml` handle subsequent version + sha256 bumps in the
+# tap repo. Do NOT bump this file in lockstep; keeping it pinned makes its
+# template-only status obvious.
+#
+# Users then:
 #
 #   brew tap Tuxie/<something>
 #   brew install tmux-web
-#
-# Bump recipe:
-#   1. edit `version` to the new tag (without the `v`)
-#   2. update the four URLs and sha256 values
-#   3. commit + push the tap repo
-#   (or automate with `brew bump-formula-pr` / a GH Action).
+# =============================================================================
 class TmuxWeb < Formula
   desc "Browser-based tmux frontend"
   homepage "https://github.com/Tuxie/tmux-web"

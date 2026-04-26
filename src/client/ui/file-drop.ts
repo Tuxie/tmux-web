@@ -62,9 +62,17 @@ export function installFileDropHandler(opts: FileDropOptions): () => void {
   overlay.textContent = 'Drop to upload';
   terminal.appendChild(overlay);
 
-  let depth = 0;
-  const show = () => { overlay.classList.add('visible'); };
-  const hide = () => { overlay.classList.remove('visible'); };
+  // Overlay visibility tracking — no depth counter. Native drag events
+  // bubble: a child element's enter+leave through nested DOM nodes
+  // would leave a counter at +N while only one drag is in flight, so
+  // the overlay would stay visible past the actual drag exit. Instead
+  // we only treat dragenter/dragleave fired *with the terminal as
+  // event.target* as state changes (those map 1:1 to the user's drag
+  // crossing the terminal box). Bubbling enter/leave from descendants
+  // are still captured by the listener but ignored for show/hide. The
+  // belt-and-braces dragend / drop handlers reset on any other path.
+  const show = (): void => { overlay.classList.add('visible'); };
+  const hide = (): void => { overlay.classList.remove('visible'); };
 
   const hasFiles = (dt: DataTransfer | null): boolean => {
     if (!dt) return false;
@@ -74,8 +82,7 @@ export function installFileDropHandler(opts: FileDropOptions): () => void {
   const onEnter = (ev: DragEvent): void => {
     if (!hasFiles(ev.dataTransfer)) return;
     ev.preventDefault();
-    depth++;
-    show();
+    if (ev.target === terminal) show();
   };
   const onOver = (ev: DragEvent): void => {
     if (!hasFiles(ev.dataTransfer)) return;
@@ -85,18 +92,25 @@ export function installFileDropHandler(opts: FileDropOptions): () => void {
   const onLeave = (ev: DragEvent): void => {
     if (!hasFiles(ev.dataTransfer)) return;
     ev.preventDefault();
-    depth = Math.max(0, depth - 1);
-    if (depth === 0) hide();
+    // Only the terminal-target dragleave matters: leaving a child
+    // element of the terminal still has the cursor inside the terminal
+    // box, so the overlay should stay up.
+    if (ev.target === terminal) hide();
   };
   const onDrop = async (ev: DragEvent): Promise<void> => {
     if (!hasFiles(ev.dataTransfer)) return;
     ev.preventDefault();
-    depth = 0;
     hide();
     const files = ev.dataTransfer?.files;
     if (!files || files.length === 0) return;
     await uploadAll(Array.from(files), getSession(), opts);
   };
+  // Defensive global resets: if the drag ends without a drop on the
+  // terminal (esc-cancel, drop on a different element, drop outside
+  // the window) we may not see a dragleave for the terminal. Hide
+  // unconditionally on these events — cheap and idempotent.
+  const onDragEnd = (): void => { hide(); };
+  const onWindowDrop = (): void => { hide(); };
 
   // Clipboard paste: DataTransfer may include files (image copy, file
   // manager "copy"). Handled on the document so it works regardless of
@@ -117,6 +131,10 @@ export function installFileDropHandler(opts: FileDropOptions): () => void {
   terminal.addEventListener('dragover', onOver);
   terminal.addEventListener('dragleave', onLeave);
   terminal.addEventListener('drop', onDrop);
+  // Belt-and-braces global reset for drag exits the terminal-scoped
+  // listeners can't catch (esc-cancel, drop outside the terminal).
+  document.addEventListener('dragend', onDragEnd);
+  document.addEventListener('drop', onWindowDrop);
   // Capture phase so we run before xterm's textarea paste handler.
   document.addEventListener('paste', onPaste, true);
 
@@ -125,6 +143,8 @@ export function installFileDropHandler(opts: FileDropOptions): () => void {
     terminal.removeEventListener('dragover', onOver);
     terminal.removeEventListener('dragleave', onLeave);
     terminal.removeEventListener('drop', onDrop);
+    document.removeEventListener('dragend', onDragEnd);
+    document.removeEventListener('drop', onWindowDrop);
     document.removeEventListener('paste', onPaste, true);
     overlay.remove();
   };

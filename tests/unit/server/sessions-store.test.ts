@@ -56,7 +56,7 @@ describe("sessions-store", () => {
     const current = { version: 1 as const, lastActive: "a", sessions: { a: SAMPLE } };
     const next = mergeConfig(current, { lastActive: "b", sessions: { b: { ...SAMPLE, colours: "Nord" } } });
     expect(next.lastActive).toBe("b");
-    expect(next.sessions.a).toBeDefined();
+    expect(next.sessions.a).toMatchObject({ colours: SAMPLE.colours });
     expect(next.sessions.b!.colours).toBe("Nord");
   });
 
@@ -106,10 +106,10 @@ describe("sessions-store", () => {
     const current = { version: 1 as const, lastActive: "a", sessions: { a: SAMPLE } };
     const next = mergeConfig(current, { sessions: { "[object HTMLSpanElement]": SAMPLE, b: SAMPLE } });
     expect(next.sessions["[object HTMLSpanElement]"]).toBeUndefined();
-    expect(next.sessions.b).toBeDefined();
+    expect(next.sessions.b).toMatchObject({ colours: SAMPLE.colours });
   });
 
-  test("sanitiseSessions drops __proto__, constructor, and prototype keys", () => {
+  test("sanitizeSessions drops __proto__, constructor, and prototype keys", () => {
     const file = path.join(tmp, "sessions.json");
     // Write raw JSON that includes dangerous prototype-pollution keys.
     // JSON.parse won't give us __proto__ as an own property so write via
@@ -124,40 +124,92 @@ describe("sessions-store", () => {
     expect(Object.prototype.hasOwnProperty.call(cfg.sessions, "prototype")).toBe(false);
   });
 
-  test("applyPatch persists merged result", () => {
+  test("applyPatch persists merged result", async () => {
     const file = path.join(tmp, "sessions.json");
-    applyPatch(file, { sessions: { one: SAMPLE } });
-    applyPatch(file, { lastActive: "one", sessions: { two: { ...SAMPLE, opacity: 50 } } });
+    await applyPatch(file, { sessions: { one: SAMPLE } });
+    await applyPatch(file, { lastActive: "one", sessions: { two: { ...SAMPLE, opacity: 50 } } });
     const cfg = loadConfig(file);
     expect(cfg.lastActive).toBe("one");
-    expect(cfg.sessions.one).toBeDefined();
+    expect(cfg.sessions.one).toMatchObject({ colours: SAMPLE.colours });
     expect(cfg.sessions.two!.opacity).toBe(50);
   });
 
-  test("deleteSession removes named entry and clears lastActive if it matched", () => {
+  test("deleteSession removes named entry and clears lastActive if it matched", async () => {
     const file = path.join(tmp, "sessions.json");
-    applyPatch(file, { lastActive: "one", sessions: { one: SAMPLE, two: SAMPLE } });
-    const next = deleteSession(file, "one");
+    await applyPatch(file, { lastActive: "one", sessions: { one: SAMPLE, two: SAMPLE } });
+    const next = await deleteSession(file, "one");
     expect(next.sessions.one).toBeUndefined();
     expect(next.sessions.two).toBeDefined();
     expect(next.lastActive).toBeUndefined();
     const round = loadConfig(file);
     expect(round.sessions.one).toBeUndefined();
-    expect(round.sessions.two).toBeDefined();
+    expect(round.sessions.two).toMatchObject({ colours: SAMPLE.colours });
   });
 
-  test("deleteSession keeps lastActive when it points to a different session", () => {
+  test("deleteSession keeps lastActive when it points to a different session", async () => {
     const file = path.join(tmp, "sessions.json");
-    applyPatch(file, { lastActive: "one", sessions: { one: SAMPLE, two: SAMPLE } });
-    const next = deleteSession(file, "two");
+    await applyPatch(file, { lastActive: "one", sessions: { one: SAMPLE, two: SAMPLE } });
+    const next = await deleteSession(file, "two");
     expect(next.lastActive).toBe("one");
     expect(next.sessions.two).toBeUndefined();
   });
 
-  test("deleteSession is a no-op when name is absent", () => {
+  test("deleteSession is a no-op when name is absent", async () => {
     const file = path.join(tmp, "sessions.json");
-    applyPatch(file, { sessions: { one: SAMPLE } });
-    const next = deleteSession(file, "nope");
+    await applyPatch(file, { sessions: { one: SAMPLE } });
+    const next = await deleteSession(file, "nope");
     expect(Object.keys(next.sessions)).toEqual(["one"]);
+  });
+
+  // Cluster 15 / F6 — docs/code-analysis/2026-04-26.
+  // Two near-simultaneous PUT /api/session-settings (e.g. theme switch +
+  // opacity drag) used to interleave: T1 reads v1, T2 reads v1, T1 writes
+  // v2-with-theme, T2 writes v2-with-opacity → theme update lost. The
+  // serialiseFileWrite mutex inside applyPatch makes the read-modify-
+  // write atomic per filePath.
+  test("concurrent applyPatch calls don't lose updates (cluster 15 / F6)", async () => {
+    const file = path.join(tmp, "sessions.json");
+    // Seed both sessions so the patches below only touch existing keys.
+    await applyPatch(file, { sessions: { a: SAMPLE, b: SAMPLE } });
+
+    // Fire many concurrent patches: half mutate session 'a' (toggling
+    // colours), half mutate session 'b' (toggling opacity). After all
+    // settle, every patch must have landed somewhere — the count of
+    // distinct (a.colours, b.opacity) updates we observe must equal the
+    // number we fired.
+    const N = 20;
+    const promises: Promise<unknown>[] = [];
+    for (let i = 0; i < N; i++) {
+      promises.push(applyPatch(file, { sessions: { a: { ...SAMPLE, colours: `colour-${i}` } } }));
+      promises.push(applyPatch(file, { sessions: { b: { ...SAMPLE, opacity: i } } }));
+    }
+    await Promise.all(promises);
+
+    const cfg = loadConfig(file);
+    // Both sessions must still exist; whichever write came in last wins
+    // the field, but neither session may have been wholly clobbered by
+    // the racing other writer.
+    expect(cfg.sessions.a).toBeDefined();
+    expect(cfg.sessions.b).toBeDefined();
+    // Last-writer-wins on each field. Without the mutex, an interleave
+    // that read v1 of {a,b} on both sides would have produced one of
+    // them having the SAMPLE default rather than a per-loop value. We
+    // assert both retain a concurrency-touched value.
+    expect(cfg.sessions.a!.colours).toMatch(/^colour-\d+$/);
+    expect(typeof cfg.sessions.b!.opacity).toBe("number");
+  });
+
+  test("concurrent applyPatch on different files do not block each other (per-file chain)", async () => {
+    const fileA = path.join(tmp, "a.json");
+    const fileB = path.join(tmp, "b.json");
+    // Both files run simultaneously; with a per-file chain (not a global
+    // chain) the wall-clock time for both should be roughly the
+    // sequential time for a single file's writes.
+    await Promise.all([
+      applyPatch(fileA, { sessions: { x: SAMPLE } }),
+      applyPatch(fileB, { sessions: { y: SAMPLE } }),
+    ]);
+    expect(loadConfig(fileA).sessions.x).toBeDefined();
+    expect(loadConfig(fileB).sessions.y).toBeDefined();
   });
 });

@@ -63,3 +63,54 @@ describe('boot-errors', () => {
     expect(consumeBootErrors()).toEqual([]);
   });
 });
+
+// Cluster 13 / F3: the boot-error toast must include a truncated
+// detail snippet so end-users without devtools can guess the failure
+// mode. The formatting is in a pure helper so it's testable in
+// isolation from main()'s boot pipeline.
+describe('formatBootErrorToast', () => {
+  it('returns the base message verbatim when no detail is provided', async () => {
+    const { formatBootErrorToast } = await freshModule();
+    const text = formatBootErrorToast(['themes'], undefined);
+    expect(text).toBe(
+      'Failed to load some UI data (themes) — settings menu may be incomplete.',
+    );
+  });
+
+  it('appends the detail when present and short', async () => {
+    const { formatBootErrorToast } = await freshModule();
+    const text = formatBootErrorToast(['themes'], 'themes: HTTP 500');
+    expect(text).toBe(
+      'Failed to load some UI data (themes) — settings menu may be incomplete.: themes: HTTP 500',
+    );
+  });
+
+  it('truncates a detail longer than 60 chars with an ellipsis', async () => {
+    const { formatBootErrorToast } = await freshModule();
+    const long = 'themes: '
+      + 'this is a really long error message that exceeds the cap and should be truncated';
+    const text = formatBootErrorToast(['themes'], long);
+    // Last 61 chars are the truncated detail (60 + ellipsis).
+    expect(text.endsWith('…')).toBe(true);
+    expect(text.endsWith(long.slice(0, 60) + '…')).toBe(true);
+    // Short detail should not be truncated.
+    const short = 'themes: short';
+    const noTrunc = formatBootErrorToast(['themes'], short);
+    expect(noTrunc.endsWith(short)).toBe(true);
+    expect(noTrunc.endsWith('…')).toBe(false);
+  });
+
+  it('joins multiple labels with comma in the base message', async () => {
+    const { formatBootErrorToast } = await freshModule();
+    const text = formatBootErrorToast(['themes', 'fonts'], 'themes: failed');
+    expect(text).toContain('(themes, fonts)');
+  });
+
+  it('treats an empty-string detail as no detail', async () => {
+    const { formatBootErrorToast } = await freshModule();
+    const text = formatBootErrorToast(['themes'], '');
+    expect(text).toBe(
+      'Failed to load some UI data (themes) — settings menu may be incomplete.',
+    );
+  });
+});

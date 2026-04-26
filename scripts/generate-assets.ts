@@ -13,10 +13,15 @@ async function generate() {
   for (const file of distGlob.scanSync(projectRoot)) {
     const fullPath = path.join(projectRoot, file);
     if (fs.statSync(fullPath).isFile()) {
-      // Only include the xterm bundle and required css assets.
+      // Only include the xterm bundle and required css assets. The
+      // `xterm-version.json` sidecar emitted by bun-build.ts holds the
+      // vendor SHA so the server can answer `/api/terminal-versions`
+      // without grepping the 1.5 MB xterm bundle. Cluster 16 / F2 —
+      // docs/code-analysis/2026-04-26.
       const isBundle = file.startsWith("dist/client/") && (
         file.endsWith("xterm.js") ||
-        file.endsWith("xterm.css") || file.endsWith("base.css")
+        file.endsWith("xterm.css") || file.endsWith("base.css") ||
+        file.endsWith("xterm-version.json")
       );
       const isMap = file.endsWith(".map");
       const isVendor = file.includes("vendor-xterm");

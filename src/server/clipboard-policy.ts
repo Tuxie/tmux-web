@@ -1,11 +1,13 @@
 import {
-  applyPatch,
   loadConfig,
+  mergeConfig,
+  saveConfig,
+  serialiseFileWrite,
   type ClipboardGrant,
   type ClipboardPolicyEntry,
   type StoredSessionSettings,
 } from './sessions-store.js';
-import { hashFile } from './hash.js';
+import { hashFile, hashFileCached } from './hash.js';
 
 export type Action = 'read' | 'write';
 export type Decision = 'allow' | 'deny' | 'prompt';
@@ -30,9 +32,14 @@ export async function resolvePolicy(
   if (!grant) return 'prompt';
   if (grant.expiresAt && Date.parse(grant.expiresAt) <= Date.now()) return 'prompt';
   if (entry.blake3) {
+    // hashFileCached is mtime-keyed — a binary swap necessarily changes
+    // mtime, so a swapped binary will re-hash and the policy will fall
+    // through to 'prompt'. Repeat reads against the same unchanged
+    // binary skip the BLAKE3 walk entirely. Cluster 15 / F8 —
+    // docs/code-analysis/2026-04-26.
     let current: string;
     try {
-      current = await hashFile(exePath);
+      current = await hashFileCached(exePath);
     } catch {
       return 'prompt';
     }
@@ -58,9 +65,12 @@ export interface RecordGrantOptions {
 
 export async function recordGrant(opts: RecordGrantOptions): Promise<void> {
   const now = new Date().toISOString();
-  let blake3: string | null = null;
+  // Hash up-front, OUTSIDE the serialisation queue, so one slow hash
+  // (large binary) doesn't block other writers. Cluster 15 / F6 —
+  // docs/code-analysis/2026-04-26.
+  let freshBlake3: string | null = null;
   if (opts.pinHash) {
-    try { blake3 = await hashFile(opts.exePath); } catch { blake3 = null; }
+    try { freshBlake3 = await hashFile(opts.exePath); } catch { freshBlake3 = null; }
   }
   const grant: ClipboardGrant = {
     allow: opts.allow,
@@ -68,36 +78,42 @@ export async function recordGrant(opts: RecordGrantOptions): Promise<void> {
     grantedAt: now,
   };
 
-  const cfg = loadConfig(opts.filePath);
-  const existingSession: StoredSessionSettings | undefined = cfg.sessions[opts.session];
-  const existingClipboard = existingSession?.clipboard ?? {};
-  const existingEntry: ClipboardPolicyEntry | undefined = existingClipboard[opts.exePath];
+  // Read-modify-write inside the per-file mutex. This protects against a
+  // concurrent applyPatch (theme switch / opacity drag) overwriting the
+  // grant we're recording, AND against a concurrent recordGrant for a
+  // different exePath dropping our entry. Cluster 15 / F6.
+  await serialiseFileWrite(opts.filePath, () => {
+    const cfg = loadConfig(opts.filePath);
+    const existingSession: StoredSessionSettings | undefined = cfg.sessions[opts.session];
+    if (!existingSession) {
+      // Can't create a session from thin air — a clipboard grant without the
+      // rest of SessionSettings would leave an incomplete row. Skip silently;
+      // saveSessionSettings runs on every settings change so the session will
+      // exist in practice before any grant is recorded.
+      return;
+    }
+    const existingClipboard = existingSession.clipboard ?? {};
+    const existingEntry: ClipboardPolicyEntry | undefined = existingClipboard[opts.exePath];
 
-  const nextEntry: ClipboardPolicyEntry = {
-    // Keep existing hash pin if caller didn't re-pin (pinHash=false); this
-    // avoids accidentally weakening a previously-pinned grant.
-    blake3: opts.pinHash ? blake3 : (existingEntry?.blake3 ?? null),
-    read:  existingEntry?.read,
-    write: existingEntry?.write,
-    [opts.action]: grant,
-  };
+    const nextEntry: ClipboardPolicyEntry = {
+      // Keep existing hash pin if caller didn't re-pin (pinHash=false); this
+      // avoids accidentally weakening a previously-pinned grant.
+      blake3: opts.pinHash ? freshBlake3 : (existingEntry?.blake3 ?? null),
+      read:  existingEntry?.read,
+      write: existingEntry?.write,
+      [opts.action]: grant,
+    };
 
-  const nextClipboard: Record<string, ClipboardPolicyEntry> = {
-    ...existingClipboard,
-    [opts.exePath]: nextEntry,
-  };
+    const nextClipboard: Record<string, ClipboardPolicyEntry> = {
+      ...existingClipboard,
+      [opts.exePath]: nextEntry,
+    };
 
-  if (!existingSession) {
-    // Can't create a session from thin air — a clipboard grant without the
-    // rest of SessionSettings would leave an incomplete row. Skip silently;
-    // saveSessionSettings runs on every settings change so the session will
-    // exist in practice before any grant is recorded.
-    return;
-  }
-
-  applyPatch(opts.filePath, {
-    sessions: {
-      [opts.session]: { ...existingSession, clipboard: nextClipboard },
-    },
+    const next = mergeConfig(cfg, {
+      sessions: {
+        [opts.session]: { ...existingSession, clipboard: nextClipboard },
+      },
+    });
+    saveConfig(opts.filePath, next);
   });
 }

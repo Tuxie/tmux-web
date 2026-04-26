@@ -112,13 +112,17 @@ describe('buildPtyEnv', () => {
     expect(env.COLORTERM).toBeDefined();
     expect(env.LC_ALL).toBeDefined();
   });
-  it('strips EDITOR and VISUAL', () => {
+  it('passes EDITOR and VISUAL through unchanged (cluster 15 / F4)', () => {
+    // Previous behaviour wholesale-stripped EDITOR/VISUAL with no
+    // documented rationale; that broke `:!vim file` inside shells
+    // running under tmux-web. Pass-through is the documented current
+    // behaviour. Cluster 15 / F4 — docs/code-analysis/2026-04-26.
     const prev = { EDITOR: process.env.EDITOR, VISUAL: process.env.VISUAL };
     process.env.EDITOR = 'vim';
     process.env.VISUAL = 'code';
     const env = buildPtyEnv();
-    expect(env.EDITOR).toBeUndefined();
-    expect(env.VISUAL).toBeUndefined();
+    expect(env.EDITOR).toBe('vim');
+    expect(env.VISUAL).toBe('code');
     process.env.EDITOR = prev.EDITOR;
     process.env.VISUAL = prev.VISUAL;
   });

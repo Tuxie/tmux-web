@@ -42,3 +42,22 @@ export function consumeBootErrorDetails(): string[] {
   details.length = 0;
   return out;
 }
+
+/** Format the boot-error toast text. Pure helper so the truncation
+ *  rule (cluster 13 / F3) is unit-testable independently of `main()`.
+ *  - `labels` is the deduplicated label set (e.g. ['themes', 'fonts']).
+ *  - `firstDetail` is the first entry from `consumeBootErrorDetails()`,
+ *    used to give the user a hint at the actual failure mode without
+ *    devtools open. Truncated to ~60 chars with an ellipsis. */
+export function formatBootErrorToast(
+  labels: string[],
+  firstDetail: string | undefined,
+): string {
+  const baseMsg = 'Failed to load some UI data ('
+    + labels.join(', ') + ') — settings menu may be incomplete.';
+  if (!firstDetail) return baseMsg;
+  const truncated = firstDetail.length > 60
+    ? firstDetail.slice(0, 60) + '…'
+    : firstDetail;
+  return `${baseMsg}: ${truncated}`;
+}

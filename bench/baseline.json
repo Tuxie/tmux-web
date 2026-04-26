@@ -1,0 +1,8 @@
+{"name":"srgbByteToOklab","ns_per_call":130.04280,"calls":100000,"ts":"2026-04-26T19:24:58.231Z"}
+{"name":"oklabToSrgbByte","ns_per_call":239.21982,"calls":100000,"ts":"2026-04-26T19:24:58.431Z"}
+{"name":"pushLightness (strength=50 bias=0)","ns_per_call":286.60990,"calls":100000,"ts":"2026-04-26T19:24:58.635Z"}
+{"name":"pushLightness (identity)","ns_per_call":11.71563,"calls":100000,"ts":"2026-04-26T19:24:58.645Z"}
+{"name":"adjustSaturation (pct=50)","ns_per_call":427.07116,"calls":100000,"ts":"2026-04-26T19:24:58.946Z"}
+{"name":"adjustSaturation (identity)","ns_per_call":10.43572,"calls":100000,"ts":"2026-04-26T19:24:58.955Z"}
+{"name":"withBlendedEffectiveBackground (identity state)","ns_per_call":20.87545,"calls":100000,"ts":"2026-04-26T19:24:58.978Z"}
+{"name":"withBlendedEffectiveBackground (active state)","ns_per_call":1258.40206,"calls":100000,"ts":"2026-04-26T19:24:59.888Z"}

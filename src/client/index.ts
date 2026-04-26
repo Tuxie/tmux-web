@@ -10,7 +10,7 @@ import { handleClipboard } from './ui/clipboard.js';
 import { showClipboardPrompt } from './ui/clipboard-prompt.js';
 import { installFileDropHandler } from './ui/file-drop.js';
 import { showToast, formatBytes } from './ui/toast.js';
-import { consumeBootErrorDetails, consumeBootErrors } from './boot-errors.js';
+import { consumeBootErrorDetails, consumeBootErrors, formatBootErrorToast } from './boot-errors.js';
 import { installAuthenticatedFetch } from './auth-fetch.js';
 import { clientLog } from './client-log.js';
 import { installDropsPanel } from './ui/drops-panel.js';
@@ -35,10 +35,11 @@ import {
   getLiveSessionSettings,
   setLastActiveSession,
   initSessionStore,
+  flushPersist,
   DEFAULT_SESSION_SETTINGS,
   type SessionSettings,
 } from './session-settings.js';
-import { XtermAdapter } from './adapters/xterm.ts';
+import { XtermAdapter } from './adapters/xterm.js';
 
 declare global {
   interface Window {
@@ -84,8 +85,12 @@ async function main() {
   if (bootErrors.length > 0) {
     const unique = [...new Set(bootErrors)];
     clientLog('boot-errors ' + bootErrorDetails.join(' | '));
+    // Append the first error detail (truncated) so a non-developer end
+    // user without devtools has a chance at recognising the failure
+    // mode (e.g. 401, ECONNREFUSED, JSON parse error) — the labels
+    // alone weren't actionable. Cluster 13 / F3.
     showToast(
-      'Failed to load some UI data (' + unique.join(', ') + ') — settings menu may be incomplete.',
+      formatBootErrorToast(unique, bootErrorDetails[0]),
       { variant: 'error', durationMs: 6000 },
     );
   }
@@ -204,6 +209,10 @@ async function main() {
     send: (data) => connection.send(data),
     focus: () => adapter.focus(),
     getLiveSettings: () => settings,
+    isOpen: () => connection?.isOpen ?? false,
+    onOffline: (action) => {
+      showToast(`Not connected — ${action} ignored`, { variant: 'error' });
+    },
     onAutohideChange: () => {
       adapter.fit();
     },
@@ -283,7 +292,7 @@ async function main() {
   // carries tmux's raw #{pane_title} (what the shell set). We intentionally
   // ignore xterm.js's onTitleChange here — it'd fire in parallel with the
   // server message but deliver tmux's set-titles-string output (typically
-  // `session:window_name`), which tmux sanitises (non-printables → `_`) and
+  // `session:window_name`), which tmux sanitizes (non-printables → `_`) and
   // differs from pane_title. Having both sources race made the topbar
   // flicker between the two forms on rapid title updates.
   async function sendClipboardForRead(reqId: string): Promise<void> {
@@ -356,8 +365,8 @@ async function main() {
     onClose: () => {
       adapter.write('\r\n\x1b[33mDisconnected. Reconnecting...\x1b[0m\r\n');
     },
-    onError: (ev) => {
-      console.warn('WebSocket error', ev);
+    onError: (ev, url) => {
+      console.warn('WebSocket error connecting to', url, ev);
       if (!wsErrorToasted) {
         wsErrorToasted = true;
         showToast('WebSocket connection error — check network / server', { variant: 'error' });
@@ -394,9 +403,27 @@ async function main() {
   // (and any future hot-reload idea) clean up without listener leaks.
   const disposers: Array<() => void> = [];
 
+  // Topbar owns its own document-level listeners (drag-to-restore,
+  // menu-close pointerdown, fullscreenchange, autohide reveal); it
+  // exposes `dispose()` so we can drain them from the same teardown
+  // chain. Pushed first so it runs last (LIFO via reverse() in the
+  // __twDispose body), letting the connection / drops / mouse / keyboard
+  // disposers above run while the topbar's element references are
+  // still valid.
+  disposers.push(() => topbar.dispose());
+
   const onWindowResize = () => adapter.fit();
   window.addEventListener('resize', onWindowResize);
   disposers.push(() => window.removeEventListener('resize', onWindowResize));
+
+  // Flush any debounced PUT before the tab unloads so a slider drag that
+  // ends with a quick window close doesn't lose the last <300 ms of
+  // edits. The flush is synchronous (fetch returns a Promise we don't
+  // await — the browser still buffers the request as part of the unload
+  // pipeline) so it doesn't hold up navigation.
+  const onBeforeUnload = () => { flushPersist(); };
+  window.addEventListener('beforeunload', onBeforeUnload);
+  disposers.push(() => window.removeEventListener('beforeunload', onBeforeUnload));
 
   // A theme swap changes #topbar height, #terminal insets, and CSS font
   // metrics — none of which fire a `resize` event on window. Observe the

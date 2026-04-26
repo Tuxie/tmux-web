@@ -64,6 +64,7 @@ describe('showClipboardPrompt', () => {
     (document as any).dispatch('keydown', {
       key: 'Escape',
       preventDefault() { prevented = true; },
+      stopPropagation() {},
     });
     const decision = await p;
     expect(prevented).toBe(true);
@@ -72,7 +73,7 @@ describe('showClipboardPrompt', () => {
 
   test('Non-Escape keys are ignored', async () => {
     const p = showClipboardPrompt({ exePath: null, commandName: 'c' });
-    (document as any).dispatch('keydown', { key: 'a', preventDefault() {} });
+    (document as any).dispatch('keydown', { key: 'a', preventDefault() {}, stopPropagation() {} });
     // Prompt still active
     expect((document.body as any).children.length).toBe(1);
     // Clean up

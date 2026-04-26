@@ -548,10 +548,7 @@ export class Dropdown {
     }
     // Keep the active option in view for long lists that exceed the
     // fixed-position max-height.
-    const scrollIntoView = (item as any).scrollIntoView;
-    if (typeof scrollIntoView === 'function') {
-      scrollIntoView.call(item, { block: 'nearest' });
-    }
+    item.scrollIntoView({ block: 'nearest' });
   }
 
   async open(): Promise<void> {

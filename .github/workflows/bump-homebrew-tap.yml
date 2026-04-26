@@ -71,6 +71,14 @@ jobs:
               echo "Failed to read sha for $arch from $url" >&2
               exit 1
             fi
+            # Defence-in-depth (cluster 04 F5): reject anything that
+            # isn't exactly 64 lowercase hex chars before injecting it
+            # into the Ruby formula. A compromised release asset or an
+            # unusual sidecar parse can't smuggle Ruby through this gate.
+            if ! [[ "$sha" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "Invalid sha256 for $arch: '$sha' (expected 64 lowercase hex chars)" >&2
+              exit 1
+            fi
             key=$(echo "$arch" | tr '-' '_')
             echo "${key}=${sha}" >> "$GITHUB_OUTPUT"
             echo "$arch = $sha"

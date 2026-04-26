@@ -15,7 +15,7 @@ via:
 make fuzz
 ```
 
-Per CLAUDE.md the release protocol is:
+Per AGENTS.md the release protocol is:
 
 1. `act -j build …` (verify workflow against an ubuntu container)
 2. `make fuzz` (run the property tests locally)

@@ -1,3 +1,5 @@
+> **Note:** This file's `2025-05-15` filename date is artefactual — the project's first commit predates 2026, so any 2025-* plan filename in this directory is a typo / template echo, not a historical record. The canonical TLS-default rollout plan is [`2026-04-14-tls-default.md`](2026-04-14-tls-default.md); refer to that for the as-shipped behaviour. This file is kept for archaeology only and may differ from what actually shipped.
+
 # Update E2E tests to use --no-tls Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

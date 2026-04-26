@@ -85,3 +85,41 @@ export function resetConsoleCapture(): void {
 /** Escape hatch for the (rare) test that actually needs the real
  *  stdout — e.g. verifying that a CLI script prints its banner. */
 export const originalConsole = ORIGINAL;
+
+/**
+ * Run `fn` with a temporary `process.stderr.write` shim that captures
+ * every chunk into the returned array, then restores the previous
+ * `process.stderr.write` (which is the silencer's wrapper, since
+ * this module runs as a bunfig preload). Tests that today hand-roll
+ * `originalWrite = process.stderr.write` / `try { … } finally { restore }`
+ * blocks for `config.debug=true` assertions should migrate to this
+ * helper instead — composing two ad-hoc wrappers in series risks a
+ * cumulative-restore bug if a third independent test wraps without
+ * going through `consoleCaptured` (see DET-4 in cluster
+ * docs/code-analysis/2026-04-26/clusters/21-test-organisation.md).
+ *
+ * The captured strings include every chunk written to stderr during
+ * `fn` — debug writes (`[debug] …`) AND any other output. Filter at
+ * the call site if you only care about a specific prefix.
+ */
+export async function withDebugCapture<T>(
+  fn: (captured: string[]) => Promise<T>,
+): Promise<T> {
+  const captured: string[] = [];
+  const previousWrite = process.stderr.write;
+  process.stderr.write = ((chunk: any, ...rest: unknown[]): boolean => {
+    captured.push(
+      typeof chunk === 'string'
+        ? chunk
+        : chunk instanceof Uint8Array
+          ? Buffer.from(chunk).toString('utf8')
+          : String(chunk),
+    );
+    return (previousWrite as any).call(process.stderr, chunk, ...rest);
+  }) as typeof process.stderr.write;
+  try {
+    return await fn(captured);
+  } finally {
+    process.stderr.write = previousWrite;
+  }
+}

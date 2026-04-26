@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/src/tmux-web
-ExecStart=/src/tmux-web/tmux-web-dev --listen=0.0.0.0:4022 --allow-ip 192.168.0.100 --allow-ip 192.168.0.111 --terminal xterm --debug --no-auth
+ExecStart=/src/tmux-web/tmux-web-dev --listen=0.0.0.0:4022 --allow-ip 192.168.0.100 --allow-ip 192.168.0.111 --debug --no-auth
 Restart=on-failure
 RestartSec=2s
 
