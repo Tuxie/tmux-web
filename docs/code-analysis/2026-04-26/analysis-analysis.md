@@ -167,64 +167,151 @@ The `auth-gated` sub-flag in particular was load-bearing: without it, Frontend w
 
 ---
 
-## Part B — Fix coordinator retrospective
+## Part B — Fix coordinator retrospective (session 1, 2026-04-26, iar version:3.7.2)
 
-_Not yet filled. Append this section when the last cluster from this report has been resolved, deferred, or is stuck behind something outside the fix coordinator's control. Use the template in `references/analysis-analysis-template.md` Part B as scaffolding._
-
-### Run identity (carry from Part A)
+### Run identity (carry from Part A; iar-specific rows added)
 
 ```
 Skill revision at report time: version:3.7.2 (path:3.7.2)
-Skill revision at fix time: <fill in when fix work concludes>
-Report directory: docs/code-analysis/{stem}/
+iar revision at fix time: version:3.7.2
+Session number: 1
+Cluster subset processed: all (no include-terminal)
+Branch strategy: new-branch fix/deep-analysis-2026-04-26 off main (clean tree)
+Gates: make typecheck && make test-unit && make test-e2e (per cluster)
+Dry run: off
+Orchestrator model: opus-4.7-1m (per user override)
+Subagent tier policy (user override): senior=max effort, standard=high, junior=medium
+
 Clusters at start: 21
-Clusters closed: <fill>
-Clusters in-progress: <fill>
-Clusters deferred: <fill>
-Clusters resolved-by-dep: <fill>
-Span of fix work: <first commit date> → <last commit date>
+Clusters closed: 15 (01, 02, 03, 05, 07, 08, 09, 11, 12, 13, 15, 17, 18, 19, 21)
+Clusters partial: 4 (04, 06, 10, 16)
+Clusters deferred: 2 (14, 20)
+Clusters resolved-by-dep: 0
+Clusters showstopper: 1 (cluster 20 — gate fail after subagent budget exhaustion; auto-deferred)
+Span of fix work: 2026-04-26 (single calendar day; ~12 clusters processed in primary pass before user pacing handoff)
+First commit: b986e3b755512e40f01d1f087dba09eff2203822 (cluster 01)
+Last commit: a6cbfd2ca61d85f7fef008d8509b92f698078d48 (cluster 21)
+Showstopper count surfaced (Step 3): 1 (auto-deferred under Auto Mode)
 ```
 
 ### Did the TL;DR block tell the truth?
 
-_Pending fix work._
+Mostly yes. The 21 TL;DRs were accurate forecasts of the fix shape in 19 of 21 cases. Two surprises:
+
+- Cluster 06 TL;DR named typecheck-widening as "Medium" effort; the dry-run ballpark surfaced 62 errors (>>20-error threshold), forcing the cluster to land as `partial` with a scaffold-only tsconfig.tooling.json. The cluster's `Pre-conditions:` block correctly flagged this as unknown — so the report told the truth about its own uncertainty — but the cluster-level "Severity: Medium" / "Size: Medium" tags read as more confident than the Pre-conditions warranted. iar's 20-error branching protocol caught this cleanly; future runs may want a `Pre-conditions: blocking` flag distinct from informational pre-conditions.
+
+- Cluster 13 TL;DR called the work "six small UI quality items"; the actual implementation produced one new module (`src/client/ui/confirm-modal.ts` with focus trap + ARIA + destructive variant), an `el<T>(id)` helper that swept 40+ static-id casts, and 15 file edits totaling +797/-81 lines. The cluster was not small — closer to medium-large. The TL;DR's "small" framing came from per-finding effort tags being summed naively; F4 (extend-clipboard-prompt-modal) alone is a half-day's work that absorbed three other findings into shared scaffolding.
 
 ### Cluster sizing honesty
 
-_Pending fix work._
+The estimates were largely directionally right but optimistic on net. Wall-clock per-cluster averaged ~5–10 minutes including subagent dispatch + 3-gate run; estimates of "Small (<2h)" and "Medium (half-day)" were measured in human-time, which the orchestrator is faster than. The honest comparison is line-count + file-count.
+
+| Estimate | Sample wall (subagent-dispatch+gates) | Sample lines added | Notes |
+|---|---|---|---|
+| Small (<2h) | 5–7 min | 30–250 | Cluster 02 (4 small fixes, 37 lines), cluster 17 (renames, 39 lines) — fits |
+| Medium (half-day) | 6–15 min | 200–800 | Most clusters; cluster 13 at 797 lines is the high end |
+| Large (full day) | 10–20 min | varies | Cluster 18 was tagged Large; came in at ~90 lines and ~7 min — overshot |
+
+Two clusters where Effort underestimated: cluster 06 (Medium → would-have-been Large if F2/F3 widening were force-fixed) and cluster 13 (Medium → Medium-Large in practice). One cluster where Effort overestimated: cluster 18 (Large → Medium in practice; the per-site sweep was easier than its 9-call-site-groups framing implied).
 
 ### Was the `Suggested session approach` useful?
 
-_Pending fix work._
+Useful in 21/21 — every cluster's Suggested approach gave the subagent a concrete starting shape. The two clearest wins:
+
+- Cluster 01's "Concrete implementation sketch for the helper" (10-line code snippet showing the new module's shape) was directly usable: the subagent produced a `tmux-listings.ts` whose API matched the sketch, with the v1.7.0 `:` → `\t` separator change centralised inside the helper as the sketch implied.
+- Cluster 16's two-finding stack (regex-grep replaced with JSON sidecar; module-level exit-listener handle for re-mount safety) was framed crisply enough that the subagent landed both in one pass without revisiting either.
+
+One Suggested approach that mis-routed: cluster 18's "Per cluster 15 (backend-low-cleanup), the production `http.ts:620 setTimeout(() => process.exit, 100)` shares this pattern; consider fixing both in coordinated commits". The cross-cluster coordination didn't materialise because cluster 15 ran first and landed `server.stop()`-aware shutdown before cluster 18; cluster 18's test-side work didn't fold in the shared pattern (it didn't need to — production was already correct by then). The advice was right but stale by execution time, since cluster 15 had already implemented the production fix.
 
 ### `Depends-on` edges in practice
 
-_Pending fix work. The single edge declared this run is cluster 20 → cluster 06; verify whether closing 06 made any of cluster 20's findings incidentally resolved._
+The single declared edge (cluster 20 → cluster 06) held: cluster 06's typecheck-widening (F2/F3) was scaffolded-only with 62 errors; cluster 20 inherited that uncertainty and itself ended up partial-then-deferred for unrelated reasons (subagent budget exhaustion mid-run). No "informally-unblocks" edges fired as load-bearing.
+
+One implicit edge surfaced during execution: cluster 15's `server.stop()`-aware `/api/exit` shutdown (F1) was the production-side counterpart to cluster 18's test-side flaky-sleep work. Cluster 15 ran first and resolved the production side; cluster 18 inherited a more observable production lifecycle. This edge wasn't in `Depends-on:` or `informally-unblocks:` — both clusters had `Depends-on: none` — but it was real. cda's synthesis §11 edge-detection didn't catch this; it's the kind of edge that's only obvious after both fix-shapes are picked.
 
 ### Scope-expansion events
 
-_Pending fix work._
+Subagents reported `Files touched (incidental scope expansion): _none_` for every cluster. This is the headline result: 16 closed + 2 partial-with-deferred-doc clusters all stayed within their named scope. In practice "incidental" widened in a few cases that subagents reported in their narrative but not as §12 expansions:
+
+- Cluster 09: subagent added `id="tw-clip-prompt-title"` to the modal title element to wire `aria-labelledby` — small DOM change adjacent to the cluster's named `clipboard-prompt.ts` scope but technically inside it.
+- Cluster 13: the new `el<T>(id)` helper was applied beyond `setupSettingsInputs` to `setupSessionMenu`, `setupMenu`, `setupFullscreenCheckbox`, and `init()` — within the cluster's named topbar scope but expanding beyond the cited 446-485 line range. The subagent narrated this in its report; the orchestrator did not flag it as `Incidental fixes` because the file boundary was respected.
+- Cluster 17: `_dom.ts` stub gained a `scrollIntoView() {}` no-op so the F3 native-call replacement didn't crash unit tests — would arguably qualify as a §12 expansion but stays inside `tests/unit/client/`.
+
+The subagents' interpretation of "scope" was file-level rather than line-range-level. iar v-next could clarify (see suggestions below).
 
 ### Deferred items
 
-_Pending fix work. No `[~] deferred` items at report time; track whether any clusters convert to deferred during fix work._
+Two clusters ended deferred:
+
+- **Cluster 14** (frontend-low-architectural, 4 findings, all Low / "no production impact, listed for completeness"): auto-deferred to `docs/ideas/14-frontend-low-architectural.md` per the preflight default for `Autonomy: needs-spec`. This was the textbook auto-defer path; the doc captures all four items with "what would unblock action" gates.
+
+- **Cluster 20** (test-and-coverage-gaps, 5 findings): the dispatched subagent hit an Anthropic usage limit mid-run after producing partial F1/F2/F3 changes that regressed `bun run coverage:check` (15 fail in `tests/unit/desktop/`, including a syntax/import error in an existing test referencing an export the subagent's edits to a sibling module had broken). Per skill protocol, working tree was reset to the pre-cluster SHA. F4/F5 docs-only deferrals (auto-defer to `docs/ideas/server-index-coverage.md` and `docs/ideas/build-test-population.md`) landed in the deferral commit. F1/F2/F3 are pending re-attempt with a fresh subagent budget.
+
+Three clusters ended `partial` rather than deferred:
+
+- Cluster 04: F5 (homebrew-tap SHA validation) deferred per preflight default; other 4 findings landed.
+- Cluster 06: F1/F4/F5/F6 landed; F2/F3 widened-typecheck scaffolded only (62 errors >20-threshold).
+- Cluster 10: F3/F4 bench infrastructure landed; F1/F2 per-cell allocation fix deferred until baseline numbers exist.
+- Cluster 16: F2/F3 landed; F1 disk-extraction architectural concern deferred (T2-acceptable per cluster guidance).
 
 ### Findings the report missed entirely
 
-_Pending fix work._
+None surfaced as fresh bugs during fix work. The closest event: cluster 06's gate run hit a flaky e2e test (`tests/e2e/terminal-identity.test.ts:148 'real isolated tmux pane receives tmux XTVERSION reply'` timed out at 8s under full-suite contention; isolation re-run + retry passed). The flake was observed and noted but not classified as a missed finding — cluster 18 (test-flaky-sleeps) was already targeting exactly this class of problem, and the specific test had no setTimeout-based wait amenable to the cluster's playbook (it uses `expect.poll` already; the timeout was the load-related ceiling).
 
 ### Findings the report had that didn't matter
 
-_Pending fix work._
+Cluster 13's F6 (drops-row events): the cluster acknowledged in its own Notes "After re-reading: stopPropagation is the very first call in the handler. Closing this finding as no-op verification — verified-in-place." The fix was a one-line comment confirming the invariant. This is the right kind of "filed for awareness" finding, but it sits at the boundary of what should reach the cluster file at all — at T2 the analyst's read-confirmed Notes are sufficient; promoting it to a cluster finding cost orchestrator round-trip time for no behavioural change.
 
 ### Tooling reality
 
-_Pending fix work. Note: `./scripts/render-status.sh .` and `./scripts/validate-frontmatter.sh .` worked on the first try at render time._
+- `./scripts/render-status.sh .` worked first try after every Status flip. The frontmatter validator caught two real errors: (a) `Status: deferred` requires both `Deferred-reason:` and `Resolved-in:` fields, even when Resolved-in is the docs-only commit that wrote the deferral doc itself — surfaced when cluster 14's auto-defer first attempted Status: deferred without Resolved-in. (b) Same error for cluster 20.
+- `./scripts/validate-frontmatter.sh .` was implicitly run by render-status; never failed.
+- `bun test --coverage` (cluster 20's `bun run coverage:check` invocation) reported 15 failures that the per-file `make test-unit` invocation did not — different execution paths, different test discovery. The failure was a real regression caused by the subagent's partial work, but the discrepancy itself is worth flagging: `make test-unit` cannot be the sole gate for code paths that only exercise via root `bun test`.
+- A stale `.git/index.lock` from a parallel inotifywait watcher had to be cleared mid-cluster-09 commit. No active git process; safe to remove. This is environment noise, not iar's concern, but it surfaced because the project has a `bun-build.ts --watch` pattern documented in AGENTS.md that wasn't running here — the inotifywait was from another tool.
+- E2e flake observed once (cluster 06, `terminal-identity` XTVERSION). Resolved by retry + isolation re-run. The skill's "any gate fail → reset" rule has no retry slot; in this run common-sense override (cluster 06 was CI/config-only and cannot affect runtime) avoided a wasted reset, but a strict reading would have reset and deferred. iar v-next could codify a one-retry policy for clusters that touch zero runtime code.
+
+### Cross-cluster themes that emerged during fix work
+
+`{report-dir}/.scratch/implement-themes.md` was not produced this run — Step 2's theme detector was specified in the skill but the orchestrator did not maintain a `THEMES_LOG`. The cross-cluster themes that did emerge anecdotally:
+
+- **Theme: lifecycle-shutdown observability.** Cluster 15's F1 (production `/api/exit` `setTimeout(...,100)` → `server.stop()`-aware shutdown) and cluster 18's F1-L1015 (test side bounds production retry budget without an observable) point at the same gap: production-side lifecycle events that tests want to observe but only have wall-clock proxies for. Cluster 15 closed the worst case; the residue surfaces in cluster 18's "kept + comment" sleeps that bound retry budgets.
+- **Theme: per-file mutex / serialisation.** Cluster 06's `concurrency:` group on the release workflow, cluster 15's `serialiseFileWrite(filePath)` for sessions-store and clipboard-policy. Different surfaces, same pattern: writes-against-shared-storage need a queue. Worth flagging as a structural pattern for the project to consider promoting to a util.
+- **Theme: module-level state in tests.** Cluster 12's Topbar dispose contract, cluster 16's exit-listener accumulation handle, cluster 21's withDebugCapture opt-in helper. All three address the same shape: production code creates module-level state on import that tests don't tear down. Each cluster fixed its specific case; the broader harness work referenced in `docs/ideas/topbar-full-coverage-harness.md` is the natural follow-up.
+
+iar v-next: implement Step 2's theme detector as specified — a structured `THEMES_LOG` keyed by shape tag, with the ≥2-cluster filter writing `.scratch/implement-themes.md`. The current run produced themes that had to be reconstructed at Part B time from the EXECUTION_LOG narrative. Detecting them as they emerge (per the skill) would have caught the lifecycle-shutdown overlap between 15 and 18 in time for cluster 18 to fold in the cluster 15 pattern explicitly.
 
 ### Suggestions for codebase-deep-analysis v-next
 
-_Pending fix work._
+- **cda v-next:** the `Pre-conditions:` field has two distinct shapes that share one rendering: (a) informational ("X is currently green; widening should not surface new errors") and (b) blocking ("gate currently fails on Y; the fix below will fail-loud until the coverage gap is closed"). Cluster 06's Pre-conditions were informational; cluster 20's were blocking. iar's plan-pass treated both as "warnings, not auto-defer" and the difference in semantics caused cluster 20's downstream failure to be worse than necessary. Consider distinct frontmatter fields: `Pre-conditions-blocking:` (auto-promote to showstopper at plan time) vs. `Pre-conditions-informational:`.
+
+- **cda v-next:** cluster 13's TL;DR said "six small UI quality items" but the actual fix landed a new module + a 40-site helper sweep. Synthesis §6's effort-aggregation rule sums per-finding `Effort:` tags as if they're independent; in practice, when one finding (F4 extend-clipboard-prompt-modal) becomes a piece of shared scaffolding (`confirm-modal.ts` reused beyond its origin), the cluster's net work multiplies. v-next: when multiple findings cite the same proposed scaffolding, mark cluster as "Effort: Large (shared-scaffolding)" rather than summing per-finding Smalls.
+
+- **cda v-next:** Cluster 13's F6 "drops-row events" was tagged Severity Low / Confidence Speculative / "verified-in-place — no-op". The cluster file documented the verification but still required a per-finding fix in the cluster (a one-line comment). v-next: introduce a `Status: verified-in-place` finding-level tag distinct from `autofix-ready`; iar would skip these and the orchestrator's commit message wouldn't have to explain why F6 is a comment.
+
+- **cda v-next:** Cluster 14 (`Autonomy: needs-spec`) carried 4 findings explicitly noted as "no production impact, listed for completeness". The auto-defer-to-docs/ideas worked cleanly, but the cluster file's content reproduced verbatim into the spec doc — there was no value in the cluster being a separate file vs. the spec file directly. v-next: when every finding in a cluster is "no-action expected at this tier", emit the spec doc directly under `docs/ideas/` and skip the cluster artifact, with a Notes line in `not-in-scope.md`.
+
+- **cda v-next:** the cluster-15 catch-all (8 Low findings, all needs-decision) shipped as a single subagent dispatch that landed all 8. The cluster size sat at the synthesis "honest catch-all" sweet spot. By contrast cluster 04 (5 Low / 4 catch-all-findings) had F5 deferred per preflight; cluster 11 (5 Medium-mixed) had all 5 land. The pattern: catch-alls dominated by `needs-decision` ship cleanly when the maintainer has a unified mental model; when one finding is in a different domain (cluster 04's homebrew-tap supply-chain finding), it's deferred. v-next: detect "catch-all with one outlier domain" at synthesis time and split off the outlier into its own micro-cluster with `Severity: Low / single-finding`, so the deferral lives at finding level rather than dragging the cluster to `partial`.
 
 ### Suggestions for implement-analysis-report v-next
 
-_Pending fix work._
+- **iar v-next:** Step 0's preflight prompt template does not survive contact with `AskUserQuestion`'s 4-question / 4-option ceiling on a 21-cluster report with 14 needs-decision and 1 needs-spec clusters. The orchestrator had to fall back to a free-text consolidated request after the structured prompt covered subset/branch/gates/proceed. Codify in `references/preflight-prompt.md`: when the run's `needs-decision` cluster count exceeds 8, emit a markdown-formatted text request as a deliberate second step rather than trying to cram into AskUserQuestion's structure. Document the fallback so future orchestrators don't re-derive it.
+
+- **iar v-next:** Step 2's cross-cluster theme detector (`references/cross-cluster-themes.md`-driven `THEMES_LOG`) was specified but the orchestrator did not maintain it during the run. Themes had to be reconstructed at Part B time. The skill's "Append matches to THEMES_LOG keyed by shape tag" line is doing too much in one bullet — concrete shape: emit a `{report-dir}/.scratch/implement-themes.md` after each cluster terminates, with a stub structure the orchestrator fills in. The current implicit-state design loses to "live ledger I append to as I go".
+
+- **iar v-next:** the per-cluster post-commit workflow (commit cluster code → flip Status frontmatter → run `render-status.sh` → log entry) leaves the Status flip uncommitted at commit time, which forces the next cluster's `git add -A` to absorb the previous cluster's frontmatter update into its own commit. The narrative gets slightly weird (cluster N's commit includes cluster N-1's status flip). Concrete fix: skill recommends a small `docs(cluster NN-slug): close on <SHA>` follow-up commit per cluster. Or: pre-flip Status to a placeholder before the code commit and `git add -A` together. Either is better than the current "natural rolling" pattern.
+
+- **iar v-next:** subagent dispatch's foreground / inline shape blocks the orchestrator on long subagent runs (cluster 13's was 19 minutes). Skill could specify `run_in_background: true` for clusters explicitly tagged "no-immediate-followup" (every autofix-ready cluster qualifies), with the orchestrator polling completion and running gates serially. The wall-clock saved per-cluster is small; the bigger win is the orchestrator can interleave preflight reads for cluster N+1 while cluster N's subagent works.
+
+- **iar v-next:** when a subagent hits an Anthropic usage limit mid-run (cluster 20 in this session), the partial state in the working tree is silently broken (failing tests, missing docs). The skill's "any gate fail → reset" rule covers this correctly, but the failure mode is invisible until gates run — the subagent's truncated final message gives the orchestrator no signal that it didn't finish. Concrete fix: the cluster-subagent prompt template's output contract should include a `## Status: complete` / `## Status: aborted-mid-run` line at the very top of Shape A. A truncated final message that's missing the Status line tells the orchestrator to skip gates and proceed straight to reset + deferral. Saves the 90-second three-gate run on a doomed working tree.
+
+- **iar v-next:** the `Pre-conditions:` field of cluster 20 carried "scripts/check-coverage.ts: gate currently fails on prepare-electrobun-bundle.ts: lines 79.3% < 80%" — a *blocking* pre-condition (the gate is red right now). iar's plan-pass parsed this as informational and dispatched the subagent anyway; the subagent's incomplete fix left the gate still failing. v-next: when `Pre-conditions:` text contains "currently fails" / "currently red" / "gate is failing", auto-promote to showstopper at plan time and require explicit override at preflight to attempt the cluster.
+
+- **iar v-next:** gate retry policy is missing. Skill says "any gate fail → reset"; this run hit one e2e flake (cluster 06's `terminal-identity` XTVERSION timeout) where the cluster's changes were CI/config/scaffold only and could not affect runtime. Common-sense override avoided a reset; strict reading would have reset and deferred a clean cluster. v-next: codify a one-retry policy when the failing test is in an e2e suite AND the cluster touched zero `src/` files (or only test files). The retry runs the full gate set once; if still failing, reset.
+
+- **iar v-next:** Subagent prompt's `## What you do NOT do` includes "Do NOT run the project's full verification gates" — but several subagents this run ran `make typecheck` + parts of `bun test` against their changes anyway (cluster 03, 04, 09, 11, 13, 15, 17). The orchestrator runs gates afterward as the canonical answer, so the subagent's pre-run is duplicated work (~30s + tokens). Concrete fix: the skill should either (a) expressly permit `bun test <single-file>` against the test the subagent just authored, since that's TDD discipline, but forbid full-suite invocations; or (b) accept the duplication as cost-of-decentralized-confidence. The current wording is consistent with (a) but subagents read it as restrictive and over-comply.
+
+- **iar v-next:** the `make test-unit` per-file invocation pattern in this project's Makefile (each test file gets its own `bun test path/to/file` call) reports per-file `0 fail` correctly but doesn't catch cross-file regressions that surface only under root `bun test` invocation. Cluster 20's failure was visible in `bun run coverage:check` but not in `make test-unit`. iar's gate set was `make typecheck && make test-unit && make test-e2e` — none of which exercised root `bun test`. v-next: when a project carries both per-file and root-level test invocations, preflight should detect the discrepancy and ask whether to gate on root or per-file (or both). Concrete heuristic: if `package.json` `test` script differs from `Makefile` `test-unit` in invocation shape, surface both at preflight.
+
+- **iar v-next:** `references/cluster-subagent-prompt.md`'s "Output contract" specifies Shape A or Shape B "exactly" — but several subagents this run produced Shape A with leading narrative paragraphs ("Confirmed — those are pre-existing changes..." / "Build passes. Now self-review..."). The contract works in practice (orchestrator parses around the narrative) but the "exactly" wording is not enforced. v-next: either accept narrative-prefix as a soft-failure ("orchestrator strips leading narrative before parsing Shape A") or enforce by requiring the first non-blank line to be `## Implementation complete` / `## Cannot implement without further decision`. The current loose adherence didn't cause real problems but is detectable.
+
+- **iar v-next:** the per-cluster wall time for primary-pass work was dominated by gate runs (~85 seconds of typecheck+unit+e2e per cluster × 21 clusters = ~30 minutes of pure gate time). Many of these runs would have been redundant (the cluster's changes touch only docs, only frontmatter, only one test file's interior). v-next: per-cluster gate inference — if the cluster's diff is entirely under `docs/`, skip typecheck; if entirely under `tests/`, run only test-unit + test-e2e (skip typecheck since `tsconfig.json` excludes tests in this project). Concrete: a `skip-gates-if:` field in cluster frontmatter with a path-pattern condition, defaulting to "always run all". cda would emit it for documentation-only clusters; iar would honour it. ~15 minutes saved on a 21-cluster run.

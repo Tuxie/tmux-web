@@ -178,6 +178,65 @@ informally-unblocks (logged, not reordered): none surfaced.
   gates: green; e2e 108 pass (42 new a11y tests).
   notes: form-control labels (label for=), btn.type='button' sweep, modal focus trap with role/aria-modal/aria-labelledby + Tab cycle. Stale .git/index.lock from a parallel inotifywait watcher had to be cleared mid-commit (no active git process). Test count surge prompted by 2 new e2e specs.
 
+- 10-bench-baseline-and-hot-path: PARTIAL
+  post-sha: 4ea699901ff2bb210ac18487d83df0185378b410
+  gates: green; e2e 108 pass.
+  notes: F3/F4 bench infrastructure landed (withBlendedEffectiveBackground bench cases, scripts/bench-compare.ts, bench/baseline.json, package.json bench/bench:check, Makefile bench-check, AGENTS.md mention). F1/F2 per-cell allocation fix DEFERRED until baseline numbers exist; xterm.ts:332-350 carries TODO comment. Active baseline 1280 ns/call, identity 27.
+
+- 11-frontend-ws-and-input: CLOSED
+  post-sha: 0f4d850b418d1e58d1238ccf2393c505b069ec6c
+  gates: green; e2e 108 pass.
+  notes: 5 findings; offline-guard toast pattern via guardOnline(action), 300ms persist debounce + flushPersist on beforeunload, ws.onerror logs URL alongside Event, TT_MAX_DEPTH=64 + TT_MAX_LENGTH=1MiB bounds, malformed-prefix re-emit documented as intentional.
+
+- 12-frontend-topbar-teardown: CLOSED
+  post-sha: d9833781a11665d13e6cd4457e503d94608a7000
+  gates: green; e2e 108 pass.
+  notes: Topbar.dispose() drains 5 document listeners LIFO+idempotent, threaded into __twDispose; right-click no longer clears pendingTitleDrag (button===0 gate); commitAutohide null-live early-return guard.
+
+- 13-frontend-ui-quality: CLOSED
+  post-sha: 87e2936650ded5e263431674ad6ad2fd9f27cf27
+  gates: green; e2e 109 pass.
+  notes: 6 findings; slider-reset clamp, el<T>(id) helper replaces 40+ static-id casts, boot-error toast detail, new src/client/ui/confirm-modal.ts replaces window.confirm() in topbar (kill-session, close-window) with themed ARIA-trapped modal, drag-overlay target-checks replace depth counter, drops-row docs.
+
+- 14-frontend-low-architectural: DEFERRED
+  post-sha: 0c71b57594b9df6927c257fa7f9bf5490b940883 (docs-only)
+  notes: needs-spec, auto-deferred per preflight default. docs/ideas/14-frontend-low-architectural.md captures all four items (desktop-host messaging, WS auth Firefox fallback, toast singleton, i18n absence) with "what would unblock action" notes.
+
+- 15-backend-low-cleanup: CLOSED
+  post-sha: 401e0452a4b99bcfaa5f78dc8f4ad82928c9c8e4
+  gates: green; e2e 109 pass.
+  notes: 8 findings; server.stop()-aware /api/exit shutdown, hasInotifywait 2s timeout + non-Linux skip, readBodyCapped 500ms cancel race, EDITOR/VISUAL passthrough restored (no rationale in git log), spawnPty try/catch with structured spawnError flow, applyPatch/recordGrant async serialiseFileWrite(filePath) per-file mutex, hand-rolled validateSessionPatch with fail-closed unknown-key rejection, hashFileCached mtime-keyed.
+
+- 16-theme-pack-runtime: PARTIAL
+  post-sha: ca1993b2128df199d8b937b99e353077db4dc1e9
+  gates: green; e2e 109 pass.
+  notes: F2 dist/client/xterm-version.json sidecar replaces 1.5MB regex-grep in getTerminalVersions; F3 module-level activeMaterializedExitListener handle removes prior listener before re-registration. F1 disk-extraction architectural concern DEFERRED with TODO(cluster-16) comment.
+
+- 17-naming-consistency: CLOSED
+  post-sha: 2c8bf2d10abc2c0d2162f34a9e80757c0d2c8565
+  gates: green; e2e 109 pass.
+  notes: American spelling (sanitize) project-wide; tests/fuzz/sanitise-filename.test.ts -> sanitize-filename.test.ts via git mv; AGENTS.md fuzz list updated. .ts import outlier in src/client/index.ts -> .js. dropdown.ts as-any cast -> direct scrollIntoView call; _dom.ts stub gained no-op.
+
+- 18-test-flaky-sleeps: CLOSED
+  post-sha: 3fc0c49b2b6b6fa6d57edb4738ed9186734767b6
+  gates: green; e2e 109 pass.
+  notes: ws-handle-connection 8 setTimeout sites — 3 replaced with observables (smaller fixture for 1500ms BLAKE3, waitForMsg for L1190, setImmediate for L1281), 5 kept with comments documenting the missing JS-observable. e2e: 2 sleeps replaced with expect.poll, 2 kept with rationale comments. menu-session-switch-content settle-time removed. ws-handle-connection runtime ~6.4s.
+
+- 19-test-assertion-quality: CLOSED
+  post-sha: f4dda5e6f6cc8a61780618a66e3020a3e32756c9
+  gates: green; e2e 109 pass.
+  notes: 2 ws-handle-connection tautologies -> expect(o.ws.readyState).toBe(WebSocket.CLOSED). clipboard.test.ts swallows-rejection -> writeAttempts + console capture + unhandledRejection listener. 10 toBeDefined sites -> toMatchObject/toBe with the field-of-interest each test was actually checking. Mock-float pattern left as filed.
+
+- 20-test-and-coverage-gaps: DEFERRED
+  post-sha: d792a496086310cb2422f07f3e442c859a928126 (docs-only)
+  gates: SHOWSTOPPER — `bun run coverage:check` 15 fail in tests/unit/desktop/ (display-workarea.test.ts syntax/import error, window.test.ts frame-callback assertions). Subagent hit Anthropic usage limit mid-run; partial work was reset to pre-cluster SHA f4dda5e per protocol.
+  notes: F4/F5 docs-only deferrals landed (docs/ideas/server-index-coverage.md, docs/ideas/build-test-population.md). F1 (prepare-electrobun-bundle macOS test), F2 (src/desktop/index.ts + tests/unit/desktop/main.test.ts), F3 (scripts/check-coverage.ts blind-spot check) all pending re-attempt in a future session.
+
+- 21-test-organisation: CLOSED
+  post-sha: a6cbfd2ca61d85f7fef008d8509b92f698078d48
+  gates: green; e2e 109 pass.
+  notes: 8 findings; PORTS.md stale row + naming convention section, five .spec.ts -> .test.ts via git mv (final .spec.ts count: 0), helpers cleanup-swallow now console.warn, withDebugCapture opt-in helper for silence-console, playwright reuseExistingServer comment, extract-tt N-frame property, new tests/fuzz/tmux-control-parser.test.ts (4 properties, ~95 LOC).
+
 ## Themes log (cross-cluster)
 
 (populated by Step 2 cross-cluster theme detection)
