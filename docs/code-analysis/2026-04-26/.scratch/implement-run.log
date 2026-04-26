@@ -141,7 +141,42 @@ informally-unblocks (logged, not reordered): none surfaced.
   post-sha: 00d1a308917235de3a6838807b0f663a42d59b5c
   gates: typecheck OK, test-unit OK (84 0-fail files), test-e2e OK (66 passed, 43.2s)
   scope expansion: none
-  notes: subagent shape A; all 4 findings addressed (true LRU, OSC52 timestamp, .part exclusive-create, crypto.randomBytes probe token). Cluster 01's status-flip + README re-render absorbed into 02's commit (workflow timing); will tighten to per-cluster docs commits going forward.
+  notes: subagent shape A; all 4 findings addressed (true LRU, OSC52 timestamp, .part exclusive-create, crypto.randomBytes probe token). Cluster 01's status-flip + README re-render absorbed into 02's commit (workflow timing).
+
+- 03-endpoint-hardening: CLOSED
+  post-sha: a6ed60debe2d81babd6006ffda07d18731b5e3d9
+  gates: green; e2e 66 pass.
+  notes: 5 findings; OSC52 read-cap to 64KiB decoded, tw_auth WS upgrade mirror, drops periodic sweep + 4GiB cap, /api/exit + cross-session paste documented as decisions.
+
+- 04-security-low-defenses: PARTIAL
+  post-sha: 0fe9ad1dccf16cb3d65649dc6598e848428b80ea
+  gates: green; e2e 66 pass.
+  notes: 4 of 5 applied (OSC52 session snapshot, --reset TLS pin, IPv6 canonicalisation, F1 docstring). F5 homebrew-tap SHA validation DEFERRED per preflight.
+
+- 05-ci-artifact-verification: CLOSED
+  post-sha: 6b66b81e13812e1d57bd73b4bfc4e71c67b0f3eb
+  gates: green; e2e 66 pass.
+  notes: tarball smoke + new tests/post-compile/binary-smoke.test.ts (TMUX_WEB_BINARY env) + macOS coverage gap doc'd.
+
+- 06-ci-and-release-improvements: PARTIAL
+  post-sha: 5752a225fd667d0272257d61510447432f927dc4
+  gates: typecheck OK, test-unit OK; e2e flake (terminal-identity XTVERSION test) on first run, isolation re-run + retry passed clean. Logged for cluster 18.
+  notes: F1/F4/F5/F6 land. F2/F3 scaffolded (tsconfig.tooling.json) with 62 errors >20-threshold; not wired into make typecheck or release.yml.
+
+- 07-release-pipeline-hygiene: CLOSED
+  post-sha: 426b12adaf7103df2ed0d841380ef90c45704e56
+  gates: green; e2e 66 pass.
+  notes: 5 findings; tmux-web-dev marker, tmux-web-dev.service, tmux-web.service env placeholders, homebrew template reframe (kept), @types/bun bump.
+
+- 08-docs-drift: CLOSED
+  post-sha: 23800b61441f9b78d9faec7d034a5544f1c36276
+  gates: green; e2e 66 pass.
+  notes: 8 findings; CLAUDE→AGENTS sweep, theme-count, AGENTS.md tmux-term section, CHANGELOG Unreleased backfill + duplicate 1.5.1 dedup, package.json description, plans/2025-* header notes.
+
+- 09-frontend-a11y: CLOSED
+  post-sha: 9713907c1f1b23bc746b37ac437857b71be81245
+  gates: green; e2e 108 pass (42 new a11y tests).
+  notes: form-control labels (label for=), btn.type='button' sweep, modal focus trap with role/aria-modal/aria-labelledby + Tab cycle. Stale .git/index.lock from a parallel inotifywait watcher had to be cleared mid-commit (no active git process). Test count surge prompted by 2 new e2e specs.
 
 ## Themes log (cross-cluster)
 

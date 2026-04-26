@@ -60,6 +60,13 @@ property / fuzz pass before pushing the tag:
 make fuzz
 ```
 
+Then run the WebGL render-math bench against the checked-in baseline
+to catch hot-path regressions before tagging:
+
+```bash
+make bench-check
+```
+
 Fuzz tests live under `tests/fuzz/` and target the nine
 security-sensitive parsers (shell quoting, filename / session
 sanitisation, OSC 52 extraction, origin parsing, WS router, TOML

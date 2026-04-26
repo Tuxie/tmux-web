@@ -335,6 +335,17 @@ export class XtermAdapter implements TerminalAdapter {
     // build a typed `theme` / `state` bag from live adapter + renderer
     // state each call — the cost is one tiny object allocation per
     // cell; identical to the previous closure-capture shape.
+    //
+    // TODO(cluster 10-bench-baseline-and-hot-path, 2026-04-26):
+    // `themeSnapshot()` and `stateSnapshot()` allocate one fresh
+    // object each per cell per frame (≈1.4M small allocs/sec at
+    // 240×50 × 60fps during a slider drag). Two fix shapes were
+    // considered (hoist + invalidate, or flatten to direct property
+    // reads). The decision is deferred until the bench baseline lands
+    // so the cheaper shape can be picked from real numbers rather
+    // than reading code. See `bench/baseline.json` and
+    // `scripts/bench-render-math.ts`'s `withBlendedEffectiveBackground`
+    // case for the hot-path measurement.
     const themeSnapshot = (): XtermCellTheme => ({
       bgDefaultRgba: renderer._themeService?.colors?.background?.rgba ?? 0x000000ff,
       fgDefaultRgba: renderer._themeService?.colors?.foreground?.rgba ?? 0xffffffff,

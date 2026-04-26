@@ -11,7 +11,7 @@ SRCS_SERVER := $(shell find src/server src/shared -name "*.ts")
 .PHONY: all dev build build-client build-server tmux-term \
         vendor \
         test typecheck test-unit test-e2e test-e2e-headed test-post-compile \
-        bench fuzz install clean distclean
+        bench bench-check fuzz install clean distclean
 
 all: tmux-web
 
@@ -69,6 +69,13 @@ test-post-compile: tmux-web
 
 bench:
 	$(BUN) run scripts/bench-render-math.ts
+
+# Compare a fresh bench run against the checked-in baseline at
+# `bench/baseline.json`. Fails if any case regressed by more than 20%
+# (see `scripts/bench-compare.ts`). Run before tagging a release; see
+# AGENTS.md "Before pushing a release tag".
+bench-check:
+	$(BUN) run bench:check
 
 # --- Property / fuzz tests ---
 # Not part of `make test` (the release path) — bunfig.toml pins the
