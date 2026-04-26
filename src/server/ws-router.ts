@@ -13,6 +13,14 @@ export interface PendingRead {
   selection: string;
   exePath: string | null;
   commandName: string | null;
+  /** Tmux session name captured at the moment the pending-read entry was
+   *  created. The reply (clipboard-deny / clipboard-reply) is delivered to
+   *  this session, **not** to whatever `state.lastSession` happens to be at
+   *  delivery time. Closes the OSC-title-driven mid-flight rotation race
+   *  (cluster 04, finding F2 — docs/code-analysis/2026-04-26): an OSC title
+   *  emitted between request creation and reply delivery would otherwise
+   *  redirect the bytes into the rotated session's active pane. */
+  session: string;
   /** Populated when the server has already decided to allow and is
    *  awaiting the client's clipboard content for this request. */
   awaitingContent?: boolean;
@@ -31,10 +39,10 @@ export type WsAction =
   | { type: 'window'; action: string; index?: string; name?: string }
   | { type: 'session'; action: string; name?: string }
   | { type: 'scrollbar'; action: 'line-up' | 'line-down' | 'page-up' | 'page-down' | 'drag'; count?: number; position?: number }
-  | { type: 'clipboard-deny'; reqId: string; selection: string }
-  | { type: 'clipboard-grant-persist'; reqId: string; exePath: string; allow: boolean; expiresAt: string | null; pinHash: boolean }
+  | { type: 'clipboard-deny'; reqId: string; selection: string; session: string }
+  | { type: 'clipboard-grant-persist'; reqId: string; exePath: string; allow: boolean; expiresAt: string | null; pinHash: boolean; session: string }
   | { type: 'clipboard-request-content'; reqId: string }
-  | { type: 'clipboard-reply'; selection: string; base64: string };
+  | { type: 'clipboard-reply'; selection: string; base64: string; session: string };
 
 /** Maximum *decoded* OSC 52 read-reply payload, in bytes. The cap is
  *  enforced on the base64 string the client sends; we convert via the
@@ -110,6 +118,9 @@ export function routeClientMessage(raw: string, state: RouterState): WsAction[] 
     const out: WsAction[] = [];
     if (parsed.persist === true && pending.exePath) {
       const expiresAt = (typeof parsed.expiresAt === 'string' || parsed.expiresAt === null) ? parsed.expiresAt : null;
+      // Snapshotted session — see PendingRead.session for why we
+      // pin to the entry's captured session rather than the
+      // (possibly rotated) live `state.lastSession`.
       out.push({
         type: 'clipboard-grant-persist',
         reqId: parsed.reqId,
@@ -117,6 +128,7 @@ export function routeClientMessage(raw: string, state: RouterState): WsAction[] 
         allow,
         expiresAt,
         pinHash: !!parsed.pinHash,
+        session: pending.session,
       });
     }
     if (allow) {
@@ -124,14 +136,16 @@ export function routeClientMessage(raw: string, state: RouterState): WsAction[] 
       out.push({ type: 'clipboard-request-content', reqId: parsed.reqId });
     } else {
       const sel = pending.selection;
+      const sess = pending.session;
       state.pendingReads.delete(parsed.reqId);
-      out.push({ type: 'clipboard-deny', reqId: parsed.reqId, selection: sel });
+      out.push({ type: 'clipboard-deny', reqId: parsed.reqId, selection: sel, session: sess });
     }
     return out;
   }
   if (parsed?.type === 'clipboard-read-reply' && typeof parsed.reqId === 'string') {
     const pending = state.pendingReads.get(parsed.reqId);
     if (!pending || !pending.awaitingContent) return [];
+    const sess = pending.session;
     state.pendingReads.delete(parsed.reqId);
     const base64 = typeof parsed.base64 === 'string' ? parsed.base64 : '';
     let clipped = base64;
@@ -139,7 +153,7 @@ export function routeClientMessage(raw: string, state: RouterState): WsAction[] 
       warnTooLargeOsc52Read(base64.length);
       clipped = '';
     }
-    return [{ type: 'clipboard-reply', selection: pending.selection, base64: clipped }];
+    return [{ type: 'clipboard-reply', selection: pending.selection, base64: clipped, session: sess }];
   }
   return [{ type: 'pty-write', data: raw }];
 }

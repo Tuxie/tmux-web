@@ -1,7 +1,7 @@
 ---
-Status: open
+Status: closed
 Autonomy: needs-decision
-Resolved-in:
+Resolved-in: a6ed60debe2d81babd6006ffda07d18731b5e3d9
 Depends-on:
 informally-unblocks:
 Pre-conditions:

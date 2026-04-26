@@ -367,6 +367,15 @@ async function handleTitleChange(
   // `switch-client` retargeted the PTY tmux client, while shells also emit
   // prompt titles like `user@host:~/p`. Validate the parsed session against
   // tmux itself before letting it mutate websocket/session state.
+  //
+  // Cross-pane horizontal-move is accepted risk: a hostile script running
+  // in one pane can `printf '\x1b]0;target-session:foo\x07'` to retarget
+  // the browser view to a different tmux session belonging to the same
+  // user (cluster 04, finding F1 — docs/code-analysis/2026-04-26).
+  // Maintainer interview 2026-04-26 chose to keep this behaviour and
+  // NOT add an opt-in `--allow-osc-session-switch` flag; tmux is a
+  // single-user server and the existing tmuxSessionExists gate is the
+  // load-bearing check.
   if (!detectedSession || !(await tmuxSessionExists(detectedSession, opts))) {
     if (ws.readyState === WS_OPEN) {
       ws.send(frameTTMessage({ session: ws.data.state.registeredSession, title }));
@@ -680,9 +689,16 @@ function cancelPtyOutputWaiters(state: WsConnState): void {
  *  Bytes can't just be written to the tmux-client PTY: tmux parses its
  *  client-keyboard channel as an outer-terminal reply stream and drops
  *  an OSC 52 WRITE that doesn't match a pending query. Inject directly
- *  into the focused pane's stdin via `tmux send-keys -H <hex bytes>`. */
+ *  into the focused pane's stdin via `tmux send-keys -H <hex bytes>`.
+ *
+ *  `target` is the session name **snapshotted at request creation
+ *  time** — never `state.lastSession` at the moment this function runs.
+ *  An OSC title emitted between request and reply could otherwise rotate
+ *  `state.lastSession` and divert the bytes to the rotated session's
+ *  active pane (cluster 04, finding F2 — docs/code-analysis/2026-04-26). */
 async function replyToRead(
   ws: ServerWebSocket<WsData>,
+  target: string,
   selection: string,
   base64: string,
   opts: WsServerOptions,
@@ -692,7 +708,7 @@ async function replyToRead(
   try {
     await deliverOsc52Reply({
       run: opts.tmuxControl.run,
-      target: state.lastSession,
+      target,
       selection,
       base64,
       directWrite: config.testMode ? (bytes) => state.pty?.write(bytes) : undefined,
@@ -717,26 +733,31 @@ async function handleReadRequest(
 ): Promise<void> {
   const { config, sessionsStorePath } = opts;
   const { state } = ws.data;
+  // Snapshot the session at request entry. Every subsequent reply
+  // (deny / allow / clipboard-read-reply) must target this session,
+  // not whatever `state.lastSession` happens to be at delivery time —
+  // see PendingRead.session and `replyToRead` for the full rationale.
+  const session = state.lastSession;
   // Find who asked so we can gate policy on the exe path.
-  const fg = await getForegroundProcess(opts.tmuxControl.run, state.lastSession);
+  const fg = await getForegroundProcess(opts.tmuxControl.run, session);
   const exePath = fg.exePath;
   if (!exePath) {
     // Can't identify the caller — deny silently. Most apps handle an
     // empty reply gracefully (nothing gets pasted).
     debug(config, `OSC 52 read: unknown foreground process, denying`);
-    void replyToRead(ws, selection, '', opts);
+    void replyToRead(ws, session, selection, '', opts);
     return;
   }
 
-  const decision = await resolvePolicy(sessionsStorePath, state.lastSession, exePath, 'read');
+  const decision = await resolvePolicy(sessionsStorePath, session, exePath, 'read');
   if (decision === 'deny') {
     debug(config, `OSC 52 read: denied by policy for ${exePath}`);
-    void replyToRead(ws, selection, '', opts);
+    void replyToRead(ws, session, selection, '', opts);
     return;
   }
 
   const reqId = nextReqId(state);
-  state.pendingReads.set(reqId, { selection, exePath, commandName: fg.commandName });
+  state.pendingReads.set(reqId, { selection, exePath, commandName: fg.commandName, session });
 
   if (decision === 'allow') {
     state.pendingReads.get(reqId)!.awaitingContent = true;
@@ -796,12 +817,12 @@ function dispatchAction(ws: ServerWebSocket<WsData>, act: WsAction, opts: WsServ
         });
       return;
     case 'clipboard-deny':
-      void replyToRead(ws, act.selection, '', opts);
+      void replyToRead(ws, act.session, act.selection, '', opts);
       return;
     case 'clipboard-grant-persist':
       void recordGrant({
         filePath: opts.sessionsStorePath,
-        session: state.lastSession,
+        session: act.session,
         exePath: act.exePath,
         action: 'read',
         allow: act.allow,
@@ -810,7 +831,7 @@ function dispatchAction(ws: ServerWebSocket<WsData>, act: WsAction, opts: WsServ
       }).catch(() => { /* store failure is non-fatal for this request */ });
       return;
     case 'clipboard-request-content': requestClipboardFromClient(ws, act.reqId); return;
-    case 'clipboard-reply': void replyToRead(ws, act.selection, act.base64, opts); return;
+    case 'clipboard-reply': void replyToRead(ws, act.session, act.selection, act.base64, opts); return;
   }
 }
 

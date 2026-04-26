@@ -9,7 +9,7 @@ import { defaultDropStorage, cleanupAll as cleanupDrops } from './file-drop.js';
 import { generateSelfSignedCert } from './tls.js';
 import type { ServerConfig } from '../shared/types.js';
 import { DEFAULT_HOST, DEFAULT_PORT, LOCALHOST_IPS } from '../shared/constants.js';
-import { parseAllowOriginFlag } from './origin.js';
+import { parseAllowOriginFlag, canonicaliseAllowedIp } from './origin.js';
 import { embeddedAssets } from './assets-embedded.js';
 import pkg from '../../package.json' with { type: 'json' };
 import type { DropStorage } from './file-drop.js';
@@ -116,7 +116,15 @@ export function parseConfig(argv: string[]): ConfigResult {
   const password = args.password || process.env.TMUX_WEB_PASSWORD;
 
   const rawAllowIps = args['allow-ip'] as string[];
-  const allowedIps = new Set<string>(['127.0.0.1', '::1', ...rawAllowIps]);
+  // Canonicalise IPv6 entries so non-canonical forms (`::0001`,
+  // `0:0:0:0:0:0:0:1`) match the canonical Origin form
+  // `parseOriginHeader` produces (`::1`). IPv4 entries pass through
+  // unchanged. Cluster 04, finding F4 — docs/code-analysis/2026-04-26.
+  const allowedIps = new Set<string>([
+    '127.0.0.1',
+    '::1',
+    ...rawAllowIps.map(canonicaliseAllowedIp),
+  ]);
 
   const rawAllowOrigins = args['allow-origin'] as string[];
   const allowedOrigins = rawAllowOrigins.map(parseAllowOriginFlag);
@@ -157,6 +165,64 @@ export function warnIfDangerousOriginConfig(
     'tmux-web: warning: --allow-origin * with non-loopback --allow-ip re-opens DNS rebinding;\n'
     + '  prefer listing explicit origins.',
   );
+}
+
+export interface ResetFetchOptionsInput {
+  /** When true, build HTTPS fetch options pinned to the persisted cert.
+   *  When false (plain HTTP `--reset`), TLS verification is irrelevant
+   *  and we return options without a `tls` block. */
+  useTls: boolean;
+  /** Path to `<configDir>/tls/selfsigned.crt`. The persisted self-signed
+   *  cert generated at first start. Required when `useTls` is true so we
+   *  can pin verification against the running instance's certificate
+   *  (closes cluster 04 finding F3 — sending Basic Auth credentials with
+   *  `rejectUnauthorized: false` over HTTPS lets a stranger holding the
+   *  loopback port receive the credential after the original server
+   *  died). docs/code-analysis/2026-04-26. */
+  certPath: string;
+  /** Optional `user:pass` Basic Auth string to encode into the
+   *  Authorization header. Omit for `--no-auth` setups. */
+  basicAuth?: { username: string; password: string };
+  /** Filesystem readers — injectable for tests. */
+  existsSync?: (p: string) => boolean;
+  readFileSync?: (p: string) => string;
+}
+
+export interface ResetFetchOptions {
+  method: 'POST';
+  headers: Record<string, string>;
+  tls?: { ca: string };
+}
+
+/**
+ * Build the fetch() options for `--reset`. When `useTls` is true, pins
+ * verification to the persisted self-signed cert at `certPath`; throws
+ * a clear error when that file is missing rather than silently falling
+ * back to `rejectUnauthorized: false`. Use systemctl/SIGTERM in that
+ * case — see the cluster 04 / F3 decision (docs/code-analysis/2026-04-26).
+ */
+export function buildResetFetchOptions(input: ResetFetchOptionsInput): ResetFetchOptions {
+  const exists = input.existsSync ?? fs.existsSync;
+  const readFile = input.readFileSync ?? ((p: string) => fs.readFileSync(p, 'utf-8'));
+
+  const headers: Record<string, string> = {};
+  if (input.basicAuth?.password) {
+    headers['Authorization'] = 'Basic ' + btoa(`${input.basicAuth.username}:${input.basicAuth.password}`);
+  }
+
+  if (!input.useTls) {
+    return { method: 'POST', headers };
+  }
+
+  if (!exists(input.certPath)) {
+    throw new Error(
+      `--reset cannot verify HTTPS without the persisted certificate at ${input.certPath}. `
+      + `Use \`systemctl --user restart tmux-web\` or \`kill -TERM <pid>\` instead.`,
+    );
+  }
+
+  const ca = readFile(input.certPath);
+  return { method: 'POST', headers, tls: { ca } };
 }
 
 export interface RuntimeBaseDirOptions {
@@ -240,12 +306,22 @@ Options:
     const scheme = resetTls ? 'https' : 'http';
     const connectHost = (host === '0.0.0.0' || host === '::') ? '127.0.0.1' : host;
     const url = `${scheme}://${connectHost}:${port}/api/exit?action=restart`;
-    const headers: Record<string, string> = {};
-    if (resetAuth?.password) {
-      headers['Authorization'] = 'Basic ' + btoa(`${resetAuth.username}:${resetAuth.password}`);
+    const certPath = path.join(xdgConfigHome, 'tmux-web', 'tls', 'selfsigned.crt');
+    let fetchOptions: ResetFetchOptions;
+    try {
+      fetchOptions = buildResetFetchOptions({
+        useTls: !!resetTls,
+        certPath,
+        basicAuth: resetAuth?.password
+          ? { username: resetAuth.username, password: resetAuth.password }
+          : undefined,
+      });
+    } catch (err) {
+      console.error(`Error: ${(err as Error).message}`);
+      process.exit(1);
     }
     try {
-      await fetch(url, { method: 'POST', headers, tls: { rejectUnauthorized: false } } as any);
+      await fetch(url, fetchOptions as any);
       console.log(`Sent exit to ${url} — process manager will restart it.`);
     } catch {
       console.log(`No running instance at ${connectHost}:${port} (or not reachable).`);

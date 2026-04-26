@@ -74,25 +74,25 @@ describe('routeClientMessage', () => {
 
   test('clipboard-decision deny removes pending and emits deny', () => {
     const st = state();
-    st.pendingReads.set('r1', { selection: 'c', exePath: '/bin/vim', commandName: 'vim' });
+    st.pendingReads.set('r1', { selection: 'c', exePath: '/bin/vim', commandName: 'vim', session: 'main' });
     expect(routeClientMessage('{"type":"clipboard-decision","reqId":"r1","allow":false}', st))
-      .toEqual([{ type: 'clipboard-deny', reqId: 'r1', selection: 'c' }]);
+      .toEqual([{ type: 'clipboard-deny', reqId: 'r1', selection: 'c', session: 'main' }]);
     expect(st.pendingReads.has('r1')).toBe(false);
   });
 
   test('clipboard-decision allow+persist emits grant + request-content', () => {
     const st = state();
-    st.pendingReads.set('r2', { selection: 'c', exePath: '/bin/vim', commandName: 'vim' });
+    st.pendingReads.set('r2', { selection: 'c', exePath: '/bin/vim', commandName: 'vim', session: 'main' });
     const acts = routeClientMessage(
       '{"type":"clipboard-decision","reqId":"r2","allow":true,"persist":true,"expiresAt":null,"pinHash":false}', st);
-    expect(acts).toContainEqual({ type: 'clipboard-grant-persist', reqId: 'r2', exePath: '/bin/vim', allow: true, expiresAt: null, pinHash: false });
+    expect(acts).toContainEqual({ type: 'clipboard-grant-persist', reqId: 'r2', exePath: '/bin/vim', allow: true, expiresAt: null, pinHash: false, session: 'main' });
     expect(acts).toContainEqual({ type: 'clipboard-request-content', reqId: 'r2' });
     expect(st.pendingReads.get('r2')?.awaitingContent).toBe(true);
   });
 
   test('clipboard-decision allow without persist only emits request-content', () => {
     const st = state();
-    st.pendingReads.set('r2b', { selection: 'c', exePath: '/bin/vim', commandName: 'vim' });
+    st.pendingReads.set('r2b', { selection: 'c', exePath: '/bin/vim', commandName: 'vim', session: 'main' });
     const acts = routeClientMessage(
       '{"type":"clipboard-decision","reqId":"r2b","allow":true}', st);
     expect(acts).toEqual([{ type: 'clipboard-request-content', reqId: 'r2b' }]);
@@ -100,7 +100,7 @@ describe('routeClientMessage', () => {
 
   test('clipboard-decision persist with no exePath skips persist', () => {
     const st = state();
-    st.pendingReads.set('r2c', { selection: 'c', exePath: null, commandName: null });
+    st.pendingReads.set('r2c', { selection: 'c', exePath: null, commandName: null, session: 'main' });
     const acts = routeClientMessage(
       '{"type":"clipboard-decision","reqId":"r2c","allow":true,"persist":true}', st);
     expect(acts).toEqual([{ type: 'clipboard-request-content', reqId: 'r2c' }]);
@@ -113,9 +113,9 @@ describe('routeClientMessage', () => {
 
   test('clipboard-read-reply returns reply action with base64', () => {
     const st = state();
-    st.pendingReads.set('r3', { selection: 'p', exePath: '/bin/foo', commandName: 'foo', awaitingContent: true });
+    st.pendingReads.set('r3', { selection: 'p', exePath: '/bin/foo', commandName: 'foo', session: 'main', awaitingContent: true });
     expect(routeClientMessage('{"type":"clipboard-read-reply","reqId":"r3","base64":"YWJj"}', st))
-      .toEqual([{ type: 'clipboard-reply', selection: 'p', base64: 'YWJj' }]);
+      .toEqual([{ type: 'clipboard-reply', selection: 'p', base64: 'YWJj', session: 'main' }]);
     expect(st.pendingReads.has('r3')).toBe(false);
   });
 
@@ -125,11 +125,11 @@ describe('routeClientMessage', () => {
     // beyond that must trip the silent-drop semantics — see cluster 03
     // (docs/code-analysis/2026-04-26).
     const st = state();
-    st.pendingReads.set('r4', { selection: 'c', exePath: null, commandName: null, awaitingContent: true });
+    st.pendingReads.set('r4', { selection: 'c', exePath: null, commandName: null, session: 'main', awaitingContent: true });
     const cap = 4 * Math.ceil((64 * 1024) / 3);
     const big = 'a'.repeat(cap + 1);
     expect(routeClientMessage(`{"type":"clipboard-read-reply","reqId":"r4","base64":"${big}"}`, st))
-      .toEqual([{ type: 'clipboard-reply', selection: 'c', base64: '' }]);
+      .toEqual([{ type: 'clipboard-reply', selection: 'c', base64: '', session: 'main' }]);
   });
 
   test('clipboard-read-reply at the 64 KiB decoded cap is delivered untouched', () => {
@@ -137,18 +137,90 @@ describe('routeClientMessage', () => {
     // is strict (`> MAX_BASE64`) and the typical interactive clipboard
     // payload survives.
     const st = state();
-    st.pendingReads.set('r4b', { selection: 'c', exePath: null, commandName: null, awaitingContent: true });
+    st.pendingReads.set('r4b', { selection: 'c', exePath: null, commandName: null, session: 'main', awaitingContent: true });
     const cap = 4 * Math.ceil((64 * 1024) / 3);
     const big = 'a'.repeat(cap);
     expect(routeClientMessage(`{"type":"clipboard-read-reply","reqId":"r4b","base64":"${big}"}`, st))
-      .toEqual([{ type: 'clipboard-reply', selection: 'c', base64: big }]);
+      .toEqual([{ type: 'clipboard-reply', selection: 'c', base64: big, session: 'main' }]);
   });
 
   test('clipboard-read-reply for non-awaiting entry is no-op', () => {
     const st = state();
-    st.pendingReads.set('r5', { selection: 'c', exePath: null, commandName: null });
+    st.pendingReads.set('r5', { selection: 'c', exePath: null, commandName: null, session: 'main' });
     expect(routeClientMessage('{"type":"clipboard-read-reply","reqId":"r5","base64":"x"}', st))
       .toEqual([]);
+  });
+
+  test('OSC 52 read reply is delivered to the snapshotted session even after currentSession rotates mid-flight', () => {
+    // Cluster 04, finding F2 (docs/code-analysis/2026-04-26):
+    // an OSC title emitted between the read-request being recorded and
+    // the client sending its base64 reply must NOT divert the bytes to
+    // the rotated session's active pane. The router pins the delivery
+    // target to `pending.session`, the snapshot taken at request-creation
+    // time. This test simulates the race by rotating currentSession after
+    // pendingReads.set but before the reply arrives, and asserts the
+    // emitted clipboard-reply still carries the original session.
+    const st = state({ currentSession: 'A' });
+    st.pendingReads.set('rRace', {
+      selection: 'c',
+      exePath: '/bin/foo',
+      commandName: 'foo',
+      session: 'A',           // snapshot at request creation
+      awaitingContent: true,
+    });
+    // Mid-flight rotation: an OSC title moved currentSession to B.
+    st.currentSession = 'B';
+    const acts = routeClientMessage(
+      '{"type":"clipboard-read-reply","reqId":"rRace","base64":"aGk="}', st);
+    expect(acts).toEqual([
+      { type: 'clipboard-reply', selection: 'c', base64: 'aGk=', session: 'A' },
+    ]);
+  });
+
+  test('clipboard-decision deny snapshots session at creation, not at decision time', () => {
+    // F2 (deny path): even when the user denies the consent prompt, the
+    // empty-reply OSC 52 response must hit the original session, not a
+    // rotated one. Otherwise the deny would surface the empty-clipboard
+    // sequence to a different pane than the one that requested it.
+    const st = state({ currentSession: 'A' });
+    st.pendingReads.set('rDenyRace', {
+      selection: 'c',
+      exePath: '/bin/foo',
+      commandName: 'foo',
+      session: 'A',
+    });
+    st.currentSession = 'B';
+    const acts = routeClientMessage(
+      '{"type":"clipboard-decision","reqId":"rDenyRace","allow":false}', st);
+    expect(acts).toEqual([
+      { type: 'clipboard-deny', reqId: 'rDenyRace', selection: 'c', session: 'A' },
+    ]);
+  });
+
+  test('clipboard-decision allow+persist snapshots session for grant-persist action', () => {
+    // F2 (persist path): an allow+persist decision must record the grant
+    // against the snapshotted session — recording it against the rotated
+    // currentSession would let an OSC title hijack a "persist forever for
+    // session A" decision into "persist forever for session B".
+    const st = state({ currentSession: 'A' });
+    st.pendingReads.set('rPersistRace', {
+      selection: 'c',
+      exePath: '/bin/vim',
+      commandName: 'vim',
+      session: 'A',
+    });
+    st.currentSession = 'B';
+    const acts = routeClientMessage(
+      '{"type":"clipboard-decision","reqId":"rPersistRace","allow":true,"persist":true,"expiresAt":null,"pinHash":false}', st);
+    expect(acts).toContainEqual({
+      type: 'clipboard-grant-persist',
+      reqId: 'rPersistRace',
+      exePath: '/bin/vim',
+      allow: true,
+      expiresAt: null,
+      pinHash: false,
+      session: 'A',
+    });
   });
 
   test('malformed JSON passes through as pty write', () => {

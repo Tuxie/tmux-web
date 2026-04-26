@@ -123,6 +123,41 @@ export function logOriginReject(origin: string, remoteIp: string): void {
   );
 }
 
+/**
+ * Canonicalise an `--allow-ip` entry so it matches the form produced by
+ * `parseOriginHeader` for IP-literal Origin hosts. IPv4 entries pass
+ * through unchanged. IPv6 entries are routed through the URL parser,
+ * which collapses zero-runs (`::0001` → `::1`, `0:0:0:0:0:0:0:1` →
+ * `::1`) and lower-cases hex digits — the same canonical form
+ * `parseOriginHeader` returns when it strips the brackets from
+ * `http://[::1]:PORT`. Strings that aren't a recognisable IP literal
+ * (hostnames, garbage) are returned untouched so downstream lookup
+ * code can decide whether to ignore them.
+ *
+ * Closes cluster 04, finding F4 (docs/code-analysis/2026-04-26): a user
+ * passing `--allow-ip ::0001` would otherwise silently fail-closed
+ * against an Origin of `http://[::1]:4022` because the entry is matched
+ * char-for-char against the canonical form on the request side.
+ */
+export function canonicaliseAllowedIp(raw: string): string {
+  // IPv4 dotted-decimal — already canonical on the request side too;
+  // skip the URL round-trip (it would throw for IPv4 inside `[...]`).
+  if (IPV4_RE.test(raw)) return raw;
+  // Anything without a `:` is not an IPv6 literal (could be a hostname
+  // mistakenly fed to --allow-ip; we leave such strings alone so the
+  // failure mode stays "Origin reject" and not "silent rewrite to a
+  // different but valid IP").
+  if (!raw.includes(':')) return raw;
+  try {
+    const u = new URL(`http://[${raw}]/`);
+    let host = u.hostname.toLowerCase();
+    if (host.startsWith('[') && host.endsWith(']')) host = host.slice(1, -1);
+    return host;
+  } catch {
+    return raw;
+  }
+}
+
 function normaliseIpV4Mapped(ip: string): string {
   if (!ip.startsWith('::ffff:')) return ip;
   const suffix = ip.slice(7); // everything after '::ffff:'
