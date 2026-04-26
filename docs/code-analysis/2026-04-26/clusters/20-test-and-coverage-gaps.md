@@ -1,7 +1,8 @@
 ---
-Status: open
+Status: deferred
 Autonomy: needs-decision
-Resolved-in:
+Resolved-in: (deferred — see Deferred-reason)
+Deferred-reason: F1/F2/F3 subagent dispatch hit Anthropic usage limit mid-run; partial code changes (scripts/check-coverage.ts blind-spot check, prepare-electrobun-bundle.ts macOS test, src/desktop/index.ts edits + tests/unit/desktop/main.test.ts) regressed `bun run coverage:check` (15 fail in tests/unit/desktop/, including window.test.ts frame-callback assertions and a syntax/import error in display-workarea.test.ts pointing at src/desktop/display-workarea.ts). Working tree was reset to pre-cluster SHA f4dda5e per skill protocol. F4/F5 docs-only deferrals landed (docs/ideas/server-index-coverage.md, docs/ideas/build-test-population.md). Re-attempt the F1/F2/F3 code work in a future session with a fresh subagent budget.
 Depends-on: 06-ci-and-release-improvements
 informally-unblocks:
 Pre-conditions:
