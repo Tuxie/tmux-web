@@ -5,6 +5,17 @@ on:
     tags:
       - 'v*'
 
+# Serialise releases per-ref so a second tag pushed before the prior
+# release finishes doesn't race the homebrew-tap bump (the GitHub
+# release itself is idempotent via softprops/action-gh-release, but the
+# downstream workflow_call to bump-homebrew-tap.yml is not). cancel-in-
+# progress: false because abandoning an in-flight release halfway
+# through can leave duplicate or partial artifacts on the GitHub
+# Release page.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   # Single linux-only E2E gate that runs before the 4-leg build matrix.
   # A failing E2E blocks every build leg. Running Playwright per-leg would
@@ -114,6 +125,7 @@ jobs:
         run: |
           bun x tsc --noEmit -p tsconfig.json
           bun x tsc --noEmit -p tsconfig.client.json
+          bun x tsc --noEmit -p tsconfig.electrobun.json
 
       - name: Compile binary
         run: |

@@ -35,8 +35,26 @@ The upload-artifact step fails under `act` (no runtime token) — that
 is expected and fine. Everything preceding it, including unit tests
 and `verify-vendor-xterm.ts`, must succeed.
 
-After `act` is green, also run the property / fuzz pass before pushing
-the tag:
+The invocation above only validates the linux-x64 leg of the four-leg
+build matrix, and it does **not** include the `e2e` job (which gates
+the `build` job in CI). For full local-CI parity before a release,
+also run the e2e gate:
+
+```bash
+act -j e2e -P ubuntu-latest=catthehacker/ubuntu:act-latest
+```
+
+Caveat: Playwright under `act` requires Chromium to be installed in
+the container. The `e2e` job already runs `bunx playwright install
+--with-deps chromium`, but the install fetches ~150 MB and needs the
+container to have the apt deps `--with-deps` pulls in. If your `act`
+image is minimal, either pre-warm it (build a derived image with
+Chromium baked in) or expect the install step to dominate the run
+time. A regression that only manifests in Playwright will pass `act
+-j build` and only fail on the GitHub-side run, so this gate matters.
+
+After `act -j build` and `act -j e2e` are green, also run the
+property / fuzz pass before pushing the tag:
 
 ```bash
 make fuzz
@@ -47,8 +65,11 @@ security-sensitive parsers (shell quoting, filename / session
 sanitisation, OSC 52 extraction, origin parsing, WS router, TOML
 colour parsing, `/proc/<pid>/stat` parsing, TT message extraction).
 They're excluded from `bun test` / the release CI path (bunfig's
-`root = "tests/unit"`) so the per-release cost is zero; the trade-off
-is that discovering a new fuzz regression is a manual pre-tag step.
+`root = "tests/unit"`) so the per-release cost is zero. A scheduled
+GitHub Actions run (`.github/workflows/fuzz-nightly.yml`, daily at
+06:00 UTC) executes `make fuzz` against `main` as a belt; the manual
+pre-tag pass is the braces and remains the recommended pre-release
+step.
 
 ### Per-OS coverage gap (intentional)
 
