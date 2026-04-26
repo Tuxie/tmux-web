@@ -594,12 +594,16 @@ export class Topbar {
       coloursSelect.appendChild(opt);
     }
 
-    // Populate font select
+    // Populate font select. Setting opt.title gives the native <option>
+    // a tooltip; Dropdown.fromSelect's getItems propagates it to the
+    // visible custom dropdown items so the copyright credit shows in
+    // both places.
     fontSelect.innerHTML = '';
     for (const font of fonts) {
       const opt = document.createElement('option');
       opt.value = font.family;
       opt.textContent = font.family;
+      if (font.copyright) opt.title = `${font.family} © ${font.copyright}`;
       fontSelect.appendChild(opt);
     }
 

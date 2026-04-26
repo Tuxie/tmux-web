@@ -3,7 +3,7 @@
   "version": "1.9.0",
   "type": "module",
   "private": true,
-  "license": "MIT",
+  "license": "ISC",
   "description": "Browser-based tmux frontend with embedded xterm.js terminal",
   "main": "src/server/index.ts",
   "scripts": {

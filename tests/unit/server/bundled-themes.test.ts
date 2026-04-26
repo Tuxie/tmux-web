@@ -35,12 +35,14 @@ describe("bundled themes", () => {
       file: "MicroKnight Nerd Font.woff2",
       pack: "amiga",
       packDir: path.join(THEMES, "amiga"),
+      copyright: "Niels Krogh \"Nölb/Grafictive\" Mortensen & dMG/t!s^dS!",
     });
     expect(fonts).toContainEqual({
       family: "mOsOul Nerd Font",
       file: "mOsOul Nerd Font.woff2",
       pack: "amiga",
       packDir: path.join(THEMES, "amiga"),
+      copyright: "Desoto/Mo'Soul & dMG/t!s^dS!",
     });
   });
 });

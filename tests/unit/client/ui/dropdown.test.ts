@@ -323,6 +323,28 @@ describe('Dropdown.fromSelect', () => {
     (dd.triggerElement as any).click();
     expect((dd.menuElement as any).hidden).toBe(true);
   });
+
+  it('propagates <option title=> onto rendered dropdown items (font copyright tooltip)', async () => {
+    const doc = makeDoc();
+    const parent = ext(doc.createElement('div'));
+    doc.body.appendChild(parent);
+    const select = makeSelect([
+      { value: 'iosevka', label: 'Iosevka Nerd Font Mono' },
+      { value: 'topaz',   label: 'Topaz8 Amiga1200 Nerd Font' },
+    ], 'iosevka');
+    // Mirror the topbar's font-populate path: opt.title carries the
+    // "{family} © {copyright}" string.
+    (select as any).options[0].title = 'Iosevka Nerd Font Mono © be5invis';
+    (select as any).options[1].title = 'Topaz8 Amiga1200 Nerd Font © Amiga Inc & dMG/t!s^dS!';
+    parent.appendChild(select);
+    const { Dropdown } = await import('../../../../src/client/ui/dropdown.ts');
+    const dd = Dropdown.fromSelect(select as any);
+    await dd.open();
+    const items = (dd.menuElement as any).children as StubElement[];
+    expect(items.length).toBe(2);
+    expect((items[0] as any).title).toBe('Iosevka Nerd Font Mono © be5invis');
+    expect((items[1] as any).title).toBe('Topaz8 Amiga1200 Nerd Font © Amiga Inc & dMG/t!s^dS!');
+  });
 });
 
 describe('Dropdown a11y + keyboard nav', () => {

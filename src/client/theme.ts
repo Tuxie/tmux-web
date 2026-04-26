@@ -32,6 +32,10 @@ export type FontInfo = {
   family: string;
   file: string;
   pack: string;
+  /** Optional rights/attribution string echoed from the server's pack
+   *  manifest. Rendered as the font picker option's `title=` so hovering
+   *  reveals the credit. */
+  copyright?: string;
 };
 
 
