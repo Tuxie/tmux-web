@@ -7,6 +7,7 @@ import { makeFakeTmux } from './_harness/fake-tmux.ts';
 import { execFileAsync } from '../../../src/server/exec.ts';
 import { NoControlClientError, type TmuxControl, type TmuxNotification } from '../../../src/server/tmux-control.ts';
 import { SCROLLBAR_FORMAT } from '../../../src/server/scrollbar.ts';
+import { withDebugCapture } from '../_setup/silence-console.ts';
 
 function postDrop(baseUrl: string, filename: string, body: Buffer): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -1144,13 +1145,7 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
       close: async () => {},
     };
 
-    const stderr: string[] = [];
-    const originalWrite = process.stderr.write;
-    process.stderr.write = ((chunk: string | Uint8Array, ...args: unknown[]) => {
-      stderr.push(Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk));
-      return (originalWrite as any).call(process.stderr, chunk, ...args);
-    }) as typeof process.stderr.write;
-    try {
+    await withDebugCapture(async (stderr) => {
       h = await startTestServer({ testMode: false, tmuxBin, tmuxControl, configOverrides: { debug: true } });
       const o = openWs(h.wsUrl);
       await o.opened;
@@ -1172,9 +1167,7 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
 
       resolveAttach();
       o.ws.close();
-    } finally {
-      process.stderr.write = originalWrite;
-    }
+    });
   }, 15000);
 
   test('windows populated even when shell passthrough title corrupts state.lastSession', async () => {

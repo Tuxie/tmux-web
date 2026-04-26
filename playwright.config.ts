@@ -39,6 +39,12 @@ export default defineConfig({
       TMUX_WEB_DROP_ROOT: dropsRootDir,
     },
     url: 'http://127.0.0.1:4023',
+    // reuseExistingServer: false is intentional for fixture-isolation
+    // (each run owns a fresh ~/.config/tmux-web/sessions.json under
+    // sessionsStoreDir and a fresh themes-bundled fixture). Contributors
+    // hitting EADDRINUSE on 4023 should kill stray bun servers
+    // (`pkill -f 'src/server/index.ts.*4023'`) — `make dev` defaults to
+    // 4022 so it shouldn't conflict.
     reuseExistingServer: false,
     stdout: 'pipe',
     stderr: 'pipe',

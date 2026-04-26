@@ -79,4 +79,33 @@ describe('extractTTMessages — robustness', () => {
     expect((r.messages[1] as any).session).toBe('b');
     expect(r.terminalData).toBe('');
   });
+
+  test('N concatenated TT frames all parse in order', () => {
+    // Property strengthening of the "adjacent TT frames" fixture: the
+    // existing round-trip test (line 45-63) filters TT_PREFIX out of
+    // the prefix/suffix so adversarial prefixes can't introduce a
+    // second marker. This complementary property fuzzes 0-5 concatenated
+    // frames per random input to exercise the parser's framing loop on
+    // every shape the production pipeline can emit (see DET in cluster
+    // 21-test-organisation).
+    const payloadArb = fc.record({
+      clipboard: fc.option(fc.string()),
+      session: fc.option(fc.string()),
+    });
+    fc.assert(
+      fc.property(
+        fc.array(payloadArb, { minLength: 0, maxLength: 5 }),
+        (payloads) => {
+          const data = payloads.map((p) => TT_PREFIX + JSON.stringify(p)).join('');
+          const r = extractTTMessages(data);
+          expect(r.messages).toHaveLength(payloads.length);
+          for (let i = 0; i < payloads.length; i++) {
+            expect(r.messages[i]).toEqual(payloads[i]);
+          }
+          expect(r.terminalData).toBe('');
+        },
+      ),
+      { numRuns: 200 },
+    );
+  });
 });
