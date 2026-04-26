@@ -47,6 +47,13 @@ export interface WsData {
 
 interface WsConnState {
   pty?: BunPty;
+  /** Set to `true` in handleOpen when spawnPty returned a structured
+   *  spawnError (cluster 15 F5). The WS is closed before being added
+   *  to `reg.sessionRefs` / `reg.wsClientsBySession`; handleClose must
+   *  early-return so it does not decrement a refcount the failed open
+   *  never incremented — a peer client on the same session would
+   *  otherwise see the shared control client get torn down. */
+  spawnFailed?: boolean;
   sessionSet?: Set<ServerWebSocket<WsData>>;
   registeredSession: string;
   lastSession: string;
@@ -274,6 +281,12 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
   // still-open terminal. Cluster 15 / F5 — docs/code-analysis/2026-04-26.
   if (pty.spawnError) {
     debug(config, `PTY spawn failed for session=${session}: ${pty.spawnError.message}`);
+    // Mark the connection so handleClose skips the ref-count decrement
+    // it would otherwise apply to a session this WS was never registered
+    // against. Without this, a peer client on the same session sees its
+    // shared control client detached when our close fires. (codex review,
+    // PR #2 — cluster 15 F5 follow-up.)
+    state.spawnFailed = true;
     if (ws.readyState === WS_OPEN) {
       try {
         ws.send(frameTTMessage({
@@ -443,6 +456,13 @@ function handleClose(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: Ws
   const { remoteIp, state } = ws.data;
   const session = state.registeredSession;
   debug(config, `WS closed from ${remoteIp} session=${session}`);
+  // Spawn-failed opens never registered in sessionRefs / wsClientsBySession,
+  // never subscribed to drops, never set up scrollbar state. Skip the entire
+  // teardown body so we don't undercount refs or detach a control client a
+  // peer is still using. (codex review, PR #2 — cluster 15 F5 follow-up.)
+  if (state.spawnFailed) {
+    return;
+  }
   cancelPtyOutputWaiters(state);
   state.unsubscribeDrops?.();
   state.sessionSet?.delete(ws);
