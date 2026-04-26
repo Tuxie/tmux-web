@@ -20,3 +20,7 @@ src/server/assets-embedded.ts
 
 fonts/**
 !fonts/*.woff2
+
+# Mempalace files.
+mempalace.yaml
+entities.json
