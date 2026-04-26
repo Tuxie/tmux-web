@@ -17,6 +17,8 @@ Several e2e suites start their own dedicated server on a fixed port alongside th
 | 4119  | tests/e2e/menu-session-switch-content.spec.ts | real-tmux repeated menu session switches |
 | 4120-5119 | tests/e2e/scrollbar.spec.ts         | real-tmux scrollbar wheel; per-worker range |
 | 5120-6119 | tests/e2e/scrollbar.spec.ts         | real-tmux scrollbar alternate screen; per-worker range |
-| 6120+ | new tests                                  | pick the next unused port here |
+| 6120  | tests/e2e/terminal-identity.test.ts       | real-tmux Secondary DA reply |
+| 6121  | tests/e2e/terminal-identity.test.ts       | real-tmux XTVERSION reply |
+| 6122+ | new tests                                  | pick the next unused port here |
 
 If you add a new e2e test that spawns its own server, append a row and use the next free port.
