@@ -2,7 +2,7 @@
   "author": "tmux-web",
   "version": "1",
   "fonts": [
-    { "file": "Iosevka Nerd Font Mono.woff2", "family": "Iosevka Nerd Font Mono" }
+    { "file": "Iosevka Nerd Font Mono.woff2", "family": "Iosevka Nerd Font Mono", "copyright": "be5invis" }
   ],
   "colours": [
     { "file": "colours/gruvbox-dark.toml", "name": "Gruvbox Dark", "variant": "dark" },

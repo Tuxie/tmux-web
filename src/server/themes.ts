@@ -7,6 +7,10 @@ export type FontInfo = {
   file: string;
   pack: string;
   packDir: string;
+  /** Optional rights/attribution string from the theme manifest. Surfaced
+   *  as a tooltip on the font picker so the credit is discoverable from
+   *  the menu without opening the manifest. */
+  copyright?: string;
 };
 
 export type ThemeInfo = {
@@ -48,7 +52,7 @@ export type ColourInfo = {
 export type PackManifest = {
   author?: string;
   version?: string;
-  fonts?: { file: string; family: string }[];
+  fonts?: { file: string; family: string; copyright?: string }[];
   colours?: { file: string; name: string; variant?: 'dark' | 'light' }[];
   themes?: {
     name: string; css: string;
@@ -270,6 +274,7 @@ export function listFonts(packs: PackInfo[]): FontInfo[] {
         file: font.file,
         pack: pack.dir,
         packDir: pack.fullPath,
+        copyright: font.copyright,
       });
     }
   }

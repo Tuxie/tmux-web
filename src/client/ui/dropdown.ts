@@ -32,6 +32,9 @@ export interface DropdownItem {
   label: string;
   /** When true, render a separator line immediately above this item. */
   separator?: boolean;
+  /** Optional tooltip text. Rendered as the item's `title=` attribute so
+   *  hovering reveals the extra context (e.g. font copyright). */
+  title?: string;
 }
 
 export interface MenuDropdownOptions {
@@ -107,6 +110,7 @@ function renderItems(
     el.setAttribute('aria-selected', isSelected ? 'true' : 'false');
     el.textContent = item.label;
     el.dataset.value = item.value;
+    if (item.title) el.title = item.title;
     el.addEventListener('click', (ev) => {
       ev.stopPropagation();
       onPick(item.value);
@@ -243,6 +247,7 @@ export function showContextMenu(opts: ContextMenuOptions): void {
       el.setAttribute('aria-selected', 'false');
       el.textContent = item.label;
       el.dataset.value = item.value;
+      if (item.title) el.title = item.title;
       el.addEventListener('click', (ev) => {
         ev.stopPropagation();
         close();
@@ -401,6 +406,9 @@ export class Dropdown {
       getItems: () => Array.from(select.options).map(opt => ({
         value: opt.value,
         label: opt.textContent ?? opt.value,
+        // Propagate native <option title=> to the rendered item so font
+        // copyright (and any other annotation) survives the visual swap.
+        title: opt.title || undefined,
       })),
       onSelect: (value) => {
         select.value = value;

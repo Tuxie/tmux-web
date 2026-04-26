@@ -193,6 +193,19 @@ Use `bun` exclusively; `npm`, `pnpm`, `tsx`, and `vitest` are not supported.
 
 Tests follow a strict policy: failing tests indicate implementation bugs and are fixed by changing the implementation, not the test. See `AGENTS.md` for details.
 
+## Credits
+
+- **tmux-web** — © 2026 Per Wigren <per@wigren.eu>. The frontend, server, and packaging.
+- **[tmux](https://tmux.github.io)** — the terminal multiplexer that does all the actual work. ISC-licensed; tmux-web is licensed the same way for compatibility.
+- **[xterm.js](https://xtermjs.org)** — the in-browser terminal emulator that renders the PTY stream (vendored as a git submodule and patched for the Webgl/explicit-bg pipeline). MIT.
+- **[Iosevka](https://typeof.net/Iosevka/)** — the Default theme's monospace font, by Belleve Invis. SIL Open Font License.
+- **Amiga fonts** — bundled with the AmigaOS 3.1 and Amiga Scene 2000 themes. Sourced from [rewtnull/amigafonts](https://github.com/rewtnull/amigafonts):
+  - **MicroKnight Nerd Font** — Niels Krogh "Nölb/Grafictive" Mortensen & dMG/t!s^dS!
+  - **Topaz8 Amiga1200 Nerd Font** — Amiga Inc & dMG/t!s^dS!
+  - **mOsOul Nerd Font** — Desoto/Mo'Soul & dMG/t!s^dS!
+
+The same credits surface as tooltips on the font picker in the settings menu (hover a font name to see its attribution).
+
 ## License
 
-MIT — see [LICENSE](LICENSE).
+ISC — see [LICENSE](LICENSE). Same license as tmux itself.
