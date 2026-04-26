@@ -5,30 +5,11 @@ PREFIX   ?= /usr/local
 BINDIR    = $(PREFIX)/bin
 SHAREDIR  = $(PREFIX)/share/tmux-web
 
-# Isolated build tree for vendored C libraries and the static tmux binary.
-# Kept separate from PREFIX so the two targets never interfere.
-VENDOR_PREFIX  := $(PWD)/build
-VENDOR_CFLAGS   = -I$(VENDOR_PREFIX)/include
-VENDOR_LDFLAGS  = -L$(VENDOR_PREFIX)/lib
-STAMPDIR        = tmp/vendor-stamps
-
-# tmux configure: `--enable-static` is a Linux-only option (passes `-static`
-# to the linker). macOS doesn't support fully static binaries — no static
-# libSystem — and tmux's configure hard-errors out. libevent / utf8proc
-# still link statically on macOS because we only install their `.a` files
-# to $(VENDOR_PREFIX)/lib; only libSystem goes dynamic.
-TMUX_STATIC_FLAG := $(if $(filter Darwin,$(shell uname -s)),,--enable-static)
-
 SRCS_CLIENT := $(shell find src/client src/shared -name "*.ts") bun-build.ts
 SRCS_SERVER := $(shell find src/server src/shared -name "*.ts")
 
-# Present only after `make vendor-tmux`; included as an optional dep so that
-# regenerating assets-embedded.ts (and thus tmux-web) is triggered whenever
-# the binary changes, but the build doesn't hard-require it.
-BUNDLED_TMUX := $(wildcard dist/bin/tmux)
-
 .PHONY: all dev build build-client build-server tmux-term \
-        vendor vendor-tmux \
+        vendor \
         test typecheck test-unit test-e2e test-e2e-headed \
         bench fuzz install clean distclean
 
@@ -89,7 +70,7 @@ fuzz:
 
 # --- Production binary ---
 
-src/server/assets-embedded.ts: dist/client/xterm.js $(BUNDLED_TMUX) tmux.conf bun-build.ts scripts/generate-assets.ts
+src/server/assets-embedded.ts: dist/client/xterm.js tmux.conf bun-build.ts scripts/generate-assets.ts
 	$(BUN) run scripts/generate-assets.ts
 
 tmux-web: dist/client/vendor-xterm.js dist/client/vendor-xterm-addon-fit.js $(SRCS_SERVER) src/server/assets-embedded.ts
@@ -138,62 +119,6 @@ dist/client/vendor-xterm-addon-fit.js: tmp/.vendor-xterm-built
 
 vendor: dist/client/vendor-xterm.js dist/client/vendor-xterm-addon-fit.js
 
-# --- Vendor: static tmux binary ---
-
-$(STAMPDIR):
-	mkdir -p $@
-
-vendor/libevent/configure:
-	git submodule update --init vendor/libevent
-	cd vendor/libevent && ./autogen.sh
-
-vendor/libevent/config.h: vendor/libevent/configure
-	cd vendor/libevent && ./configure --enable-shared=no --prefix="$(VENDOR_PREFIX)"
-
-$(STAMPDIR)/libevent: vendor/libevent/config.h | $(STAMPDIR)
-	cd vendor/libevent && $(MAKE) -j install
-	touch $@
-
-$(STAMPDIR)/utf8proc: | $(STAMPDIR)
-	git submodule update --init vendor/utf8proc
-	cd vendor/utf8proc && $(MAKE) -j libutf8proc.a libutf8proc.pc prefix="$(VENDOR_PREFIX)"
-	install -d $(VENDOR_PREFIX)/lib $(VENDOR_PREFIX)/include $(VENDOR_PREFIX)/lib/pkgconfig
-	install vendor/utf8proc/libutf8proc.a $(VENDOR_PREFIX)/lib/
-	install vendor/utf8proc/utf8proc.h $(VENDOR_PREFIX)/include/
-	install -m 644 vendor/utf8proc/libutf8proc.pc $(VENDOR_PREFIX)/lib/pkgconfig/
-	touch $@
-
-# jemalloc is intentionally omitted: its malloc/free/realloc symbols conflict
-# with glibc's libc.a when linking a fully static binary (glibc defines them
-# as strong symbols). This is a glibc limitation; jemalloc works fine with
-# dynamic linking or with musl.
-vendor/tmux/configure:
-	git submodule update --init vendor/tmux
-	cd vendor/tmux && ./autogen.sh
-
-vendor/tmux/config.status: vendor/tmux/configure $(STAMPDIR)/libevent $(STAMPDIR)/utf8proc
-	cd vendor/tmux && PKG_CONFIG_PATH="$(VENDOR_PREFIX)/lib/pkgconfig" ./configure \
-	  $(TMUX_STATIC_FLAG) --enable-optimizations \
-	  --enable-utf8proc --enable-sixel \
-	  --prefix="$(VENDOR_PREFIX)" \
-	  CFLAGS="$(VENDOR_CFLAGS)" LDFLAGS="$(VENDOR_LDFLAGS)"
-
-$(STAMPDIR)/tmux: vendor/tmux/config.status | $(STAMPDIR)
-	cd vendor/tmux && $(MAKE) -j install
-	touch $@
-
-dist/bin/tmux: $(STAMPDIR)/tmux
-	install -d dist/bin
-	install -m 755 $(VENDOR_PREFIX)/bin/tmux dist/bin/tmux
-	@# Smoke test: make sure the linker produced a binary that actually
-	@# starts. A missing dylib or unresolved symbol would error here, so
-	@# the pipeline fails at build time rather than shipping a dead tmux
-	@# that crashes the first time a user opens a session.
-	@printf '  SMOKE  dist/bin/tmux -V -> '
-	@dist/bin/tmux -V || { echo "FAIL — dist/bin/tmux did not start; see above"; exit 1; }
-
-vendor-tmux: dist/bin/tmux
-
 # --- Cleanup ---
 
 clean:
@@ -201,7 +126,4 @@ clean:
 	rm -f coverage/.lcov.info.*.tmp
 
 distclean: clean
-	cd vendor/libevent && $(MAKE) distclean || true
-	cd vendor/utf8proc && $(MAKE) clean || true
-	cd vendor/tmux && $(MAKE) distclean || true
-	rm -rf build $(STAMPDIR)
+	rm -rf build

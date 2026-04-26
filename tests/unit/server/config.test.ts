@@ -6,6 +6,11 @@ test("parseConfig returns default values", () => {
   expect(config?.tls).toBe(true);
 });
 
+test("parseConfig defaults tmuxBin to host tmux", () => {
+  const { config } = parseConfig([]);
+  expect(config?.tmuxBin).toBe("tmux");
+});
+
 test("parseConfig with --no-tls returns tls: false", () => {
   const { config } = parseConfig(["--no-tls"]);
   expect(config?.tls).toBe(false);

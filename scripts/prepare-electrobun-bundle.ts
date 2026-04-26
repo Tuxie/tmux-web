@@ -30,11 +30,6 @@ export function prepareMacosBundle(env: NodeJS.ProcessEnv = process.env): void {
 
   installExecutable(path.join(resourcesApp, 'tmux-web'), path.join(macosDir, 'tmux-web'));
 
-  const bundledTmux = path.join('dist', 'bin', 'tmux');
-  if (fs.existsSync(bundledTmux)) {
-    installExecutable(bundledTmux, path.join(macosDir, 'tmux'));
-  }
-
   fs.rmSync(path.join(resourcesApp, 'tmux-web'), { force: true });
   console.log(`Prepared macOS tmux-term executables in ${macosDir}`);
 }

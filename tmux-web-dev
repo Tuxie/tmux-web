@@ -3,17 +3,6 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-# Prefer the bundled static tmux binary when available and --tmux not given.
-TMUX_EXTRA=()
-_has_tmux=false
-for _a in "$@"; do
-  case "$_a" in --tmux|--tmux=*) _has_tmux=true; break;; esac
-done
-if ! $_has_tmux && [ -x "dist/bin/tmux" ]; then
-  TMUX_EXTRA=(--tmux "$(pwd)/dist/bin/tmux")
-fi
-unset _has_tmux _a
-
 MARKER="dist/client/ghostty.js"
 SERVER_PID=""
 
@@ -41,7 +30,7 @@ rebuild_if_needed() {
 
 start_server() {
   rebuild_if_needed
-  bun src/server/index.ts "${TMUX_EXTRA[@]}" "$@" &
+  bun src/server/index.ts "$@" &
   SERVER_PID=$!
 }
 

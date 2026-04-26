@@ -39,7 +39,6 @@ const executableDir =
     ? path.join(appRoot, 'Contents', 'MacOS')
     : resourcesApp;
 const expected = path.join(executableDir, 'tmux-web');
-const expectedTmux = platform === 'macos' ? path.join(executableDir, 'tmux') : null;
 const expectedEntrypoint = path.join(resourcesApp, 'bun', 'index.js');
 const misplacedMacTmuxWeb = platform === 'macos' ? path.join(resourcesApp, 'tmux-web') : null;
 
@@ -90,12 +89,7 @@ function verifyCompressedPayload(): boolean {
     process.exit(1);
   }
   if (platform === 'macos') {
-    const payloadTmux = `${payloadExecutableDir}/tmux`;
     const misplacedPayloadTmuxWeb = `${payloadResourcesApp}/tmux-web`;
-    if (!entries.has(payloadTmux)) {
-      console.error(`tmux-term macOS payload is missing vendored tmux: ${payloadTmux}`);
-      process.exit(1);
-    }
     if (entries.has(misplacedPayloadTmuxWeb)) {
       console.error(`tmux-term macOS payload should not keep tmux-web in Resources/app: ${misplacedPayloadTmuxWeb}`);
       process.exit(1);
@@ -122,20 +116,8 @@ if (!fs.existsSync(expectedEntrypoint)) {
 
 const mode = fs.statSync(expected).mode;
 if ((mode & 0o111) === 0) {
-  console.error(`tmux-term bundled tmux-web is not executable: ${expected}`);
+  console.error(`tmux-term tmux-web binary is not executable: ${expected}`);
   process.exit(1);
-}
-
-if (expectedTmux) {
-  if (!fs.existsSync(expectedTmux)) {
-    console.error(`tmux-term macOS bundle is missing vendored tmux: ${expectedTmux}`);
-    process.exit(1);
-  }
-  const tmuxMode = fs.statSync(expectedTmux).mode;
-  if ((tmuxMode & 0o111) === 0) {
-    console.error(`tmux-term bundled tmux is not executable: ${expectedTmux}`);
-    process.exit(1);
-  }
 }
 
 if (misplacedMacTmuxWeb && fs.existsSync(misplacedMacTmuxWeb)) {

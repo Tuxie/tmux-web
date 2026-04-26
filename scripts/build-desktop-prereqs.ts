@@ -9,24 +9,4 @@ function run(cmd: string[], env: NodeJS.ProcessEnv = process.env): void {
 }
 
 run(['bun', 'run', 'bun-build.ts']);
-
-if (process.platform === 'darwin') {
-  run(['make', 'vendor-tmux']);
-  run(['bun', 'run', 'scripts/generate-assets.ts'], {
-    ...process.env,
-    TMUX_WEB_EMBED_TMUX: '0',
-  });
-  run([
-    'bun',
-    'build',
-    'src/server/index.ts',
-    '--compile',
-    '--minify',
-    '--sourcemap',
-    '--bytecode',
-    '--outfile',
-    'tmux-web',
-  ]);
-} else {
-  run(['make', 'tmux-web']);
-}
+run(['make', 'tmux-web']);

@@ -30,7 +30,7 @@ It is intentionally small: a Bun server, a static client bundle, and a thin adap
 - **HTTP Basic Auth** — on by default.
 - **TLS by default** — self-signed certificate auto-generated if none provided.
 - **IP allowlist** — restrict access by client IP in addition to auth.
-- **Single static binary** — `make tmux-web` produces a self-contained executable with embedded assets.
+- **Single server binary** — `make tmux-web` produces an executable with embedded web assets and default config; it uses the host's `tmux`.
 
 ## Requirements
 

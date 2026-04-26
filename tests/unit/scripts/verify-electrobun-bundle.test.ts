@@ -43,7 +43,6 @@ describe('verify-electrobun-bundle', () => {
     const hash = 'testbundle';
 
     writeFile(path.join(payloadApp, 'Contents', 'MacOS', 'tmux-web'), '#!/bin/sh\n');
-    writeFile(path.join(payloadApp, 'Contents', 'MacOS', 'tmux'), '#!/bin/sh\n');
     writeFile(path.join(payloadApp, 'Contents', 'Resources', 'app', 'bun', 'index.js'));
     fs.mkdirSync(resources, { recursive: true });
     fs.writeFileSync(path.join(resources, 'metadata.json'), JSON.stringify({ hash }));

@@ -187,104 +187,7 @@ export function resolveRuntimeBaseDir(opts: RuntimeBaseDirOptions = {}): string 
     : path.join(tmpBase, `tmux-web-${uid}`);
 }
 
-/** Extract the embedded tmux binary to a stable per-user cache path and
- *  return that path, or null if no binary was bundled.
- *
- *  Bun's `with { type: "file" }` gives us an already-extracted path, but
- *  whether it re-extracts on every invocation is an implementation detail we
- *  can't rely on. We keep our own cached copy and only replace it when the
- *  source differs (checked by size and mtime), so the common path is just two
- *  stat(2) calls with no disk writes. */
-function resolveEmbeddedTmux(): string | null {
-  const src = embeddedAssets['dist/bin/tmux'];
-  if (!src) return null;
-
-  const dir = resolveRuntimeBaseDir();
-  const dest = path.join(dir, 'tmux');
-
-  try {
-    const srcStat = fs.statSync(src);
-    let stale = true;
-    try {
-      const destStat = fs.statSync(dest);
-      stale = destStat.size !== srcStat.size || destStat.mtimeMs !== srcStat.mtimeMs;
-    } catch { /* dest absent — first run */ }
-
-    if (stale) {
-      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-      // Bun compiles `with { type: "file" }` imports to paths under
-      // `/$bunfs/…` — a virtual FS that is read-only via Bun-aware APIs.
-      // `fs.copyFileSync` does NOT understand bunfs and fails with ENOENT,
-      // so round-trip through readFileSync + writeFileSync (both bunfs-
-      // aware) to get the bytes out.
-      fs.writeFileSync(dest, fs.readFileSync(src), { mode: 0o755 });
-      // Stamp dest with src's mtime so the comparison is stable on the next run.
-      fs.utimesSync(dest, srcStat.atime, srcStat.mtime);
-    }
-    return dest;
-  } catch {
-    return null;
-  }
-}
-
-/** Find the first `tmux` in $PATH that is not our own executable. */
-function findTmuxInPath(): string | null {
-  let selfReal: string;
-  try { selfReal = fs.realpathSync(process.execPath); } catch { selfReal = process.execPath; }
-  for (const dir of (process.env.PATH ?? '').split(':')) {
-    const candidate = path.join(dir, 'tmux');
-    try {
-      if (fs.realpathSync(candidate) !== selfReal) return candidate;
-    } catch { /* not found or inaccessible */ }
-  }
-  return null;
-}
-
-// Options that consume the next token as their value (no = form).
-const STRING_OPTS = new Set([
-  '--listen', '-l', '--allow-ip', '-i', '--allow-origin', '-o',
-  '--username', '-u', '--password', '-p',
-  '--tls-cert', '--tls-key', '--tmux', '--tmux-conf', '--themes-dir', '--theme',
-]);
-
-/** Return the index of a bare `tmux` positional in args (skipping option values). */
-function findTmuxSubcommandIndex(args: string[]): number {
-  let skipNext = false;
-  for (let i = 0; i < args.length; i++) {
-    if (skipNext) { skipNext = false; continue; }
-    const arg = args[i]!;
-    if (arg === 'tmux') return i;
-    if (arg.startsWith('-') && !arg.includes('=') && STRING_OPTS.has(arg)) skipNext = true;
-  }
-  return -1;
-}
-
-/** Extract the value of --tmux / --tmux=<path> from a slice of args. */
-function extractTmuxBinArg(args: string[]): string | undefined {
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--tmux' && i + 1 < args.length) return args[i + 1];
-    if (args[i]?.startsWith('--tmux=')) return args[i]!.slice('--tmux='.length);
-  }
-}
-
 async function startServer() {
-  // "tmux" passthrough subcommand: `tmux-web [--tmux /alt/bin] tmux [tmux-args…]`
-  // Everything after the bare `tmux` word is forwarded to the tmux binary.
-  // --tmux before the subcommand selects which binary; otherwise bundled → PATH.
-  const rawArgs = process.argv.slice(2);
-  const tmuxSubIdx = findTmuxSubcommandIndex(rawArgs);
-  if (tmuxSubIdx !== -1) {
-    const forwardArgs = rawArgs.slice(tmuxSubIdx + 1);
-    const explicitBin = extractTmuxBinArg(rawArgs.slice(0, tmuxSubIdx));
-    const tmuxBin = explicitBin ?? resolveEmbeddedTmux() ?? findTmuxInPath();
-    if (!tmuxBin) {
-      console.error('tmux-web: cannot find a tmux binary to proxy to');
-      process.exit(1);
-    }
-    const result = Bun.spawnSync([tmuxBin, ...forwardArgs], { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit' });
-    process.exit(result.exitCode ?? 1);
-  }
-
   // Check before parseConfig so we can detect CLI password usage before it's
   // merged into config (env var vs CLI flag indistinguishable afterwards).
   const argvHasPassword = process.argv.some(
@@ -312,7 +215,7 @@ Options:
       --no-tls                 Disable HTTPS
       --tls-cert <path>        TLS certificate file (use with --tls-key)
       --tls-key <path>         TLS private key file (use with --tls-cert)
-      --tmux <path>            Path to tmux executable (default: bundled binary, or 'tmux' in PATH)
+      --tmux <path>            Path to tmux executable (default: tmux)
       --tmux-conf <path>       Alternative tmux.conf to load instead of user default
       --themes-dir <path>      User theme-pack directory override
       --test                   Test mode: use cat PTY, bypass IP/Origin allowlists
@@ -377,16 +280,6 @@ Options:
   }
 
   warnIfDangerousOriginConfig(config);
-
-  // If --tmux was not given explicitly, prefer the bundled static binary
-  // embedded at compile time over whatever 'tmux' resolves to in PATH.
-  const explicitTmux = process.argv.slice(2).some(
-    a => a === '--tmux' || a.startsWith('--tmux='),
-  );
-  if (!explicitTmux) {
-    const resolved = resolveEmbeddedTmux();
-    if (resolved) config.tmuxBin = resolved;
-  }
 
   // Fail early if the configured tmux binary isn't runnable. Otherwise
   // the first WebSocket connection tries to spawn it and the user just
@@ -589,25 +482,6 @@ Options:
 }
 
 if (import.meta.main) {
-  // When invoked as plain "tmux" (symlink/rename), proxy to the bundled tmux
-  // binary unless the first argument is "web", which means run tmux-web.
-  const isCompiled = !process.execPath.endsWith('bun') && !process.execPath.endsWith('bun.exe');
-  const selfName = path.basename(isCompiled ? process.execPath : (process.argv[1] ?? process.execPath));
-  if (selfName === 'tmux') {
-    const args = process.argv.slice(2);
-    if (args[0] !== 'web') {
-      const tmuxBin = resolveEmbeddedTmux() ?? findTmuxInPath();
-      if (!tmuxBin) {
-        console.error('tmux-web: cannot find a tmux binary to proxy to');
-        process.exit(1);
-      }
-      const result = Bun.spawnSync([tmuxBin, ...args], { stdin: 'inherit', stdout: 'inherit', stderr: 'inherit' });
-      process.exit(result.exitCode ?? 1);
-    }
-    // Strip the "web" subcommand so the rest of argv looks like tmux-web was called directly.
-    process.argv.splice(2, 1);
-  }
-
   startServer().catch(err => {
     console.error(err);
     process.exit(1);

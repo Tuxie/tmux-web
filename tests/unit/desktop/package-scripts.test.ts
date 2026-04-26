@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import pkg from '../../../package.json';
 
 describe('desktop package scripts', () => {
-  test('desktop:dev uses the bundled tmux-web binary path', () => {
+  test('desktop:dev builds tmux-web before launching Electrobun', () => {
     const script = pkg.scripts['desktop:dev'];
 
     expect(script).toContain('bun run scripts/build-desktop-prereqs.ts');

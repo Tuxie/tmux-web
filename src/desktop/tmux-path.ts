@@ -13,22 +13,11 @@ export function findTmuxInPath(): string | null {
   return null;
 }
 
-export function findBundledTmux(executablePath = process.execPath): string | null {
-  const candidate = path.join(path.dirname(executablePath), 'tmux');
-  try {
-    fs.accessSync(candidate, fs.constants.X_OK);
-    return candidate;
-  } catch {
-    return null;
-  }
-}
-
-export function desktopExtraArgs(opts: { executablePath?: string } = {}): string[] {
+export function desktopExtraArgs(): string[] {
   const args: string[] = [];
   const tmuxBin =
     process.env.TMUX_TERM_TMUX_BIN ||
-    findTmuxInPath() ||
-    findBundledTmux(opts.executablePath);
+    findTmuxInPath();
   if (tmuxBin) {
     args.push('--tmux', tmuxBin);
   }
