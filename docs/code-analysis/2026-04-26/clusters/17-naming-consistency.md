@@ -1,7 +1,7 @@
 ---
-Status: open
+Status: closed
 Autonomy: autofix-ready
-Resolved-in:
+Resolved-in: 2c8bf2d10abc2c0d2162f34a9e80757c0d2c8565
 Depends-on:
 informally-unblocks:
 Pre-conditions:

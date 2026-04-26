@@ -21,7 +21,9 @@ async function optInKittyKeyboard(page: import('@playwright/test').Page): Promis
     adapter.write('\x1b[>1u');
   });
   // Yield so xterm's input handler processes the CSI sequence before we
-  // start pressing keys.
+  // start pressing keys. xterm.write queues data and flushes asynchronously
+  // with no documented "parser-drained" event the test can poll for, so a
+  // bounded sleep is the only signal available.
   await page.waitForTimeout(50);
 }
 

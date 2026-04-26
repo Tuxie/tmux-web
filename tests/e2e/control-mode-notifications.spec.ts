@@ -26,8 +26,10 @@ test('rename-session emits \\x00TT:session push to attached WS', async ({ page }
     await page.goto('http://127.0.0.1:4117/e2e-main');
     await page.waitForLoadState('networkidle');
 
-    // Give the control client a beat to attach.
-    await new Promise<void>((r) => setTimeout(r, 250));
+    // Poll for the initial framereceived count to settle: at least one TT
+    // frame must arrive before we capture `before`. Avoids racing the
+    // control client's attach + initial state-sync push on slow CI.
+    await expect.poll(() => events.length, { timeout: 5000 }).toBeGreaterThan(0);
     const before = events.length;
 
     // Rename the session from outside tmux-web. tmux fires

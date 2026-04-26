@@ -1,4 +1,5 @@
 import { describe, test, expect, afterEach } from 'bun:test';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import { startTestServer, type Harness } from './_harness/spawn-server.ts';
@@ -205,45 +206,56 @@ describe('ws handleConnection — OSC 52 read flow', () => {
     }));
     // Give deliverOsc52Reply's tmux send-keys call time to reject and the
     // catch branch to run. ~80ms is enough for /bin/false spawn + rejection.
+    // No JS-observable for the catch branch: the production path swallows
+    // the rejection and emits no event the test can wait on.
     await new Promise(r => setTimeout(r, 80));
     o.ws.close();
   }, 15000);
 
   test.skipIf(process.platform !== 'linux')('ws closed during resolvePolicy → prompt emission guard fires', async () => {
-    // Bogus blake3 pin → resolvePolicy hashes the real bun binary (~100MB,
-    // hundreds of ms). We close the ws before the hash completes so the
-    // ws.readyState !== OPEN guard on the prompt-emission path fires.
-    const { path: tmuxBin, dir } = makeFakeTmux({ panePid: process.pid });
-    fs.writeFileSync(dir + '/trigger', '\x1b]52;c;?\x07');
-    h = await startTestServer({ testMode: false, tmuxBin });
-    const exePath = fs.readlinkSync(`/proc/${process.pid}/exe`);
-    fs.writeFileSync(h.tmpDir + '/sessions.json', JSON.stringify({
-      version: 1,
-      sessions: {
-        main: {
-          theme: 'Default', fontFamily: 'x', fontSize: 12, spacing: 1, opacity: 0,
-          clipboard: {
-            [exePath]: {
-              blake3: 'pin-that-will-never-match',
-              read: { allow: true, expiresAt: null, grantedAt: new Date().toISOString() },
+    // Bogus blake3 pin → resolvePolicy hashes the foreground process's exe.
+    // Use a small spawned `/bin/sleep` (~43 KB) instead of the bun test
+    // runner (~100 MB) so the BLAKE3 walk completes in a few ms; the file
+    // size doesn't matter for the test invariant (the hash must complete so
+    // the prompt-emission guard observes ws.readyState !== OPEN).
+    const child = spawn('/bin/sleep', ['30'], { stdio: 'ignore', detached: false });
+    if (!child.pid) throw new Error('spawn(/bin/sleep) did not yield a pid');
+    const childPid = child.pid;
+    try {
+      const { path: tmuxBin, dir } = makeFakeTmux({ panePid: childPid });
+      fs.writeFileSync(dir + '/trigger', '\x1b]52;c;?\x07');
+      h = await startTestServer({ testMode: false, tmuxBin });
+      const exePath = fs.readlinkSync(`/proc/${childPid}/exe`);
+      fs.writeFileSync(h.tmpDir + '/sessions.json', JSON.stringify({
+        version: 1,
+        sessions: {
+          main: {
+            theme: 'Default', fontFamily: 'x', fontSize: 12, spacing: 1, opacity: 0,
+            clipboard: {
+              [exePath]: {
+                blake3: 'pin-that-will-never-match',
+                read: { allow: true, expiresAt: null, grantedAt: new Date().toISOString() },
+              },
             },
           },
         },
-      },
-    }));
-    const o = openWs(h.wsUrl);
-    await o.opened;
-    // Close quickly — while the hash is mid-flight. The exact sleep here is
-    // short (50ms) so the trigger fires (server sees OSC 52), handleReadRequest
-    // kicks off hashing, THEN we close. We then need to wait long enough for
-    // the hash+guard path to complete so the code is actually covered.
-    await new Promise(r => setTimeout(r, 80));
-    o.ws.close();
-    // Poll for the prompt-guard path to have run: resolvePolicy's hash of
-    // the bun binary completes in ~500-1500ms. We need to give that time.
-    // No specific observable from outside — bounded sleep required.
-    await new Promise(r => setTimeout(r, 1500));
-    expect(true).toBe(true);
+      }));
+      const o = openWs(h.wsUrl);
+      await o.opened;
+      // No JS-observable for "OSC 52 trigger has been received and hash is
+      // mid-flight": the trigger fires inside fake-tmux on a 150ms timer
+      // and the server's handleReadRequest emits no pre-hash event. Bounded
+      // sleep before closing the WS.
+      await new Promise(r => setTimeout(r, 200));
+      o.ws.close();
+      // Wait for the BLAKE3 hash of /bin/sleep to complete and the guard
+      // path to run. With a 43 KB binary the hash + guard finish in ~10ms;
+      // 100ms is comfortable margin. No specific observable from outside.
+      await new Promise(r => setTimeout(r, 100));
+      expect(true).toBe(true);
+    } finally {
+      try { child.kill('SIGTERM'); } catch { /* already gone */ }
+    }
   }, 15000);
 
   test('ws abrupt close on client triggers server ws close handler', async () => {
@@ -490,6 +502,8 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     await waitForMsg(dev.messages, m => m.session === 'dev' && 'windows' in m, 3000);
     // Let any startup direct-query retry finish before clearing buffers;
     // otherwise a late startup frame can be mistaken for notification fanout.
+    // Bounds sendStartupWindowState's retry budget [0,25,75,150,300]ms (ws.ts).
+    // No JS-observable for "no further retries will fire" — bounded sleep.
     await new Promise(r => setTimeout(r, 350));
 
     // Reset so we only measure the notification-driven refresh below.
@@ -503,6 +517,10 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
 
     const got = await waitForMsg(dev.messages, m => m.session === 'dev' && 'windows' in m, 8000);
     expect(got).toBeTruthy();
+    // Negative-assertion margin: brief tail to catch any spurious follow-up
+    // run() calls (e.g. an unintended display-message lookup) that may fire
+    // after the dev windows frame. No JS-observable for "no more calls will
+    // fire" — bounded sleep.
     await new Promise(r => setTimeout(r, 50));
     // Notification routing must not call display-message (old approach used it to
     // look up the owning session; the new approach uses n.session directly).
@@ -1012,6 +1030,10 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     try { o.ws.send(JSON.stringify({ type: 'colour-variant', variant: 'dark' })); } catch { /* ok */ }
     // Sleep just past the 500ms retry delay in applyColourVariant so the
     // scheduled retry actually runs and its catch branch executes.
+    // Production-side retry budget: applyColourVariant catches the first
+    // rejection then schedules `setTimeout(() => run().catch(...), 500)`.
+    // The retry's catch branch is silent — no JS-observable signals it
+    // ran, so this is a bounded sleep (production retry + margin).
     await new Promise(r => setTimeout(r, 650));
     try { o.ws.close(); } catch { /* ok */ }
   }, 15000);
@@ -1186,8 +1208,12 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     const o = openWs(h.wsUrl);
     await o.opened;
 
-    // Wait past the 150ms trigger delay so PTY title fires before attach resolves.
-    await new Promise(r => setTimeout(r, 400));
+    // Wait for handleTitleChange to fire: the corrupted detectedSession
+    // ('user@host') fails tmuxSessionExists, so the server falls through to
+    // `ws.send({session: registeredSession, title})` with title='user@host: ~'.
+    // That TT push is the JS-observable that the title corruption path ran.
+    const titlePush = await waitForMsg(o.messages, m => m.title === 'user@host: ~', 3000);
+    expect(titlePush).toBeTruthy();
 
     // Title has fired; state.lastSession may now be 'user@host' (corrupted),
     // but the startup direct query should already have populated the UI using
@@ -1277,8 +1303,12 @@ describe('ws switchSession — race and leak guards', () => {
 
     o.ws.send(JSON.stringify({ type: 'switch-session', name: 'dev' }));
     await waitFor(() => attached.includes('dev'), 3000);
-    // Let the catch block in switchSession run.
-    await new Promise(r => setTimeout(r, 30));
+    // attached.push('dev') happens BEFORE the mock throws, so the waitFor
+    // above may resolve while attachSession's rejection is still propagating.
+    // The catch + finally are purely synchronous after the await, so flushing
+    // pending microtasks (setImmediate) is sufficient — no JS-observable
+    // signals "catch block ran", but a microtask drain is deterministic.
+    await new Promise<void>(r => setImmediate(r));
 
     // 'main' must NOT be detached — the failed switch must not touch it.
     expect(detached.filter(s => s === 'main')).toHaveLength(0);

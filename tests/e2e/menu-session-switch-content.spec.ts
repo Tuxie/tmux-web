@@ -6,7 +6,6 @@ test.skip(!hasTmux(), 'tmux not available');
 const PORT = 4119;
 const SESSIONS = ['Fotona', 'HASS', 'main'] as const;
 const SWITCHES = 20;
-const SETTLE_AFTER_COMPLETED_SWITCH_MS = 200;
 
 function nextRandom(seed: { value: number }): number {
   seed.value = (seed.value * 1664525 + 1013904223) >>> 0;
@@ -93,7 +92,6 @@ test('menu-driven session switches update the actual xterm buffer before the nex
       await clickSession(page, target);
       await waitForDisplayedSession(page, target);
       current = target;
-      await page.waitForTimeout(SETTLE_AFTER_COMPLETED_SWITCH_MS);
     }
   } finally {
     if (server) killServer(server);

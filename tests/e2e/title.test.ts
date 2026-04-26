@@ -27,7 +27,10 @@ test('OSC title in the PTY stream does not update #tb-title (regression: no xter
   // session prefix). If we still subscribed to xterm's onTitleChange,
   // the topbar would briefly flip to the sanitized string.
   await writeToTerminal(page, '\x1b]2;main:_ raw\x07');
-  // Give xterm a beat to parse — and confirm the topbar did NOT change.
+  // Negative assertion: the topbar must NOT change within X ms. No event
+  // fires for "nothing happened" — a bounded sleep is the correct shape
+  // here. 200ms is long enough that any onTitleChange path would have
+  // run, short enough not to slow the suite.
   await page.waitForTimeout(200);
   await expect(page.locator('#tb-title')).toHaveText('\u2733 raw');
 });
