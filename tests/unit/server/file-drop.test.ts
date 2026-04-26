@@ -3,7 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import {
-  sanitiseFilename,
+  sanitizeFilename,
   writeDrop,
   cleanupAll,
   listDrops,
@@ -35,36 +35,36 @@ afterEach(() => {
   fs.rmSync(root, { recursive: true, force: true });
 });
 
-describe("sanitiseFilename", () => {
+describe("sanitizeFilename", () => {
   test("strips directory separators", () => {
-    expect(sanitiseFilename("/etc/passwd")).toBe("etcpasswd");
-    expect(sanitiseFilename("a/b/c.txt")).toBe("abc.txt");
-    expect(sanitiseFilename("a\\b\\c.txt")).toBe("abc.txt");
+    expect(sanitizeFilename("/etc/passwd")).toBe("etcpasswd");
+    expect(sanitizeFilename("a/b/c.txt")).toBe("abc.txt");
+    expect(sanitizeFilename("a\\b\\c.txt")).toBe("abc.txt");
   });
 
   test("strips NUL bytes", () => {
-    expect(sanitiseFilename("foo\x00.txt")).toBe("foo.txt");
+    expect(sanitizeFilename("foo\x00.txt")).toBe("foo.txt");
   });
 
   test("replaces control characters with underscore", () => {
-    expect(sanitiseFilename("foo\x01\x1f\x7fbar.txt")).toBe("foo___bar.txt");
+    expect(sanitizeFilename("foo\x01\x1f\x7fbar.txt")).toBe("foo___bar.txt");
   });
 
   test("keeps ordinary leading dots (hidden files allowed)", () => {
-    expect(sanitiseFilename(".env")).toBe(".env");
-    expect(sanitiseFilename(".bashrc")).toBe(".bashrc");
+    expect(sanitizeFilename(".env")).toBe(".env");
+    expect(sanitizeFilename(".bashrc")).toBe(".bashrc");
   });
 
   test("empty / single-dot / double-dot names become 'file'", () => {
-    expect(sanitiseFilename("")).toBe("file");
-    expect(sanitiseFilename(".")).toBe("file");
-    expect(sanitiseFilename("..")).toBe("file");
-    expect(sanitiseFilename("   ")).toBe("file");
+    expect(sanitizeFilename("")).toBe("file");
+    expect(sanitizeFilename(".")).toBe("file");
+    expect(sanitizeFilename("..")).toBe("file");
+    expect(sanitizeFilename("   ")).toBe("file");
   });
 
   test("caps length at 200 chars (trailing)", () => {
     const long = "a".repeat(400) + ".txt";
-    const out = sanitiseFilename(long);
+    const out = sanitizeFilename(long);
     expect(out.length).toBe(200);
     expect(out.endsWith(".txt")).toBe(true);
   });
@@ -89,7 +89,7 @@ describe("writeDrop", () => {
     expect(path.dirname(a.absolutePath)).not.toBe(path.dirname(b.absolutePath));
   });
 
-  test("sanitises a traversal attempt and keeps the file inside the root", () => {
+  test("sanitizes a traversal attempt and keeps the file inside the root", () => {
     const res = writeDrop(storage, "../../etc/passwd", Buffer.from("x"));
     expect(res.absolutePath.startsWith(root + path.sep)).toBe(true);
     expect(res.filename).toBe("....etcpasswd");

@@ -1,7 +1,7 @@
 ---
-Status: open
+Status: partial
 Autonomy: needs-decision
-Resolved-in:
+Resolved-in: ca1993b2128df199d8b937b99e353077db4dc1e9 (partial — F1 disk-extraction architectural concern deferred per preflight; F2/F3 landed)
 Depends-on:
 informally-unblocks:
 Pre-conditions:

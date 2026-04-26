@@ -72,7 +72,7 @@ function isValidSessionName(name: string): boolean {
   return true;
 }
 
-function sanitiseSessions(input: unknown): Record<string, StoredSessionSettings> {
+function sanitizeSessions(input: unknown): Record<string, StoredSessionSettings> {
   if (!input || typeof input !== 'object') return {};
   const out: Record<string, StoredSessionSettings> = {};
   for (const [k, v] of Object.entries(input as Record<string, StoredSessionSettings>)) {
@@ -92,7 +92,7 @@ export function loadConfig(filePath: string): SessionsConfig {
       lastActive: typeof parsed.lastActive === 'string' && isValidSessionName(parsed.lastActive)
         ? parsed.lastActive
         : undefined,
-      sessions: sanitiseSessions(parsed.sessions),
+      sessions: sanitizeSessions(parsed.sessions),
     };
   } catch {
     return emptyConfig();
@@ -100,7 +100,7 @@ export function loadConfig(filePath: string): SessionsConfig {
 }
 
 export function mergeConfig(current: SessionsConfig, patch: SessionsConfigPatch): SessionsConfig {
-  const patchSessions = sanitiseSessions(patch.sessions);
+  const patchSessions = sanitizeSessions(patch.sessions);
   const patchLastActive = patch.lastActive !== undefined && isValidSessionName(patch.lastActive)
     ? patch.lastActive
     : undefined;

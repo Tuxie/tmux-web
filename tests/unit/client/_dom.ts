@@ -22,6 +22,7 @@ export interface StubElement {
   querySelectorAll(sel: string): StubElement[];
   click(): void;
   focus(): void;
+  scrollIntoView(opts?: unknown): void;
 }
 
 export function el(tag = 'div'): StubElement {
@@ -53,6 +54,7 @@ export function el(tag = 'div'): StubElement {
     querySelectorAll() { return []; },
     click() { self.dispatch('click', { target: self, preventDefault() {}, stopPropagation() {} }); },
     focus() {},
+    scrollIntoView(_opts?: unknown) {},
   };
   const setAdd = Set.prototype.add.bind(classes);
   const setDelete = Set.prototype.delete.bind(classes);

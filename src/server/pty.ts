@@ -14,7 +14,7 @@ export interface PtyCommandOptions {
 
 export function sanitizeSession(raw: string): string {
   // `decodeURIComponent` throws on malformed percent-escapes (a lone `%`,
-  // or `%` followed by non-hex). We promise callers a sanitised string
+  // or `%` followed by non-hex). We promise callers a sanitized string
   // and never a throw, so fall back to the raw input if decoding fails;
   // the charset filter below strips any stray `%` anyway.
   let decoded: string;

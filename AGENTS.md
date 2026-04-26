@@ -69,7 +69,7 @@ make bench-check
 
 Fuzz tests live under `tests/fuzz/` and target the nine
 security-sensitive parsers (shell quoting, filename / session
-sanitisation, OSC 52 extraction, origin parsing, WS router, TOML
+sanitization, OSC 52 extraction, origin parsing, WS router, TOML
 colour parsing, `/proc/<pid>/stat` parsing, TT message extraction).
 They're excluded from `bun test` / the release CI path (bunfig's
 `root = "tests/unit"`) so the per-release cost is zero. A scheduled

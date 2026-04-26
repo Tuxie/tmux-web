@@ -143,7 +143,7 @@ export interface ResizeMessage {
 /** Client-to-server tmux session switch message. */
 export interface SwitchSessionMessage {
   type: 'switch-session';
-  /** The target tmux session name. Server validates and sanitises. */
+  /** The target tmux session name. Server validates and sanitizes. */
   name: string;
 }
 

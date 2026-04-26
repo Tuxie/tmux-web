@@ -109,7 +109,7 @@ describe("sessions-store", () => {
     expect(next.sessions.b).toBeDefined();
   });
 
-  test("sanitiseSessions drops __proto__, constructor, and prototype keys", () => {
+  test("sanitizeSessions drops __proto__, constructor, and prototype keys", () => {
     const file = path.join(tmp, "sessions.json");
     // Write raw JSON that includes dangerous prototype-pollution keys.
     // JSON.parse won't give us __proto__ as an own property so write via

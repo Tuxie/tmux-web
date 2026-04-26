@@ -97,8 +97,8 @@ function hasClipboardField(patch: unknown): boolean {
  *
  *  Returns `{ok: false, reason}` or `{ok: true, patch}`. The patch
  *  returned is the same object the caller passed in (no defensive
- *  copy) — `applyPatch` does its own sanitisation via
- *  `sanitiseSessions`. Cluster 15 / F7 — docs/code-analysis/2026-04-26. */
+ *  copy) — `applyPatch` does its own sanitization via
+ *  `sanitizeSessions`. Cluster 15 / F7 — docs/code-analysis/2026-04-26. */
 export type SessionPatchValidationResult =
   | { ok: true; patch: SessionsConfigPatch }
   | { ok: false; reason: string };
@@ -541,7 +541,7 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
 
     if (pathname === '/api/drops/paste') {
       if (method !== 'POST') return new Response(null, { status: 405 });
-      // The `session` query param is accepted as-is (only sanitised, not
+      // The `session` query param is accepted as-is (only sanitized, not
       // cross-checked against an open WS for the requesting auth
       // context). Drops are a per-user pool, not session-scoped, and
       // cross-session paste is intentional behaviour — see cluster 03

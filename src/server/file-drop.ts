@@ -291,12 +291,12 @@ function stopAllWatchers(): Promise<void> {
   return Promise.allSettled(pending).then(() => undefined);
 }
 
-/** Drop sanitisation. `name` is the filename the browser supplied; we
+/** Drop sanitization. `name` is the filename the browser supplied; we
  *  strip anything path-like, collapse control chars, cap length, and
  *  rescue empty / dot / dot-dot results to a stable "file" placeholder.
  *  The original name is preserved as-is otherwise (so spaces, unicode,
  *  etc. come through unchanged). */
-export function sanitiseFilename(name: string): string {
+export function sanitizeFilename(name: string): string {
   let out = (name ?? '')
     .replace(/[\/\\\x00]/g, '')
     .replace(/[\x01-\x1f\x7f]/g, '_')
@@ -418,7 +418,7 @@ export function writeDrop(
     }
   }
 
-  const filename = sanitiseFilename(rawName);
+  const filename = sanitizeFilename(rawName);
   const dropId = newDropId();
   const dropDir = path.join(storage.root, dropId);
   fs.mkdirSync(dropDir, { mode: 0o700 });

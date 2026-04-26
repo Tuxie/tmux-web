@@ -39,7 +39,7 @@ import {
   DEFAULT_SESSION_SETTINGS,
   type SessionSettings,
 } from './session-settings.js';
-import { XtermAdapter } from './adapters/xterm.ts';
+import { XtermAdapter } from './adapters/xterm.js';
 
 declare global {
   interface Window {
@@ -292,7 +292,7 @@ async function main() {
   // carries tmux's raw #{pane_title} (what the shell set). We intentionally
   // ignore xterm.js's onTitleChange here — it'd fire in parallel with the
   // server message but deliver tmux's set-titles-string output (typically
-  // `session:window_name`), which tmux sanitises (non-printables → `_`) and
+  // `session:window_name`), which tmux sanitizes (non-printables → `_`) and
   // differs from pane_title. Having both sources race made the topbar
   // flicker between the two forms on rapid title updates.
   async function sendClipboardForRead(reqId: string): Promise<void> {
