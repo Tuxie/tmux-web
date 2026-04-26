@@ -10,7 +10,7 @@ import { handleClipboard } from './ui/clipboard.js';
 import { showClipboardPrompt } from './ui/clipboard-prompt.js';
 import { installFileDropHandler } from './ui/file-drop.js';
 import { showToast, formatBytes } from './ui/toast.js';
-import { consumeBootErrorDetails, consumeBootErrors } from './boot-errors.js';
+import { consumeBootErrorDetails, consumeBootErrors, formatBootErrorToast } from './boot-errors.js';
 import { installAuthenticatedFetch } from './auth-fetch.js';
 import { clientLog } from './client-log.js';
 import { installDropsPanel } from './ui/drops-panel.js';
@@ -85,8 +85,12 @@ async function main() {
   if (bootErrors.length > 0) {
     const unique = [...new Set(bootErrors)];
     clientLog('boot-errors ' + bootErrorDetails.join(' | '));
+    // Append the first error detail (truncated) so a non-developer end
+    // user without devtools has a chance at recognising the failure
+    // mode (e.g. 401, ECONNREFUSED, JSON parse error) — the labels
+    // alone weren't actionable. Cluster 13 / F3.
     showToast(
-      'Failed to load some UI data (' + unique.join(', ') + ') — settings menu may be incomplete.',
+      formatBootErrorToast(unique, bootErrorDetails[0]),
       { variant: 'error', durationMs: 6000 },
     );
   }

@@ -66,7 +66,10 @@ export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promis
       revoke.title = `Remove ${d.filename} from disk`;
       revoke.addEventListener('click', async (ev) => {
         // Prevent the row-click re-paste handler from also firing when
-        // the user meant to revoke.
+        // the user meant to revoke. INVARIANT: stopPropagation() is the
+        // first call in this handler — it runs synchronously before any
+        // await, so a thrown error in the fetch path can't leak through
+        // to the row-click listener (cluster 13 / F6 verification).
         ev.stopPropagation();
         revoke.disabled = true;
         try {

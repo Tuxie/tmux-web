@@ -1361,6 +1361,42 @@ describe('Topbar slider double-click reset', () => {
     expect(input('sld-background-hue').value).toBe(String(DEFAULT_BACKGROUND_HUE));
     expect(storedMain().backgroundHue).toBe(DEFAULT_BACKGROUND_HUE);
   });
+
+  // Cluster 13 / F1: a malformed theme.json that declares an
+  // out-of-bounds defaultThemeContrast (or any other slider default)
+  // must be clamped before commit. Without the clamp, the value would
+  // be written verbatim into sessions.json by the dblclick-to-reset
+  // path even though every other commit path already clamps.
+  it('clamps an out-of-bounds theme default before committing on dblclick reset', async () => {
+    const malformed: ThemeInfo = {
+      name: 'Malformed Theme',
+      pack: 'malformed',
+      css: 'malformed.css',
+      source: 'bundled',
+      // themeContrast clamps to [-100, 100]; -200 would otherwise
+      // land in sessions.json verbatim.
+      defaultThemeContrast: -200,
+    };
+    await mountTopbarWithSettings({
+      themes: [malformed],
+      sessions: {
+        main: {
+          ...DEFAULT_SESSION_SETTINGS,
+          theme: malformed.name,
+          themeContrast: 50,
+        },
+      },
+    });
+    // Sanity: starting at the configured value.
+    expect(input('inp-theme-contrast').value).toBe('50');
+
+    dblclick('sld-theme-contrast');
+
+    // The clamp keeps the value in range — both DOM and sessions.json.
+    expect(input('inp-theme-contrast').value).toBe('-100');
+    expect(input('sld-theme-contrast').value).toBe('-100');
+    expect(storedMain().themeContrast).toBe(-100);
+  });
 });
 
 describe('Topbar opacity slider wiring', () => {

@@ -5,6 +5,7 @@ import {
 import { applyTheme, listFonts, listThemes } from '../theme.js';
 import { fetchColours } from '../colours.js';
 import { Dropdown, showContextMenu, type DropdownItem } from './dropdown.js';
+import { showConfirmModal } from './confirm-modal.js';
 import {
   loadSessionSettings,
   saveSessionSettings,
@@ -59,6 +60,21 @@ import {
 } from '../desktop-host.js';
 
 const TITLEBAR_DRAG_RESTORE_THRESHOLD_PX = 4;
+
+/** Typed `getElementById` that throws on a missing id, replacing the
+ *  20+ `document.getElementById('…') as HTMLInputElement` casts that
+ *  used to silently turn a stale id into a runtime null-deref. The
+ *  thrown error names the missing id so an HTML refactor that drops a
+ *  control surfaces immediately rather than at the first user
+ *  interaction. Only safe for static ids guaranteed to exist by
+ *  `index.html` — dynamically-built nodes still need a manual cast. */
+function el<T extends HTMLElement>(id: string): T {
+  const node = document.getElementById(id);
+  if (node === null) {
+    throw new Error(`tmux-web: missing required element #${id}`);
+  }
+  return node as T;
+}
 
 /** Map a `{type:'window', action:…}` action verb to a human-readable
  *  phrase for the disconnect toast — `select` → "switch window",
@@ -126,13 +142,13 @@ export class Topbar {
   }
 
   async init(): Promise<void> {
-    this.topbar = document.getElementById('topbar')!;
-    this.sessionNameEl = document.getElementById('tb-session-name')!;
+    this.topbar = el<HTMLElement>('topbar');
+    this.sessionNameEl = el<HTMLElement>('tb-session-name');
     this.sessionNameEl.textContent = this.currentSession;
-    this.winTabs = document.getElementById('win-tabs')!;
-    this.tbTitle = document.getElementById('tb-title')!;
-    this.autohideChk = document.getElementById('chk-autohide') as HTMLInputElement;
-    this.scrollbarAutohideChk = document.getElementById('chk-scrollbar-autohide') as HTMLInputElement;
+    this.winTabs = el<HTMLElement>('win-tabs');
+    this.tbTitle = el<HTMLElement>('tb-title');
+    this.autohideChk = el<HTMLInputElement>('chk-autohide');
+    this.scrollbarAutohideChk = el<HTMLInputElement>('chk-scrollbar-autohide');
 
     this.setupSessionMenu();
     this.setupAutoHide();
@@ -332,18 +348,28 @@ export class Topbar {
         killItem.addEventListener('click', (ev) => {
           ev.stopPropagation();
           close();
-          // Native confirm() is intentional here — destructive tmux actions are
-          // infrequent and a custom modal would duplicate the clipboard-prompt
-          // code path for marginal UX gain. See 2026-04-17 code-analysis UX-1.
-          if (!confirm(`Kill session "${current}"?`)) return;
-          if (!this.guardOnline('kill session')) return;
-          this.opts.send(JSON.stringify({ type: 'session', action: 'kill' }));
+          // Use the themed confirm-modal instead of native confirm() —
+          // unthemable, blocks the JS thread, and is suppressed entirely
+          // by some desktop-wrapper webviews (which would let the
+          // destructive action proceed unconfirmed). Cluster 13 / F4.
+          void showConfirmModal<boolean>({
+            title: 'Kill session?',
+            body: `Kill session "${current}"?`,
+            buttons: [
+              { label: 'Cancel', value: false },
+              { label: 'Kill session', value: true, kind: 'destructive', defaultFocus: true },
+            ],
+          }).then((ok) => {
+            if (!ok) return;
+            if (!this.guardOnline('kill session')) return;
+            this.opts.send(JSON.stringify({ type: 'session', action: 'kill' }));
+          });
         });
         menu.appendChild(killItem);
   }
 
   private setupSessionMenu(): void {
-    const btn = document.getElementById('btn-session-menu') as HTMLButtonElement;
+    const btn = el<HTMLButtonElement>('btn-session-menu');
     const btnPlus = document.getElementById('btn-session-plus') as HTMLButtonElement | null;
 
     let sessionDropdown: Dropdown;
@@ -414,11 +440,11 @@ export class Topbar {
   }
 
   private setupMenu(): void {
-    const menuWrap = document.getElementById('menu-wrap') as HTMLElement;
-    const menuBtn = document.getElementById('btn-menu') as HTMLButtonElement;
+    const menuWrap = el<HTMLElement>('menu-wrap');
+    const menuBtn = el<HTMLButtonElement>('btn-menu');
     menuBtn.setAttribute('aria-haspopup', 'true');
     menuBtn.setAttribute('aria-expanded', 'false');
-    const dropdown = document.getElementById('menu-dropdown') as HTMLElement;
+    const dropdown = el<HTMLElement>('menu-dropdown');
     const footerLeft = document.getElementById('menu-footer-left');
     const footerRight = document.getElementById('menu-footer-right');
     if (footerLeft && footerRight) {
@@ -445,7 +471,7 @@ export class Topbar {
     if (window.__menuReopen) {
       window.__menuReopen = false;
       this.setConfigMenuOpen(true);
-      const chkFs = document.getElementById('chk-fullscreen') as HTMLInputElement;
+      const chkFs = el<HTMLInputElement>('chk-fullscreen');
       if (chkFs) chkFs.checked = !!document.fullscreenElement;
     }
 
@@ -458,7 +484,7 @@ export class Topbar {
       this.setConfigMenuOpen(nextOpen);
       if (nextOpen) {
         // Sync fullscreen checkbox state on open
-        const chkFs = document.getElementById('chk-fullscreen') as HTMLInputElement;
+        const chkFs = el<HTMLInputElement>('chk-fullscreen');
         chkFs.checked = !!document.fullscreenElement;
       } else {
         this.opts.focus();
@@ -492,7 +518,7 @@ export class Topbar {
   }
 
   private setupFullscreenCheckbox(): void {
-    const chkFs = document.getElementById('chk-fullscreen') as HTMLInputElement;
+    const chkFs = el<HTMLInputElement>('chk-fullscreen');
     chkFs.addEventListener('change', () => this.toggleFullscreen());
     const onFullscreenChange = (): void => {
       chkFs.checked = !!document.fullscreenElement;
@@ -504,46 +530,49 @@ export class Topbar {
 
   // Returns a Promise that resolves once the async data fetches complete.
   private async setupSettingsInputs(): Promise<void> {
-    const themeSelect = document.getElementById('inp-theme') as HTMLSelectElement;
-    const coloursSelect = document.getElementById('inp-colours') as HTMLSelectElement;
-    const btnResetColours = document.getElementById('btn-reset-colours') as HTMLButtonElement;
-    const fontSelect = document.getElementById('inp-font-bundled') as HTMLSelectElement;
-    const btnResetFont = document.getElementById('btn-reset-font') as HTMLButtonElement;
-    const chkSubpixelAA = document.getElementById('chk-subpixel-aa') as HTMLInputElement;
-    const sldSize = document.getElementById('sld-fontsize') as HTMLInputElement;
-    const inpSize = document.getElementById('inp-fontsize') as HTMLInputElement;
-    const sldHeight = document.getElementById('sld-spacing') as HTMLInputElement;
-    const inpHeight = document.getElementById('inp-spacing') as HTMLInputElement;
-    const sldTuiBgOpacity = document.getElementById('sld-tui-bg-opacity') as HTMLInputElement;
-    const inpTuiBgOpacity = document.getElementById('inp-tui-bg-opacity') as HTMLInputElement;
-    const sldTuiFgOpacity = document.getElementById('sld-tui-fg-opacity') as HTMLInputElement;
-    const inpTuiFgOpacity = document.getElementById('inp-tui-fg-opacity') as HTMLInputElement;
-    const sldOpacity = document.getElementById('sld-opacity') as HTMLInputElement;
-    const inpOpacity = document.getElementById('inp-opacity') as HTMLInputElement;
-    const sldThemeHue = document.getElementById('sld-theme-hue') as HTMLInputElement;
-    const inpThemeHue = document.getElementById('inp-theme-hue') as HTMLInputElement;
-    const sldThemeSat = document.getElementById('sld-theme-sat') as HTMLInputElement;
-    const inpThemeSat = document.getElementById('inp-theme-sat') as HTMLInputElement;
-    const sldThemeLtn = document.getElementById('sld-theme-ltn') as HTMLInputElement;
-    const inpThemeLtn = document.getElementById('inp-theme-ltn') as HTMLInputElement;
-    const sldThemeContrast = document.getElementById('sld-theme-contrast') as HTMLInputElement;
-    const inpThemeContrast = document.getElementById('inp-theme-contrast') as HTMLInputElement;
-    const sldDepth = document.getElementById('sld-depth') as HTMLInputElement;
-    const inpDepth = document.getElementById('inp-depth') as HTMLInputElement;
-    const sldBackgroundHue = document.getElementById('sld-background-hue') as HTMLInputElement;
-    const inpBackgroundHue = document.getElementById('inp-background-hue') as HTMLInputElement;
-    const sldBackgroundSaturation = document.getElementById('sld-background-saturation') as HTMLInputElement;
-    const inpBackgroundSaturation = document.getElementById('inp-background-saturation') as HTMLInputElement;
-    const sldBackgroundBrightest = document.getElementById('sld-background-brightest') as HTMLInputElement;
-    const inpBackgroundBrightest = document.getElementById('inp-background-brightest') as HTMLInputElement;
-    const sldBackgroundDarkest = document.getElementById('sld-background-darkest') as HTMLInputElement;
-    const inpBackgroundDarkest = document.getElementById('inp-background-darkest') as HTMLInputElement;
-    const sldFgContrastStrength = document.getElementById('sld-fg-contrast-strength') as HTMLInputElement;
-    const inpFgContrastStrength = document.getElementById('inp-fg-contrast-strength') as HTMLInputElement;
-    const sldFgContrastBias = document.getElementById('sld-fg-contrast-bias') as HTMLInputElement;
-    const inpFgContrastBias = document.getElementById('inp-fg-contrast-bias') as HTMLInputElement;
-    const sldTuiSaturation = document.getElementById('sld-tui-saturation') as HTMLInputElement;
-    const inpTuiSaturation = document.getElementById('inp-tui-saturation') as HTMLInputElement;
+    // Static-id lookups via the typed `el<T>()` helper above — a missing
+    // or renamed id throws with a clear message instead of silently
+    // returning null and surfacing as a runtime null-deref later.
+    const themeSelect = el<HTMLSelectElement>('inp-theme');
+    const coloursSelect = el<HTMLSelectElement>('inp-colours');
+    const btnResetColours = el<HTMLButtonElement>('btn-reset-colours');
+    const fontSelect = el<HTMLSelectElement>('inp-font-bundled');
+    const btnResetFont = el<HTMLButtonElement>('btn-reset-font');
+    const chkSubpixelAA = el<HTMLInputElement>('chk-subpixel-aa');
+    const sldSize = el<HTMLInputElement>('sld-fontsize');
+    const inpSize = el<HTMLInputElement>('inp-fontsize');
+    const sldHeight = el<HTMLInputElement>('sld-spacing');
+    const inpHeight = el<HTMLInputElement>('inp-spacing');
+    const sldTuiBgOpacity = el<HTMLInputElement>('sld-tui-bg-opacity');
+    const inpTuiBgOpacity = el<HTMLInputElement>('inp-tui-bg-opacity');
+    const sldTuiFgOpacity = el<HTMLInputElement>('sld-tui-fg-opacity');
+    const inpTuiFgOpacity = el<HTMLInputElement>('inp-tui-fg-opacity');
+    const sldOpacity = el<HTMLInputElement>('sld-opacity');
+    const inpOpacity = el<HTMLInputElement>('inp-opacity');
+    const sldThemeHue = el<HTMLInputElement>('sld-theme-hue');
+    const inpThemeHue = el<HTMLInputElement>('inp-theme-hue');
+    const sldThemeSat = el<HTMLInputElement>('sld-theme-sat');
+    const inpThemeSat = el<HTMLInputElement>('inp-theme-sat');
+    const sldThemeLtn = el<HTMLInputElement>('sld-theme-ltn');
+    const inpThemeLtn = el<HTMLInputElement>('inp-theme-ltn');
+    const sldThemeContrast = el<HTMLInputElement>('sld-theme-contrast');
+    const inpThemeContrast = el<HTMLInputElement>('inp-theme-contrast');
+    const sldDepth = el<HTMLInputElement>('sld-depth');
+    const inpDepth = el<HTMLInputElement>('inp-depth');
+    const sldBackgroundHue = el<HTMLInputElement>('sld-background-hue');
+    const inpBackgroundHue = el<HTMLInputElement>('inp-background-hue');
+    const sldBackgroundSaturation = el<HTMLInputElement>('sld-background-saturation');
+    const inpBackgroundSaturation = el<HTMLInputElement>('inp-background-saturation');
+    const sldBackgroundBrightest = el<HTMLInputElement>('sld-background-brightest');
+    const inpBackgroundBrightest = el<HTMLInputElement>('inp-background-brightest');
+    const sldBackgroundDarkest = el<HTMLInputElement>('sld-background-darkest');
+    const inpBackgroundDarkest = el<HTMLInputElement>('inp-background-darkest');
+    const sldFgContrastStrength = el<HTMLInputElement>('sld-fg-contrast-strength');
+    const inpFgContrastStrength = el<HTMLInputElement>('inp-fg-contrast-strength');
+    const sldFgContrastBias = el<HTMLInputElement>('sld-fg-contrast-bias');
+    const inpFgContrastBias = el<HTMLInputElement>('inp-fg-contrast-bias');
+    const sldTuiSaturation = el<HTMLInputElement>('sld-tui-saturation');
+    const inpTuiSaturation = el<HTMLInputElement>('inp-tui-saturation');
 
     const [fonts, themes, colours] = await Promise.all([listFonts(), listThemes(), fetchColours()]);
 
@@ -679,8 +708,11 @@ export class Topbar {
       });
       // 3. Double-click-to-reset (on either half): resolve active-theme
       //    default lazily so a theme switch doesn't stale-capture.
+      //    Run the resolved default through the slider's own clamp so
+      //    a malformed theme.json default (e.g. defaultThemeContrast: -200)
+      //    can't bypass the per-commit clamps and land in sessions.json.
       const reset = () => {
-        const def = sp.getDefault();
+        const def = sp.clamp(sp.getDefault());
         sp.slider.value = sp.input.value = String(def);
         updateSliderFill(sp.slider);
         commit({ [sp.key]: def } as Partial<SessionSettings>);
@@ -1057,11 +1089,19 @@ export class Topbar {
       closeItem.addEventListener('click', (ev) => {
         ev.stopPropagation();
         close();
-        // Native confirm() is intentional here — destructive tmux actions are
-        // infrequent and a custom modal would duplicate the clipboard-prompt
-        // code path for marginal UX gain. See 2026-04-17 code-analysis UX-1.
-        if (!confirm(`Close window "${activeName}"?`)) return;
-        this.sendWindowMsg({ action: 'close', index: activeIdx });
+        // Themed confirm-modal: see kill-session callsite above for
+        // why native confirm() was retired (cluster 13 / F4).
+        void showConfirmModal<boolean>({
+          title: 'Close window?',
+          body: `Close window "${activeName}"?`,
+          buttons: [
+            { label: 'Cancel', value: false },
+            { label: 'Close window', value: true, kind: 'destructive', defaultFocus: true },
+          ],
+        }).then((ok) => {
+          if (!ok) return;
+          this.sendWindowMsg({ action: 'close', index: activeIdx });
+        });
       });
       menu.appendChild(closeItem);
     }

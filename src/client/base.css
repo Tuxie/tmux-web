@@ -379,6 +379,12 @@ input[type="range"]::-moz-range-thumb {
 .tw-clip-prompt-btn-once { background: var(--tw-gadget-hover); }
 .tw-clip-prompt-btn-always { background: var(--tw-success-bg); }
 
+/* Confirm modal: replaces native window.confirm() for destructive
+ * tmux actions. Reuses the clipboard-prompt structural classes;
+ * only the variant backgrounds differ from the default tw-clip-prompt-btn. */
+.tw-confirm-modal-btn-destructive { background: var(--tw-danger-bg); }
+.tw-confirm-modal-btn-primary { background: var(--tw-success-bg); }
+
 /* Session status dots: non-colour shape cue (A11Y-3).
  * Running = solid filled circle (colour-only in theme files, unchanged).
  * Stopped = hollow circle — background is cleared here so the border

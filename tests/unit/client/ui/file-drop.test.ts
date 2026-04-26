@@ -144,6 +144,65 @@ describe('installFileDropHandler', () => {
     expect(errs).toHaveLength(1);
   });
 
+  // Cluster 13 / F5: overlay visibility no longer relies on a depth
+  // counter that desyncs when nested children fire enter/leave. We
+  // only treat dragenter/dragleave with the terminal as event.target
+  // as state changes — bubbling events from descendants are ignored.
+  test('overlay stays visible when dragenter/dragleave bubble through nested children', async () => {
+    const term = el('div');
+    install({ terminal: term as any, getSession: () => 'main' });
+    const overlay = (term as any).children[0];
+    const dt: any = { types: ['Files'], files: [], dropEffect: '' };
+
+    // Initial: overlay not visible.
+    expect(overlay.classList.has('visible')).toBe(false);
+
+    // dragenter on the terminal itself shows the overlay.
+    term.dispatch('dragenter', { dataTransfer: dt, target: term, preventDefault() {} });
+    expect(overlay.classList.has('visible')).toBe(true);
+
+    // A nested-child enter+leave (event.target !== terminal) must not
+    // hide the overlay — under the old depth counter, leaving a child
+    // would bring the counter to 0 and hide while the cursor was still
+    // inside the terminal box.
+    const child = el('span');
+    term.dispatch('dragleave', { dataTransfer: dt, target: child, preventDefault() {} });
+    expect(overlay.classList.has('visible')).toBe(true);
+    term.dispatch('dragenter', { dataTransfer: dt, target: child, preventDefault() {} });
+    expect(overlay.classList.has('visible')).toBe(true);
+
+    // dragleave with terminal as the target — drag actually exits the box.
+    term.dispatch('dragleave', { dataTransfer: dt, target: term, preventDefault() {} });
+    expect(overlay.classList.has('visible')).toBe(false);
+  });
+
+  test('overlay hides on global drop even if terminal-target dragleave never fired', async () => {
+    const term = el('div');
+    install({ terminal: term as any, getSession: () => 'main' });
+    const overlay = (term as any).children[0];
+    const dt: any = { types: ['Files'], files: [], dropEffect: '' };
+
+    term.dispatch('dragenter', { dataTransfer: dt, target: term, preventDefault() {} });
+    expect(overlay.classList.has('visible')).toBe(true);
+
+    // Drop on the document (not the terminal) — global handler clears.
+    (globalThis as any).document.dispatch('drop', { preventDefault() {} });
+    expect(overlay.classList.has('visible')).toBe(false);
+  });
+
+  test('overlay hides on dragend (esc-cancelled drag)', async () => {
+    const term = el('div');
+    install({ terminal: term as any, getSession: () => 'main' });
+    const overlay = (term as any).children[0];
+    const dt: any = { types: ['Files'], files: [], dropEffect: '' };
+
+    term.dispatch('dragenter', { dataTransfer: dt, target: term, preventDefault() {} });
+    expect(overlay.classList.has('visible')).toBe(true);
+
+    (globalThis as any).document.dispatch('dragend', {});
+    expect(overlay.classList.has('visible')).toBe(false);
+  });
+
   test('uninstall removes listeners and overlay', async () => {
     const term = el('div');
     const dropped: any[] = [];
