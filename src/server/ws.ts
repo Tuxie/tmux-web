@@ -167,8 +167,18 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
       return new Response('Forbidden', { status: 403 });
     }
 
+    // Parse the URL once so both the `tw_auth` query-token check below
+    // and the `/ws` path validation share a single parse — and so the
+    // auth gate sees the token. Mirrors the HTTP handler at
+    // `src/server/http.ts:323-325` so the desktop wrapper's
+    // `clientAuthToken` flow works on the WS leg too (notably for
+    // browsers like Safari WKWebView where URL userinfo is stripped
+    // before the handshake).
+    const url = new URL(req.url);
     const authHeader = req.headers.get('authorization') ?? undefined;
-    if (!isAuthorized(authHeader, config)) {
+    const clientAuthToken = url.searchParams.get('tw_auth') ?? undefined;
+    const isClientAuthorized = !!config.clientAuthToken && clientAuthToken === config.clientAuthToken;
+    if (!isClientAuthorized && !isAuthorized(authHeader, config)) {
       debug(config, `WS upgrade from ${remoteIp} - unauthorized`);
       return new Response('Unauthorized', {
         status: 401,
@@ -176,7 +186,6 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
       });
     }
 
-    const url = new URL(req.url);
     if (!url.pathname.startsWith('/ws')) {
       // Mirror the prior `socket.destroy()` for non-/ws upgrade attempts.
       return new Response(null, { status: 404, headers: { 'Connection': 'close' } });

@@ -21,6 +21,7 @@ import {
   writeDrop,
   listDrops,
   deleteDrop,
+  DropQuotaExceededError,
   type DropStorage,
 } from './file-drop.js';
 import { getForegroundProcess } from './foreground-process.js';
@@ -418,6 +419,12 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
 
     if (pathname === '/api/drops/paste') {
       if (method !== 'POST') return new Response(null, { status: 405 });
+      // The `session` query param is accepted as-is (only sanitised, not
+      // cross-checked against an open WS for the requesting auth
+      // context). Drops are a per-user pool, not session-scoped, and
+      // cross-session paste is intentional behaviour — see cluster 03
+      // (docs/code-analysis/2026-04-26) for the explicit decision and
+      // the rejected "scope to live-WS sessions" alternative.
       const session = sanitizeSession(url.searchParams.get('session') || 'main');
       const id = url.searchParams.get('id');
       if (!id) return new Response('Missing id', { status: 400 });
@@ -483,6 +490,9 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
 
     if (pathname === '/api/drop') {
       if (method !== 'POST') return new Response(null, { status: 405 });
+      // Same per-user-pool semantics as `/api/drops/paste` above —
+      // cross-session paste is intentional, not a bug. Cluster 03
+      // (docs/code-analysis/2026-04-26) records the decision.
       const session = sanitizeSession(url.searchParams.get('session') || 'main');
       // Browser encodes the original filename so arbitrary UTF-8 / special
       // chars survive HTTP headers (which are latin-1 by default).
@@ -508,6 +518,13 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
         absolutePath = wrote.absolutePath;
         filename = wrote.filename;
       } catch (err) {
+        if (err instanceof DropQuotaExceededError) {
+          // Match the per-upload-cap rejection shape so the client's
+          // "too large" branch handles both. The message includes the
+          // bytes-vs-cap math for the debug log only.
+          debug(config, `drop write rejected: ${err.message}`);
+          return new Response('Drop quota exceeded', { status: 413 });
+        }
         debug(config, `drop write failed: ${err}`);
         return new Response('Write failed', { status: 500 });
       }
@@ -597,6 +614,13 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
     }
 
     if (pathname === '/api/exit' && method === 'POST') {
+      // Intentionally not gated beyond Basic Auth (and the IP / Origin
+      // checks above). Deployment doc says non-credentialed kill paths
+      // should use the systemd unit + SIGTERM; the API exists as a
+      // convenience for the desktop wrapper that already holds the
+      // password. Kept as a maintainer decision — see cluster 03
+      // (docs/code-analysis/2026-04-26) for the rejected alternatives
+      // (re-prompt password, loopback-only, --allow-exit-api opt-in).
       const action = url.searchParams.get('action') ?? 'quit';
       const code = action === 'restart' ? 2 : 0;
       setTimeout(() => process.exit(code), 100);

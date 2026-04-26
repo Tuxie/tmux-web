@@ -136,6 +136,13 @@ informally-unblocks (logged, not reordered): none surfaced.
   scope expansion: none
   notes: subagent shape A; 5 findings + 1 needs-decision (T2 comment-only) all addressed.
 
+- 02-server-fs-hardening: CLOSED
+  pre-sha: b986e3b755512e40f01d1f087dba09eff2203822
+  post-sha: 00d1a308917235de3a6838807b0f663a42d59b5c
+  gates: typecheck OK, test-unit OK (84 0-fail files), test-e2e OK (66 passed, 43.2s)
+  scope expansion: none
+  notes: subagent shape A; all 4 findings addressed (true LRU, OSC52 timestamp, .part exclusive-create, crypto.randomBytes probe token). Cluster 01's status-flip + README re-render absorbed into 02's commit (workflow timing); will tighten to per-cluster docs commits going forward.
+
 ## Themes log (cross-cluster)
 
 (populated by Step 2 cross-cluster theme detection)

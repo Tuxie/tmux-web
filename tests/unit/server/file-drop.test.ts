@@ -15,6 +15,10 @@ import {
   _resetInotifyProbe,
   AUTO_UNLINK_GRACE_MS,
   _setAutoUnlinkSpawnForTest,
+  startPeriodicSweep,
+  stopPeriodicSweep,
+  currentRootBytes,
+  DropQuotaExceededError,
   type DropStorage,
 } from "../../../src/server/file-drop.ts";
 
@@ -399,5 +403,103 @@ describe("armAutoUnlink (autoUnlinkOnClose=true)", () => {
     // way the drop is gone.
     expect(deleteDrop(s, r.dropId)).toBe(true);
     expect(fs.existsSync(path.dirname(r.absolutePath))).toBe(false);
+  });
+});
+
+describe("global byte cap (DropQuotaExceededError)", () => {
+  test("rejects a drop that would push total bytes over maxRootBytes", () => {
+    // 100-byte cap; a 60-byte drop succeeds, the next 50-byte one would
+    // total 110 > 100 → reject with DropQuotaExceededError. Cluster 03
+    // (docs/code-analysis/2026-04-26).
+    const s: DropStorage = {
+      root, maxFilesPerSession: 50, ttlMs: 60_000, autoUnlinkOnClose: false,
+      maxRootBytes: 100,
+    };
+    writeDrop(s, "first.bin", Buffer.alloc(60));
+    expect(currentRootBytes(s)).toBe(60);
+
+    let caught: unknown = null;
+    try { writeDrop(s, "second.bin", Buffer.alloc(50)); }
+    catch (err) { caught = err; }
+
+    expect(caught).toBeInstanceOf(DropQuotaExceededError);
+    const e = caught as DropQuotaExceededError;
+    expect(e.currentBytes).toBe(60);
+    expect(e.attemptedBytes).toBe(50);
+    expect(e.capBytes).toBe(100);
+    // Existing drop must remain on disk; the rejection happens before
+    // the file is created.
+    expect(currentRootBytes(s)).toBe(60);
+  });
+
+  test("accepts a drop that exactly hits the cap", () => {
+    const s: DropStorage = {
+      root, maxFilesPerSession: 50, ttlMs: 60_000, autoUnlinkOnClose: false,
+      maxRootBytes: 100,
+    };
+    expect(() => writeDrop(s, "exact.bin", Buffer.alloc(100))).not.toThrow();
+    expect(currentRootBytes(s)).toBe(100);
+  });
+
+  test("a TTL-expired drop is swept before the cap check (room re-opens)", () => {
+    // Pre-populate a drop that's older than the TTL. The pre-write sweep
+    // inside writeDrop should reclaim it, leaving room for a fresh upload
+    // that would otherwise trip the cap.
+    const s: DropStorage = {
+      root, maxFilesPerSession: 50, ttlMs: 1_000, autoUnlinkOnClose: false,
+      maxRootBytes: 100,
+    };
+    const old = writeDrop(s, "old.bin", Buffer.alloc(80));
+    const past = (Date.now() - 60_000) / 1000;
+    fs.utimesSync(path.dirname(old.absolutePath), past, past);
+
+    expect(() => writeDrop(s, "fresh.bin", Buffer.alloc(80))).not.toThrow();
+  });
+
+  test("missing or non-positive maxRootBytes disables the cap entirely", () => {
+    // No cap at all → arbitrary writes succeed.
+    const s: DropStorage = {
+      root, maxFilesPerSession: 50, ttlMs: 60_000, autoUnlinkOnClose: false,
+    };
+    for (let i = 0; i < 3; i++) {
+      expect(() => writeDrop(s, `f${i}.bin`, Buffer.alloc(1024))).not.toThrow();
+    }
+  });
+});
+
+describe("startPeriodicSweep (proactive TTL reclamation)", () => {
+  test("registers an unref'd setInterval; idempotent re-arm; cleanupAll stops it", async () => {
+    // Use a small TTL so the interval fires within the test window.
+    const s: DropStorage = {
+      root, maxFilesPerSession: 50, ttlMs: 100, autoUnlinkOnClose: false,
+    };
+    // Pre-populate a drop and back-date it so the sweep will collect it.
+    const old = writeDrop(s, "stale.bin", Buffer.from("x"));
+    const past = (Date.now() - 60_000) / 1000;
+    fs.utimesSync(path.dirname(old.absolutePath), past, past);
+
+    startPeriodicSweep(s);
+    // Idempotent — re-arm is a no-op (no second timer queued).
+    startPeriodicSweep(s);
+
+    // ttlMs/2 = 50 ms; give the timer a few cycles to fire.
+    const deadline = Date.now() + 1500;
+    while (fs.existsSync(path.dirname(old.absolutePath)) && Date.now() < deadline) {
+      await new Promise(res => setTimeout(res, 25));
+    }
+    expect(fs.existsSync(path.dirname(old.absolutePath))).toBe(false);
+
+    // cleanupAll stops the interval; subsequent stop is a no-op.
+    await cleanupAll(s);
+    stopPeriodicSweep(s);
+  });
+
+  test("ttlMs <= 0 is a no-op (no timer registered)", () => {
+    const s: DropStorage = {
+      root, maxFilesPerSession: 50, ttlMs: 0, autoUnlinkOnClose: false,
+    };
+    // Should not throw, should not register a timer that would block exit.
+    startPeriodicSweep(s);
+    stopPeriodicSweep(s);
   });
 });

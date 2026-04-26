@@ -36,7 +36,27 @@ export type WsAction =
   | { type: 'clipboard-request-content'; reqId: string }
   | { type: 'clipboard-reply'; selection: string; base64: string };
 
-const MAX_BASE64 = 1024 * 1024;
+/** Maximum *decoded* OSC 52 read-reply payload, in bytes. The cap is
+ *  enforced on the base64 string the client sends; we convert via the
+ *  standard `4 * ceil(n / 3)` ratio so the post-decode byte length stays
+ *  ≤ MAX_OSC52_READ_BYTES. 64 KiB is plenty for an interactive
+ *  clipboard delivery and keeps `tmux send-keys -H <hex>` argv length
+ *  bounded — a 1 MiB reply would expand into ~2 MiB of hex argv and
+ *  starve the control client (see cluster 03 in
+ *  docs/code-analysis/2026-04-26). Mirrors the symmetry with
+ *  `MAX_OSC52_WRITE_BYTES` in `protocol.ts`, applied to the read leg. */
+const MAX_OSC52_READ_BYTES = 64 * 1024;
+const MAX_BASE64 = 4 * Math.ceil(MAX_OSC52_READ_BYTES / 3);
+
+let _osc52ReadLastWarnAt = 0;
+function warnTooLargeOsc52Read(length: number): void {
+  const now = Date.now();
+  if (now - _osc52ReadLastWarnAt < 60_000) return;
+  _osc52ReadLastWarnAt = now;
+  console.error(
+    `tmux-web: OSC 52 read reply too large (${length} base64 chars > ${MAX_BASE64}); dropping`,
+  );
+}
 
 export function routeClientMessage(raw: string, state: RouterState): WsAction[] {
   if (!raw.startsWith('{')) return [{ type: 'pty-write', data: raw }];
@@ -114,7 +134,11 @@ export function routeClientMessage(raw: string, state: RouterState): WsAction[] 
     if (!pending || !pending.awaitingContent) return [];
     state.pendingReads.delete(parsed.reqId);
     const base64 = typeof parsed.base64 === 'string' ? parsed.base64 : '';
-    const clipped = base64.length > MAX_BASE64 ? '' : base64;
+    let clipped = base64;
+    if (base64.length > MAX_BASE64) {
+      warnTooLargeOsc52Read(base64.length);
+      clipped = '';
+    }
     return [{ type: 'clipboard-reply', selection: pending.selection, base64: clipped }];
   }
   return [{ type: 'pty-write', data: raw }];

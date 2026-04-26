@@ -119,12 +119,29 @@ describe('routeClientMessage', () => {
     expect(st.pendingReads.has('r3')).toBe(false);
   });
 
-  test('clipboard-read-reply over 1 MiB replies empty', () => {
+  test('clipboard-read-reply above the 64 KiB decoded cap is silently clipped to empty', () => {
+    // Cap is on the base64 *string* length, picked so the decoded payload
+    // stays ≤ 64 KiB (`4 * ceil(64*1024 / 3)` = 87384 chars). One char
+    // beyond that must trip the silent-drop semantics — see cluster 03
+    // (docs/code-analysis/2026-04-26).
     const st = state();
     st.pendingReads.set('r4', { selection: 'c', exePath: null, commandName: null, awaitingContent: true });
-    const big = 'a'.repeat(1024 * 1024 + 1);
+    const cap = 4 * Math.ceil((64 * 1024) / 3);
+    const big = 'a'.repeat(cap + 1);
     expect(routeClientMessage(`{"type":"clipboard-read-reply","reqId":"r4","base64":"${big}"}`, st))
       .toEqual([{ type: 'clipboard-reply', selection: 'c', base64: '' }]);
+  });
+
+  test('clipboard-read-reply at the 64 KiB decoded cap is delivered untouched', () => {
+    // Boundary: exactly at the cap → not clipped. Confirms the inequality
+    // is strict (`> MAX_BASE64`) and the typical interactive clipboard
+    // payload survives.
+    const st = state();
+    st.pendingReads.set('r4b', { selection: 'c', exePath: null, commandName: null, awaitingContent: true });
+    const cap = 4 * Math.ceil((64 * 1024) / 3);
+    const big = 'a'.repeat(cap);
+    expect(routeClientMessage(`{"type":"clipboard-read-reply","reqId":"r4b","base64":"${big}"}`, st))
+      .toEqual([{ type: 'clipboard-reply', selection: 'c', base64: big }]);
   });
 
   test('clipboard-read-reply for non-awaiting entry is no-op', () => {
