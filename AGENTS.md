@@ -141,10 +141,40 @@ src/
   shared/            # Shared
     types.ts         # Protocol types, interfaces
     constants.ts     # Constants
+  desktop/           # Electrobun desktop wrapper (tmux-term)
+    index.ts         # Electrobun entry point
+    server-process.ts # Spawn/manage private tmux-web child server
+    auth.ts          # Random per-launch Basic Auth secret
+    tmux-path.ts     # Resolve tmux binary for the desktop build
+    window.ts        # Desktop window lifecycle
+    display-workarea.ts # Native display workarea queries
+    window-host-messages.ts # IPC contract with the renderer
+    electrobun-types.d.ts # Vendored Electrobun ambient types — DO NOT EDIT
 tests/
   unit/              # bun test (mirrors src/)
   e2e/               # Playwright
 ```
+
+### Desktop wrapper (`tmux-term`)
+
+`tmux-term` is an optional Electrobun desktop wrapper around tmux-web,
+living under `src/desktop/`. It spawns a private `tmux-web` child
+server bound to `127.0.0.1` with a random per-launch Basic Auth
+secret, opens it in a native desktop window, and shuts the server
+down when the window closes. Toolchain is Electrobun (pinned in
+`package.json` devDependencies). Local dev uses `bun run desktop:dev`
+(or `bun-build` runs `scripts/build-desktop-prereqs.ts` first via the
+npm script); the packaged build target is `make tmux-term`. As of
+v1.9.0 the desktop build bundles **CEF on both macOS and Linux** —
+the native Electrobun webview heavily posterized the Amiga Scene 2000
+radial background on macOS, so Chromium GPU rendering is forced on
+both desktop targets for smoother gradients. Windows is not a target.
+
+**Do not touch `src/desktop/electrobun-types.d.ts`.** It is a vendored
+ambient-type file copied from Electrobun and must move in lockstep
+with the Electrobun version pin — treat it parallel to the
+`vendor/xterm.js` rule above. If the Electrobun version changes,
+regenerate the file from upstream rather than hand-editing it.
 
 ## Development
 
@@ -360,7 +390,7 @@ WS reconnect: call `adapter.fit()`, send `{"type":"resize"}` on `ws.onopen`. `sr
 
 32px toolbar overlay terminal. `src/client/ui/topbar.ts`:
 
-- **Session menu button** (`#btn-session-menu`) — the right half of the `[ + | <session name> ]` control. Opens a custom dropdown listing sessions from `/api/sessions`, a "New session:" text-input row, and a "Kill session X…" entry at the bottom. Label is `#tb-session-name`. Button gets `.open` while dropdown is showing. The `+` half is `#btn-session-plus`, currently an unwired placeholder (fate tracked in cluster 11).
+- **Session menu button** (`#btn-session-menu`) — the right half of the `[ + | <session name> ]` control. Opens a custom dropdown listing sessions from `/api/sessions`, a "New session:" text-input row, and a "Kill session X…" entry at the bottom. Label is `#tb-session-name`. Button gets `.open` while dropdown is showing. The `+` half is `#btn-session-plus`, which closes the desktop window when running under `tmux-term` (calls `requestDesktopWindowClose()` in `src/client/desktop-host.ts`); harmless no-op in the browser.
 - **Window tabs** (`#win-tabs`) — one per tmux window; click sends a `{type:'window', action:'select', index}` WS message, which the server translates to `tmux select-window`
 - **Fullscreen checkbox** (`#chk-fullscreen`) — inside the settings menu
 
@@ -404,7 +434,7 @@ URL path = tmux session name (e.g. `/dev`). URL update via `history.replaceState
 
 IDs (do not rename):
 - `#terminal` — container
-- `#btn-session-plus` — left half of the session control (currently unwired; fate tracked in cluster 11)
+- `#btn-session-plus` — left half of the session control; in tmux-term, click closes the desktop window
 - `#btn-session-menu` — right half of the session control, opens the sessions dropdown
 - `#tb-session-name` — text label inside `#btn-session-menu` (the `<name>` part)
 - `#win-tabs` — window buttons

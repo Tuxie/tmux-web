@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### Added
+
+- **Themeable tmux scrollbar.** A scrollbar overlay sits alongside
+  the xterm viewport so mouse-wheel-scrollback in tmux is discoverable
+  and themeable per pack, instead of relying on browser-native scrollbar
+  styling. Implementation plan and rationale at
+  `docs/superpowers/plans/2026-04-25-themeable-tmux-scrollbar.md`.
+
+### Removed
+
+- **Bundled tmux support removed.** `tmux-web` no longer vendors and
+  builds its own static tmux (with libevent and utf8proc), embeds it
+  in the release binary, or extracts it at runtime. The release binary
+  uses the host's `tmux` (or an explicit `--tmux <path>`) exclusively.
+  The `vendor/tmux`, `vendor/libevent`, and `vendor/utf8proc`
+  submodules, the associated Makefile rules, the `resolveEmbeddedTmux`
+  extraction path, the `tmux-web tmux …` passthrough, and the
+  `verify-vendor-tmux.ts` release check are all gone. The 1.8.x
+  bundled-tmux experiment cost more in build complexity and
+  cross-arch packaging churn than it saved over depending on the
+  system tmux.
+
 ## 1.9.0 — 2026-04-25
 
 ### Added
@@ -255,8 +277,6 @@ Major theming overhaul: all GUI chrome colours derive from a small set of CSS va
 - CSS variable tree in base.css: `--tw-primary` → `--tw-chrome` → `--tw-chrome-bg` → bevels/gadgets. Themes override variables, base.css `:where()` rules consume them.
 - Theme packs declare all slider defaults in `theme.json` (`defaultDepth`, `defaultThemeContrast`, `defaultThemeSat`, `defaultThemeLtn`, etc.).
 - `pushFgLightness` → `pushLightness` (applies to both FG and BG). New `rgbToOklabL` utility exported.
-
-## 1.5.1 — 2026-04-18
 
 ## 1.5.1 — 2026-04-18
 

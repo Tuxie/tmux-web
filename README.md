@@ -22,7 +22,7 @@ It is intentionally small: a Bun server, a static client bundle, and a thin adap
 - **Modern keyboard support** — Kitty keyboard protocol via xterm's `vtExtensions` for modified special keys (Ctrl+Enter, Shift+Tab, etc.).
 - **Two-way OSC 52 clipboard** — `tmux` copy actions land in the browser clipboard automatically; clipboard reads from inside the pane (e.g. vim `+` register) work too, gated by a per-binary consent prompt.
 - **Drag-and-drop and paste files into the terminal** — files are staged under a per-user tmp dir and their absolute path is pasted into the focused pane as a bracketed paste (shell-quoted for shells, raw for Claude / TUIs). Auto-cleaned via inotify close-watch plus a TTL sweep.
-- **Theme packs** — colour scheme, font, spacing, opacity, background hue; two built-in themes ("Default" and an AmigaOS 3.1 workbench look).
+- **Theme packs** — colour scheme, font, spacing, opacity, background hue; three built-in themes ("Default", "AmigaOS 3.1", and "Amiga Scene 2000").
 - **Session and window switcher** — auto-hiding toolbar with a session dropdown, per-window tabs, a "new session" button, and a fullscreen toggle.
 - **Server-side session settings** — per-session colours/font/opacity/background hue/etc. persist in `~/.config/tmux-web/sessions.json` (atomic writes) and follow you across browsers.
 - **URL-as-session** — the path (`/dev`, `/work`) maps to a tmux session name; bookmarkable.
@@ -178,7 +178,7 @@ tmux-web --listen 127.0.0.1:4022 -i 10.0.0.5 \
 - **PTY** — `Bun.spawn` with `terminal` support, spawning `tmux -f tmux.conf`.
 - **Out-of-band protocol** — session/window/clipboard updates are multiplexed into the PTY stream as `\x00TT:<json>` frames and stripped client-side.
 
-See [`CLAUDE.md`](CLAUDE.md) for a deeper tour of the codebase, including the rationale behind each workaround (line-height padding, mouse forwarding, CSI-u, OSC 52 handling, reconnect resize).
+See [`AGENTS.md`](AGENTS.md) for a deeper tour of the codebase, including the rationale behind each workaround (line-height padding, mouse forwarding, CSI-u, OSC 52 handling, reconnect resize).
 
 ## Development
 
@@ -191,7 +191,7 @@ make test-e2e
 
 Use `bun` exclusively; `npm`, `pnpm`, `tsx`, and `vitest` are not supported.
 
-Tests follow a strict policy: failing tests indicate implementation bugs and are fixed by changing the implementation, not the test. See `CLAUDE.md` for details.
+Tests follow a strict policy: failing tests indicate implementation bugs and are fixed by changing the implementation, not the test. See `AGENTS.md` for details.
 
 ## License
 
