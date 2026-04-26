@@ -3,6 +3,8 @@
  * notification dispatch. Consumed by http.ts / ws.ts / foreground-process.ts
  * / tmux-inject.ts / osc52-reply.ts to replace execFileAsync fork-per-op. */
 
+import { randomBytes } from 'node:crypto';
+
 export type RunCmd = (args: readonly string[]) => Promise<string>;
 
 export type TmuxNotification =
@@ -333,7 +335,7 @@ export class ControlClient {
    *  tmux. We pre-mark them stale via pendingStaleBegins so they cannot
    *  be attributed to the next command in the queue. */
   async probe(): Promise<void> {
-    const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    const token = randomBytes(8).toString('hex');
     let iterations = 0;
     this.probeActive = true;
     this.probeConsumedStaleBegins = 0;

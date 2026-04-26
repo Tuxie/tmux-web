@@ -107,9 +107,14 @@ export function logOriginReject(origin: string, remoteIp: string): void {
   const now = Date.now();
   const last = recentOriginRejects.get(origin) ?? 0;
   if (now - last < 60_000) return;
+  // True LRU: delete-then-set moves the entry to the end of the Map's
+  // insertion order, so a repeatedly-seen origin migrates to the front
+  // of the iterator and is the last (not first) eviction candidate.
+  recentOriginRejects.delete(origin);
   recentOriginRejects.set(origin, now);
   if (recentOriginRejects.size > 256) {
-    // Map preserves insertion order; the first key is the oldest.
+    // Map preserves insertion order; with the delete-then-set above the
+    // first key is now the genuinely least-recently-seen entry.
     const oldest = recentOriginRejects.keys().next().value;
     if (oldest !== undefined) recentOriginRejects.delete(oldest);
   }

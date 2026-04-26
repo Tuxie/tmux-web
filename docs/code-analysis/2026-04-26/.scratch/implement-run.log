@@ -129,7 +129,12 @@ informally-unblocks (logged, not reordered): none surfaced.
 
 ## Execution log (per-cluster outcomes)
 
-(populated by Step 2 / Step 4)
+- 01-tmux-control-and-listings: CLOSED
+  pre-sha: fa727ae7ffc7c8a28bc45660ac867674e6132bcd
+  post-sha: b986e3b755512e40f01d1f087dba09eff2203822
+  gates: typecheck OK, test-unit OK (76 files, 0 fail), test-e2e OK (66 passed, 43.7s)
+  scope expansion: none
+  notes: subagent shape A; 5 findings + 1 needs-decision (T2 comment-only) all addressed.
 
 ## Themes log (cross-cluster)
 

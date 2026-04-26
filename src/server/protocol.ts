@@ -34,14 +34,16 @@ const MAX_OSC52_WRITE_BYTES = 1 * 1024 * 1024;
  *  the socket with an unbounded burst. */
 const MAX_OSC52_WRITES_PER_CHUNK = 8;
 
-const _osc52WarnTimes = new Map<string, number>();
+// Single timestamp: the OSC52 too-large warn-rate-limit only ever had one
+// key. Kept as a bare number (not a Map) to make that explicit and avoid
+// the unbounded-growth shape if a future caller mistakenly passed a
+// dynamic key.
+let _osc52LastWarnAt = 0;
 
 function warnTooLargeOsc52Write(length: number): void {
-  const key = 'osc52-write-too-large';
   const now = Date.now();
-  const last = _osc52WarnTimes.get(key) ?? 0;
-  if (now - last < 60_000) return;
-  _osc52WarnTimes.set(key, now);
+  if (now - _osc52LastWarnAt < 60_000) return;
+  _osc52LastWarnAt = now;
   console.error(
     `tmux-web: OSC 52 write payload too large (${length} bytes > ${MAX_OSC52_WRITE_BYTES}); dropping`,
   );
