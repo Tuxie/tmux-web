@@ -1,7 +1,7 @@
 ---
-Status: open
+Status: deferred
 Autonomy: needs-spec
-Resolved-in:
+Resolved-in: (deferred — see docs/ideas/14-frontend-low-architectural.md)
 Depends-on:
 informally-unblocks:
 Pre-conditions:
