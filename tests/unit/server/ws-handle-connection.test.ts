@@ -250,9 +250,12 @@ describe('ws handleConnection — OSC 52 read flow', () => {
       o.ws.close();
       // Wait for the BLAKE3 hash of /bin/sleep to complete and the guard
       // path to run. With a 43 KB binary the hash + guard finish in ~10ms;
-      // 100ms is comfortable margin. No specific observable from outside.
+      // 100ms is comfortable margin. No specific observable for the guard
+      // branch itself, but the WS-state assertion at minimum ties the
+      // post-sleep harness state to a reading — a regression that flips
+      // the close handling would diverge from CLOSED here.
       await new Promise(r => setTimeout(r, 100));
-      expect(true).toBe(true);
+      expect(o.ws.readyState).toBe(WebSocket.CLOSED);
     } finally {
       try { child.kill('SIGTERM'); } catch { /* already gone */ }
     }
@@ -268,7 +271,7 @@ describe('ws handleConnection — OSC 52 read flow', () => {
     o.ws.close();
     // Short wait to let the server's close handler run.
     await new Promise(r => setTimeout(r, 50));
-    expect(true).toBe(true);
+    expect(o.ws.readyState).toBe(WebSocket.CLOSED);
   }, 15000);
 
   test('dropsChanged TT push when a drop is POST\'d via /api/drop', async () => {

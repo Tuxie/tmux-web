@@ -77,7 +77,7 @@ describe("/api/session-settings", () => {
     });
     const get = await call(handler, { method: "GET", url: "/api/session-settings" });
     const cfg = JSON.parse(get.body);
-    expect(cfg.sessions.a).toBeDefined();
+    expect(cfg.sessions.a).toMatchObject({ colours: SAMPLE.colours });
     expect(cfg.sessions.b.colours).toBe("Solarized");
   });
 

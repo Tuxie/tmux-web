@@ -83,7 +83,7 @@ describe("session-settings", () => {
     expect(loaded.scrollbarAutohide).toBe(true);
     await drainPersist();
     const put = calls.find(c => c.init?.method === "PUT");
-    expect(put).toBeDefined();
+    expect(put?.init?.method).toBe("PUT");
     const body = JSON.parse(put!.init!.body as string);
     expect(body.sessions.main.topbarAutohide).toBe(true);
     expect(body.sessions.main.scrollbarAutohide).toBe(true);
@@ -138,7 +138,7 @@ describe("session-settings", () => {
     expect(loaded.backgroundHue).toBe(210);
     await drainPersist();
     const put = calls.find(c => c.init?.method === 'PUT');
-    expect(put).toBeDefined();
+    expect(put?.init?.method).toBe("PUT");
     const body = JSON.parse(put!.init!.body as string);
     expect(body.sessions.x.colours).toBe("Monokai");
     expect(body.sessions.x.tuiBgOpacity).toBe(65);
@@ -204,7 +204,7 @@ describe("session-settings", () => {
     setLastActiveSession("dev");
     await drainPersist();
     const put = calls.find(c => c.init?.method === 'PUT');
-    expect(put).toBeDefined();
+    expect(put?.init?.method).toBe("PUT");
     const body = JSON.parse(put!.init!.body as string);
     expect(body.lastActive).toBe("dev");
   });
@@ -290,8 +290,7 @@ describe("session-settings", () => {
     expect(getStoredSessionNames()).toEqual(["b"]);
     expect(getLiveSessionSettings("anything")).toBeNull();
     const del = calls.find(c => c.init?.method === 'DELETE');
-    expect(del).toBeDefined();
-    expect(del!.url).toBe('/api/session-settings?name=a');
+    expect(del?.url).toBe('/api/session-settings?name=a');
   });
 
   test("deleteSessionSettings swallows fetch errors", async () => {

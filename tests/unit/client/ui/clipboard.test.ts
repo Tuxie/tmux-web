@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'bun:test';
 import { decodeClipboardBase64, handleClipboard } from '../../../../src/client/ui/clipboard.js';
+import { consoleCaptured } from '../../_setup/silence-console.ts';
 
 describe('decodeClipboardBase64', () => {
   it('decodes ASCII text', () => {
@@ -42,13 +43,39 @@ describe('handleClipboard', () => {
   });
 
   it('swallows writeText rejection', async () => {
+    let writeAttempts = 0;
     (globalThis as any).navigator = {
-      clipboard: { writeText: async () => { throw new Error('denied'); } },
+      clipboard: {
+        writeText: async () => {
+          writeAttempts += 1;
+          throw new Error('denied');
+        },
+      },
     };
-    handleClipboard(btoa('x'));
-    await new Promise((r) => setTimeout(r, 0));
-    // No throw = pass
-    expect(true).toBe(true);
+    // Capture any unhandled rejection that escapes the production
+    // `.catch(() => {})` swallow — if the swallow regresses, this fires.
+    const unhandled: unknown[] = [];
+    const onUnhandled = (e: PromiseRejectionEvent | { reason?: unknown }): void => {
+      unhandled.push((e as { reason?: unknown }).reason ?? e);
+    };
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      handleClipboard(btoa('x'));
+      // Flush microtasks: writeText's rejection fires in the next
+      // microtask, the production `.catch` runs the tick after.
+      await new Promise((r) => setTimeout(r, 0));
+      await new Promise((r) => setTimeout(r, 0));
+      // The rejection path was actually exercised — guards against a
+      // regression that skips the writeText call entirely.
+      expect(writeAttempts).toBe(1);
+      // The rejection was fully swallowed: no console output, no
+      // unhandled rejection on the event loop.
+      expect(consoleCaptured('warn')).toEqual([]);
+      expect(consoleCaptured('error')).toEqual([]);
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
   });
 
   it('swallows invalid base64', () => {

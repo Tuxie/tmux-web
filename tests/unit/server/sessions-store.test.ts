@@ -56,7 +56,7 @@ describe("sessions-store", () => {
     const current = { version: 1 as const, lastActive: "a", sessions: { a: SAMPLE } };
     const next = mergeConfig(current, { lastActive: "b", sessions: { b: { ...SAMPLE, colours: "Nord" } } });
     expect(next.lastActive).toBe("b");
-    expect(next.sessions.a).toBeDefined();
+    expect(next.sessions.a).toMatchObject({ colours: SAMPLE.colours });
     expect(next.sessions.b!.colours).toBe("Nord");
   });
 
@@ -106,7 +106,7 @@ describe("sessions-store", () => {
     const current = { version: 1 as const, lastActive: "a", sessions: { a: SAMPLE } };
     const next = mergeConfig(current, { sessions: { "[object HTMLSpanElement]": SAMPLE, b: SAMPLE } });
     expect(next.sessions["[object HTMLSpanElement]"]).toBeUndefined();
-    expect(next.sessions.b).toBeDefined();
+    expect(next.sessions.b).toMatchObject({ colours: SAMPLE.colours });
   });
 
   test("sanitizeSessions drops __proto__, constructor, and prototype keys", () => {
@@ -130,7 +130,7 @@ describe("sessions-store", () => {
     await applyPatch(file, { lastActive: "one", sessions: { two: { ...SAMPLE, opacity: 50 } } });
     const cfg = loadConfig(file);
     expect(cfg.lastActive).toBe("one");
-    expect(cfg.sessions.one).toBeDefined();
+    expect(cfg.sessions.one).toMatchObject({ colours: SAMPLE.colours });
     expect(cfg.sessions.two!.opacity).toBe(50);
   });
 
@@ -143,7 +143,7 @@ describe("sessions-store", () => {
     expect(next.lastActive).toBeUndefined();
     const round = loadConfig(file);
     expect(round.sessions.one).toBeUndefined();
-    expect(round.sessions.two).toBeDefined();
+    expect(round.sessions.two).toMatchObject({ colours: SAMPLE.colours });
   });
 
   test("deleteSession keeps lastActive when it points to a different session", async () => {

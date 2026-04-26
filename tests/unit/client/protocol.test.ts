@@ -40,7 +40,12 @@ describe('extractTTMessages', () => {
   it('handles malformed JSON after TT prefix gracefully', () => {
     const data = '\x00TT:{bad jsonrest of data';
     const result = extractTTMessages(data);
-    expect(result.terminalData).toBeDefined();
+    // Malformed JSON falls into the prefix re-emit path: the parser
+    // re-emits the four-byte `\x00TT:` prefix into the terminal stream
+    // and resumes past it, so the entire input surfaces verbatim and
+    // no messages are extracted.
+    expect(result.terminalData).toBe(data);
+    expect(result.messages).toEqual([]);
   });
 
   describe('input bounds', () => {
