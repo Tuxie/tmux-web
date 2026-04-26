@@ -42,4 +42,61 @@ describe('extractTTMessages', () => {
     const result = extractTTMessages(data);
     expect(result.terminalData).toBeDefined();
   });
+
+  describe('input bounds', () => {
+    /** Stub `console.warn` for the duration of `fn` so the test
+     *  doesn't pollute test-runner output and we can assert on the
+     *  abort path. Returns the captured messages. */
+    function captureWarns<T>(fn: () => T): { result: T; warns: string[] } {
+      const warns: string[] = [];
+      const orig = console.warn;
+      console.warn = (...args: unknown[]) => {
+        warns.push(args.map(String).join(' '));
+      };
+      try {
+        const result = fn();
+        return { result, warns };
+      } finally {
+        console.warn = orig;
+      }
+    }
+
+    it('aborts and warns when JSON depth exceeds the bound', () => {
+      // 65 nested opens — one past the 64-deep cap — followed by
+      // matching closes. We expect the parser to bail before the
+      // closing braces balance, fall through to the malformed-prefix
+      // re-emit, and emit a console.warn about the depth bound.
+      const deep = '{'.repeat(65) + '"x":1' + '}'.repeat(65);
+      const data = '\x00TT:' + deep + 'tail';
+      const { result, warns } = captureWarns(() => extractTTMessages(data));
+      // Re-emit the four-byte prefix and resume past it; nothing should
+      // be parsed as a message.
+      expect(result.messages).toEqual([]);
+      // The prefix appears in the terminal stream — including the rest
+      // of the would-be JSON characters that follow the prefix advance.
+      expect(result.terminalData).toContain('\x00TT:');
+      expect(warns.some((w) => w.includes('TT message exceeded depth bound'))).toBe(true);
+    });
+
+    it('parses normal-depth nested JSON without aborting', () => {
+      // 32 deep is comfortably under the 64 cap.
+      const deep = '{"a":'.repeat(32) + '1' + '}'.repeat(32);
+      const data = '\x00TT:' + deep;
+      const { result, warns } = captureWarns(() => extractTTMessages(data));
+      expect(result.messages).toHaveLength(1);
+      expect(warns).toEqual([]);
+    });
+
+    it('aborts and warns when JSON length exceeds the bound', () => {
+      // Build a payload that opens a brace then dumps >1 MiB of
+      // string content without ever closing — the length guard must
+      // trip before the parser walks to end-of-input.
+      const big = '{"k":"' + 'x'.repeat(1024 * 1024 + 16);
+      const data = '\x00TT:' + big;
+      const { result, warns } = captureWarns(() => extractTTMessages(data));
+      expect(result.messages).toEqual([]);
+      expect(result.terminalData).toContain('\x00TT:');
+      expect(warns.some((w) => w.includes('TT message exceeded length bound'))).toBe(true);
+    });
+  });
 });

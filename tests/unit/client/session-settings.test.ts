@@ -9,6 +9,8 @@ import {
   getLiveSessionSettings,
   setLastActiveSession,
   applyThemeDefaults,
+  flushPersist,
+  _resetPersistDebounce,
   _resetSessionStore,
 } from "../../../src/client/session-settings.ts";
 
@@ -35,9 +37,20 @@ function setupFakeFetch(
   return calls;
 }
 
+/** Drain the debounced PUT pipeline. Tests that previously asserted on
+ *  a queued PUT after `setTimeout(0)` now have to flush the 300 ms
+ *  debounce explicitly; calling `flushPersist()` cancels the timer
+ *  and fires the queued fetch synchronously, the microtask wait then
+ *  lets the (mock) Promise resolve so the test can read `calls`. */
+async function drainPersist(): Promise<void> {
+  flushPersist();
+  await new Promise((r) => setTimeout(r, 0));
+}
+
 describe("session-settings", () => {
   beforeEach(() => {
     _resetSessionStore();
+    _resetPersistDebounce();
     setupFakeFetch(null);
   });
 
@@ -68,7 +81,7 @@ describe("session-settings", () => {
     const loaded = loadSessionSettings("main", null, { defaults: DEFAULT_SESSION_SETTINGS });
     expect(loaded.topbarAutohide).toBe(true);
     expect(loaded.scrollbarAutohide).toBe(true);
-    await new Promise(r => setTimeout(r, 0));
+    await drainPersist();
     const put = calls.find(c => c.init?.method === "PUT");
     expect(put).toBeDefined();
     const body = JSON.parse(put!.init!.body as string);
@@ -123,7 +136,7 @@ describe("session-settings", () => {
     expect(loaded.opacity).toBe(50);
     expect(loaded.tuiBgOpacity).toBe(65);
     expect(loaded.backgroundHue).toBe(210);
-    await new Promise(r => setTimeout(r, 0));
+    await drainPersist();
     const put = calls.find(c => c.init?.method === 'PUT');
     expect(put).toBeDefined();
     const body = JSON.parse(put!.init!.body as string);
@@ -189,7 +202,7 @@ describe("session-settings", () => {
     const calls = setupFakeFetch({ sessions: {} });
     await initSessionStore();
     setLastActiveSession("dev");
-    await new Promise(r => setTimeout(r, 0));
+    await drainPersist();
     const put = calls.find(c => c.init?.method === 'PUT');
     expect(put).toBeDefined();
     const body = JSON.parse(put!.init!.body as string);
@@ -200,7 +213,7 @@ describe("session-settings", () => {
     const calls = setupFakeFetch({ lastActive: "dev", sessions: {} });
     await initSessionStore();
     setLastActiveSession("dev");
-    await new Promise(r => setTimeout(r, 0));
+    await drainPersist();
     // Only GET call, no PUT
     expect(calls.some(c => c.init?.method === 'PUT')).toBe(false);
   });
@@ -255,7 +268,7 @@ describe("session-settings", () => {
     await initSessionStore();
     // Should not throw
     saveSessionSettings("x", { ...DEFAULT_SESSION_SETTINGS });
-    await new Promise(r => setTimeout(r, 0));
+    await drainPersist();
     expect(getStoredSessionNames()).toEqual(["x"]);
   });
 
@@ -289,6 +302,79 @@ describe("session-settings", () => {
     await initSessionStore();
     await deleteSessionSettings("x");
     expect(getStoredSessionNames()).toEqual([]);
+  });
+});
+
+describe("persist debounce", () => {
+  beforeEach(() => {
+    _resetSessionStore();
+    _resetPersistDebounce();
+  });
+
+  test("coalesces a slider-drag burst into a single PUT", async () => {
+    const calls = setupFakeFetch({ sessions: {} });
+    await initSessionStore();
+    // Simulate the worst-case slider drag: 360 commits in tight
+    // succession (Hue 0→360). Without the debounce this would fire
+    // 360 PUTs; with it we expect exactly one once we drain.
+    for (let i = 0; i < 360; i++) {
+      saveSessionSettings("main", {
+        ...DEFAULT_SESSION_SETTINGS,
+        backgroundHue: i,
+      });
+    }
+    // Before the debounce fires: no PUT yet.
+    expect(calls.some((c) => c.init?.method === "PUT")).toBe(false);
+
+    flushPersist();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const puts = calls.filter((c) => c.init?.method === "PUT");
+    expect(puts).toHaveLength(1);
+    const body = JSON.parse(puts[0]!.init!.body as string);
+    // Latest write wins: the body reflects the final commit (359).
+    expect(body.sessions.main.backgroundHue).toBe(359);
+  });
+
+  test("merges interleaved lastActive + sessions patches into one PUT", async () => {
+    const calls = setupFakeFetch({ sessions: {} });
+    await initSessionStore();
+    saveSessionSettings("a", { ...DEFAULT_SESSION_SETTINGS, fontSize: 14 });
+    setLastActiveSession("a");
+    saveSessionSettings("b", { ...DEFAULT_SESSION_SETTINGS, fontSize: 22 });
+
+    flushPersist();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const puts = calls.filter((c) => c.init?.method === "PUT");
+    expect(puts).toHaveLength(1);
+    const body = JSON.parse(puts[0]!.init!.body as string);
+    expect(body.lastActive).toBe("a");
+    expect(body.sessions.a.fontSize).toBe(14);
+    expect(body.sessions.b.fontSize).toBe(22);
+  });
+
+  test("flushPersist is a no-op when nothing is pending", async () => {
+    const calls = setupFakeFetch({ sessions: {} });
+    await initSessionStore();
+    flushPersist();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(calls.some((c) => c.init?.method === "PUT")).toBe(false);
+  });
+
+  test("debounce timer fires the PUT after the 300 ms idle window", async () => {
+    const calls = setupFakeFetch({ sessions: {} });
+    await initSessionStore();
+    saveSessionSettings("x", { ...DEFAULT_SESSION_SETTINGS, fontSize: 19 });
+    // Wait past the 300 ms debounce window (plus a small buffer for
+    // the fetch microtask). We can't use fake timers here without
+    // restructuring the module; the small extra real-time wait is
+    // acceptable for one test.
+    await new Promise((r) => setTimeout(r, 350));
+    const puts = calls.filter((c) => c.init?.method === "PUT");
+    expect(puts).toHaveLength(1);
+    const body = JSON.parse(puts[0]!.init!.body as string);
+    expect(body.sessions.x.fontSize).toBe(19);
   });
 });
 

@@ -9,8 +9,13 @@ export interface ConnectionOptions {
    *  Browsers deliver this before `onclose` on connection failures; the
    *  caller typically logs it and/or shows a rate-limited toast so the
    *  user notices CORS / protocol errors that would otherwise only
-   *  surface as a generic "disconnected" message from `onclose`. */
-  onError?: (ev: Event) => void;
+   *  surface as a generic "disconnected" message from `onclose`.
+   *
+   *  `url` is the URL captured at construction time, before the failure
+   *  redacted anything; useful for the developer-side console log
+   *  because the browser-supplied `Event` is intentionally
+   *  information-poor on WebSocket failures. */
+  onError?: (ev: Event, url: string) => void;
 }
 
 export class Connection {
@@ -23,7 +28,13 @@ export class Connection {
   }
 
   connect(): void {
-    this.ws = new WebSocket(this.opts.getUrl());
+    // Capture the URL once per attempt so onerror can log a directional
+    // hint without re-resolving getUrl() (which can shift if the user
+    // changed sessions while we were reconnecting). Browsers fire onerror
+    // with an information-poor `Event`, so the URL is the most useful
+    // datum a developer-side log line can carry.
+    const url = this.opts.getUrl();
+    this.ws = new WebSocket(url);
     this.ws.onopen = () => this.opts.onOpen();
     this.ws.onmessage = (e) => {
       if (typeof e.data === 'string') this.opts.onMessage(e.data);
@@ -32,7 +43,7 @@ export class Connection {
       this.opts.onClose();
       this.reconnectTimer = setTimeout(() => this.connect(), 2000);
     };
-    this.ws.onerror = (ev) => this.opts.onError?.(ev);
+    this.ws.onerror = (ev) => this.opts.onError?.(ev, url);
   }
 
   get isOpen(): boolean {

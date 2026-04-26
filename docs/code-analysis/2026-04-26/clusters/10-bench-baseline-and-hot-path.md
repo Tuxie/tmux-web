@@ -1,7 +1,7 @@
 ---
-Status: open
+Status: partial
 Autonomy: needs-decision
-Resolved-in:
+Resolved-in: 4ea699901ff2bb210ac18487d83df0185378b410 (partial — F1/F2 per-cell allocation fix deferred until baseline numbers; F3/F4 bench infrastructure landed)
 Depends-on:
 informally-unblocks:
 Pre-conditions:

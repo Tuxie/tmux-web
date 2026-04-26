@@ -60,6 +60,21 @@ import {
 
 const TITLEBAR_DRAG_RESTORE_THRESHOLD_PX = 4;
 
+/** Map a `{type:'window', action:…}` action verb to a human-readable
+ *  phrase for the disconnect toast — `select` → "switch window",
+ *  `rename` → "rename window", etc. Falls through to a generic
+ *  "<action> window" so a future action key still produces something
+ *  sensible without needing a new entry here. */
+function windowActionLabel(action: string): string {
+  switch (action) {
+    case 'select': return 'switch window';
+    case 'rename': return 'rename window';
+    case 'new':    return 'create window';
+    case 'close':  return 'close window';
+    default:       return `${action} window`;
+  }
+}
+
 export interface TopbarOptions {
   send: (data: string) => void;
   focus: () => void;
@@ -69,6 +84,19 @@ export interface TopbarOptions {
   /** Switch to a different (or new) session without a full page reload —
    *  caller is expected to update the URL and reconnect the WebSocket. */
   onSwitchSession?: (name: string) => void;
+  /** True when the underlying WS is OPEN. Topbar consults this before
+   *  firing UI-driven commit messages (rename / kill / select-window /
+   *  switch-session etc.) so a click-while-disconnected surfaces a
+   *  toast via {@link onOffline} instead of being silently dropped by
+   *  `Connection.send`. Default `() => true` keeps existing call sites
+   *  (and tests) working unchanged. */
+  isOpen?: () => boolean;
+  /** Invoked with a short action verb (e.g. "rename session",
+   *  "switch window") when an `isOpen()`-guarded UI commit is skipped
+   *  because the WS isn't OPEN. Wired in `index.ts` to `showToast`
+   *  with an "<action> ignored" message — same shape as the
+   *  paste-while-disconnected toast already there. */
+  onOffline?: (action: string) => void;
 }
 
 export class Topbar {
@@ -242,7 +270,9 @@ export class Topbar {
           el.addEventListener('click', (ev) => {
             ev.stopPropagation();
             close();
-            if (!isCurrent) this.opts.onSwitchSession?.(s.name);
+            if (isCurrent) return;
+            if (!this.guardOnline('switch session')) return;
+            this.opts.onSwitchSession?.(s.name);
           });
           menu.appendChild(el);
         }
@@ -257,6 +287,7 @@ export class Topbar {
           onSubmit: (name) => {
             close();
             if (name !== current) {
+              if (!this.guardOnline('rename session')) return;
               this.opts.send(JSON.stringify({ type: 'session', action: 'rename', name }));
             }
           },
@@ -270,6 +301,7 @@ export class Topbar {
             close();
             const clean = name.replace(/[^a-zA-Z0-9_\-./]/g, '');
             if (!clean) return;
+            if (!this.guardOnline('create session')) return;
             this.opts.onSwitchSession?.(clean);
           },
         }));
@@ -288,6 +320,7 @@ export class Topbar {
           // infrequent and a custom modal would duplicate the clipboard-prompt
           // code path for marginal UX gain. See 2026-04-17 code-analysis UX-1.
           if (!confirm(`Kill session "${current}"?`)) return;
+          if (!this.guardOnline('kill session')) return;
           this.opts.send(JSON.stringify({ type: 'session', action: 'kill' }));
         });
         menu.appendChild(killItem);
@@ -871,11 +904,25 @@ export class Topbar {
     return location.pathname.replace(/^\/+|\/+$/g, '') || 'main';
   }
 
+  /** Gate a UI-driven WS commit on the current connection state. When
+   *  the WS isn't OPEN, surfaces an "<action> ignored" toast via
+   *  `opts.onOffline` and returns `false` so the caller can short-circuit
+   *  any optimistic local work that would otherwise be left orphaned.
+   *  Mirrors the paste-handler check in `index.ts` so every UI commit
+   *  fails visibly rather than silently. Falls through to `true` when
+   *  `isOpen` isn't wired (older callers / tests). */
+  private guardOnline(action: string): boolean {
+    if (!this.opts.isOpen || this.opts.isOpen()) return true;
+    this.opts.onOffline?.(action);
+    return false;
+  }
+
   private sendWindowMsg(msg: { action: string; index?: string; name?: string }): void {
     // All window actions go through typed WS messages that the server
     // runs via the tmux binary directly. This avoids depending on the
     // user's tmux prefix binding (which may not be C-s) or the PTY's
     // current input mode.
+    if (!this.guardOnline(windowActionLabel(msg.action))) return;
     this.opts.send(JSON.stringify({ type: 'window', ...msg }));
   }
 

@@ -250,6 +250,8 @@ async function freshTopbarCtor(overrides: {
   onAutohideChange?: () => void;
   onSettingsChange?: (s: any) => void | Promise<void>;
   onSwitchSession?: (name: string) => void;
+  isOpen?: () => boolean;
+  onOffline?: (action: string) => void;
 } = {}) {
   const { Topbar } = await import('../../../../src/client/ui/topbar.ts');
   const t = new Topbar({
@@ -259,6 +261,8 @@ async function freshTopbarCtor(overrides: {
     onAutohideChange: overrides.onAutohideChange,
     onSettingsChange: overrides.onSettingsChange,
     onSwitchSession: overrides.onSwitchSession,
+    isOpen: overrides.isOpen,
+    onOffline: overrides.onOffline,
   });
   return t;
 }
@@ -619,6 +623,116 @@ describe('Topbar.init + updateTitle / updateWindows / renderWinTabs', () => {
     // Row index 1 == vim; click it.
     const vimRow = menu.children[1];
     vimRow.click();
+    expect(outgoing).toContain(JSON.stringify({ type: 'window', action: 'select', index: '1' }));
+  });
+});
+
+describe('Topbar offline-guard (F1: cluster 11)', () => {
+  it('window-tab click sends nothing and toasts when WS is not OPEN', async () => {
+    const outgoing: string[] = [];
+    const offline: string[] = [];
+    const t = await mountTopbar({
+      send: (s) => outgoing.push(s),
+      isOpen: () => false,
+      onOffline: (action) => offline.push(action),
+    });
+    await t.init();
+    const { setShowWindowTabs } = await import('../../../../src/client/prefs.ts');
+    setShowWindowTabs(true);
+    (t as any).lastWinTabsKey = '';
+    t.updateWindows([
+      { index: '0', name: 'zsh', active: true },
+      { index: '1', name: 'vim', active: false },
+    ]);
+    const winTabs = (globalThis.document as any).getElementById('win-tabs');
+    const secondTab = winTabs.children[1] as any;
+    secondTab.click();
+    expect(outgoing).toEqual([]);
+    expect(offline).toEqual(['switch window']);
+  });
+
+  it('windows-menu select click toasts and skips send when offline', async () => {
+    const outgoing: string[] = [];
+    const offline: string[] = [];
+    const t = await mountTopbar({
+      send: (s) => outgoing.push(s),
+      isOpen: () => false,
+      onOffline: (action) => offline.push(action),
+    });
+    await t.init();
+    t.updateWindows([
+      { index: '0', name: 'zsh', active: true },
+      { index: '1', name: 'vim', active: false },
+    ]);
+    const menu: any = (globalThis.document as any).createElement('div');
+    (t as any).renderWindowsMenu(menu, () => {});
+    menu.children[1].click();
+    expect(outgoing).toEqual([]);
+    expect(offline).toEqual(['switch window']);
+  });
+
+  it('session-row click in renderSessionsMenu toasts and skips onSwitchSession when offline', async () => {
+    const switched: string[] = [];
+    const offline: string[] = [];
+    const t = await mountTopbar({
+      onSwitchSession: (n) => switched.push(n),
+      isOpen: () => false,
+      onOffline: (action) => offline.push(action),
+    });
+    await t.init();
+    (t as any).cachedSessions = [
+      { id: '0', name: 'main' },
+      { id: '7', name: 'dev' },
+    ];
+    const menu: any = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+    // Find and click the row for 'dev' (not the current session, which
+    // is 'main' under the default location stub).
+    const rows = menu.children.filter((c: any) =>
+      typeof c.className === 'string' && c.className.includes('tw-dd-session-item')
+    );
+    const devRow = rows.find((r: any) =>
+      r.children.some((ch: any) => ch.textContent === 'dev')
+    );
+    expect(devRow).toBeDefined();
+    devRow.click();
+    expect(switched).toEqual([]);
+    expect(offline).toEqual(['switch session']);
+  });
+
+  it('windows-menu click still sends when WS is OPEN (regression guard)', async () => {
+    const outgoing: string[] = [];
+    const offline: string[] = [];
+    const t = await mountTopbar({
+      send: (s) => outgoing.push(s),
+      isOpen: () => true,
+      onOffline: (action) => offline.push(action),
+    });
+    await t.init();
+    t.updateWindows([
+      { index: '0', name: 'zsh', active: true },
+      { index: '1', name: 'vim', active: false },
+    ]);
+    const menu: any = (globalThis.document as any).createElement('div');
+    (t as any).renderWindowsMenu(menu, () => {});
+    menu.children[1].click();
+    expect(outgoing).toContain(JSON.stringify({ type: 'window', action: 'select', index: '1' }));
+    expect(offline).toEqual([]);
+  });
+
+  it('legacy callers without isOpen still send (default-on for back-compat)', async () => {
+    const outgoing: string[] = [];
+    const t = await mountTopbar({ send: (s) => outgoing.push(s) });
+    await t.init();
+    const { setShowWindowTabs } = await import('../../../../src/client/prefs.ts');
+    setShowWindowTabs(true);
+    (t as any).lastWinTabsKey = '';
+    t.updateWindows([
+      { index: '0', name: 'zsh', active: true },
+      { index: '1', name: 'vim', active: false },
+    ]);
+    const winTabs = (globalThis.document as any).getElementById('win-tabs');
+    winTabs.children[1].click();
     expect(outgoing).toContain(JSON.stringify({ type: 'window', action: 'select', index: '1' }));
   });
 });

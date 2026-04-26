@@ -35,6 +35,7 @@ import {
   getLiveSessionSettings,
   setLastActiveSession,
   initSessionStore,
+  flushPersist,
   DEFAULT_SESSION_SETTINGS,
   type SessionSettings,
 } from './session-settings.js';
@@ -204,6 +205,10 @@ async function main() {
     send: (data) => connection.send(data),
     focus: () => adapter.focus(),
     getLiveSettings: () => settings,
+    isOpen: () => connection?.isOpen ?? false,
+    onOffline: (action) => {
+      showToast(`Not connected — ${action} ignored`, { variant: 'error' });
+    },
     onAutohideChange: () => {
       adapter.fit();
     },
@@ -356,8 +361,8 @@ async function main() {
     onClose: () => {
       adapter.write('\r\n\x1b[33mDisconnected. Reconnecting...\x1b[0m\r\n');
     },
-    onError: (ev) => {
-      console.warn('WebSocket error', ev);
+    onError: (ev, url) => {
+      console.warn('WebSocket error connecting to', url, ev);
       if (!wsErrorToasted) {
         wsErrorToasted = true;
         showToast('WebSocket connection error — check network / server', { variant: 'error' });
@@ -397,6 +402,15 @@ async function main() {
   const onWindowResize = () => adapter.fit();
   window.addEventListener('resize', onWindowResize);
   disposers.push(() => window.removeEventListener('resize', onWindowResize));
+
+  // Flush any debounced PUT before the tab unloads so a slider drag that
+  // ends with a quick window close doesn't lose the last <300 ms of
+  // edits. The flush is synchronous (fetch returns a Promise we don't
+  // await — the browser still buffers the request as part of the unload
+  // pipeline) so it doesn't hold up navigation.
+  const onBeforeUnload = () => { flushPersist(); };
+  window.addEventListener('beforeunload', onBeforeUnload);
+  disposers.push(() => window.removeEventListener('beforeunload', onBeforeUnload));
 
   // A theme swap changes #topbar height, #terminal insets, and CSS font
   // metrics — none of which fire a `resize` event on window. Observe the
