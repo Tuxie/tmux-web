@@ -50,6 +50,32 @@ They're excluded from `bun test` / the release CI path (bunfig's
 `root = "tests/unit"`) so the per-release cost is zero; the trade-off
 is that discovering a new fuzz regression is a manual pre-tag step.
 
+### Per-OS coverage gap (intentional)
+
+The release workflow's coverage gate runs on Linux only. The macOS
+legs run `bun test` without `coverage:check`, because a handful of
+linux-specific paths (inotify-driven auto-unlink in `file-drop.ts`,
+`/proc/<pid>/exe` → BLAKE3 pinning in `foreground-process.ts` /
+`ws.ts` OSC 52 flows) drop those three files below their per-file
+thresholds on macOS. Net effect: a macOS-only regression in OSC 52,
+file-drop, or foreground-process logic would not be blocked by the
+coverage gate before shipping. This is a deliberate trade-off for a
+T2 solo-maintainer project; the alternative (per-OS coverage gates
+with platform-specific thresholds) is T3-tier infra. If you change
+any of those modules, run `make test-unit` on macOS locally as well.
+
+### Post-compile binary smoke (`tests/post-compile/`)
+
+`tests/post-compile/` contains a bun-test suite that exercises the
+**compiled** `tmux-web` binary (not the `bun src/server/index.ts`
+source path). It is invoked from the release workflow against the
+extracted tarball binary, not from `make test` / `make test-unit` /
+`make test-e2e`. The bunfig default test root (`tests/unit`) and the
+Playwright `testDir` (`./tests/e2e`) explicitly exclude it. Run it
+locally via `make test-post-compile` (against the project-root
+`./tmux-web` you already built) or by setting
+`TMUX_WEB_BINARY=/path/to/tmux-web bun test tests/post-compile/`.
+
 ---
 
 ## Architecture

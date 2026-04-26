@@ -1,7 +1,7 @@
 ---
-Status: open
+Status: partial
 Autonomy: needs-decision
-Resolved-in:
+Resolved-in: 0fe9ad1dccf16cb3d65649dc6598e848428b80ea (partial — F5 homebrew-tap SHA validation deferred per 2026-04-26 preflight decision)
 Depends-on:
 informally-unblocks:
 Pre-conditions:

@@ -10,7 +10,7 @@ SRCS_SERVER := $(shell find src/server src/shared -name "*.ts")
 
 .PHONY: all dev build build-client build-server tmux-term \
         vendor \
-        test typecheck test-unit test-e2e test-e2e-headed \
+        test typecheck test-unit test-e2e test-e2e-headed test-post-compile \
         bench fuzz install clean distclean
 
 all: tmux-web
@@ -54,6 +54,16 @@ test-e2e: dist/client/xterm.js
 
 test-e2e-headed: dist/client/xterm.js
 	$(BUN) x playwright test --headed
+
+# Post-compile binary smoke tests. Runs against the *compiled*
+# `./tmux-web` binary at the project root (or $TMUX_WEB_BINARY if
+# set). Build first if missing. Not part of `make test` — invoked
+# explicitly from CI after the release binary is produced and from
+# this target locally. Source-mode tests cannot catch compiled-binary
+# regressions like the v1.8.0 bunfs/embedded-tmux miss
+# (CHANGELOG.md `1.8.1`).
+test-post-compile: tmux-web
+	$(BUN) test tests/post-compile/
 
 # --- Benchmarks ---
 
