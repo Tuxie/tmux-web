@@ -219,8 +219,9 @@ describe('http branches — harness-based', () => {
     'GET /api/sessions falls back to execFileAsync when control client throws TmuxCommandError',
     async () => {
       // Script outputs one parseable session line; $0 in single-quotes is literal.
+      // Tab-separated to match the v1.7.0 windows decision (see tmux-listings.ts).
       const script = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'tw-fake-tmux-')), 'tmux');
-      fs.writeFileSync(script, "#!/bin/sh\nprintf '$0:Fallback\\n'\n", { mode: 0o755 });
+      fs.writeFileSync(script, "#!/bin/sh\nprintf '$0\\tFallback\\n'\n", { mode: 0o755 });
 
       const stuckControl: TmuxControl = {
         attachSession: async () => {},

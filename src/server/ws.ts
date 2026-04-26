@@ -13,6 +13,12 @@ import { routeClientMessage, type WsAction, type PendingRead as RouterPendingRea
 import { NoControlClientError, TmuxCommandError, quoteTmuxArg, type TmuxControl } from './tmux-control.js';
 import { execFileAsync } from './exec.js';
 import {
+  listSessionsViaTmux,
+  listWindowsViaTmux,
+  getPaneTitleViaTmux,
+  type TmuxListingsDeps,
+} from './tmux-listings.js';
+import {
   SCROLLBAR_FORMAT,
   applyScrollbarAction,
   buildScrollbarSubscriptionArgs,
@@ -1068,92 +1074,38 @@ async function applyColourVariant(
   }
 }
 
-async function listSessionState(opts: WsServerOptions): Promise<SessionInfo[] | null> {
-  const args = ['list-sessions', '-F', '#{session_id}:#{session_name}'] as const;
-  let stdout: string;
-  try {
-    stdout = await opts.tmuxControl.run(args);
-  } catch {
-    try {
-      stdout = (await execFileAsync(opts.config.tmuxBin, args)).stdout;
-    } catch {
-      return null;
-    }
-  }
-  const sessions = stdout.trim().split('\n').filter(Boolean).map((line) => {
-    const [rawId, ...rest] = line.split(':');
-    return { id: (rawId ?? '').replace(/^\$/, ''), name: rest.join(':') };
-  });
-  return sessions.length > 0 ? sessions : null;
+/** WS-attached path: try the live control client first, fall back to
+ *  execFileAsync. All six former inline parsers (three on this attached
+ *  path, three on the startup probe path below) collapse into the
+ *  shared `tmux-listings.ts` helper. */
+function listingsDeps(opts: WsServerOptions, preferControl: boolean): TmuxListingsDeps {
+  return { tmuxControl: opts.tmuxControl, tmuxBin: opts.config.tmuxBin, preferControl };
 }
 
-async function listWindowState(sessionName: string, opts: WsServerOptions): Promise<WindowInfo[] | null> {
-  const args = ['list-windows', '-t', sessionName, '-F', '#{window_index}\t#{window_name}\t#{window_active}'] as const;
-  let stdout: string;
-  try {
-    stdout = await opts.tmuxControl.run(args);
-  } catch {
-    try {
-      stdout = (await execFileAsync(opts.config.tmuxBin, args)).stdout;
-    } catch {
-      return null;
-    }
-  }
-  const windows: WindowInfo[] = stdout.trim().split('\n').filter(Boolean).map(line => {
-    const [index, name, active] = line.split('\t');
-    return { index: index!, name: name!, active: active === '1' };
-  });
-  return windows.length > 0 ? windows : null;
+function listSessionState(opts: WsServerOptions): Promise<SessionInfo[] | null> {
+  return listSessionsViaTmux(listingsDeps(opts, true));
 }
 
-async function getPaneTitle(sessionName: string, opts: WsServerOptions): Promise<string | undefined> {
-  const args = ['display-message', '-t', sessionName, '-p', '#{pane_title}'] as const;
-  try {
-    return (await opts.tmuxControl.run(args)).trim();
-  } catch {
-    try {
-      return (await execFileAsync(opts.config.tmuxBin, args)).stdout.trim();
-    } catch {
-      return undefined;
-    }
-  }
+function listWindowState(sessionName: string, opts: WsServerOptions): Promise<WindowInfo[] | null> {
+  return listWindowsViaTmux(sessionName, listingsDeps(opts, true));
 }
 
-async function listSessionStateDirect(opts: WsServerOptions): Promise<SessionInfo[] | null> {
-  const args = ['list-sessions', '-F', '#{session_id}:#{session_name}'] as const;
-  try {
-    const { stdout } = await execFileAsync(opts.config.tmuxBin, args);
-    const sessions = stdout.trim().split('\n').filter(Boolean).map((line) => {
-      const [rawId, ...rest] = line.split(':');
-      return { id: (rawId ?? '').replace(/^\$/, ''), name: rest.join(':') };
-    });
-    return sessions.length > 0 ? sessions : null;
-  } catch {
-    return null;
-  }
+function getPaneTitle(sessionName: string, opts: WsServerOptions): Promise<string | undefined> {
+  return getPaneTitleViaTmux(sessionName, listingsDeps(opts, true));
 }
 
-async function listWindowStateDirect(sessionName: string, opts: WsServerOptions): Promise<WindowInfo[] | null> {
-  const args = ['list-windows', '-t', sessionName, '-F', '#{window_index}\t#{window_name}\t#{window_active}'] as const;
-  try {
-    const { stdout } = await execFileAsync(opts.config.tmuxBin, args);
-    const windows: WindowInfo[] = stdout.trim().split('\n').filter(Boolean).map(line => {
-      const [index, name, active] = line.split('\t');
-      return { index: index!, name: name!, active: active === '1' };
-    });
-    return windows.length > 0 ? windows : null;
-  } catch {
-    return null;
-  }
+/** Startup probe path: control client may not be attached yet, so go
+ *  straight to execFileAsync (preferControl=false). */
+function listSessionStateDirect(opts: WsServerOptions): Promise<SessionInfo[] | null> {
+  return listSessionsViaTmux(listingsDeps(opts, false));
 }
 
-async function getPaneTitleDirect(sessionName: string, opts: WsServerOptions): Promise<string | undefined> {
-  const args = ['display-message', '-t', sessionName, '-p', '#{pane_title}'] as const;
-  try {
-    return (await execFileAsync(opts.config.tmuxBin, args)).stdout.trim();
-  } catch {
-    return undefined;
-  }
+function listWindowStateDirect(sessionName: string, opts: WsServerOptions): Promise<WindowInfo[] | null> {
+  return listWindowsViaTmux(sessionName, listingsDeps(opts, false));
+}
+
+function getPaneTitleDirect(sessionName: string, opts: WsServerOptions): Promise<string | undefined> {
+  return getPaneTitleViaTmux(sessionName, listingsDeps(opts, false));
 }
 
 async function sendStartupWindowState(ws: ServerWebSocket<WsData>, sessionName: string, opts: WsServerOptions): Promise<void> {
@@ -1209,7 +1161,15 @@ async function sendWindowState(ws: ServerWebSocket<WsData>, sessionName: string,
 
 /** Fire a {session: name} push to every connected WS client. The client's
  *  on-session handler re-fetches /api/sessions and /api/windows, so this
- *  push is just a "refresh your session list" signal. */
+ *  push is just a "refresh your session list" signal.
+ *
+ *  Iteration-safety invariant: the body of both `for` loops below must
+ *  remain synchronous. The registry maps `sessionName → Set<ws>`, and
+ *  `handleTitleChange` → `moveWsToSession` mutates that set when a WS
+ *  migrates between sessions. Today the body is sync (only `ws.send`)
+ *  so the iterator's view is stable; if you add an `await` inside,
+ *  switch to `Array.from(clients)` before iterating to snapshot the
+ *  set — otherwise mutations during the await will be observed mid-loop. */
 function broadcastSessionRefresh(reg: WsRegistry): void {
   if (reg.wsClientsBySession.size === 0) return;
   for (const [sessionName, clients] of reg.wsClientsBySession) {
@@ -1227,22 +1187,22 @@ async function broadcastWindowsForSession(
 ): Promise<void> {
   const clients = reg.wsClientsBySession.get(sessionName);
   if (!clients || clients.size === 0) return;
-  try {
-    const stdout = await opts.tmuxControl.run([
-      'list-windows', '-t', sessionName, '-F',
-      '#{window_index}\t#{window_name}\t#{window_active}',
-    ]);
-    const windows: WindowInfo[] = stdout.split('\n').filter(Boolean).map(line => {
-      const [index, name, active] = line.split('\t');
-      return { index: index!, name: name!, active: active === '1' };
-    });
-    // Tmux sessions always have ≥1 window — empty means our query
-    // raced a window-close or hit a transient parse failure. Don't
-    // wipe the client's cached list.
-    if (windows.length === 0) return;
-    for (const ws of clients) {
-      if (ws.readyState !== WS_OPEN) continue;
-      ws.send(frameTTMessage({ session: sessionName, windows }));
-    }
-  } catch { /* non-fatal — command might fail while session dying */ }
+  // Reuses the shared helper so the wire format and `.trim()`-before-split
+  // shape match `listWindowState` exactly. The previous inline copy
+  // omitted `.trim()` and only worked by luck (every parsed entry had a
+  // truthy `index`/`name` so the stray empty trailing line survived
+  // `filter(Boolean)`). The helper trims uniformly.
+  const windows = await listWindowState(sessionName, opts);
+  // Tmux sessions always have ≥1 window — null/empty means our query
+  // raced a window-close or hit a transient parse failure. Don't wipe
+  // the client's cached list.
+  if (!windows || windows.length === 0) return;
+  // Iteration-safety: the body is synchronous (no awaits between this
+  // point and `ws.send`) so the iterator's view of `clients` is stable
+  // even though `moveWsToSession` mutates the set on session migration.
+  // Convert to `Array.from(clients)` if any future change adds an await.
+  for (const ws of clients) {
+    if (ws.readyState !== WS_OPEN) continue;
+    ws.send(frameTTMessage({ session: sessionName, windows }));
+  }
 }

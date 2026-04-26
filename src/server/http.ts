@@ -27,8 +27,8 @@ import { getForegroundProcess } from './foreground-process.js';
 import { sendBytesToPane } from './tmux-inject.js';
 import { formatBracketedPasteForDrop } from './drop-paste.js';
 import { sanitizeSession } from './pty.js';
-import { execFileAsync } from './exec.js';
 import { type TmuxControl } from './tmux-control.js';
+import { listSessionsViaTmux, listWindowsViaTmux } from './tmux-listings.js';
 import pkg from '../../package.json' with { type: 'json' };
 
 export interface HttpHandlerOptions {
@@ -386,52 +386,34 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
 
     if (pathname === '/api/sessions') {
       if (method !== 'GET') return new Response(null, { status: 405 });
-      let stdout: string;
-      try {
-        stdout = await opts.tmuxControl.run(['list-sessions', '-F', '#{session_id}:#{session_name}']);
-      } catch {
-        // Control client unavailable or stuck (NoControlClientError / TmuxCommandError).
-        // Fall back to execFileAsync so a stuck control client never causes
-        // the sessions menu to return an empty list or hang.
-        try {
-          const r = await execFileAsync(config.tmuxBin, ['list-sessions', '-F', '#{session_id}:#{session_name}']);
-          stdout = r.stdout;
-        } catch {
-          return new Response('[]', { headers: JSON_HEADERS });
-        }
-      }
-      // tmux's #{session_id} is the `$N` internal id — monotonic
-      // across the tmux server's lifetime, not 1-indexed per list.
-      // Strip the `$` so the client can render it like window ids.
-      const sessions = stdout.trim().split('\n').filter(Boolean).map((line) => {
-        const [rawId, ...rest] = line.split(':');
-        const name = rest.join(':');
-        return { id: (rawId ?? '').replace(/^\$/, ''), name };
+      // tmux's #{session_id} is the `$N` internal id — monotonic across
+      // the tmux server's lifetime, not 1-indexed per list. The shared
+      // helper strips the `$` so the client can render it like window
+      // ids. Tab-separated session_id/session_name (instead of `:`)
+      // mirrors the v1.7.0 windows decision and tolerates session names
+      // containing colons (an external tmux client can create them
+      // even though the WS path rejects `:`). Falls back to
+      // execFileAsync if the control client is unavailable / stuck.
+      const sessions = await listSessionsViaTmux({
+        tmuxControl: opts.tmuxControl,
+        tmuxBin: config.tmuxBin,
+        preferControl: true,
       });
-      return new Response(JSON.stringify(sessions), { headers: JSON_HEADERS });
+      return new Response(JSON.stringify(sessions ?? []), { headers: JSON_HEADERS });
     }
 
     if (pathname === '/api/windows') {
       if (method !== 'GET') return new Response(null, { status: 405 });
       const sess = url.searchParams.get('session') || 'main';
-      const LIST_WINDOWS_ARGS = ['list-windows', '-t', sess, '-F', '#{window_index}\t#{window_name}\t#{window_active}'] as const;
-      const parseWindows = (raw: string) =>
-        raw.trim().split('\n').filter(Boolean).map(line => {
-          const [index, name, active] = line.split('\t');
-          return { index, name, active: active === '1' };
-        });
-      try {
-        // Tab-separated — see matching comment in ws.ts sendWindowState.
-        const stdout = await opts.tmuxControl.run(LIST_WINDOWS_ARGS);
-        return new Response(JSON.stringify(parseWindows(stdout)), { headers: JSON_HEADERS });
-      } catch {
-        try {
-          const r = await execFileAsync(config.tmuxBin, LIST_WINDOWS_ARGS);
-          return new Response(JSON.stringify(parseWindows(r.stdout)), { headers: JSON_HEADERS });
-        } catch {
-          return new Response('[]', { headers: JSON_HEADERS });
-        }
-      }
+      // Tab-separated — see matching comment in ws.ts sendWindowState.
+      // The shared helper handles the control-client-first / fallback
+      // flow uniformly.
+      const windows = await listWindowsViaTmux(sess, {
+        tmuxControl: opts.tmuxControl,
+        tmuxBin: config.tmuxBin,
+        preferControl: true,
+      });
+      return new Response(JSON.stringify(windows ?? []), { headers: JSON_HEADERS });
     }
 
     if (pathname === '/api/drops/paste') {

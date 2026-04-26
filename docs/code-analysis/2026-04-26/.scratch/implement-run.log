@@ -1,0 +1,140 @@
+# implement-analysis-report run log
+
+skill_version: 3.7.2
+report_dir: /src/tmux-web/docs/code-analysis/2026-04-26
+session_number: 1
+started_at: 2026-04-26
+orchestrator_model: opus-4.7-1m
+
+## PREFLIGHT_DECISIONS
+
+cluster_subset: all
+include_terminal: false
+branch_strategy: new-branch
+branch_name: fix/deep-analysis-2026-04-26
+base_sha: fa727ae7ffc7c8a28bc45660ac867674e6132bcd
+dry_run: false
+
+gates:
+  typecheck: make typecheck
+  test: make test-unit
+  e2e: make test-e2e
+
+gate_timeouts (seconds):
+  typecheck: 600
+  test: 600
+  e2e: 1800
+
+test_dir_classification:
+  tests/unit:  tsc_checked: false  notes: "bunfig root; not in tsconfig.json includes"
+  tests/e2e:   tsc_checked: false  notes: "Playwright runner"
+  tests/fuzz:  tsc_checked: false  notes: "excluded from default bun test"
+
+decisions (bracketed defaults from preflight; user replied 'defaults'):
+  03a: leave /api/exit
+  03b: document drops looseness
+  03c: ship OSC52 read-cap edit
+  03d: apply other endpoint-hardening shapes
+  04a: apply OSC-title snapshot capture
+  04b: no --allow-osc-session-switch flag
+  04c: tighten --reset TLS verify
+  04d: apply IPv6 allowlist canonicalization
+  04e: defer homebrew-tap supply-chain
+  05a: ship tarball --version/--help smoke
+  05b: place full contract test in new tests/post-compile/
+  05c: document macOS coverage gap
+  06a: ship electrobun typecheck + concurrency:
+  06b: new tsconfig.tooling.json for widened typecheck
+  06c: scheduled-nightly fuzz gate
+  06d: update AGENTS.md act docs
+  10a: ship bench baseline + scripts + AGENTS.md mention
+  10b: defer allocation fix until baseline numbers exist
+  11a: toast for send-while-not-OPEN
+  11b: 300ms settings-persist debounce
+  11c: apply ws.onerror toast cleanup
+  11d: apply protocol.ts depth bound
+  11e: keep malformed-prefix re-emit behavior
+  12a: dispose-array contract from Topbar.init through main()
+  12b: titlebar-drag one-liner in same commit
+  12c: add commitAutohide null-guard
+  13a: slider-reset clamp
+  13b: extract topbar id-lookup helper
+  13c: include error detail in boot-errors-ui toast
+  13d: extend clipboard-prompt modal for confirm-dialog
+  13e: fix drag-overlay-state
+  13f: docs-only drops-row events
+  14:  auto-defer to docs/ideas/14-frontend-low-architectural.md (needs-spec)
+  15a: server.stop() lifecycle shutdown
+  15b: mutex sessions-store concurrency
+  15c: mtime-keyed clipboard-policy hash cache
+  15d: docs-only PTY env
+  15e: add inotifywait timeout
+  15f: add body-reader cancel timeout
+  15g: apply startup-probe shapes
+  16a: ship xterm sentinel JSON sidecar
+  16b: defer disk-extraction architectural concern
+  16c: fix exit-listener accumulation
+  18a: apply e2e poll-replacements
+  18b: apply menu-session-switch settle-time removal
+  18c: per-site replace-or-comment unit setTimeouts (subagent walks)
+  18d: replace 1500ms BLAKE3 sleep with smaller fixture
+  19a: apply toBeDefined→toMatchObject + tautology sweep
+  19b: subagent picks best observable per WS-test tautology case
+  19c: leave mock-float pattern
+  20a: macOS-mocked test for prepareMacosBundle
+  20b: apply coverage gate blind-spot fix
+  20c: defer tests/unit/build/ population to docs/ideas
+  20d: auto-defer src/server/index.ts coverage to docs/ideas/server-index-coverage.md
+  21a: PORTS.md cleanup
+  21b: pick .test.ts as canonical extension
+  21c: fix e2e helpers cleanup-swallow
+  21d: fix console-silencer fragility
+  21e: add fuzz strengthening (extract-tt + ControlParser)
+  21f: apply e2e webServer ergonomics
+
+## Plan — execution order (topological, then numeric)
+
+Depends-on graph: only edge is 20 → 06. Numeric order already satisfies it. No cycles.
+
+Pre-conditions:
+  06: typecheck widening surfaced-error count unknown — handled in-execution; if subagent reports >20 errors the cluster degrades to partial via showstopper.
+  20: coverage gate currently failing (prepare-electrobun-bundle.ts 79.3% < 80%) — resolved by 20a within the cluster's own work.
+  Neither pre-condition triggers auto-promotion to showstopper at plan time.
+
+Order:
+
+  01-tmux-control-and-listings        autofix-ready  standard
+  02-server-fs-hardening              autofix-ready  standard
+  03-endpoint-hardening               needs-decision senior
+  04-security-low-defenses            needs-decision standard
+  05-ci-artifact-verification         needs-decision standard
+  06-ci-and-release-improvements      needs-decision standard
+  07-release-pipeline-hygiene         autofix-ready  standard
+  08-docs-drift                       autofix-ready  standard
+  09-frontend-a11y                    autofix-ready  standard
+  10-bench-baseline-and-hot-path      needs-decision standard
+  11-frontend-ws-and-input            needs-decision standard
+  12-frontend-topbar-teardown         needs-decision standard
+  13-frontend-ui-quality              needs-decision standard
+  14-frontend-low-architectural       needs-spec     standard  → auto-defer; no subagent dispatch
+  15-backend-low-cleanup              needs-decision standard
+  16-theme-pack-runtime               needs-decision standard
+  17-naming-consistency               autofix-ready  standard
+  18-test-flaky-sleeps                needs-decision standard
+  19-test-assertion-quality           needs-decision standard
+  20-test-and-coverage-gaps           needs-decision standard  (after 06)
+  21-test-organisation                needs-decision junior
+
+informally-unblocks (logged, not reordered): none surfaced.
+
+## Execution log (per-cluster outcomes)
+
+(populated by Step 2 / Step 4)
+
+## Themes log (cross-cluster)
+
+(populated by Step 2 cross-cluster theme detection)
+
+## Showstoppers
+
+(populated by Step 2; consumed by Step 3)
