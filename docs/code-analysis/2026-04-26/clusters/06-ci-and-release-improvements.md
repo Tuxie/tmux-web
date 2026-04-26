@@ -1,7 +1,7 @@
 ---
-Status: partial
+Status: closed
 Autonomy: needs-decision
-Resolved-in: 5752a225fd667d0272257d61510447432f927dc4 (partial — F2/F3 widened-typecheck scaffolded as tsconfig.tooling.json with 62 surfaced errors > 20-error threshold; not wired into make typecheck or release.yml. F1, F4, F5, F6 fully landed.)
+Resolved-in: 5752a22 (F1/F4/F5/F6) + cluster 06 F2/F3 follow-up — option (c) per 2026-04-26 deferred-cleanup interview: tsconfig.tooling.json scoped to scripts/+bun-build.ts+playwright.config.ts, wired into make typecheck and release.yml. tests/** typecheck split off to docs/ideas/ts-test-typecheck.md (residue ~18 errors clustered in tests/unit/client/xterm-adapter.test.ts due to xterm.js type drift).
 Depends-on:
 informally-unblocks:
 Pre-conditions:

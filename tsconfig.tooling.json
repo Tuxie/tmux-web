@@ -1,40 +1,29 @@
-// SCAFFOLD ONLY — NOT WIRED INTO `make typecheck` or release.yml.
+// Tooling typecheck — wired into both `make typecheck` (Makefile:51) and
+// release.yml's Typecheck step. Widens the typecheck scope to cover
+// load-bearing release-pipeline files that none of the three primary
+// tsconfigs reach: scripts/**, bun-build.ts, playwright.config.ts.
 //
-// This tsconfig widens the typecheck scope to cover scripts/**,
-// bun-build.ts, playwright.config.ts, and tests/** so that type
-// regressions in those files can be caught before they manifest at
-// runtime (release-pipeline scripts) or during a manual fuzz pass
-// (tests/fuzz/**).
+// Scope (this revision): scripts/ + bun-build.ts + playwright.config.ts.
+// tests/** is intentionally excluded — see the deferral note below.
 //
-// Status (2026-04-26): cluster-06 ballpark surfaced 62 type errors
-// against this config — too many to fix as part of cluster-06's
-// half-day budget (the orchestrator's >20-error branch keeps the
-// scaffold landed but unwired). Wiring this into the local Makefile
-// typecheck target or the CI Typecheck step would break those gates
-// today. See docs/code-analysis/2026-04-26/clusters/06-ci-and-release-improvements.md
-// for the cluster context.
+// Why a separate tsconfig: extending tsconfig.json's include would force
+// noEmit/rootDir gymnastics onto the existing server/desktop emit path.
+// A dedicated noEmit config keeps the three primary projects' rootDir
+// semantics clean.
 //
-// First ~10 representative errors from the ballpark run:
-//   bun-build.ts(1,22): error TS2305: Module '"bun"' has no exported member 'BuildOptions'.
-//   node_modules/electrobun/dist/api/bun/index.ts(32,24): error TS7016: Could not find a declaration file for module 'three'. ...
-//   src/client/auth-fetch.ts(49,34): error TS2339: Property '__TMUX_WEB_CONFIG' does not exist on type 'Window & typeof globalThis'.
-//   src/client/auth-url.ts(6,61): error TS2339: Property '__TMUX_WEB_CONFIG' does not exist on type 'Window & typeof globalThis'.
-//   src/client/colours.ts(68,27): error TS2339: Property '__TMUX_WEB_CONFIG' does not exist on type 'Window & typeof globalThis'.
-//   src/client/theme.ts(44,29): error TS2339: Property '__TMUX_WEB_CONFIG' does not exist on type 'Window & typeof globalThis'.
-//   src/client/theme.ts(47,7): error TS2322: Type 'ThemeInfo[] | null' is not assignable to type 'ThemeInfo[]'.
-//   tests/e2e/helpers.ts(163,5): error TS1117: An object literal cannot have multiple properties with the same name.
-//   tests/e2e/session-inheritance.test.ts(7,11): error TS2532: Object is possibly 'undefined'.
-//   tests/unit/client/xterm-adapter.test.ts (18 errors): TS2345/TS2322/TS2554 — adapter test fakes drift from current xterm.js types.
+// Deferred follow-up — tests/** typecheck:
+//   tests/** is NOT covered by this gate. Surfacing those errors was
+//   outside the cluster-06 budget (the dominant contributor was
+//   tests/unit/client/xterm-adapter.test.ts, where adapter test fakes
+//   have drifted from current xterm.js types — ~18 errors alone). The
+//   remaining test-side errors are mostly fixture-shape drift
+//   (HttpHandlerOptions.tmuxControl, DropStorage.autoUnlinkOnClose,
+//   RouterState.currentSession) plus a handful of unit-test type
+//   regressions. See docs/code-analysis/2026-04-26/clusters/06-ci-and-release-improvements.md
+//   for the cluster context. The orchestrator will track follow-up via a
+//   docs/ideas note (TODO: filed by orchestrator).
 //
-// Error category counts: TS2345 (19), TS2554 (12), TS2769 (8), TS2339 (8),
-// TS2322 (5), TS2493 (3), TS7016 (2), TS2741/TS2739/TS2532/TS2305/TS1117 (1 each).
-// (TS5097 is suppressed by `allowImportingTsExtensions: true` below — the
-// raw count without that flag was 210.)
-//
-// To run the gate manually:   bun x tsc --noEmit -p tsconfig.tooling.json
-// To wire it into CI:         add the line to release.yml's Typecheck step
-//                             AND add it to Makefile:50 (after the 62
-//                             errors are driven to zero).
+// To run manually:   bun x tsc --noEmit -p tsconfig.tooling.json
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
@@ -42,13 +31,13 @@
     "noEmit": true,
     "types": ["node", "bun"],
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true
   },
   "include": [
     "scripts/**/*.ts",
     "bun-build.ts",
-    "playwright.config.ts",
-    "tests/**/*.ts"
+    "playwright.config.ts"
   ],
-  "exclude": ["node_modules", "dist", "vendor"]
+  "exclude": ["node_modules", "dist", "vendor", "tests"]
 }

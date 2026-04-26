@@ -48,6 +48,7 @@ typecheck: src/server/assets-embedded.ts
 	$(BUN) x tsc --noEmit -p tsconfig.json
 	$(BUN) x tsc --noEmit -p tsconfig.client.json
 	$(BUN) x tsc --noEmit -p tsconfig.electrobun.json
+	$(BUN) x tsc --noEmit -p tsconfig.tooling.json
 
 test-e2e: dist/client/xterm.js
 	$(BUN) x playwright test

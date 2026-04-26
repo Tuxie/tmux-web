@@ -1,7 +1,7 @@
 ---
-Status: partial
+Status: closed
 Autonomy: needs-decision
-Resolved-in: 4ea699901ff2bb210ac18487d83df0185378b410 (partial — F1/F2 per-cell allocation fix deferred until baseline numbers; F3/F4 bench infrastructure landed)
+Resolved-in: 4ea6999 (F3/F4 bench infrastructure) + 3ccc50d (F1/F2 per-cell snapshot hoist; identity -21%, active -1.6% noise; flattening would not materially help — OKLab math dominates the active path)
 Depends-on:
 informally-unblocks:
 Pre-conditions:

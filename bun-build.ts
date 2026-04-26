@@ -1,11 +1,11 @@
-import { build, type BuildOptions, type BunPlugin } from "bun";
+import { build, type BuildConfig, type BunPlugin } from "bun";
 import fs from "node:fs";
 import path from "node:path";
 import { watch } from "node:fs";
 
 const isWatch = Bun.argv.includes("--watch");
 
-const commonOpts: BuildOptions = {
+const commonOpts: BuildConfig = {
   entrypoints: ["src/client/index.ts"],
   root: "src",
   target: "browser",

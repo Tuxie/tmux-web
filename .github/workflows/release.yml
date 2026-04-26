@@ -126,6 +126,7 @@ jobs:
           bun x tsc --noEmit -p tsconfig.json
           bun x tsc --noEmit -p tsconfig.client.json
           bun x tsc --noEmit -p tsconfig.electrobun.json
+          bun x tsc --noEmit -p tsconfig.tooling.json
 
       - name: Compile binary
         run: |
