@@ -1003,6 +1003,231 @@ describe('Topbar menu and autohide DOM behaviour', () => {
   });
 });
 
+describe('Topbar.dispose teardown (F1: cluster 12)', () => {
+  it('removes the autohide-reveal mousemove listener', async () => {
+    const t = await mountTopbar();
+    await t.init();
+    (t as any).autohide = true;
+    const tb = (globalThis.document as any).getElementById('topbar');
+    const menu = (globalThis.document as any).getElementById('menu-dropdown');
+    menu.hidden = true;
+    // Replace the global setTimeout with a queue so show()'s 1000ms hide
+    // timer doesn't fire immediately and re-hide the topbar (matches the
+    // pattern used in the existing 'autohide reappears' test above).
+    const timers: Array<() => void> = [];
+    (globalThis as any).setTimeout = (fn: () => void) => {
+      timers.push(fn);
+      return timers.length;
+    };
+    (globalThis as any).clearTimeout = () => {};
+    tb.classList.add('hidden');
+
+    // Sanity: pre-dispose, a mousemove near the top reveals the topbar.
+    (globalThis.document as any).dispatch('mousemove', { clientY: 10 });
+    expect(tb.classList.has('hidden')).toBe(false);
+
+    // Hide again, then dispose: a subsequent mousemove must NOT reveal.
+    tb.classList.add('hidden');
+    t.dispose();
+    (globalThis.document as any).dispatch('mousemove', { clientY: 10 });
+    expect(tb.classList.has('hidden')).toBe(true);
+  });
+
+  it('removes the menu-close pointerdown listener', async () => {
+    const t = await mountTopbar();
+    await t.init();
+    const menu = (globalThis.document as any).getElementById('menu-dropdown');
+    const menuWrap = (globalThis.document as any).getElementById('menu-wrap');
+    // The stub `contains()` returns true unconditionally, so override it
+    // for menu-wrap to reflect the actual outside-the-wrap scenario the
+    // listener gates on (`!menuWrap.contains(ev.target)`).
+    const outside = (globalThis.document as any).createElement('div');
+    (menuWrap as any).contains = (node: any) => node !== outside;
+    menu.hidden = false;
+    // Sanity check: pointerdown outside menu-wrap closes the menu pre-dispose.
+    (globalThis.document as any).dispatch('pointerdown', { target: outside });
+    expect(menu.hidden).toBe(true);
+
+    // Reopen, then dispose, then dispatch again: must not re-close.
+    menu.hidden = false;
+    t.dispose();
+    (globalThis.document as any).dispatch('pointerdown', { target: outside });
+    expect(menu.hidden).toBe(false);
+  });
+
+  it('removes the fullscreenchange listener', async () => {
+    const t = await mountTopbar();
+    await t.init();
+    const chk = (globalThis.document as any).getElementById('chk-fullscreen');
+    let isFullscreen = true;
+    Object.defineProperty(document, 'fullscreenElement', {
+      get: () => (isFullscreen ? document.documentElement : null),
+      configurable: true,
+    });
+    // Pre-dispose: dispatching fullscreenchange flips the checkbox to true.
+    chk.checked = false;
+    (globalThis.document as any).dispatch('fullscreenchange', {});
+    expect(chk.checked).toBe(true);
+
+    // Dispose, then change fullscreen state, dispatch again — checkbox stays.
+    t.dispose();
+    isFullscreen = false;
+    (globalThis.document as any).dispatch('fullscreenchange', {});
+    expect(chk.checked).toBe(true);
+  });
+
+  it('removes the titlebar-drag mousemove + mouseup listeners', async () => {
+    const hostMessages: unknown[] = [];
+    installGlobals();
+    (globalThis.window as any).__electrobunSendToHost = (message: unknown) => {
+      hostMessages.push(message);
+    };
+    makeDoc();
+    stubFetch(async (url) => {
+      if (url.startsWith('/api/themes')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/fonts')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/colours')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/session-settings')) return { ok: true, json: async () => ({ version: 1, sessions: {} }) } as any;
+      if (url.startsWith('/api/sessions')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/drops')) return { ok: true, json: async () => ({ drops: [] }) } as any;
+      return { ok: true, json: async () => ({}) } as any;
+    });
+
+    const t = await freshTopbarCtor();
+    await t.init();
+
+    // Dispose first, then start a drag — neither the move nor the up
+    // path should fire, and notifyDesktopTitlebarDrag must not run.
+    t.dispose();
+    ((globalThis.document as any).getElementById('tb-title') as any).dispatch('mousedown', {
+      target: (globalThis.document as any).getElementById('tb-title'),
+      button: 0,
+      clientX: 10,
+      clientY: 10,
+      preventDefault() {},
+      stopPropagation() {},
+    });
+    (globalThis.document as any).dispatch('mousemove', {
+      button: 0,
+      clientX: 30,
+      clientY: 10,
+      preventDefault() {},
+      stopPropagation() {},
+    });
+    (globalThis.document as any).dispatch('mouseup', {
+      button: 0,
+      preventDefault() {},
+      stopPropagation() {},
+    });
+
+    expect(hostMessages).toEqual([]);
+  });
+
+  it('is idempotent: a second dispose is a no-op', async () => {
+    const t = await mountTopbar();
+    await t.init();
+    t.dispose();
+    expect(() => t.dispose()).not.toThrow();
+  });
+});
+
+describe('Topbar titlebar drag right-click recovery (F2: cluster 12)', () => {
+  it('a non-left mouseup between the press and release does not clear pendingTitleDrag', async () => {
+    const hostMessages: unknown[] = [];
+    installGlobals();
+    (globalThis.window as any).__electrobunSendToHost = (message: unknown) => {
+      hostMessages.push(message);
+    };
+    makeDoc();
+    stubFetch(async (url) => {
+      if (url.startsWith('/api/themes')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/fonts')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/colours')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/session-settings')) return { ok: true, json: async () => ({ version: 1, sessions: {} }) } as any;
+      if (url.startsWith('/api/sessions')) return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/drops')) return { ok: true, json: async () => ({ drops: [] }) } as any;
+      return { ok: true, json: async () => ({}) } as any;
+    });
+
+    const t = await freshTopbarCtor();
+    await t.init();
+
+    // Left-button press starts a pending drag.
+    ((globalThis.document as any).getElementById('tb-title') as any).dispatch('mousedown', {
+      target: (globalThis.document as any).getElementById('tb-title'),
+      button: 0,
+      clientX: 10,
+      clientY: 10,
+      preventDefault() {},
+      stopPropagation() {},
+    });
+    // Middle-button mouseup arrives between the press and the eventual
+    // release (e.g. user middle-clicks while still holding left). Without
+    // the F2 gate, this mouseup would null out pendingTitleDrag and
+    // swallow the upcoming drag-to-restore.
+    (globalThis.document as any).dispatch('mouseup', {
+      button: 1,
+      preventDefault() {},
+      stopPropagation() {},
+    });
+    // Now drag past the threshold — must still notify.
+    (globalThis.document as any).dispatch('mousemove', {
+      button: 0,
+      clientX: 30,
+      clientY: 10,
+      preventDefault() {},
+      stopPropagation() {},
+    });
+
+    expect(hostMessages).toEqual([{ type: 'tmux-term:titlebar-drag' }]);
+  });
+});
+
+describe('Topbar.commitAutohide null-live guard (F3: cluster 12)', () => {
+  it('skips the commit when getLiveSettings() returns null', async () => {
+    const captured: SessionSettings[] = [];
+    const t = await mountTopbar({
+      // The default mountTopbar overrides default getLiveSettings to () => null
+      // already — make that explicit here for clarity.
+      getLiveSettings: () => null,
+      onSettingsChange: (s) => { captured.push(s); },
+    });
+    await t.init();
+
+    // Pre-condition: with null live settings, the autohide checkbox should
+    // initialise from defaults. Track the initial state, flip the checkbox,
+    // and assert no commit landed (no onSettingsChange fired) and the
+    // session store wasn't touched.
+    const initial = loadSessionSettings('main', null, { defaults: DEFAULT_SESSION_SETTINGS });
+    captured.length = 0; // discard any onSettingsChange fired during init
+    const chk = (globalThis.document as any).getElementById('chk-autohide');
+    chk.checked = !chk.checked;
+    chk.dispatch('change', { target: chk });
+
+    expect(captured).toEqual([]);
+    const after = loadSessionSettings('main', null, { defaults: DEFAULT_SESSION_SETTINGS });
+    expect(after.topbarAutohide).toBe(initial.topbarAutohide);
+    expect(after.scrollbarAutohide).toBe(initial.scrollbarAutohide);
+  });
+
+  it('still commits when getLiveSettings() returns a real SessionSettings', async () => {
+    // Regression guard: the F3 guard must not break the happy path.
+    const live = { ...DEFAULT_SESSION_SETTINGS, topbarAutohide: false };
+    const captured: SessionSettings[] = [];
+    const t = await mountTopbar({
+      getLiveSettings: () => live,
+      onSettingsChange: (s) => { captured.push(s); },
+    });
+    await t.init();
+    captured.length = 0;
+    const chk = (globalThis.document as any).getElementById('chk-autohide');
+    chk.checked = true;
+    chk.dispatch('change', { target: chk });
+    expect(captured).toHaveLength(1);
+    expect(captured[0].topbarAutohide).toBe(true);
+  });
+});
+
 describe('Topbar fullscreen checkbox', () => {
   it('checking the fullscreen checkbox requests fullscreen and syncs checked state', async () => {
     const t = await mountTopbar();

@@ -115,6 +115,11 @@ export class Topbar {
   private menuBtn?: HTMLButtonElement;
   private menuDropdown?: HTMLElement;
   private opts: TopbarOptions;
+  /** Document-level listeners + any other teardown thunks registered
+   *  during {@link init}. Drained by {@link dispose} so multi-mount
+   *  test harnesses (and a future window-reuse path) don't leak
+   *  listeners across mounts. Production never calls dispose(). */
+  private disposers: Array<() => void> = [];
 
   constructor(opts: TopbarOptions) {
     this.opts = opts;
@@ -140,6 +145,17 @@ export class Topbar {
     this.setupFocusHandling();
     this.show();
     await fontListReady;
+  }
+
+  /** Tear down every document-level listener registered by {@link init}.
+   *  Idempotent: a second call is a no-op. Production never invokes
+   *  this — it exists so multi-mount test harnesses can clean up
+   *  without leaking handlers across runs (mirrors the `__twDispose`
+   *  contract in `index.ts`). */
+  dispose(): void {
+    for (const d of this.disposers.splice(0)) {
+      try { d(); } catch (err) { console.warn('Topbar dispose handler threw:', err); }
+    }
   }
 
   private cachedSessions: Array<{ id: string; name: string }> = [];
@@ -376,17 +392,25 @@ export class Topbar {
       if (ev.button !== 0) return;
       pendingTitleDrag = { x: ev.clientX, y: ev.clientY, restored: false };
     });
-    document.addEventListener('mousemove', (ev) => {
+    const onTitleDragMove = (ev: MouseEvent): void => {
       if (!pendingTitleDrag || pendingTitleDrag.restored) return;
       const dx = ev.clientX - pendingTitleDrag.x;
       const dy = ev.clientY - pendingTitleDrag.y;
       if (Math.hypot(dx, dy) < TITLEBAR_DRAG_RESTORE_THRESHOLD_PX) return;
       pendingTitleDrag.restored = true;
       notifyDesktopTitlebarDrag();
-    });
-    document.addEventListener('mouseup', () => {
-      pendingTitleDrag = null;
-    });
+    };
+    // Match the mousedown's `ev.button === 0` filter so a non-left-button
+    // mouseup (e.g. middle-click between the press and the real release)
+    // doesn't silently clear the drag and swallow the subsequent
+    // drag-to-restore notification. F2 / cluster 12.
+    const onTitleDragUp = (ev: MouseEvent): void => {
+      if (ev.button === 0) pendingTitleDrag = null;
+    };
+    document.addEventListener('mousemove', onTitleDragMove);
+    document.addEventListener('mouseup', onTitleDragUp);
+    this.disposers.push(() => document.removeEventListener('mousemove', onTitleDragMove));
+    this.disposers.push(() => document.removeEventListener('mouseup', onTitleDragUp));
   }
 
   private setupMenu(): void {
@@ -447,13 +471,15 @@ export class Topbar {
     // Close dropdown only when the user physically clicks outside the menu wrapper.
     // Use pointerdown (not click) so synthetic events fired during terminal redraws
     // don't inadvertently close the dropdown.
-    document.addEventListener('pointerdown', (ev) => {
+    const onMenuPointerDown = (ev: PointerEvent): void => {
       if (!dropdown.hidden && !menuWrap.contains(ev.target as Node)) {
         this.setConfigMenuOpen(false);
         this.opts.focus();
         this.show();
       }
-    });
+    };
+    document.addEventListener('pointerdown', onMenuPointerDown);
+    this.disposers.push(() => document.removeEventListener('pointerdown', onMenuPointerDown));
   }
 
   /** Keep #menu-dropdown.hidden and #btn-menu.open in lockstep so themes
@@ -468,10 +494,12 @@ export class Topbar {
   private setupFullscreenCheckbox(): void {
     const chkFs = document.getElementById('chk-fullscreen') as HTMLInputElement;
     chkFs.addEventListener('change', () => this.toggleFullscreen());
-    document.addEventListener('fullscreenchange', () => {
+    const onFullscreenChange = (): void => {
       chkFs.checked = !!document.fullscreenElement;
       this.show();
-    });
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    this.disposers.push(() => document.removeEventListener('fullscreenchange', onFullscreenChange));
   }
 
   // Returns a Promise that resolves once the async data fetches complete.
@@ -841,7 +869,16 @@ export class Topbar {
   }
 
   private commitAutohide(patch: Pick<Partial<SessionSettings>, 'topbarAutohide' | 'scrollbarAutohide'>): void {
-    const current = loadSessionSettings(this.currentSession, this.opts.getLiveSettings(), {
+    // F3 / cluster 12 belt-and-braces: `getLiveSettings()` returns null
+    // during the boot path before the session store resolves. `main()`
+    // awaits `initSessionStore` before constructing Topbar (index.ts:74)
+    // so a user can't physically tick the autohide checkbox before live
+    // settings exist — but if that invariant is ever broken, committing
+    // here would clobber the persisted settings with `DEFAULT_SESSION_
+    // SETTINGS + patch`. Skip until the live settings exist.
+    const live = this.opts.getLiveSettings();
+    if (!live) return;
+    const current = loadSessionSettings(this.currentSession, live, {
       defaults: DEFAULT_SESSION_SETTINGS,
     });
     const updated: SessionSettings = { ...current, ...patch };
@@ -863,9 +900,11 @@ export class Topbar {
       this.commitAutohide({ scrollbarAutohide: this.scrollbarAutohideChk.checked });
     });
 
-    document.addEventListener('mousemove', (ev) => {
+    const onAutohideReveal = (ev: MouseEvent): void => {
       if (ev.clientY < 28 * 3) this.show();
-    });
+    };
+    document.addEventListener('mousemove', onAutohideReveal);
+    this.disposers.push(() => document.removeEventListener('mousemove', onAutohideReveal));
     this.topbar.addEventListener('mouseenter', () => {
       if (this.hideTimer) clearTimeout(this.hideTimer);
     });

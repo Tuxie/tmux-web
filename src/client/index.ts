@@ -399,6 +399,15 @@ async function main() {
   // (and any future hot-reload idea) clean up without listener leaks.
   const disposers: Array<() => void> = [];
 
+  // Topbar owns its own document-level listeners (drag-to-restore,
+  // menu-close pointerdown, fullscreenchange, autohide reveal); it
+  // exposes `dispose()` so we can drain them from the same teardown
+  // chain. Pushed first so it runs last (LIFO via reverse() in the
+  // __twDispose body), letting the connection / drops / mouse / keyboard
+  // disposers above run while the topbar's element references are
+  // still valid.
+  disposers.push(() => topbar.dispose());
+
   const onWindowResize = () => adapter.fit();
   window.addEventListener('resize', onWindowResize);
   disposers.push(() => window.removeEventListener('resize', onWindowResize));
