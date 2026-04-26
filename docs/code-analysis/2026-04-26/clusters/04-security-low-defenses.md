@@ -1,7 +1,7 @@
 ---
-Status: partial
+Status: closed
 Autonomy: needs-decision
-Resolved-in: 0fe9ad1dccf16cb3d65649dc6598e848428b80ea (partial — F5 homebrew-tap SHA validation deferred per 2026-04-26 preflight decision)
+Resolved-in: 0fe9ad1 + (cluster 04 F5 follow-up — see commit message of the deferred-cleanup commit)
 Depends-on:
 informally-unblocks:
 Pre-conditions:

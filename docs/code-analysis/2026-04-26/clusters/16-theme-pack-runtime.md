@@ -1,7 +1,7 @@
 ---
-Status: partial
+Status: closed
 Autonomy: needs-decision
-Resolved-in: ca1993b2128df199d8b937b99e353077db4dc1e9 (partial — F1 disk-extraction architectural concern deferred per preflight; F2/F3 landed)
+Resolved-in: ca1993b2128df199d8b937b99e353077db4dc1e9 + F1 closed-by-decision 2026-04-26 (T2-acceptable; revisit only at T3+ scale; see http.ts ACCEPTED comment)
 Depends-on:
 informally-unblocks:
 Pre-conditions:

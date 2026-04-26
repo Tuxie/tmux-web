@@ -183,15 +183,17 @@ function getAssetPath(key: string): string | null {
 // >10-listener warning. Cluster 16 / F3 — docs/code-analysis/2026-04-26.
 let activeMaterializedExitListener: (() => void) | null = null;
 
-// TODO(cluster-16): The "extract every embedded theme asset to
-// $TMPDIR/tmux-web-themes-${pid} on startup, then register a
-// `process.on('exit')` cleanup hook" pattern is acknowledged as
-// scale-fragile but T2-acceptable for the current 2-pack repo. A
-// follow-up should refactor to one-shot extraction on first request
-// (keyed by content hash) or always-from-buffer reads inside
-// `themes.ts` so no on-disk staging dir is needed at all. Tracked in
-// docs/code-analysis/2026-04-26/clusters/16-theme-pack-runtime.md
-// (finding F1).
+// ACCEPTED (cluster 16 F1, decided 2026-04-26): the "extract every
+// embedded theme asset to $TMPDIR/tmux-web-themes-${pid} on startup,
+// register a `process.on('exit')` cleanup hook" pattern is
+// scale-fragile but explicitly accepted at T2 (current scope: a 2-pack
+// embedded-theme repo, single user-instance per --listen host:port,
+// solo maintainer). Cluster 16 finding F1 is closed-by-decision,
+// not deferred-pending: revisit only if the repo grows past T2 or if
+// embedded themes scale into the dozens. The follow-up shape, if
+// it ever ships, is one-shot extraction on first request (keyed by
+// content hash) or always-from-buffer reads inside `themes.ts`. See
+// docs/code-analysis/2026-04-26/clusters/16-theme-pack-runtime.md.
 async function materializeBundledThemes(): Promise<string | null> {
   const keys = Object.keys(embeddedAssets).filter(key => key.startsWith('themes/'));
   if (keys.length === 0) return null;
