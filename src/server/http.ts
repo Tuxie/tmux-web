@@ -176,6 +176,22 @@ function getAssetPath(key: string): string | null {
   return embeddedAssets[key] || null;
 }
 
+// Holds the most recently registered exit listener so a re-run of
+// `materializeBundledThemes` (e.g. tests re-instantiating
+// `createHttpHandler` in-process) replaces it instead of stacking a
+// second one on top — without this guard, repeated mounts trip Node's
+// >10-listener warning. Cluster 16 / F3 — docs/code-analysis/2026-04-26.
+let activeMaterializedExitListener: (() => void) | null = null;
+
+// TODO(cluster-16): The "extract every embedded theme asset to
+// $TMPDIR/tmux-web-themes-${pid} on startup, then register a
+// `process.on('exit')` cleanup hook" pattern is acknowledged as
+// scale-fragile but T2-acceptable for the current 2-pack repo. A
+// follow-up should refactor to one-shot extraction on first request
+// (keyed by content hash) or always-from-buffer reads inside
+// `themes.ts` so no on-disk staging dir is needed at all. Tracked in
+// docs/code-analysis/2026-04-26/clusters/16-theme-pack-runtime.md
+// (finding F1).
 async function materializeBundledThemes(): Promise<string | null> {
   const keys = Object.keys(embeddedAssets).filter(key => key.startsWith('themes/'));
   if (keys.length === 0) return null;
@@ -188,11 +204,18 @@ async function materializeBundledThemes(): Promise<string | null> {
     const bytes = new Uint8Array(await Bun.file(src).arrayBuffer());
     fs.writeFileSync(dest, bytes);
   }
-  process.on('exit', () => {
+  // Drop any prior listener registered by an earlier call in the same
+  // process so the listener count stays bounded across re-mounts.
+  if (activeMaterializedExitListener) {
+    process.removeListener('exit', activeMaterializedExitListener);
+  }
+  const listener = () => {
     try {
       fs.rmSync(root, { recursive: true, force: true });
     } catch {}
-  });
+  };
+  activeMaterializedExitListener = listener;
+  process.on('exit', listener);
   return root;
 }
 
@@ -231,14 +254,29 @@ function notFound(): Response {
   return new Response('Not Found', { status: 404 });
 }
 
+/** Cached terminal version strings for `/api/terminal-versions`.
+ *
+ *  Reads the `dist/client/xterm-version.json` sidecar emitted by
+ *  bun-build.ts (Cluster 16 / F2 — docs/code-analysis/2026-04-26).
+ *  Replaces the previous approach of regex-scanning the ~1.5 MB
+ *  `xterm.js` bundle on every startup to recover a 7-char SHA the
+ *  build step already knows. The build-time sentinel comment in the
+ *  bundle is still the source of truth for `verify-vendor-xterm.ts`
+ *  — that path is unchanged. */
 function getTerminalVersions(projectRoot: string): Record<string, string> {
   const versions: Record<string, string> = {};
-  const xtermAssetPath = embeddedAssets['dist/client/xterm.js']
-    ?? path.join(projectRoot, 'dist/client/xterm.js');
+  const versionAssetPath = embeddedAssets['dist/client/xterm-version.json']
+    ?? path.join(projectRoot, 'dist/client/xterm-version.json');
   try {
-    const bundle = fs.readFileSync(xtermAssetPath, 'utf-8');
-    const m = bundle.match(/tmux-web: vendor xterm\.js rev ([0-9a-f]{40})/);
-    versions['xterm'] = m ? `xterm.js (HEAD, ${m[1].slice(0, 7)})` : 'xterm.js (unknown)';
+    const raw = fs.readFileSync(versionAssetPath, 'utf-8');
+    const parsed = JSON.parse(raw) as { rev?: unknown; sha?: unknown };
+    if (typeof parsed.rev === 'string' && /^[0-9a-f]{7}$/.test(parsed.rev)) {
+      versions['xterm'] = `xterm.js (HEAD, ${parsed.rev})`;
+    } else if (typeof parsed.sha === 'string' && /^[0-9a-f]{40}$/.test(parsed.sha)) {
+      versions['xterm'] = `xterm.js (HEAD, ${parsed.sha.slice(0, 7)})`;
+    } else {
+      versions['xterm'] = 'xterm.js (unknown)';
+    }
   } catch {
     versions['xterm'] = 'xterm.js (unknown)';
   }

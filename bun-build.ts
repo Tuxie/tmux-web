@@ -231,6 +231,19 @@ async function buildClient() {
   const marker = `\n/* tmux-web: vendor xterm.js rev ${vendorRev} */\n`;
   fs.appendFileSync(xtermBundle, marker);
 
+  // Write a tiny JSON sidecar containing the same SHA so the server can
+  // surface the version on `/api/terminal-versions` without regex-scanning
+  // the ~1.5 MB xterm bundle on startup. The bundle sentinel above remains
+  // the build-time source of truth (verify-vendor-xterm.ts greps for it);
+  // this sidecar is purely a runtime convenience. Cluster 16 / F2 —
+  // docs/code-analysis/2026-04-26.
+  const versionFile = "dist/client/xterm-version.json";
+  fs.writeFileSync(
+    versionFile,
+    JSON.stringify({ rev: vendorRev.slice(0, 7), sha: vendorRev }) + "\n",
+  );
+  console.log(`Wrote ${versionFile}`);
+
   // Copy vendor xterm.css (npm fallback removed — vendor is mandatory).
   const cssSrc = path.join(vendorXtermDir, "css/xterm.css");
   try {
