@@ -138,18 +138,45 @@ export function stopPeriodicSweep(storage: DropStorage): void {
 }
 
 let _inotifywaitProbed: boolean | null = null;
+/** Probe deps — extracted into an interface so tests can inject a fake
+ *  spawnSync (verifying the 2 s timeout shape) and a fake platform
+ *  string (verifying the non-Linux short-circuit) without monkey-patching
+ *  globals. Production callers rely on the defaults. */
+export interface InotifyProbeDeps {
+  spawnSync?: (cmd: string[], opts: { stdio: ['ignore', 'ignore', 'ignore']; timeout: number }) => { exitCode: number | null };
+  platform?: NodeJS.Platform;
+}
+
 /** One-shot feature probe. Inotify-tools isn't guaranteed everywhere; on
  *  macOS / BSD / broken installs we quietly fall back to TTL-only.
  *
  *  Note: inotifywait prints its help text and exits 1 (not 0), which is
  *  the tool's convention. We treat any "it ran without the kernel / OS
  *  rejecting the executable" as success — a failed spawn raises
- *  ENOENT/EACCES and lands us in the catch. */
-export function hasInotifywait(): boolean {
+ *  ENOENT/EACCES and lands us in the catch.
+ *
+ *  Skipped entirely on non-Linux platforms — inotifywait is Linux-only,
+ *  so the spawn cost is wasted and any incidentally-installed binary
+ *  would not actually deliver close events the kernel doesn't emit.
+ *
+ *  Bounded by a 2 s timeout on the spawn (Bun 1.3+ `timeout` option) so
+ *  a wedged `inotifywait` (e.g. an aging container with broken /proc)
+ *  cannot hang server startup. The timeout is best-effort — if Bun's
+ *  `timeout` semantics on a wedged child don't actually fire, the
+ *  fallback is the same 'spawn failed' branch. Cluster 15 / F2 —
+ *  docs/code-analysis/2026-04-26. */
+export function hasInotifywait(deps?: InotifyProbeDeps): boolean {
   if (_inotifywaitProbed !== null) return _inotifywaitProbed;
+  const platform = deps?.platform ?? process.platform;
+  if (platform !== 'linux') {
+    _inotifywaitProbed = false;
+    return _inotifywaitProbed;
+  }
+  const spawn = deps?.spawnSync ?? ((cmd, opts) => Bun.spawnSync(cmd, opts) as { exitCode: number | null });
   try {
-    const res = Bun.spawnSync(['inotifywait', '--help'], {
+    const res = spawn(['inotifywait', '--help'], {
       stdio: ['ignore', 'ignore', 'ignore'],
+      timeout: 2000,
     });
     _inotifywaitProbed = res.exitCode !== null;
   } catch {

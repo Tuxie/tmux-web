@@ -118,22 +118,58 @@ export function saveConfig(filePath: string, config: SessionsConfig): void {
   fs.renameSync(tmp, filePath);
 }
 
-export function applyPatch(filePath: string, patch: SessionsConfigPatch): SessionsConfig {
-  const current = loadConfig(filePath);
-  const next = mergeConfig(current, patch);
-  saveConfig(filePath, next);
+/** Per-file write chain — serialises read-modify-write of sessions.json
+ *  so two concurrent updates can't read the same baseline and overwrite
+ *  each other's fields. The chain is keyed by `filePath` so independent
+ *  test stores don't share a queue.
+ *
+ *  Why this is needed: T2 single-user app, but the client can fire
+ *  parallel `PUT /api/session-settings` requests (e.g. theme switch
+ *  while the opacity slider is dragging) and the read-modify-write
+ *  inside applyPatch is genuinely racy. Same shape extends to
+ *  `recordGrant` in clipboard-policy.ts — see that file's note on
+ *  serialisation. Cluster 15 / F6 — docs/code-analysis/2026-04-26. */
+const writeChains = new Map<string, Promise<unknown>>();
+
+export function serialiseFileWrite<T>(filePath: string, work: () => T | Promise<T>): Promise<T> {
+  const prev = writeChains.get(filePath) ?? Promise.resolve();
+  // Run after `prev` settles regardless of outcome — one failed write
+  // must not poison subsequent writes for the same file.
+  const next: Promise<T> = prev.then(() => work(), () => work());
+  // Track the new tail so the next caller chains onto it. Clear the
+  // entry after settle so the Map can't grow without bound across the
+  // process lifetime. Use a swallowed-rejection chain for the bookkeeping
+  // so the "is this entry still current?" cleanup never surfaces as an
+  // unhandled rejection — the caller's await on `next` is the only path
+  // that should observe the rejection.
+  writeChains.set(filePath, next);
+  next.then(
+    () => { if (writeChains.get(filePath) === next) writeChains.delete(filePath); },
+    () => { if (writeChains.get(filePath) === next) writeChains.delete(filePath); },
+  );
   return next;
 }
 
-export function deleteSession(filePath: string, name: string): SessionsConfig {
-  const current = loadConfig(filePath);
-  if (!(name in current.sessions)) return current;
-  const { [name]: _removed, ...rest } = current.sessions;
-  const next: SessionsConfig = {
-    version: 1,
-    lastActive: current.lastActive === name ? undefined : current.lastActive,
-    sessions: rest,
-  };
-  saveConfig(filePath, next);
-  return next;
+export function applyPatch(filePath: string, patch: SessionsConfigPatch): Promise<SessionsConfig> {
+  return serialiseFileWrite(filePath, () => {
+    const current = loadConfig(filePath);
+    const next = mergeConfig(current, patch);
+    saveConfig(filePath, next);
+    return next;
+  });
+}
+
+export function deleteSession(filePath: string, name: string): Promise<SessionsConfig> {
+  return serialiseFileWrite(filePath, () => {
+    const current = loadConfig(filePath);
+    if (!(name in current.sessions)) return current;
+    const { [name]: _removed, ...rest } = current.sessions;
+    const next: SessionsConfig = {
+      version: 1,
+      lastActive: current.lastActive === name ? undefined : current.lastActive,
+      sessions: rest,
+    };
+    saveConfig(filePath, next);
+    return next;
+  });
 }

@@ -1,7 +1,8 @@
 ---
 Status: deferred
 Autonomy: needs-spec
-Resolved-in: (deferred — see docs/ideas/14-frontend-low-architectural.md)
+Resolved-in: 0c71b57 (deferred to docs/ideas/14-frontend-low-architectural.md)
+Deferred-reason: needs-spec; auto-deferred per implement-analysis-report 2026-04-26 preflight default — tracked in docs/ideas/14-frontend-low-architectural.md
 Depends-on:
 informally-unblocks:
 Pre-conditions:

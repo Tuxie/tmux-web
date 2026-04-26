@@ -266,6 +266,26 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
   const env = buildPtyEnv();
   const pty = spawnPty({ command, env, cols, rows });
   state.pty = pty;
+  // Bun.spawn threw — typically "tmux binary was deleted between the `-V`
+  // probe at startup and the WS open just now" or a misconfigured
+  // `--tmux <path>` that no longer points to anything runnable. Surface
+  // a structured exit to the client (xterm side prints the reason) and
+  // close the WS cleanly so the user is not left staring at a dead but
+  // still-open terminal. Cluster 15 / F5 — docs/code-analysis/2026-04-26.
+  if (pty.spawnError) {
+    debug(config, `PTY spawn failed for session=${session}: ${pty.spawnError.message}`);
+    if (ws.readyState === WS_OPEN) {
+      try {
+        ws.send(frameTTMessage({
+          ptyExit: true,
+          exitCode: -1,
+          exitReason: pty.spawnError.message,
+        }));
+      } catch { /* ws gone */ }
+      try { ws.close(1011, 'pty spawn failed'); } catch { /* best-effort */ }
+    }
+    return;
+  }
   debug(config, `PTY spawned for session=${session} cmd=${command.file}`);
 
   // Register onData *immediately* after spawn — any data the child

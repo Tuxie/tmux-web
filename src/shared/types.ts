@@ -112,12 +112,25 @@ export interface ServerMessage {
    *  revoke / purge). Drops are a per-user pool (not partitioned by
    *  tmux session), so every attached client refreshes on receipt. */
   dropsChanged?: true;
-  /** Sent when the PTY child (tmux / `cat` in test mode) exits. The
-   *  server intentionally does *not* call `ws.close()` itself because
-   *  doing so triggers a Bun 1.3.13 bug that leaves `server.stop()`
-   *  blocked. The client should treat receipt as "session ended" and
-   *  close the socket on its own. */
+  /** Sent when the PTY child (tmux / `cat` in test mode) exits, or when
+   *  `Bun.spawn` itself threw (e.g. `--tmux <path>` no longer runnable).
+   *  The server intentionally does *not* call `ws.close()` for normal
+   *  exits because doing so triggers a Bun 1.3.13 bug that leaves
+   *  `server.stop()` blocked; the client should treat receipt as
+   *  "session ended" and close the socket on its own.
+   *
+   *  For the spawn-failure case (cluster 15 / F5) the server *does*
+   *  close the WS and the optional `exitCode` / `exitReason` fields
+   *  carry diagnostic information so the client can surface a useful
+   *  message instead of "WS closed unexpectedly". */
   ptyExit?: true;
+  /** Optional exit code accompanying `ptyExit`. Set to `-1` by the
+   *  server when `Bun.spawn` itself threw before the child even
+   *  started. Cluster 15 / F5 — docs/code-analysis/2026-04-26. */
+  exitCode?: number;
+  /** Optional human-readable reason accompanying `ptyExit` for the
+   *  spawn-failure case. Cluster 15 / F5. */
+  exitReason?: string;
 }
 
 /** Client-to-server resize message. */

@@ -355,6 +355,71 @@ describe("hasInotifywait / _resetInotifyProbe", () => {
     const c = hasInotifywait();
     expect(typeof c).toBe("boolean");
   });
+
+  test("non-Linux platform short-circuits to false without spawning (cluster 15 / F2)", () => {
+    _resetInotifyProbe();
+    let spawnCalled = false;
+    const result = hasInotifywait({
+      platform: "darwin",
+      spawnSync: () => { spawnCalled = true; return { exitCode: 0 }; },
+    });
+    expect(result).toBe(false);
+    expect(spawnCalled).toBe(false);
+    _resetInotifyProbe();
+  });
+
+  test("passes timeout: 2000 to spawnSync on Linux (cluster 15 / F2)", () => {
+    _resetInotifyProbe();
+    let observedTimeout: number | undefined;
+    const result = hasInotifywait({
+      platform: "linux",
+      spawnSync: (_cmd, opts) => {
+        observedTimeout = opts.timeout;
+        return { exitCode: 1 }; // inotifywait --help exits 1 by convention
+      },
+    });
+    expect(result).toBe(true);
+    expect(observedTimeout).toBe(2000);
+    _resetInotifyProbe();
+  });
+
+  test("returns false within 2s when spawnSync reports a timed-out / hung child (cluster 15 / F2)", async () => {
+    // Bun.spawnSync's `timeout` option is best-effort: when it trips, it
+    // SIGTERMs the child and the call returns with `exitCode: null`. Our
+    // contract is that a wedged inotifywait yields false, never hangs the
+    // calling thread past the configured timeout. We simulate the
+    // timed-out spawn by returning exitCode:null and assert the call is
+    // bounded.
+    _resetInotifyProbe();
+    const start = Date.now();
+    const result = hasInotifywait({
+      platform: "linux",
+      spawnSync: (_cmd, opts) => {
+        // Production: Bun.spawnSync would have killed the child and
+        // returned. We mirror that with exitCode:null. If the test ever
+        // observed `opts.timeout` < 2000, the real call would not be
+        // bounded the way we promise.
+        expect(opts.timeout).toBe(2000);
+        return { exitCode: null };
+      },
+    });
+    const elapsed = Date.now() - start;
+    expect(result).toBe(false);
+    // Sanity bound — the test mock returns immediately. Real-world bound
+    // is the timeout itself (2s), enforced by Bun.spawnSync.
+    expect(elapsed).toBeLessThan(2000);
+    _resetInotifyProbe();
+  });
+
+  test("spawnSync throwing (ENOENT) yields false (cluster 15 / F2)", () => {
+    _resetInotifyProbe();
+    const result = hasInotifywait({
+      platform: "linux",
+      spawnSync: () => { throw new Error("ENOENT: inotifywait not found"); },
+    });
+    expect(result).toBe(false);
+    _resetInotifyProbe();
+  });
 });
 
 describe("armAutoUnlink (autoUnlinkOnClose=true)", () => {

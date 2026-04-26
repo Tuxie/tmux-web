@@ -59,7 +59,12 @@ const JSON_HEADERS = { 'Content-Type': 'application/json' };
 /** Detect whether a `PUT /api/session-settings` patch tries to write a
  *  `clipboard` entry on any session. Clipboard grants are consent-only
  *  (recorded via `recordGrant` from `clipboard-policy.ts`); any PUT
- *  that carries one must be rejected. */
+ *  that carries one must be rejected.
+ *
+ *  Kept alongside `validateSessionPatch` (cluster 15 / F7) as a belt-
+ *  and-braces check — the validator subsumes the same rule but the
+ *  string-walking shape here is a useful regression guard against
+ *  future refactors that bypass the validator. */
 function hasClipboardField(patch: unknown): boolean {
   if (!patch || typeof patch !== 'object') return false;
   const sessions = (patch as { sessions?: unknown }).sessions;
@@ -71,6 +76,68 @@ function hasClipboardField(patch: unknown): boolean {
     }
   }
   return false;
+}
+
+/** Hand-rolled typed validator for the `PUT /api/session-settings`
+ *  patch shape. Replaces a previous reliance on `JSON.parse` casting
+ *  the body straight into `SessionsConfigPatch` with no runtime
+ *  schema gate.
+ *
+ *  Accepts: `{lastActive?: string, sessions?: {[name]: StoredSessionSettings}}`.
+ *  Rejects:
+ *    - non-object root,
+ *    - non-string `lastActive`,
+ *    - non-object `sessions`,
+ *    - any session entry that's not a plain object,
+ *    - any session entry that carries a `clipboard` field (consent-only,
+ *      see `hasClipboardField` above),
+ *    - any unknown top-level key — fail closed so a future refactor that
+ *      adds another protected field can't be silently bypassed by an
+ *      authenticated client sending the field via this PUT.
+ *
+ *  Returns `{ok: false, reason}` or `{ok: true, patch}`. The patch
+ *  returned is the same object the caller passed in (no defensive
+ *  copy) — `applyPatch` does its own sanitisation via
+ *  `sanitiseSessions`. Cluster 15 / F7 — docs/code-analysis/2026-04-26. */
+export type SessionPatchValidationResult =
+  | { ok: true; patch: SessionsConfigPatch }
+  | { ok: false; reason: string };
+
+const ALLOWED_PATCH_TOP_KEYS = new Set(['lastActive', 'sessions']);
+
+export function validateSessionPatch(value: unknown): SessionPatchValidationResult {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { ok: false, reason: 'patch must be a JSON object' };
+  }
+  const obj = value as Record<string, unknown>;
+  for (const key of Object.keys(obj)) {
+    if (!ALLOWED_PATCH_TOP_KEYS.has(key)) {
+      return { ok: false, reason: `unknown top-level key: ${key}` };
+    }
+  }
+  if ('lastActive' in obj && obj.lastActive !== undefined) {
+    if (typeof obj.lastActive !== 'string') {
+      return { ok: false, reason: 'lastActive must be a string' };
+    }
+  }
+  if ('sessions' in obj && obj.sessions !== undefined) {
+    if (!obj.sessions || typeof obj.sessions !== 'object' || Array.isArray(obj.sessions)) {
+      return { ok: false, reason: 'sessions must be an object' };
+    }
+    const sessions = obj.sessions as Record<string, unknown>;
+    for (const [name, entry] of Object.entries(sessions)) {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        return { ok: false, reason: `session ${name} must be an object` };
+      }
+      if ('clipboard' in (entry as object)) {
+        return {
+          ok: false,
+          reason: 'clipboard entries are not writable via PUT — use the consent prompt',
+        };
+      }
+    }
+  }
+  return { ok: true, patch: obj as SessionsConfigPatch };
 }
 
 /** Thin wrapper that resolves the foreground process (so we know
@@ -221,8 +288,16 @@ export type HttpHandler = (req: Request, server: BunServer<unknown>) => Response
 
 /** Read the request body into a Buffer, enforcing a byte cap mid-stream
  *  so a malicious client can't OOM the process. Returns `null` when the
- *  cap is exceeded. */
-async function readBodyCapped(req: Request, max: number): Promise<Buffer | null> {
+ *  cap is exceeded.
+ *
+ *  When the cap is exceeded we call `reader.cancel()` to signal the
+ *  underlying source to abort. The WHATWG Streams spec describes cancel
+ *  as "may signal the underlying source to abort" — Bun's Request body
+ *  reader has been observed to hang when the upstream connection is
+ *  alive but slow-feeding bytes. We race the cancel against a 500 ms
+ *  timeout so a slow / wedged upstream cannot hold this handler up.
+ *  Cluster 15 / F3 — docs/code-analysis/2026-04-26. */
+export async function readBodyCapped(req: Request, max: number): Promise<Buffer | null> {
   if (!req.body) return Buffer.alloc(0);
   const reader = req.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -233,7 +308,16 @@ async function readBodyCapped(req: Request, max: number): Promise<Buffer | null>
       if (done) break;
       total += value.byteLength;
       if (total > max) {
-        try { await reader.cancel(); } catch {}
+        try {
+          await Promise.race([
+            reader.cancel(),
+            new Promise((_, reject) => setTimeout(
+              () => reject(new Error('cancel timeout')),
+              500,
+            )),
+          ]);
+        } catch { /* swallow cancel errors and timeout — the body is past
+                     the cap regardless and we want to release the lock */ }
         return null;
       }
       chunks.push(value);
@@ -567,29 +651,29 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
           debug(config, `session-settings PUT error: ${(err as Error).message}`);
           return new Response('Bad Request', { status: 400 });
         }
-        let patch: SessionsConfigPatch;
+        let parsed: unknown;
         try {
-          patch = JSON.parse(body);
+          parsed = JSON.parse(body);
         } catch {
           return new Response('Bad JSON', { status: 400 });
         }
-        if (!patch || typeof patch !== 'object') {
-          return new Response('Bad payload', { status: 400 });
+        // Central typed schema gate — rejects unknown top-level keys,
+        // unfit shapes, and (notably) any session patch carrying a
+        // `clipboard` field. Cluster 15 / F7 — docs/code-analysis/2026-04-26.
+        const validation = validateSessionPatch(parsed);
+        if (!validation.ok) {
+          return new Response(validation.reason, { status: 400 });
         }
-        // Clipboard grants are only writable via the consent-prompt
-        // pipeline (`recordGrant`, keyed by a live BLAKE3 of the
-        // requesting binary). Accepting them through this PUT would let
-        // an authenticated client pre-seed allow-grants for arbitrary
-        // `exePath` strings and bypass the prompt for any binary they
-        // control at that path. The client never sends this field —
-        // reject rather than silently drop so any future regression
-        // surfaces immediately.
+        const patch: SessionsConfigPatch = validation.patch;
+        // Belt-and-braces: hasClipboardField walks the tree once more
+        // looking for the literal 'clipboard' key. Defensive against a
+        // future refactor that loosens the validator. Both must agree.
         if (hasClipboardField(patch)) {
           return new Response('clipboard entries are not writable via PUT — use the consent prompt',
             { status: 400 });
         }
         try {
-          const next = applyPatch(opts.sessionsStorePath, patch);
+          const next = await applyPatch(opts.sessionsStorePath, patch);
           return new Response(JSON.stringify(next), { headers: JSON_HEADERS });
         } catch (err) {
           return new Response('Save failed', { status: 500 });
@@ -599,7 +683,7 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
         const name = url.searchParams.get('name');
         if (!name) return new Response('Missing name', { status: 400 });
         try {
-          const next = deleteSession(opts.sessionsStorePath, name);
+          const next = await deleteSession(opts.sessionsStorePath, name);
           return new Response(JSON.stringify(next), { headers: JSON_HEADERS });
         } catch {
           return new Response('Delete failed', { status: 500 });
@@ -623,9 +707,25 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
       // (re-prompt password, loopback-only, --allow-exit-api opt-in).
       const action = url.searchParams.get('action') ?? 'quit';
       const code = action === 'restart' ? 2 : 0;
-      setTimeout(() => process.exit(code), 100);
-      return new Response(action === 'restart' ? 'restarting' : 'quitting',
+      const response = new Response(action === 'restart' ? 'restarting' : 'quitting',
         { headers: { 'Content-Type': 'text/plain' } });
+      // Server-aware shutdown. Replaces a 100ms `setTimeout(process.exit)`
+      // that guessed at "long enough for Bun to flush the response and
+      // close the socket" — under load the response could still be
+      // in-flight when `process.exit` ran, dropping the body.
+      // `server.stop({ closeActiveConnections: false })` waits for
+      // in-flight responses (this one!) before resolving; only then do we
+      // exit. Used by `--reset` and the desktop wrapper's quit path; both
+      // continue to observe the response. Cluster 15 / F1 —
+      // docs/code-analysis/2026-04-26.
+      queueMicrotask(() => {
+        void (async () => {
+          try { await server.stop(false); }
+          catch { /* best-effort — fall through to process.exit anyway */ }
+          process.exit(code);
+        })();
+      });
+      return response;
     }
 
     return new Response(makeHtml(), { headers: { 'Content-Type': 'text/html' } });
