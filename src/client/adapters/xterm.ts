@@ -22,7 +22,29 @@ export class XtermAdapter implements TerminalAdapter {
   private bgOklabL = 0;            // OKLab L of rendered background (auto-computed)
   private tuiSaturation = 0;       // -100..+100, OKLab chroma scale for FG + BG
 
+  // Cached snapshots for the per-cell hot path (cluster
+  // 10-bench-baseline-and-hot-path F1/F2). `withBlendedEffectiveBackground`
+  // is invoked once per rendered cell (240×50 × 60fps ≈ 720k calls/sec
+  // during a slider drag), and previously each call freshly allocated a
+  // `theme` and `state` bag plus walked `renderer._themeService.colors.*`.
+  // Both inputs are frame-stable: state values change only when the user
+  // moves a slider (`_setTui*`/`_setFg*`) and theme values change only on
+  // `setTheme()` or the renderer's `onChangeColors` event. Cache them at
+  // the adapter level and invalidate from those exact code paths so the
+  // per-cell function reads two field values instead of allocating two
+  // objects + chasing six property lookups every cell.
+  private _cellTheme: XtermCellTheme | null = null;
+  private _cellState: XtermCellState | null = null;
+
   constructor() {}
+
+  private _invalidateCellTheme(): void {
+    this._cellTheme = null;
+  }
+
+  private _invalidateCellState(): void {
+    this._cellState = null;
+  }
 
   // xterm (DOM renderer) doesn't properly recalculate metrics after font changes.
   // Metric values remain at their initial calculations even after changing fonts.
@@ -331,34 +353,46 @@ export class XtermAdapter implements TerminalAdapter {
 
     // Cell-math itself lives in `./xterm-cell-math.ts` as a set of
     // pure functions (no WebGL, no adapter coupling) so it can be
-    // unit-tested without a WebGL context. These two thin snapshots
-    // build a typed `theme` / `state` bag from live adapter + renderer
-    // state each call — the cost is one tiny object allocation per
-    // cell; identical to the previous closure-capture shape.
-    //
-    // TODO(cluster 10-bench-baseline-and-hot-path, 2026-04-26):
-    // `themeSnapshot()` and `stateSnapshot()` allocate one fresh
-    // object each per cell per frame (≈1.4M small allocs/sec at
-    // 240×50 × 60fps during a slider drag). Two fix shapes were
-    // considered (hoist + invalidate, or flatten to direct property
-    // reads). The decision is deferred until the bench baseline lands
-    // so the cheaper shape can be picked from real numbers rather
-    // than reading code. See `bench/baseline.json` and
-    // `scripts/bench-render-math.ts`'s `withBlendedEffectiveBackground`
-    // case for the hot-path measurement.
-    const themeSnapshot = (): XtermCellTheme => ({
-      bgDefaultRgba: renderer._themeService?.colors?.background?.rgba ?? 0x000000ff,
-      fgDefaultRgba: renderer._themeService?.colors?.foreground?.rgba ?? 0xffffffff,
-      ansi: renderer._themeService?.colors?.ansi,
-    });
-    const stateSnapshot = (): XtermCellState => ({
-      tuiFgAlpha: adapter.tuiFgAlpha,
-      tuiBgAlpha: adapter.tuiBgAlpha,
-      fgContrastStrength: adapter.fgContrastStrength,
-      fgContrastBias: adapter.fgContrastBias,
-      bgOklabL: adapter.bgOklabL,
-      tuiSaturation: adapter.tuiSaturation,
-    });
+    // unit-tested without a WebGL context. The `theme` / `state` bags
+    // they consume are cached at the adapter level (`_cellTheme`,
+    // `_cellState`) and rebuilt lazily on first access after an
+    // invalidation. Both inputs are frame-stable, so the cache holds
+    // across all cells of a frame and only refreshes when state or
+    // theme actually change (slider move → setter invalidates state;
+    // theme change → `onChangeColors` invalidates theme).
+    const ensureCellTheme = (): XtermCellTheme => {
+      if (adapter._cellTheme === null) {
+        adapter._cellTheme = {
+          bgDefaultRgba: renderer._themeService?.colors?.background?.rgba ?? 0x000000ff,
+          fgDefaultRgba: renderer._themeService?.colors?.foreground?.rgba ?? 0xffffffff,
+          ansi: renderer._themeService?.colors?.ansi,
+        };
+      }
+      return adapter._cellTheme;
+    };
+    const ensureCellState = (): XtermCellState => {
+      if (adapter._cellState === null) {
+        adapter._cellState = {
+          tuiFgAlpha: adapter.tuiFgAlpha,
+          tuiBgAlpha: adapter.tuiBgAlpha,
+          fgContrastStrength: adapter.fgContrastStrength,
+          fgContrastBias: adapter.fgContrastBias,
+          bgOklabL: adapter.bgOklabL,
+          tuiSaturation: adapter.tuiSaturation,
+        };
+      }
+      return adapter._cellState;
+    };
+
+    // Theme service fires `onChangeColors` whenever palette, default
+    // bg/fg, or any decoration colour changes. Drop the cached theme
+    // snapshot so the next per-cell call re-reads from the (now
+    // updated) `_themeService.colors`.
+    const themeService = renderer._themeService;
+    if (themeService && typeof themeService.onChangeColors === 'function' && !renderer.__tmuxWebThemeChangeBound) {
+      renderer.__tmuxWebThemeChangeBound = true;
+      themeService.onChangeColors(() => adapter._invalidateCellTheme());
+    }
 
     const patchGlyphRenderer = (glyphRenderer: any): void => {
       if (!glyphRenderer || glyphRenderer.__tmuxWebBgOpacityPatched) return;
@@ -377,8 +411,8 @@ export class XtermAdapter implements TerminalAdapter {
         lastBg: number,
       ) {
         if (shouldApplyBackgroundOpacity(this, fg, bg, x, x + Math.max(width || 1, 1), y)) {
-          const theme = themeSnapshot();
-          const state = stateSnapshot();
+          const theme = ensureCellTheme();
+          const state = ensureCellState();
           const current = withBlendedEffectiveBackground(fg, bg, theme, state);
           const previous = withBlendedEffectiveBackground(fg, lastBg, theme, state);
           return orig(x, y, code, current.bg, current.fg, ext, chars, width, previous.bg);
@@ -404,26 +438,31 @@ export class XtermAdapter implements TerminalAdapter {
   private _setTuiBgOpacity(opacityPct: number | undefined): void {
     const pct = Number.isFinite(opacityPct) ? opacityPct! : 100;
     this.tuiBgAlpha = Math.max(0, Math.min(100, pct)) / 100;
+    this._invalidateCellState();
   }
 
   private _setTuiFgOpacity(opacityPct: number | undefined): void {
     const pct = Number.isFinite(opacityPct) ? opacityPct! : 100;
     this.tuiFgAlpha = Math.max(0, Math.min(100, pct)) / 100;
+    this._invalidateCellState();
   }
 
   private _setFgContrastStrength(pct: number | undefined): void {
     const v = Number.isFinite(pct) ? pct! : 0;
     this.fgContrastStrength = Math.max(-100, Math.min(100, Math.round(v)));
+    this._invalidateCellState();
   }
 
   private _setFgContrastBias(pct: number | undefined): void {
     const v = Number.isFinite(pct) ? pct! : 0;
     this.fgContrastBias = Math.max(-100, Math.min(100, Math.round(v)));
+    this._invalidateCellState();
   }
 
   private _setTuiSaturation(pct: number | undefined): void {
     const v = Number.isFinite(pct) ? pct! : 0;
     this.tuiSaturation = Math.max(-100, Math.min(100, Math.round(v)));
+    this._invalidateCellState();
   }
 
   // Force NEAREST-neighbour sampling on the glyph atlas texture. xterm's
@@ -497,6 +536,11 @@ export class XtermAdapter implements TerminalAdapter {
 
   setTheme(theme: TerminalTheme): void {
     this.term.options.theme = theme;
+    // Defensive: `onChangeColors` will also drop `_cellTheme`, but if
+    // the patch hasn't yet been wired (theme set before init finishes
+    // or after a context-loss dispose) we still need to drop the
+    // stale snapshot so the next frame re-reads the new palette.
+    this._invalidateCellTheme();
     this._updateBgOklabL();
   }
 
@@ -507,6 +551,9 @@ export class XtermAdapter implements TerminalAdapter {
       const g = (rgba >> 16) & 0xff;
       const b = (rgba >> 8) & 0xff;
       this.bgOklabL = rgbToOklabL(r, g, b);
+      // bgOklabL flows into `state.bgOklabL`; drop the cached state
+      // so the next frame re-reads the updated luminance value.
+      this._invalidateCellState();
     }
   }
 

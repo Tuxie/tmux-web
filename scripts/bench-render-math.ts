@@ -126,11 +126,15 @@ time('adjustSaturation (identity)', N, () => {
 
 // Per-cell hot-path bench. `withBlendedEffectiveBackground` is the
 // function actually invoked from `_patchWebglExplicitBackgroundOpacity`
-// (`src/client/adapters/xterm.ts:368-376`) on every rendered cell. The
-// fresh `theme` / `state` objects on every call mirror the
-// `themeSnapshot()` / `stateSnapshot()` allocation pattern flagged in
-// cluster 10-bench-baseline-and-hot-path so a regression in either the
-// math or the per-cell allocation cost surfaces as a ns/call delta.
+// (`src/client/adapters/xterm.ts:_patchWebglExplicitBackgroundOpacity`)
+// on every rendered cell. As of cluster 10-bench-baseline-and-hot-path
+// F1/F2, the adapter hoists the `theme` / `state` snapshots out of
+// the per-cell path and caches them at adapter level — so the bench
+// cases below allocate the bags ONCE outside the loop to mirror the
+// real cost shape. (The pre-hoist baseline at commit 4ea6999 allocated
+// fresh bags per call, which produced ~1280 ns/call active. After the
+// hoist the active path is dominated by the cell-math itself, not the
+// snapshot allocation.)
 function buildTheme(): XtermCellTheme {
   return {
     bgDefaultRgba: 0x202020ff,
@@ -175,33 +179,37 @@ const bgAttrs = new Int32Array(N);
 
 time('withBlendedEffectiveBackground (identity state)', N, () => {
   // Identity: tuiBgAlpha=1, tuiFgAlpha=1, contrast=0, sat=0 — every
-  // transform short-circuits. Measures the per-cell snapshot
-  // allocation + branch overhead.
+  // transform short-circuits. Theme/state hoisted out of the loop to
+  // mirror the adapter's cached-snapshot per-cell call shape (cluster
+  // 10 F1/F2). Measures the cell-math branch overhead with no
+  // transforms running.
+  const theme: XtermCellTheme = {
+    bgDefaultRgba: 0x202020ff,
+    fgDefaultRgba: 0xd0d0d0ff,
+    ansi: undefined,
+  };
+  const state: XtermCellState = {
+    tuiFgAlpha: 1,
+    tuiBgAlpha: 1,
+    fgContrastStrength: 0,
+    fgContrastBias: 0,
+    bgOklabL: 0.25,
+    tuiSaturation: 0,
+  };
   for (let i = 0; i < N; i++) {
-    const theme: XtermCellTheme = {
-      bgDefaultRgba: 0x202020ff,
-      fgDefaultRgba: 0xd0d0d0ff,
-      ansi: undefined,
-    };
-    const state: XtermCellState = {
-      tuiFgAlpha: 1,
-      tuiBgAlpha: 1,
-      fgContrastStrength: 0,
-      fgContrastBias: 0,
-      bgOklabL: 0.25,
-      tuiSaturation: 0,
-    };
     withBlendedEffectiveBackground(fgAttrs[i]!, bgAttrs[i]!, theme, state);
   }
 });
 
 time('withBlendedEffectiveBackground (active state)', N, () => {
   // Realistic active sliders: every transform runs, both alpha lerps
-  // and contrast/saturation paths are exercised. Mirrors the cost
-  // during a "drag the slider" frame.
+  // and contrast/saturation paths are exercised. Theme/state hoisted
+  // out of the loop to mirror the adapter's cached-snapshot per-cell
+  // call shape (cluster 10 F1/F2). Mirrors the cost during a "drag
+  // the slider" frame after the F1/F2 fix.
+  const theme = buildTheme();
+  const state = buildState();
   for (let i = 0; i < N; i++) {
-    const theme = buildTheme();
-    const state = buildState();
     withBlendedEffectiveBackground(fgAttrs[i]!, bgAttrs[i]!, theme, state);
   }
 });
