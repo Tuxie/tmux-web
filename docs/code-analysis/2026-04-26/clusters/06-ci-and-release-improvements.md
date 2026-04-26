@@ -1,7 +1,7 @@
 ---
-Status: open
+Status: partial
 Autonomy: needs-decision
-Resolved-in:
+Resolved-in: 5752a225fd667d0272257d61510447432f927dc4 (partial — F2/F3 widened-typecheck scaffolded as tsconfig.tooling.json with 62 surfaced errors > 20-error threshold; not wired into make typecheck or release.yml. F1, F4, F5, F6 fully landed.)
 Depends-on:
 informally-unblocks:
 Pre-conditions:
