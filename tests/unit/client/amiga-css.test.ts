@@ -29,4 +29,9 @@ describe('Amiga theme CSS', () => {
     expect(os31Css).not.toMatch(/--tw-ui-font-size:/);
     expect(sceneCss).not.toMatch(/--tw-ui-font-size:/);
   });
+
+  test('Scene 2000 mutes the resize handle triangle', () => {
+    expect(commonCss).toMatch(/\.tw-scrollbar-resize::after\s*\{[^}]*background:\s*#fff;/s);
+    expect(sceneCss).toMatch(/\.tw-scrollbar-resize::after\s*\{[^}]*background:\s*var\(--tw-muted\);/s);
+  });
 });
