@@ -106,7 +106,9 @@ describe('XtermAdapter', () => {
       tuiFgOpacity: 100,
       fgContrastStrength: 0,
       fgContrastBias: 0,
-    });
+      // Stale callers/preferences must not be able to disable subpixel AA.
+      subpixelAA: false,
+    } as any);
 
     // allowTransparency is intentionally false so xterm's WebGL atlas uses
     // canvas-2d subpixel AA. See composeTheme + adapter for the rationale.

@@ -14,7 +14,6 @@ import { consumeBootErrorDetails, consumeBootErrors, formatBootErrorToast } from
 import { installAuthenticatedFetch } from './auth-fetch.js';
 import { clientLog } from './client-log.js';
 import { installDropsPanel } from './ui/drops-panel.js';
-import { getFontSubpixelAA } from './prefs.js';
 import { applyTheme, buildXtermFontStack, listFonts, loadAllFonts, listThemes } from './theme.js';
 import { fetchColours } from './colours.js';
 import { createColourControls } from './colour-controls.js';
@@ -196,7 +195,6 @@ async function main() {
     fgContrastStrength: settings.fgContrastStrength,
     fgContrastBias: settings.fgContrastBias,
     tuiSaturation: settings.tuiSaturation,
-    subpixelAA: getFontSubpixelAA(settings.fontFamily),
   });
   adapter.focus();
   window.__adapter = adapter;

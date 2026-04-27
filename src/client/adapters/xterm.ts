@@ -84,24 +84,14 @@ export class XtermAdapter implements TerminalAdapter {
     // cells — RectangleRenderer skips those, so the #page alpha slider
     // keeps driving visible transparency.
     //
-    // Bitmap fonts (Amiga Topaz, mOsOul, ...) don't have AA edges at all —
-    // each glyph pixel is either fully-on or fully-off. The subpixel-AA
-    // trick gives them nothing but costs halo-correctness at extreme
-    // contrast/bias settings (the opaque atlas halo bakes in a single
-    // reference colour that can mismatch the actual visible bg at a
-    // given glyph's position, producing fringing). `subpixelAA: false`
-    // flips xterm to the transparent-backdrop path (grayscale AA, edge
-    // pixels carry real alpha) so there's nothing baked in for the
-    // composite to fight. See `getFontSubpixelAA(fontFamily)` for the
-    // per-font pref + bitmap-font default-off list.
-    const useSubpixelAA = options.subpixelAA !== false;
+    // Keep this unconditional: subpixel AA is always enabled.
     this.term = new Terminal({
       fontFamily: options.fontFamily,
       // xterm throws for lineHeight < 1; clamp to 1 here, patched below after open()
       fontSize: options.fontSize,
       lineHeight: Math.max(1, options.lineHeight),
       theme: options.theme,
-      allowTransparency: !useSubpixelAA,
+      allowTransparency: false,
       allowProposedApi: true,
       scrollback: 0,
       scrollbar: { showScrollbar: false },

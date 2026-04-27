@@ -10,6 +10,13 @@ describe('index.html does not expose removed backend-selection UI', () => {
   });
 });
 
+describe('index.html does not expose Subpixel AA toggle', () => {
+  it('has no Subpixel AA checkbox or label', () => {
+    expect(html).not.toContain('id="chk-subpixel-aa"');
+    expect(html).not.toContain('Subpixel AA');
+  });
+});
+
 describe('index.html Electrobun titlebar affordance', () => {
   it('marks the topbar title as a native window drag region', () => {
     expect(html).toContain('id="tb-title" class="electrobun-webkit-app-region-drag"');

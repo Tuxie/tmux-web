@@ -1,7 +1,5 @@
 import { describe, test, expect, beforeEach } from "bun:test";
 import {
-  getFontSubpixelAA,
-  setFontSubpixelAA,
   getShowWindowTabs,
   setShowWindowTabs,
 } from "../../../src/client/prefs.ts";
@@ -59,42 +57,6 @@ describe("prefs", () => {
   test("setShowWindowTabs swallows storage errors", () => {
     installLocalStorage({}, { throwOnSet: true });
     expect(() => setShowWindowTabs(false)).not.toThrow();
-  });
-
-  // --- subpixel AA (per-font) ---
-  test("getFontSubpixelAA defaults to true when unset", () => {
-    installLocalStorage();
-    expect(getFontSubpixelAA('Iosevka Nerd Font Mono')).toBe(true);
-    expect(getFontSubpixelAA('Topaz8 Amiga1200 Nerd Font')).toBe(true);
-  });
-
-  test("getFontSubpixelAA honors '0' (off) and '1' (on) per font", () => {
-    installLocalStorage({
-      'tmux-web-subpixel-aa:mOsOul Nerd Font': '0',
-      'tmux-web-subpixel-aa:Iosevka Nerd Font Mono': '1',
-    });
-    expect(getFontSubpixelAA('mOsOul Nerd Font')).toBe(false);
-    expect(getFontSubpixelAA('Iosevka Nerd Font Mono')).toBe(true);
-    // Unrelated font name falls back to the default.
-    expect(getFontSubpixelAA('Something Else')).toBe(true);
-  });
-
-  test("getFontSubpixelAA returns true on storage error", () => {
-    installLocalStorage({}, { throwOnGet: true });
-    expect(getFontSubpixelAA('any-font')).toBe(true);
-  });
-
-  test("setFontSubpixelAA persists per-font key", () => {
-    const storage = installLocalStorage();
-    setFontSubpixelAA('mOsOul Nerd Font', false);
-    expect(storage['tmux-web-subpixel-aa:mOsOul Nerd Font']).toBe('0');
-    setFontSubpixelAA('mOsOul Nerd Font', true);
-    expect(storage['tmux-web-subpixel-aa:mOsOul Nerd Font']).toBe('1');
-  });
-
-  test("setFontSubpixelAA swallows storage errors", () => {
-    installLocalStorage({}, { throwOnSet: true });
-    expect(() => setFontSubpixelAA('any-font', false)).not.toThrow();
   });
 
 });

@@ -44,13 +44,6 @@ export interface TerminalOptions {
   /** -100..+100. OKLab chroma scale applied to FG and BG colours.
    *  -100 = greyscale, 0 = identity, +100 = doubled chroma. */
   tuiSaturation: number;
-  /** Whether the glyph atlas should rasterise against an opaque
-   *  backdrop (enables canvas-2D subpixel AA). Omit / `true` keeps
-   *  xterm's default. `false` switches the atlas to a transparent
-   *  backdrop (grayscale AA, no halo-bg baked into edge pixels) —
-   *  the right choice for bitmap fonts whose glyphs carry no AA
-   *  edges to be subpixel-crisp about. */
-  subpixelAA?: boolean;
 }
 
 /** Info about a single tmux window. */

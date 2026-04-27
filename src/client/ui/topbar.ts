@@ -1,6 +1,5 @@
 import {
   getShowWindowTabs, setShowWindowTabs,
-  getFontSubpixelAA, setFontSubpixelAA,
 } from '../prefs.js';
 import { applyTheme, listFonts, listThemes } from '../theme.js';
 import { fetchColours } from '../colours.js';
@@ -522,7 +521,6 @@ export class Topbar {
     const btnResetColours = el<HTMLButtonElement>('btn-reset-colours');
     const fontSelect = el<HTMLSelectElement>('inp-font-bundled');
     const btnResetFont = el<HTMLButtonElement>('btn-reset-font');
-    const chkSubpixelAA = el<HTMLInputElement>('chk-subpixel-aa');
     const sldSize = el<HTMLInputElement>('sld-fontsize');
     const inpSize = el<HTMLInputElement>('inp-fontsize');
     const sldHeight = el<HTMLInputElement>('sld-spacing');
@@ -715,7 +713,6 @@ export class Topbar {
       ddTheme.setValue(s.theme);
       ddColours.setValue(s.colours);
       ddFont.setValue(s.fontFamily);
-      chkSubpixelAA.checked = getFontSubpixelAA(s.fontFamily);
       for (const sp of sliders) {
         const v = String(s[sp.key]);
         sp.slider.value = sp.input.value = v;
@@ -819,21 +816,6 @@ export class Topbar {
 
     fontSelect.addEventListener('change', () => {
       commit({ fontFamily: fontSelect.value });
-      chkSubpixelAA.checked = getFontSubpixelAA(fontSelect.value);
-    });
-
-    // Subpixel AA toggle is per-font, persisted in localStorage by
-    // `setFontSubpixelAA`. xterm's `allowTransparency` is effectively
-    // init-only (the TextureAtlas bakes the opaque vs transparent
-    // choice into its canvas-2D rasterisation path), so applying a
-    // change means reloading the page — same pattern font changes use
-    // via `requiresReloadForFontChange` in the xterm adapter.
-    chkSubpixelAA.addEventListener('change', () => {
-      const current = getSettings();
-      setFontSubpixelAA(current.fontFamily, chkSubpixelAA.checked);
-      const dd = document.getElementById('menu-dropdown') as HTMLElement | null;
-      if (dd && !dd.hidden) sessionStorage.setItem('tmux-web:menu-reopen', '1');
-      location.reload();
     });
 
     btnResetFont.addEventListener('click', () => {

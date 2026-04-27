@@ -295,7 +295,7 @@ input[type="range"]::-moz-range-thumb {
  * checkboxes flank the row instead of huddling on the left. */
 .tw-menu-row-inline label:last-child { margin-left: auto; }
 /* Checkbox-row labels (both the inline pair and the single-line
- * `<label class="tw-menu-row">` rows like Fullscreen / Subpixel AA)
+ * `<label class="tw-menu-row">` rows like Fullscreen)
  * read in the same muted tone as the other row labels (.tw-menu-label
  * below) so the menu's left column is visually consistent. */
 .tw-menu-row-inline label,

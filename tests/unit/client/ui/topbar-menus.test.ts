@@ -85,7 +85,7 @@ const REQUIRED_IDS = [
   'btn-session-menu', 'btn-session-plus', 'menu-wrap', 'btn-menu',
   'menu-dropdown', 'menu-footer', 'menu-footer-left', 'menu-footer-right',
   'chk-fullscreen', 'inp-theme', 'inp-colours', 'inp-font-bundled',
-  'btn-reset-colours', 'btn-reset-font', 'chk-subpixel-aa',
+  'btn-reset-colours', 'btn-reset-font',
   'sld-fontsize', 'inp-fontsize', 'sld-spacing', 'inp-spacing',
   'sld-tui-bg-opacity', 'inp-tui-bg-opacity',
   'sld-tui-fg-opacity', 'inp-tui-fg-opacity',
