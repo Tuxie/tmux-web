@@ -63,6 +63,10 @@ export interface WindowInfo {
 export interface SessionInfo {
   id: string;
   name: string;
+  /** Window count from `#{session_windows}`. Optional because older
+   *  server builds (and persisted-only stopped sessions on the client)
+   *  don't supply it. */
+  windows?: number;
 }
 
 export interface ScrollbarState {
@@ -96,6 +100,12 @@ export interface ServerMessage {
   scrollbar?: ScrollbarState;
   clipboard?: string; // base64-encoded
   title?: string;    // active pane title (shell window title)
+  /** Per-window pane titles, keyed by tmux window index. Sourced from a
+   *  push-based `refresh-client -B` subscription on the per-session
+   *  control client; updated whenever any window's active-pane title
+   *  changes. The client uses these as tooltips on the win-tab buttons
+   *  and the windows-menu entries. */
+  titles?: Record<string, string>;
   /** OSC 52 read request needs a user decision. Client pops a modal and
    *  replies with `{type:'clipboard-decision', ...}`. */
   clipboardPrompt?: {

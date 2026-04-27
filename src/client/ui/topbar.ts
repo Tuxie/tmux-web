@@ -127,6 +127,7 @@ export class Topbar {
   private lastActiveWindowIndex: string | null = null;
   private syncSettingsUi?: (s: SessionSettings) => void;
   private cachedWindows: Array<{ index: string; name: string; active: boolean }> = [];
+  private cachedTitles: Record<string, string> = {};
   private lastWinTabsKey = '';
   private menuBtn?: HTMLButtonElement;
   private menuDropdown?: HTMLElement;
@@ -251,8 +252,8 @@ export class Topbar {
         // sorted case-insensitively by name.
         const runningByName = new Map(this.cachedSessions.map(s => [s.name, s]));
         const stored = getStoredSessionNames();
-        const ordered: Array<{ id: string | null; name: string }> = [
-          ...this.cachedSessions.map(s => ({ id: s.id, name: s.name })),
+        const ordered: Array<{ id: string | null; name: string; windows?: number }> = [
+          ...this.cachedSessions.map(s => ({ id: s.id, name: s.name, windows: s.windows })),
           ...stored
             .filter(n => !runningByName.has(n))
             .map(n => ({ id: null as string | null, name: n })),
@@ -288,6 +289,17 @@ export class Topbar {
               el.remove();
             });
             el.appendChild(del);
+          }
+          // Window count, only for running sessions where we know it.
+          // Sits to the left of the status dot.
+          if (isRunning && typeof s.windows === 'number') {
+            const count = document.createElement('span');
+            count.className = 'tw-dd-session-windows';
+            const label = `${s.windows} window${s.windows === 1 ? '' : 's'}`;
+            count.textContent = `(${label})`;
+            count.title = label;
+            count.setAttribute('aria-label', label);
+            el.appendChild(count);
           }
           const dot = document.createElement('span');
           dot.className = 'tw-dd-session-status ' + (isRunning ? 'running' : 'stopped');
@@ -338,34 +350,6 @@ export class Topbar {
           },
         }));
 
-        // Kill current session (confirmed)
-        const sep3 = document.createElement('hr');
-        sep3.className = 'tw-dropdown-sep';
-        menu.appendChild(sep3);
-        const killItem = document.createElement('div');
-        killItem.className = 'tw-dropdown-item';
-        killItem.textContent = `Kill session ${current}…`;
-        killItem.addEventListener('click', (ev) => {
-          ev.stopPropagation();
-          close();
-          // Use the themed confirm-modal instead of native confirm() —
-          // unthemable, blocks the JS thread, and is suppressed entirely
-          // by some desktop-wrapper webviews (which would let the
-          // destructive action proceed unconfirmed). Cluster 13 / F4.
-          void showConfirmModal<boolean>({
-            title: 'Kill session?',
-            body: `Kill session "${current}"?`,
-            buttons: [
-              { label: 'Cancel', value: false },
-              { label: 'Kill session', value: true, kind: 'destructive', defaultFocus: true },
-            ],
-          }).then((ok) => {
-            if (!ok) return;
-            if (!this.guardOnline('kill session')) return;
-            this.opts.send(JSON.stringify({ type: 'session', action: 'kill' }));
-          });
-        });
-        menu.appendChild(killItem);
   }
 
   private setupSessionMenu(): void {
@@ -1035,6 +1019,8 @@ export class Topbar {
       el.setAttribute('tabindex', '-1');
       el.setAttribute('aria-selected', isCurrent ? 'true' : 'false');
       el.textContent = w.index + ': ' + w.name;
+      const paneTitle = this.cachedTitles[w.index];
+      if (paneTitle) el.title = paneTitle;
       el.addEventListener('click', (ev) => {
         ev.stopPropagation();
         close();
@@ -1194,6 +1180,8 @@ export class Topbar {
         btn.type = 'button';
         btn.className = 'tw-win-tab' + (w.active ? ' active' : '');
         btn.textContent = w.index + ':' + w.name;
+        const paneTitle = this.cachedTitles[w.index];
+        if (paneTitle) btn.title = paneTitle;
         btn.addEventListener('click', () => {
           this.sendWindowMsg({ action: 'select', index: w.index });
         });
@@ -1254,7 +1242,25 @@ export class Topbar {
   }
 
   updateTitle(title: string): void {
-    this.tbTitle.textContent = stripTitleDecoration(title);
+    const stripped = stripTitleDecoration(title);
+    this.tbTitle.textContent = stripped;
+    /* Mirror the visible text into the native tooltip so the full title
+     * is reachable on hover even when the title bar is too narrow and
+     * the text gets ellipsis-clipped by `#tb-title`'s `text-overflow`. */
+    if (stripped) this.tbTitle.title = stripped;
+    else this.tbTitle.removeAttribute('title');
+  }
+
+  /** Per-window pane titles arrive whenever any window's active-pane
+   *  title changes (push-based via the per-session control client's
+   *  refresh-client -B subscription). We re-render the win-tab cluster
+   *  on every change so the tooltips stay live; the windows-menu
+   *  popover reads from `cachedTitles` lazily, which is fine since it
+   *  is rebuilt every time the menu opens. */
+  updateTitles(titles: Record<string, string>): void {
+    this.cachedTitles = titles;
+    this.lastWinTabsKey = '';   // bust the render cache so tooltips refresh
+    this.renderWinTabs();
   }
 
   updateSession(session: string): void {

@@ -27,7 +27,7 @@ export interface TmuxListingsDeps {
   preferControl: boolean;
 }
 
-const SESSIONS_ARGS = ['list-sessions', '-F', '#{session_id}\t#{session_name}'] as const;
+const SESSIONS_ARGS = ['list-sessions', '-F', '#{session_id}\t#{session_name}\t#{session_windows}'] as const;
 
 function windowsArgs(session: string): readonly string[] {
   return ['list-windows', '-t', session, '-F', '#{window_index}\t#{window_name}\t#{window_active}'];
@@ -35,6 +35,41 @@ function windowsArgs(session: string): readonly string[] {
 
 function paneTitleArgs(session: string): readonly string[] {
   return ['display-message', '-t', session, '-p', '#{pane_title}'];
+}
+
+/* Format string for the per-window title subscription. `#{W:fmt}` iterates
+ * over every window in the current session; inside, `#{window_index}` and
+ * `#{pane_title}` resolve to that window's index + active-pane title.
+ * The unit-separator (`\x1f`) ends each window's record so the receiver
+ * can split unambiguously even if a title happens to contain `\t`. */
+export const TITLES_FORMAT = '#{W:#{window_index}\t#{pane_title}\x1f}';
+
+export function buildTitlesSubscriptionArgs(name: string): string[] {
+  return ['refresh-client', '-B', `${name}::${TITLES_FORMAT}`];
+}
+
+export function buildTitlesUnsubscribeArgs(name: string): string[] {
+  return ['refresh-client', '-B', name];
+}
+
+export function buildTitlesFetchArgs(session: string): string[] {
+  return ['display-message', '-p', '-t', session, '-F', TITLES_FORMAT];
+}
+
+/** Parse a `#{W:idx\ttitle\x1f}` subscription value into a per-window
+ *  title map. Empty / malformed records are silently dropped. */
+export function parseTitlesValue(raw: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!raw) return out;
+  for (const entry of raw.split('\x1f')) {
+    if (!entry) continue;
+    const tab = entry.indexOf('\t');
+    if (tab < 0) continue;
+    const idx = entry.slice(0, tab);
+    if (!idx) continue;
+    out[idx] = entry.slice(tab + 1);
+  }
+  return out;
 }
 
 async function runListing(deps: TmuxListingsDeps, args: readonly string[]): Promise<string | null> {
@@ -58,8 +93,22 @@ async function runListing(deps: TmuxListingsDeps, args: readonly string[]): Prom
  *  can render it like window ids. */
 export function parseSessionLines(stdout: string): SessionInfo[] {
   return stdout.trim().split('\n').filter(Boolean).map((line) => {
-    const [rawId, ...rest] = line.split('\t');
-    return { id: (rawId ?? '').replace(/^\$/, ''), name: rest.join('\t') };
+    const parts = line.split('\t');
+    const rawId = parts[0] ?? '';
+    /* `#{session_windows}` is the trailing tab-separated field. The
+     *  middle field is `#{session_name}`, which may itself contain tabs
+     *  if a user renames a session to one — so we pop the trailing
+     *  count off and re-join the rest as the name (matches the prior
+     *  `rest.join('\t')` behaviour for backward-compatible names). */
+    const winsRaw = parts.length >= 3 ? parts[parts.length - 1] : '';
+    const middle = parts.length >= 3 ? parts.slice(1, -1) : parts.slice(1);
+    const windows = /^\d+$/.test(winsRaw) ? Number(winsRaw) : undefined;
+    const info: SessionInfo = {
+      id: rawId.replace(/^\$/, ''),
+      name: middle.join('\t'),
+    };
+    if (windows !== undefined) info.windows = windows;
+    return info;
   });
 }
 

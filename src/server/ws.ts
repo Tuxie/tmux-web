@@ -17,6 +17,10 @@ import {
   listWindowsViaTmux,
   getPaneTitleViaTmux,
   type TmuxListingsDeps,
+  buildTitlesSubscriptionArgs,
+  buildTitlesUnsubscribeArgs,
+  buildTitlesFetchArgs,
+  parseTitlesValue,
 } from './tmux-listings.js';
 import {
   SCROLLBAR_FORMAT,
@@ -70,6 +74,14 @@ interface WsConnState {
   scrollbarDragRunning: boolean;
   scrollbarPendingDragQueued: boolean;
   scrollbarPendingDragPosition?: number;
+  /** Push-based per-window pane titles, keyed by tmux window index.
+   *  Maintained by a `refresh-client -B` subscription on the per-session
+   *  control client; updated whenever any window's active-pane title
+   *  changes. The client uses these as tooltips on the win-tab buttons
+   *  and the windows-menu entries. */
+  titles: Record<string, string>;
+  titlesSubscriptionName: string;
+  titlesSubscriptionSession: string | null;
   /** Monotonically-increasing counter. Each new switchSession call bumps
    *  this so prior in-flight switches detect they've been superseded. */
   switchSerial: number;
@@ -88,6 +100,7 @@ type PtyOutputWaiter = WsConnState['ptyOutputWaiters'][number];
 
 const WS_OPEN = 1;
 let nextScrollbarSubscriptionId = 0;
+let nextTitlesSubscriptionId = 0;
 const SCROLLBAR_PTY_REFRESH_DELAY_MS = 50;
 
 /** Per-`createWsHandlers` instance state. Two test runs that bring up
@@ -146,6 +159,7 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
   }));
   unsubscribers.push(opts.tmuxControl.on('subscriptionChanged', (n) => {
     handleScrollbarSubscriptionChanged(n.name, n.value, n.session, reg);
+    handleTitlesSubscriptionChanged(n.name, n.value, n.session, reg);
   }));
 
   const upgrade = (req: Request, server: BunServer<WsData>): Response | undefined => {
@@ -222,6 +236,9 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
         scrollbarDragRunning: false,
         scrollbarPendingDragQueued: false,
         scrollbarPendingDragPosition: undefined,
+        titles: {},
+        titlesSubscriptionName: nextTitlesSubscriptionName(),
+        titlesSubscriptionSession: null,
         switchSerial: 0,
         ptyOutputSerial: 0,
         ptyOutputWaiters: [],
@@ -342,6 +359,7 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
       .then(async () => {
         await sendWindowState(ws, session, opts);
         await setupScrollbarState(ws, session, opts);
+        await setupTitlesState(ws, session, opts);
       })
       .catch((err) => {
         debug(config, `attachSession(${session}) failed: ${(err as Error).message}`);
@@ -436,10 +454,12 @@ async function handleTitleChange(
   }
 
   await teardownScrollbarState(ws, oldSession, opts);
+  await teardownTitlesState(ws, oldSession, opts);
   moveWsToSession(ws, oldSession, detectedSession, opts, reg);
   attached = false;
   await sendWindowState(ws, detectedSession, opts);
   await setupScrollbarState(ws, detectedSession, opts);
+  await setupTitlesState(ws, detectedSession, opts);
 }
 
 function handleMessage(ws: ServerWebSocket<WsData>, msg: string | Buffer, opts: WsServerOptions, reg: WsRegistry): void {
@@ -471,18 +491,27 @@ function handleClose(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: Ws
   if (next <= 0) {
     reg.sessionRefs.delete(session);
     if (!config.testMode) {
-      void teardownScrollbarState(ws, session, opts)
-        .finally(() => opts.tmuxControl.detachSession(session));
+      void Promise.all([
+        teardownScrollbarState(ws, session, opts),
+        teardownTitlesState(ws, session, opts),
+      ]).finally(() => opts.tmuxControl.detachSession(session));
     }
   } else {
     reg.sessionRefs.set(session, next);
-    if (!config.testMode) void teardownScrollbarState(ws, session, opts);
+    if (!config.testMode) {
+      void teardownScrollbarState(ws, session, opts);
+      void teardownTitlesState(ws, session, opts);
+    }
   }
   state.pty?.kill();
 }
 
 function nextScrollbarSubscriptionName(): string {
   return `tw-scroll-${Date.now().toString(36)}-${(nextScrollbarSubscriptionId++).toString(36)}`;
+}
+
+function nextTitlesSubscriptionName(): string {
+  return `tw-titles-${Date.now().toString(36)}-${(nextTitlesSubscriptionId++).toString(36)}`;
 }
 
 function handleScrollbarSubscriptionChanged(name: string, value: string, session: string | undefined, reg: WsRegistry): void {
@@ -496,6 +525,21 @@ function handleScrollbarSubscriptionChanged(name: string, value: string, session
       const next = parseScrollbarState(value);
       state.scrollbarState = next;
       ws.send(frameTTMessage({ scrollbar: next }));
+    }
+  }
+}
+
+function handleTitlesSubscriptionChanged(name: string, value: string, session: string | undefined, reg: WsRegistry): void {
+  const clientSets = session ? [reg.wsClientsBySession.get(session)] : Array.from(reg.wsClientsBySession.values());
+  for (const clients of clientSets) {
+    if (!clients) continue;
+    for (const ws of clients) {
+      if (ws.readyState !== WS_OPEN) continue;
+      const { state } = ws.data;
+      if (state.titlesSubscriptionName !== name) continue;
+      const titles = parseTitlesValue(value);
+      state.titles = titles;
+      ws.send(frameTTMessage({ titles }));
     }
   }
 }
@@ -556,6 +600,59 @@ async function setupScrollbarState(
     const next = unavailableScrollbarState();
     ws.data.state.scrollbarState = next;
     ws.send(frameTTMessage({ scrollbar: next }));
+  }
+}
+
+async function teardownTitlesState(
+  ws: ServerWebSocket<WsData>,
+  sessionName: string,
+  opts: WsServerOptions,
+): Promise<void> {
+  const { state } = ws.data;
+  if (state.titlesSubscriptionSession !== sessionName) return;
+  state.titlesSubscriptionSession = null;
+  state.titles = {};
+  try {
+    await runTmuxForSession(opts, sessionName, buildTitlesUnsubscribeArgs(state.titlesSubscriptionName));
+  } catch (err) {
+    debug(opts.config, `titles unsubscribe failed for ${sessionName}: ${(err as Error).message}`);
+  }
+}
+
+async function setupTitlesState(
+  ws: ServerWebSocket<WsData>,
+  sessionName: string,
+  opts: WsServerOptions,
+): Promise<void> {
+  const { state } = ws.data;
+  if (state.titlesSubscriptionSession && state.titlesSubscriptionSession !== sessionName) {
+    await teardownTitlesState(ws, state.titlesSubscriptionSession, opts);
+  } else if (state.titlesSubscriptionSession === sessionName) {
+    await teardownTitlesState(ws, sessionName, opts);
+  }
+
+  try {
+    await runTmuxForSession(opts, sessionName, buildTitlesSubscriptionArgs(state.titlesSubscriptionName));
+    if (ws.readyState === WS_OPEN && state.registeredSession === sessionName) {
+      state.titlesSubscriptionSession = sessionName;
+    }
+  } catch (err) {
+    debug(opts.config, `titles subscription failed for ${sessionName}: ${(err as Error).message}`);
+  }
+
+  /* Initial fetch — same belt-and-braces pattern the scrollbar uses.
+   * Tmux fires `%subscription-changed` on subscription creation too, so
+   * the explicit display-message is mostly redundant; keeping it means
+   * we still push a value even if the very first notification is lost
+   * to a startup race. */
+  try {
+    const raw = await runTmuxForSession(opts, sessionName, buildTitlesFetchArgs(sessionName));
+    if (ws.readyState !== WS_OPEN || state.registeredSession !== sessionName) return;
+    const titles = parseTitlesValue(raw);
+    state.titles = titles;
+    ws.send(frameTTMessage({ titles }));
+  } catch (err) {
+    debug(opts.config, `titles initial fetch failed for ${sessionName}: ${(err as Error).message}`);
   }
 }
 
@@ -999,6 +1096,7 @@ async function switchSession(
     }
 
     await teardownScrollbarState(ws, oldSession, opts);
+    await teardownTitlesState(ws, oldSession, opts);
     if (isCancelled()) return;
 
     moveWsToSession(ws, oldSession, newSession, opts, reg);
@@ -1016,6 +1114,8 @@ async function switchSession(
     await sendWindowState(ws, newSession, opts);
     if (isCancelled()) return;
     await setupScrollbarState(ws, newSession, opts);
+    if (isCancelled()) return;
+    await setupTitlesState(ws, newSession, opts);
   } catch (err) {
     const detail = err instanceof TmuxCommandError
       ? `${err.message} running ${err.args.join(' ')}`

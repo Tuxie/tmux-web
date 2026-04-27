@@ -8,6 +8,7 @@ export interface HandleServerDataOptions {
     updateSessions?(sessions: SessionInfo[]): void;
     updateWindows?(windows: WindowInfo[]): void;
     updateTitle?(title: string): void;
+    updateTitles?(titles: Record<string, string>): void;
   };
   onClipboard?(base64: string): void;
   onClipboardReadRequest?(req: { reqId: string }): void;
@@ -27,6 +28,7 @@ export function handleServerData(data: string, opts: HandleServerDataOptions): v
     if (msg.sessions) opts.topbar.updateSessions?.(msg.sessions);
     if (msg.windows) opts.topbar.updateWindows?.(msg.windows);
     if (msg.title !== undefined) opts.topbar.updateTitle?.(String(msg.title ?? ''));
+    if (msg.titles) opts.topbar.updateTitles?.(msg.titles);
     if (msg.clipboardReadRequest) opts.onClipboardReadRequest?.(msg.clipboardReadRequest);
     if (msg.clipboardPrompt) opts.onClipboardPrompt?.(msg.clipboardPrompt);
     if (msg.dropsChanged) opts.onDropsChanged?.();

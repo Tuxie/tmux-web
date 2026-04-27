@@ -619,7 +619,22 @@ body {
 #topbar.hidden > * { pointer-events: none; }
 
 #tb-session, #tb-windows, #tb-right { display: flex; align-items: stretch; gap: 4px; position: relative; }
-#tb-title { flex: 1; text-align: center; display: flex; align-items: center; justify-content: center; line-height: var(--tw-ui-line-height); }
+#tb-title {
+  flex: 1;
+  min-width: 0;             /* allow the flex item to shrink past its
+                               natural content width — without this,
+                               the title pushes adjacent sections out
+                               and overflows the topbar instead of
+                               getting clipped. */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: var(--tw-ui-line-height);
+}
 #tb-windows #win-tabs { display: flex; gap: 2px; }
 
 /* --- Custom dropdown (themable, replaces native <select>) --- */
@@ -680,6 +695,14 @@ body {
   width: 12px;
 }
 .tw-dd-session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Window count badge sitting between the name and the running/stopped
+ * dot. Muted, tabular-numbered so multi-digit counts line up visually. */
+.tw-dd-session-windows {
+  color: var(--tw-text-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85em;
+  padding-right: 4px;
+}
 .tw-dd-session-status {
   position: absolute;
   right: 8px;
