@@ -77,24 +77,35 @@ body {
 #topbar .tw-win-tab:hover { background: rgba(255, 255, 255, 0.1); }
 #topbar .tw-win-tab:not(.active):hover { color: color-mix(in srgb, var(--tw-muted), white 10%); }
 
-/* Pressed / open / active-tab share one reversed-gradient look. */
+/* Pressed / open share one reversed-gradient look. The active win-tab
+ * is intentionally excluded — Scene 2000 paints it identically to its
+ * inactive neighbours (see the override below). */
 #topbar .tb-btn:active,
 #topbar .tb-btn-session.open,
 #topbar .tb-btn-session-plus.open,
 #topbar .tb-btn-window-compact.open,
 #topbar .tw-win-tab.open,
-#topbar .tw-win-tab.active,
 #topbar #btn-menu.open {
   background: linear-gradient(to bottom,
     color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))),
     color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))));
 }
-/* Active win tab also flips to the all-black bevel — it picks up the
- * same border-color as the .open buttons (already handled in
- * amiga-common's grouped rule). The :active-only border-color override
- * keeps Scene's TL-only highlight on press. */
+/* Pressed-only border-color flip retained from before. */
 #topbar .tb-btn:active {
   border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo);
+}
+/* Active win-tab keeps the inactive raised bevel + non-muted text and
+ * paints an inverted gradient (dark at the top, light at the bottom)
+ * — opposite of Scene's topbar gradient — to mark the selected
+ * window. amiga-common's `.active` rule sets a chrome bg + bevel-hi
+ * text and base.css's sets a chrome-tinted border-color; both have to
+ * be reset here, otherwise they leak through. */
+#topbar .tw-win-tab.active {
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))));
+  color: var(--tw-text);
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
 }
 
 /* The close-gadget glyph reads better 1px below the optical centreline. */
@@ -142,3 +153,90 @@ body {
  * opaque inset stroke around the status dot. */
 .tw-dd-session-item.current::before { content: '\221A'; }
 .tw-dd-session-status { box-shadow: 0 0 0 1px #000 inset; }
+
+/* Scene 2000 swaps a few accent glyphs from black (workbench bevel-lo)
+ * so they read against the darker glassy chrome:
+ *   - Up / down arrowheads in the scrollbar buttons take the muted
+ *     foreground tone so they don't shout against the bar gradient.
+ *   - The √ check mark inside ticked checkboxes is kept pure white
+ *     for legibility. */
+.tw-scrollbar-up::before,
+.tw-scrollbar-down::before { background: var(--tw-muted); }
+.tw-dropdown-menu input[type="checkbox"]:checked::after { color: #fff; }
+
+/* Scrollbar gradients — replace amiga-common's flat chrome.
+ *
+ * The whole bar shares one top-down gradient (light at top, darker at
+ * the bottom) — same direction as the topbar's left-to-right gradient,
+ * just rotated 90° to follow the scrollbar's long axis. The arrow
+ * buttons + resize gadget keep `background: transparent` so the bar's
+ * gradient flows through unchanged, just like the topbar gadgets sit
+ * over the topbar's gradient.
+ *
+ * The thumb gets its own (also vertical) three-stop gradient that
+ * peaks light in the middle, giving the glassy cylinder highlight that
+ * distinguishes Scene from the flat AmigaOS 3.1 thumb. */
+.tw-scrollbar {
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))));
+}
+/* Scene's scrollbar is 2 px narrower than the AmigaOS 3.1 baseline,
+ * with 1 px less breathing room on each side of the thumb (and the
+ * thumb's chess strip behind it follows). */
+:root {
+  --tw-scrollbar-width: 21px;
+}
+.tw-scrollbar-thumb { left: 3px; right: 2px; }
+.tw-scrollbar-track::before { left: 3px; right: 2px; }
+/* The resize gadget's right-angle triangle nudges 1 px to the right
+ * so it visually centres in Scene's narrower bar (vs amiga-common's
+ * `right: 3px` which is tuned for the wider AmigaOS 3.1 bar). */
+.tw-scrollbar-resize::before,
+.tw-scrollbar-resize::after { right: 1px; }
+
+/* Buttons sit transparent over the bar's gradient and shed their own
+ * left/right bevels so the .tw-scrollbar's outer bevel + gradient
+ * bleed through unbroken from top to bottom of the bar. Top + bottom
+ * borders stay as raised-bevel separators between buttons. Buttons
+ * are pulled inside the bar's left/right bevels (`left: 0; right: 0`,
+ * not amiga-common's `-2px / -2px`) so their full-width top + bottom
+ * borders don't bleed past the bar's vertical bevel. */
+.tw-scrollbar-up,
+.tw-scrollbar-down,
+.tw-scrollbar-resize {
+  background: transparent;
+  border-left: none;
+  border-right: none;
+  left: 0;
+  right: 0;
+}
+/* On press the left + right borders pop back as solid dark, completing
+ * the all-four-edges dark frame that amiga-common already paints on
+ * top + bottom for the press state. */
+.tw-scrollbar-up.pressed,
+.tw-scrollbar-down.pressed,
+.tw-scrollbar-up:active,
+.tw-scrollbar-down:active {
+  border-left: 2px solid var(--tw-bevel-lo);
+  border-right: 2px solid var(--tw-bevel-lo);
+}
+.tw-scrollbar-thumb {
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--tw-chrome), white calc(8% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), black calc(8% * var(--tw-theme-contrast))));
+}
+/* Hover: a slightly brighter top stop, same gradient direction. */
+.tw-scrollbar-thumb:hover {
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--tw-chrome), white calc(14% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), black calc( 4% * var(--tw-theme-contrast))));
+}
+/* Dragging: gradient flips top↔bottom and the bevel inverts (light
+ * sides go dark and vice-versa) for a fully pressed / sunken look. */
+.tw-scrollbar.dragging .tw-scrollbar-thumb {
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--tw-chrome), black calc(8% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), white calc(8% * var(--tw-theme-contrast))));
+  border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-hi) var(--tw-bevel-lo);
+}

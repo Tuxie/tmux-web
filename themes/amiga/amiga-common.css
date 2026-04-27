@@ -106,6 +106,15 @@ body {
   padding: 0;
   gap: 0;
   border: none;
+  /* Raised 2px bevel painted on top + bottom only. Sits behind the
+   * sections and buttons (no z-index change — children paint over it),
+   * so the 2px section gaps and any sub-pixel slivers between adjacent
+   * gadgets see the topbar's own bevel-hi / bevel-lo bands instead of
+   * the flat chrome bg. The buttons' own raised bevels then read as
+   * one continuous Workbench-style top/bottom edge across the bar. */
+  box-shadow:
+    inset 0  2px 0 var(--tw-bevel-hi),
+    inset 0 -2px 0 var(--tw-bevel-lo);
   transition: transform 0.3s ease;
   pointer-events: none;
 }
@@ -409,7 +418,7 @@ body {
 #menu-dropdown {
   /* right: 0 so the overflow scrollbar stays inside the viewport. */
   right: 0; left: auto;
-  min-width: 270px;
+  min-width: 500px;
   padding: 4px 0;
   /* Filled half of each slider uses the chrome colour directly — the
    * default theme brightens it for contrast against its dark gadget-bg,
@@ -417,6 +426,9 @@ body {
    * presence against the lighter menu surface. */
   --tw-slider-fill: var(--tw-chrome);
 }
+/* Bump the slider / select label column 20px wider (base default is
+ * 100px) so the long Workbench-font labels don't get crowded. */
+#menu-dropdown .tw-menu-label { min-width: 120px; }
 .tw-menu-row { display: flex; align-items: center; gap: 3px; padding: 2px 12px;
             cursor: pointer; white-space: nowrap; }
 .tw-menu-row:hover { background: var(--tw-chrome); color: var(--tw-bevel-hi); }
@@ -544,3 +556,214 @@ input { accent-color: var(--tw-chrome); }
   top: 9px; left: 9px; right: var(--tw-terminal-right); bottom: 9px;
 }
 body.topbar-pinned #terminal { top: 29px; }
+
+/* ---------------------------------------------------------------------
+ * Workbench-style tmux scrollbar — laid out like the original AmigaOS
+ * 3.1 vertical bar:
+ *
+ *   ┌──────────────┐
+ *   │ outer chrome │  .tw-scrollbar     — raised 2px bevel, chrome bg
+ *   │ ┌──────────┐ │  .tw-scrollbar-track — sunken 1px bevel + 2px
+ *   │ │  ▒▒▒▒▒▒  │ │                       dark bottom edge, plain
+ *   │ │  ┌────┐  │ │                       chrome bg with a chess
+ *   │ │  │####│  │ │                       strip behind the thumb
+ *   │ │  └────┘  │ │  .tw-scrollbar-thumb — raised 2px bevel, chrome bg
+ *   │ │  ▒▒▒▒▒▒  │ │
+ *   │ └──────────┘ │
+ *   │ ┌──────────┐ │  .tw-scrollbar-up    — chevron, mask-image SVG
+ *   │ │     ▲    │ │
+ *   │ ├──────────┤ │
+ *   │ │     ▼    │ │  .tw-scrollbar-down
+ *   │ ├──────────┤ │
+ *   │ │       ◢  │ │  .tw-scrollbar-resize  (no-op on web)
+ *   │ └──────────┘ │
+ *   └──────────────┘
+ * ------------------------------------------------------------------- */
+:root {
+  --tw-scrollbar-width: 23px;
+  /* Base unit for the bottom button cluster. Resize is 22×(arrow-h+2)
+   * so it can overshoot the bar's bottom border. Up and down get a
+   * matching +2 px override below — they read better slightly taller
+   * than wide, like the original Workbench arrow gadgets. */
+  --tw-scrollbar-arrow-h: 22px;
+  --tw-scrollbar-thumb-margin: 2px;
+  /* Default theme insets the bar 3px from top/bottom to expose its
+   * gradient frame; AmigaOS doesn't have one (the frame-bottom strip
+   * sits behind the bar), so the scrollbar reaches the viewport edges
+   * and the resize gadget anchors flush with the page bottom. */
+  --tw-scrollbar-inset-top: 0px;
+  --tw-scrollbar-inset-bottom: 0px;
+  /* Track itself is plain chrome; the 2 × 2 px chess pattern is
+   * painted by `.tw-scrollbar-track::before` below, sized + positioned
+   * to exactly match the thumb's left/right offsets so the chess strip
+   * is the same width as the thumb (the original Workbench scrollbar
+   * paints the fill pattern only behind the gadget's travel range). */
+  --tw-scrollbar-track-bg: var(--tw-chrome);
+  --tw-scrollbar-thumb-bg: var(--tw-chrome);
+  --tw-scrollbar-thumb-hover: color-mix(in srgb, var(--tw-chrome), white 8%);
+  --tw-scrollbar-thumb-active: color-mix(in srgb, var(--tw-chrome), white 14%);
+}
+
+/* Outer gutter — gives the track + cluster a workbench-grey backdrop
+ * with a raised bevel on the left, right, and bottom. The top edge is
+ * borderless so the bar butts cleanly under the topbar's frame. */
+.tw-scrollbar {
+  background: var(--tw-chrome);
+  border: 2px solid;
+  border-top: none;
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
+  box-sizing: border-box;
+}
+
+/* Track sits flush against the outer bevel and stops above the
+ * three-button cluster. Cluster height = 3 * arrow-h + 4 px
+ * (up/down +2 each — see the override below). The bottom edge
+ * thickens to a 2 px dark line that sits directly on top of the
+ * scroll-up button, separating the track region from the cluster. */
+.tw-scrollbar-track {
+  inset: 0;
+  bottom: calc(var(--tw-scrollbar-arrow-h) * 3 + 4px);
+  border-bottom: 2px solid var(--tw-bevel-lo);
+}
+
+/* Chess strip — a 2 × 2 px alternating-square pattern painted only
+ * across the thumb's travel range (left/right match the thumb's own
+ * offsets exactly). Sits below the thumb in z-order because pseudo-
+ * elements paint before regular DOM children. */
+.tw-scrollbar-track::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 4px;
+  right: 3px;
+  background: conic-gradient(
+    transparent 0 25%,
+    #000        0 50%,
+    transparent 0 75%,
+    #000        0
+  ) 0 0 / 2px 2px;
+  pointer-events: none;
+}
+
+/* Workbench-thick raised bevel on the thumb, set 4px in from the left
+ * and 3px from the right so the chess strip shows along the edges
+ * (asymmetric to compensate for the right-side bevel reading slightly
+ * darker than the left against the workbench-blue chrome). */
+.tw-scrollbar-thumb {
+  left: 4px;
+  right: 3px;
+  border-width: 2px;
+}
+
+/* Up / down arrow buttons + no-op resize gadget. They stack from the
+ * bottom of the bar; each is the full inner width and `arrow-h` tall. */
+.tw-scrollbar-up,
+.tw-scrollbar-down,
+.tw-scrollbar-resize {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  /* Negative left/right pulls each button 2px past the .tw-scrollbar's
+   * padding-box edge so it reaches the outer edge of the bar — the
+   * button's own raised bevel then provides the left/right outer
+   * silhouette where the .tw-scrollbar border used to. */
+  left: -2px;
+  right: -2px;
+  height: var(--tw-scrollbar-arrow-h);
+  background: var(--tw-chrome);
+  border: 2px solid;
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
+  box-sizing: border-box;
+  color: var(--tw-bevel-lo);
+  font-size: 10px;
+  line-height: 1;
+  user-select: none;
+}
+.tw-scrollbar-up,
+.tw-scrollbar-down {
+  cursor: pointer;
+  /* Up + down read as workbench-style arrow gadgets, slightly taller
+   * than wide. Resize keeps the same total height via its own +2 px
+   * override (which doubles as the page-bottom anchor offset). */
+  height: calc(var(--tw-scrollbar-arrow-h) + 2px);
+}
+.tw-scrollbar-up    { bottom: calc(var(--tw-scrollbar-arrow-h) * 2 + 2px); }
+.tw-scrollbar-down  { bottom: var(--tw-scrollbar-arrow-h); }
+/* Resize gadget is anchored at the very bottom of the page — its
+ * bottom edge is pulled 2px past the .tw-scrollbar padding-box (over
+ * the bottom border) and it grows 2px taller so the up/down cluster
+ * still meets it flush. */
+.tw-scrollbar-resize {
+  bottom: -2px;
+  height: calc(var(--tw-scrollbar-arrow-h) + 2px);
+}
+
+/* Pressed look for the arrow buttons — solid dark border on all four
+ * sides while the user holds the mouse down. The `.pressed` class is
+ * added by the scrollbar controller (mousedown → mouseup); we
+ * double-bind to `:active` so the look still appears in static / no-JS
+ * previews. */
+.tw-scrollbar-up.pressed,
+.tw-scrollbar-down.pressed,
+.tw-scrollbar-up:active,
+.tw-scrollbar-down:active {
+  border-color: var(--tw-bevel-lo);
+}
+
+/* Up / down arrowheads are drawn as inline SVG via `mask-image` — the
+ * mask defines the shape, the element's `background` supplies the
+ * colour (so `--tw-bevel-lo` flows through and stays themable). SVG
+ * is pixel-precise: no font baseline / sidebearing surprises, no
+ * rotation-centre fudges. */
+.tw-scrollbar-up::before,
+.tw-scrollbar-down::before {
+  content: '';
+  display: block;
+  width: 14px;
+  height: 14px;
+  background: var(--tw-bevel-lo);
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+}
+/* Arrowhead (chevron) instead of plain triangle: the back edge of each
+ * triangle has a V-notch pulled toward the tip, giving the classic
+ * pointed-arrow silhouette. Up: tip at top, notch in the bottom edge.
+ * Down: tip at bottom, notch in the top edge. */
+.tw-scrollbar-up::before {
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'><path d='M7 2 L13 12 L7 7 L1 12 Z' fill='black'/></svg>");
+}
+.tw-scrollbar-down::before {
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'><path d='M7 12 L1 2 L7 7 L13 2 Z' fill='black'/></svg>");
+}
+
+/* Resize gadget: a white right-angle triangle in the bottom-right
+ * corner, ringed by a 2 px black border. Both halves are anchored to
+ * a fixed 16×16 box at right:3 bottom:3 so the inner triangle can
+ * inset its hypotenuse vertices independently — a uniform `inset: 5px`
+ * leaves the inner hypotenuse on the *same* x+y=const line as the
+ * outer's, which is why the diagonal needs explicit clip-path
+ * coordinates rather than just a smaller box. */
+.tw-scrollbar-resize::before,
+.tw-scrollbar-resize::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 16px;
+  height: 16px;
+}
+.tw-scrollbar-resize::before {
+  background: #000;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+/* Inner white triangle. BR is pulled in (2, 2). The TR and BL
+ * vertices sit at 4 / 14 — pushing the inner hypotenuse outward by
+ * 1 px on each axis, which trims ~1 px of perpendicular thickness off
+ * the diagonal black band relative to the right + bottom strips. */
+.tw-scrollbar-resize::after {
+  background: #fff;
+  clip-path: polygon(14px 4px, 14px 14px, 4px 14px);
+}

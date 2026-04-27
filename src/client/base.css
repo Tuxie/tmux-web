@@ -143,6 +143,11 @@ body.topbar-pinned .tw-scrollbar { top: var(--tw-scrollbar-topbar-offset); }
 .tw-scrollbar-thumb:hover { background: var(--tw-scrollbar-thumb-hover); }
 .tw-scrollbar.dragging .tw-scrollbar-thumb { background: var(--tw-scrollbar-thumb-active); }
 .tw-scrollbar.unavailable { opacity: 0.4; }
+/* The arrow / resize cluster only appears in themes that opt in
+ * (e.g. AmigaOS 3.1). Default theme leaves the bar as a flat track. */
+.tw-scrollbar-up,
+.tw-scrollbar-down,
+.tw-scrollbar-resize { display: none; }
 .tw-scrollbar-autohide {
   opacity: 0;
   transition: opacity 120ms ease;
@@ -285,6 +290,16 @@ input[type="range"]::-moz-range-thumb {
 .tw-menu-row-static { cursor: default; gap: 4px; }
 .tw-menu-row-inline { gap: 12px; }
 .tw-menu-row-inline label { display: inline-flex; align-items: center; gap: 4px; }
+/* The last label in an inline row is pushed to the right edge — used
+ * by the Autohide toolbar / Autohide scrollbar pair so the two
+ * checkboxes flank the row instead of huddling on the left. */
+.tw-menu-row-inline label:last-child { margin-left: auto; }
+/* Checkbox-row labels (both the inline pair and the single-line
+ * `<label class="tw-menu-row">` rows like Fullscreen / Subpixel AA)
+ * read in the same muted tone as the other row labels (.tw-menu-label
+ * below) so the menu's left column is visually consistent. */
+.tw-menu-row-inline label,
+label.tw-menu-row { color: var(--tw-text-muted); }
 .tw-menu-label { color: var(--tw-text-muted); min-width: 100px; }
 .tw-menu-label-clickable { cursor: pointer; }
 .tw-menu-input-select, .tw-menu-input-number {
@@ -819,7 +834,13 @@ body {
 
 #topbar #btn-menu {
   width: 28px; height: 28px;
-  padding: 0;
+  /* The ☰ (U+2630) glyph in IosevkaTerm Compact sits about 2 px above
+   * the line-box centre, so a flex `align-items: center` (which centres
+   * the line-box, not the glyph within it) leaves the icon visibly
+   * high. Pad the top + use `box-sizing: border-box` so the outer
+   * dimensions stay 28 × 28 and the glyph drops to the optical centre. */
+  padding: 2px 0 0;
+  box-sizing: border-box;
   font-size: 22px;
   line-height: 1;
   display: inline-flex;
@@ -850,7 +871,7 @@ body {
   justify-content: space-between;
   gap: 12px;
   padding: 5px 12px;
-  font-size: var(--tw-ui-font-size);
+  font-size: calc(var(--tw-ui-font-size) * 0.8);
   white-space: nowrap;
 }
 

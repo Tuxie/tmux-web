@@ -23,6 +23,10 @@ const WHEEL_PIXELS_PER_LINE = 33;
 const MAX_WHEEL_LINES = 5;
 const AUTOHIDE_REVEAL_PX = 48;
 const AUTOHIDE_HIDE_MS = 900;
+/* Workbench-style arrow buttons: fire once on press, then a brief
+ * hold-down delay before auto-repeat kicks in at a steady cadence. */
+const ARROW_REPEAT_DELAY_MS = 320;
+const ARROW_REPEAT_INTERVAL_MS = 60;
 
 export function computeScrollbarThumb(input: ThumbInput, trackHeightPx: number): ThumbGeometry {
   const track = Math.max(0, Math.round(trackHeightPx));
@@ -51,6 +55,17 @@ export function createScrollbarController(opts: {
   opts.root.classList.add('tw-scrollbar');
   const track = ensureChild(opts.root, '.tw-scrollbar-track', 'tw-scrollbar-track');
   const thumb = ensureChild(track, '.tw-scrollbar-thumb', 'tw-scrollbar-thumb');
+  /* Workbench-style cluster at the bottom of the bar: ↑ button, ↓ button,
+   * and a no-op window-resize handle. Themes that don't want the cluster
+   * (default theme) hide them via `display: none` in CSS. */
+  const upButton = ensureChild(opts.root, '.tw-scrollbar-up', 'tw-scrollbar-up');
+  const downButton = ensureChild(opts.root, '.tw-scrollbar-down', 'tw-scrollbar-down');
+  const resizeHandle = ensureChild(opts.root, '.tw-scrollbar-resize', 'tw-scrollbar-resize');
+  upButton.setAttribute('role', 'button');
+  upButton.setAttribute('aria-label', 'Scroll up');
+  downButton.setAttribute('role', 'button');
+  downButton.setAttribute('aria-label', 'Scroll down');
+  resizeHandle.setAttribute('aria-hidden', 'true');
 
   let state: ScrollbarState = {
     paneId: null,
@@ -66,6 +81,8 @@ export function createScrollbarController(opts: {
   let dragging = false;
   let dragGrabOffsetPx = 0;
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
+  let arrowDelayTimer: ReturnType<typeof setTimeout> | null = null;
+  let arrowRepeatTimer: ReturnType<typeof setInterval> | null = null;
 
   function render(): void {
     const unavailable = !!state.unavailable || state.alternateOn;
@@ -73,9 +90,11 @@ export function createScrollbarController(opts: {
     opts.root.classList.toggle('tw-scrollbar-autohide', autohide);
     opts.root.classList.toggle('tw-scrollbar-pinned', !autohide);
 
+    const { top: marginTop, bottom: marginBottom } = readThumbMargin(opts.root);
     const trackHeight = readTrackHeight(track);
-    const thumbGeometry = computeScrollbarThumb(state, trackHeight);
-    setStyleProperty(thumb, '--tw-scrollbar-thumb-top', `${thumbGeometry.topPx}px`);
+    const usable = Math.max(0, trackHeight - marginTop - marginBottom);
+    const thumbGeometry = computeScrollbarThumb(state, usable);
+    setStyleProperty(thumb, '--tw-scrollbar-thumb-top', `${thumbGeometry.topPx + marginTop}px`);
     setStyleProperty(thumb, '--tw-scrollbar-thumb-height', `${thumbGeometry.heightPx}px`);
   }
 
@@ -141,10 +160,12 @@ export function createScrollbarController(opts: {
 
   function scrollPositionForClientY(clientY: number, grabOffsetPx: number): number {
     const rect = track.getBoundingClientRect();
-    const trackHeight = rect.height || track.offsetHeight || 0;
-    const thumbGeometry = computeScrollbarThumb(state, trackHeight);
-    const maxTop = Math.max(1, trackHeight - thumbGeometry.heightPx);
-    const rawTop = clientY - rect.top - grabOffsetPx;
+    const { top: marginTop, bottom: marginBottom } = readThumbMargin(opts.root);
+    const trackHeight = (rect.height || track.offsetHeight || 0);
+    const usable = Math.max(0, trackHeight - marginTop - marginBottom);
+    const thumbGeometry = computeScrollbarThumb(state, usable);
+    const maxTop = Math.max(1, usable - thumbGeometry.heightPx);
+    const rawTop = clientY - rect.top - grabOffsetPx - marginTop;
     const top = Math.max(0, Math.min(rawTop, maxTop));
     const ratioFromTop = top / maxTop;
     return Math.round((1 - ratioFromTop) * state.historySize);
@@ -206,6 +227,7 @@ export function createScrollbarController(opts: {
   }
 
   function onDocumentMouseUp(): void {
+    stopArrowRepeat();
     if (!dragging) return;
     dragging = false;
     dragGrabOffsetPx = 0;
@@ -213,9 +235,57 @@ export function createScrollbarController(opts: {
     if (autohide) scheduleHide();
   }
 
+  function stopArrowRepeat(): void {
+    if (arrowDelayTimer) {
+      clearTimeout(arrowDelayTimer);
+      arrowDelayTimer = null;
+    }
+    if (arrowRepeatTimer) {
+      clearInterval(arrowRepeatTimer);
+      arrowRepeatTimer = null;
+    }
+    upButton.classList.remove('pressed');
+    downButton.classList.remove('pressed');
+  }
+
+  function startArrowRepeat(direction: 'line-up' | 'line-down'): void {
+    if (!canUsePointerScrollbar()) return;
+    stopArrowRepeat();
+    (direction === 'line-up' ? upButton : downButton).classList.add('pressed');
+    sendLine(direction, 1);
+    arrowDelayTimer = setTimeout(() => {
+      arrowDelayTimer = null;
+      arrowRepeatTimer = setInterval(() => {
+        if (!canUsePointerScrollbar()) {
+          stopArrowRepeat();
+          return;
+        }
+        sendLine(direction, 1);
+      }, ARROW_REPEAT_INTERVAL_MS);
+    }, ARROW_REPEAT_DELAY_MS);
+  }
+
+  function onUpMouseDown(ev: MouseEvent): void {
+    if (ev.button !== 0) return;
+    reveal();
+    startArrowRepeat('line-up');
+    ev.preventDefault();
+    ev.stopPropagation();
+  }
+
+  function onDownMouseDown(ev: MouseEvent): void {
+    if (ev.button !== 0) return;
+    reveal();
+    startArrowRepeat('line-down');
+    ev.preventDefault();
+    ev.stopPropagation();
+  }
+
   track.addEventListener('wheel', onTrackWheel, { passive: false });
   track.addEventListener('mousedown', onTrackMouseDown);
   thumb.addEventListener('mousedown', onThumbMouseDown);
+  upButton.addEventListener('mousedown', onUpMouseDown);
+  downButton.addEventListener('mousedown', onDownMouseDown);
   document.addEventListener('mousemove', onDocumentMouseMove);
   document.addEventListener('mouseup', onDocumentMouseUp);
   render();
@@ -234,6 +304,7 @@ export function createScrollbarController(opts: {
     handleWheel,
     dispose() {
       if (hideTimer) clearTimeout(hideTimer);
+      stopArrowRepeat();
       dragging = false;
       dragGrabOffsetPx = 0;
       opts.root.classList.remove('dragging');
@@ -241,6 +312,8 @@ export function createScrollbarController(opts: {
       track.removeEventListener('wheel', onTrackWheel);
       track.removeEventListener('mousedown', onTrackMouseDown);
       thumb.removeEventListener('mousedown', onThumbMouseDown);
+      upButton.removeEventListener('mousedown', onUpMouseDown);
+      downButton.removeEventListener('mousedown', onDownMouseDown);
       document.removeEventListener('mousemove', onDocumentMouseMove);
       document.removeEventListener('mouseup', onDocumentMouseUp);
     },
@@ -260,6 +333,32 @@ function ensureChild(parent: HTMLElement, selector: string, className: string): 
 function readTrackHeight(track: HTMLElement): number {
   const rect = track.getBoundingClientRect?.();
   return rect?.height || track.offsetHeight || 0;
+}
+
+/* Pixels of breathing room reserved at the top and bottom of the
+ * track. The thumb is positioned and sized as if the track were
+ * `top + bottom` pixels shorter, so it never sits flush against the
+ * track edges. Set via `--tw-scrollbar-thumb-margin` on the scrollbar
+ * root (symmetric default), with optional `-top` / `-bottom`
+ * overrides for asymmetric layouts (e.g. tracks with a thicker
+ * `border-bottom` that the controller can't see). */
+function readThumbMargin(root: HTMLElement): { top: number; bottom: number } {
+  if (typeof getComputedStyle !== 'function') return { top: 0, bottom: 0 };
+  const style = getComputedStyle(root);
+  const base = parsePxVar(style, '--tw-scrollbar-thumb-margin');
+  const top = parsePxVar(style, '--tw-scrollbar-thumb-margin-top');
+  const bottom = parsePxVar(style, '--tw-scrollbar-thumb-margin-bottom');
+  return {
+    top: top ?? base ?? 0,
+    bottom: bottom ?? base ?? 0,
+  };
+}
+
+function parsePxVar(style: CSSStyleDeclaration, name: string): number | null {
+  const value = style.getPropertyValue(name).trim();
+  if (!value) return null;
+  const match = /^(-?\d+(?:\.\d+)?)/.exec(value);
+  return match ? Math.max(0, Number(match[1])) : null;
 }
 
 function viewportWidth(): number {

@@ -14,3 +14,21 @@
 #topbar .tw-win-tab.active {
   border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
 }
+
+/* AmigaOS 3.1 dropdown menus pop without a drop shadow — the workbench
+ * 3.1 GUI never used soft shadows; menus sit on top of the desktop as
+ * flat-bevelled rectangles. Scene 2000 still inherits the base.css
+ * shadow for its more modern look. */
+.tw-dropdown-menu {
+  box-shadow: none;
+}
+
+/* The track has a 2 px `border-bottom` (the dark separator above the
+ * up button) that the JS controller doesn't see — without an extra
+ * bottom margin the thumb at max scroll would overlap the border's
+ * inner edge. 5 px = the symmetric 2 px gap + 1 px to clear the
+ * border-top / border-bottom asymmetry + 2 px chrome below the thumb
+ * before the dark border line begins. */
+:root {
+  --tw-scrollbar-thumb-margin-bottom: 5px;
+}

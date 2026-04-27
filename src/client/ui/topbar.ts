@@ -1254,7 +1254,7 @@ export class Topbar {
   }
 
   updateTitle(title: string): void {
-    this.tbTitle.textContent = title;
+    this.tbTitle.textContent = stripTitleDecoration(title);
   }
 
   updateSession(session: string): void {
@@ -1282,4 +1282,13 @@ export class Topbar {
       void this.opts.onSettingsChange?.(newSettings);
     }
   }
+}
+
+/** Strip the boilerplate that tmux's `set-titles-string` (or shell
+ *  prompts that mimic it) wraps around the actual pane title:
+ *  `session:idx:winname - "Actual title" #pane,#window` → `Actual title`.
+ *  Falls back to the raw string when the pattern doesn't match. */
+function stripTitleDecoration(raw: string): string {
+  const m = /^[^:]+:[^:]+:[^"]+- "(.+)"(?:\s+#\S+)?\s*$/.exec(raw);
+  return m ? m[1] : raw;
 }
