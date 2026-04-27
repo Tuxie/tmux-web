@@ -265,6 +265,9 @@ body {
   align-items: center;
   justify-content: center;
 }
+#topbar .tw-win-tab:not(.active) {
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
+}
 #topbar .tw-win-tab:hover { background: transparent; }
 #topbar .tw-win-tab.active { background: var(--tw-chrome); color: var(--tw-bevel-hi); }
 #tb-windows .tb-btn {
