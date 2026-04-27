@@ -443,6 +443,7 @@ async function handleTitleChange(
   const oldSession = ws.data.state.registeredSession;
   if (detectedSession === oldSession) {
     ws.send(frameTTMessage({ session: detectedSession, title }));
+    void refreshWindowsAfterSameSessionTitle(ws, detectedSession, opts);
     return;
   }
 
@@ -466,6 +467,22 @@ async function handleTitleChange(
   await sendWindowState(ws, detectedSession, opts);
   await setupScrollbarState(ws, detectedSession, opts);
   await setupTitlesState(ws, detectedSession, opts);
+}
+
+async function refreshWindowsAfterSameSessionTitle(
+  ws: ServerWebSocket<WsData>,
+  sessionName: string,
+  opts: WsServerOptions,
+): Promise<void> {
+  try {
+    const windows = await listWindowState(sessionName, opts);
+    if (ws.readyState !== WS_OPEN || ws.data.state.registeredSession !== sessionName) return;
+    if (!windows || windows.length === 0) return;
+    ws.data.state.windows = windows;
+    ws.send(frameTTMessage({ session: sessionName, windows }));
+  } catch (err) {
+    debug(opts.config, `same-session title windows refresh failed for ${sessionName}: ${(err as Error).message}`);
+  }
 }
 
 function handleMessage(ws: ServerWebSocket<WsData>, msg: string | Buffer, opts: WsServerOptions, reg: WsRegistry): void {

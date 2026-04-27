@@ -416,6 +416,52 @@ describe('ws handleConnection — OSC 52 write + title change from PTY', () => {
     o.ws.close();
   }, 15000);
 
+  test('same-session OSC title refreshes windows immediately for tmux-key window switches', async () => {
+    const { path: tmuxBin, dir } = makeFakeTmux();
+    fs.writeFileSync(dir + '/trigger', '\x1b]0;main:two\x07');
+    let listWindowsCalls = 0;
+    const tmuxControl: TmuxControl = {
+      attachSession: async () => {},
+      detachSession: () => {},
+      run: async (args) => {
+        if (args[0] === 'list-windows') {
+          listWindowsCalls++;
+          return listWindowsCalls <= 1
+            ? '0\tone\t1\n1\ttwo\t0\n'
+            : '0\tone\t0\n1\ttwo\t1\n';
+        }
+        if (args[0] === 'display-message') return 'pane';
+        return '';
+      },
+      on: () => () => {},
+      hasSession: (s) => s === 'main',
+      close: async () => {},
+    };
+    h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
+    const o = openWs(h.wsUrl);
+    await o.opened;
+
+    await waitForMsg(o.messages, m =>
+      m.session === 'main' &&
+      Array.isArray(m.windows) &&
+      m.windows.some((w: any) => w.index === '0' && w.active === true),
+      8000,
+    );
+
+    const got = await waitForMsg(o.messages, m =>
+      m.session === 'main' &&
+      Array.isArray(m.windows) &&
+      m.windows.some((w: any) => w.index === '1' && w.active === true),
+      8000,
+    );
+    expect(got?.windows).toEqual([
+      { index: '0', name: 'one', active: false },
+      { index: '1', name: 'two', active: true },
+    ]);
+
+    o.ws.close();
+  }, 15000);
+
   test('OSC title naming an existing unattached tmux session updates session state', async () => {
     const { path: tmuxBin, dir } = makeFakeTmux();
     fs.writeFileSync(dir + '/trigger', '\x1b]0;dev:1:zsh\x07');
