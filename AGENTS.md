@@ -529,7 +529,11 @@ instead of forcing the custom-property path.
 
 ## Development methodology
 
-TDD: Test verify behavior → verify fail → implement → verify pass.
+TDD applies to code and logic changes only: test/verify behavior → verify
+fail → implement → verify pass. This includes bug fixes and behavior changes.
+
+CSS-only styling changes and documentation-only changes do not require TDD or
+new tests. Verify them with an appropriate lightweight check instead.
 
 ### Bug reporting
 
