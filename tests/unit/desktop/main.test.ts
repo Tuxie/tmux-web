@@ -47,18 +47,19 @@ describe('desktop entrypoint module', () => {
   test('main() wires server, window, and host-message routing', async () => {
     // Throwaway tmux-web stand-in: prints the readiness line so the
     // real startTmuxWebServer's stdout reader resolves, then `exec`s
-    // into `sleep infinity`. The shim MUST NOT exit on its own —
+    // into a long sleep. The shim MUST NOT exit on its own —
     // src/desktop/index.ts wires `proc.exited.then(code => process.exit(...))`,
     // which would silently kill the bun-test runner. The orphaned
     // sleep dies with the test runner's process group when the suite
-    // finishes.
+    // finishes. Use a numeric duration because macOS/BSD sleep rejects
+    // GNU's `sleep infinity` spelling.
     const fakeTmuxWeb = path.join(
       os.tmpdir(),
       `fake-tmux-web-${crypto.randomUUID()}.sh`,
     );
     fs.writeFileSync(
       fakeTmuxWeb,
-      '#!/bin/sh\necho "tmux-web listening on http://127.0.0.1:54321"\nexec sleep infinity\n',
+      '#!/bin/sh\necho "tmux-web listening on http://127.0.0.1:54321"\nexec sleep 2147483647\n',
       { mode: 0o755 },
     );
     tempPaths.push(fakeTmuxWeb);

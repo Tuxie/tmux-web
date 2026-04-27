@@ -16,6 +16,11 @@
   server-side connection test sends a same-session OSC title update
   and asserts that the client receives a fresh windows payload with
   the active tab state updated.
+- **macOS release unit-test harness no longer exits early.** The
+  desktop entrypoint smoke test now uses a portable long-running
+  `sleep` command instead of GNU-only `sleep infinity`, which caused
+  macOS/BSD runners to terminate the fake tmux-web shim and fail the
+  release matrix before packaging.
 
 ### Changed
 
