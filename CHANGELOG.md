@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+## 1.10.2 — 2026-04-27
+
+### Fixed
+
+- **Active window tab refreshes immediately after tmux-key switches.**
+  Same-session tmux-side window switches now use the immediate OSC
+  title redraw signal to refresh the windows list, so the highlighted
+  tab updates without waiting for the slower `refresh-client -B`
+  titles subscription. The subscription path remains as a fallback
+  and as the source for title tooltips.
+- **Regression coverage for same-session OSC title refresh.** A new
+  server-side connection test sends a same-session OSC title update
+  and asserts that the client receives a fresh windows payload with
+  the active tab state updated.
+
+### Changed
+
+- **Amiga Scene 2000 scrollbar thumb gradient is subtler.** The thumb
+  now uses the theme's standard 5% light/dark Scene chrome gradient
+  range for normal, hover, and dragging states instead of brighter
+  custom stops.
+
 ## 1.10.1 — 2026-04-27
 
 ### Fixed
