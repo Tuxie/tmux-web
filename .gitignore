@@ -5,6 +5,7 @@ tmux-web
 index.js.map
 test-results/
 playwright-report/
+.playwright-mcp/
 tmp/
 .worktrees/
 .codex
