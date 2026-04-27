@@ -73,8 +73,8 @@ class TmuxWeb < Formula
     bin.install "tmux-web"
     doc.install "README.md", "LICENSE"
     # tmux-web.service is a systemd user unit — only meaningful on Linux,
-    # harmless to install on macOS as a reference file.
-    (prefix/"lib/systemd/user").install "tmux-web.service"
+    # and macOS release tarballs intentionally do not include it.
+    (prefix/"lib/systemd/user").install "tmux-web.service" if OS.linux?
   end
 
   test do
