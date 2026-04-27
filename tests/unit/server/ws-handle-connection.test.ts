@@ -1291,6 +1291,9 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
       }, 1000);
       expect(sawSelect).toBe(true);
 
+      const sawDone = await waitFor(() => stderr.join('').includes('window action done'), 1000);
+      expect(sawDone).toBe(true);
+
       const text = stderr.join('');
       expect(text).toContain('window action start');
       expect(text).toContain('action=select');
