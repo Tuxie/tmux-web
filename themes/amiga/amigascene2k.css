@@ -173,9 +173,8 @@ body {
  * gradient flows through unchanged, just like the topbar gadgets sit
  * over the topbar's gradient.
  *
- * The thumb gets its own (also vertical) three-stop gradient that
- * peaks light in the middle, giving the glassy cylinder highlight that
- * distinguishes Scene from the flat AmigaOS 3.1 thumb. */
+ * The thumb gets its own matching vertical gradient, using the same
+ * standard 5% light/dark range as the rest of Scene's chrome. */
 .tw-scrollbar {
   background: linear-gradient(to bottom,
     color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))),
@@ -228,8 +227,8 @@ body {
 }
 .tw-scrollbar-thumb {
   background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome), white calc(20% * var(--tw-theme-contrast))),
-    color-mix(in srgb, var(--tw-chrome), black calc(10% * var(--tw-theme-contrast))));
+    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))));
   /* No `border` — the gradient runs edge-to-edge so the top stop
    * reaches row 0 cleanly. The raised bevel is painted with stacked
    * `box-shadow inset` declarations instead, which avoid the
@@ -240,17 +239,17 @@ body {
     inset  2px  2px 0 var(--tw-bevel-hi),    /* top + left  light */
     inset -2px -2px 0 var(--tw-bevel-lo);    /* bot + right dark  */
 }
-/* Hover: a slightly brighter top stop, same gradient direction. */
+/* Hover keeps the same standard gradient range; only the cursor state changes. */
 .tw-scrollbar-thumb:hover {
   background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome), white calc(14% * var(--tw-theme-contrast))),
-    color-mix(in srgb, var(--tw-chrome), black calc( 4% * var(--tw-theme-contrast))));
+    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))));
 }
 /* Dragging: gradient flips top↔bottom and the bevel inverts (light
  * sides go dark and vice-versa) for a fully pressed / sunken look. */
 .tw-scrollbar.dragging .tw-scrollbar-thumb {
   background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome), black calc(8% * var(--tw-theme-contrast))),
-    color-mix(in srgb, var(--tw-chrome), white calc(8% * var(--tw-theme-contrast))));
+    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))));
   border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-hi) var(--tw-bevel-lo);
 }
