@@ -1,279 +1,79 @@
-:root {
-  --tw-ui-font: 'Iosevka Nerd Font Mono', 'MOsOul Nerd Font', 'ZedMono Nerd Font', 'JetBrains Mono', monospace;
-  /* Default inputs are slightly darker than chrome — override gadget-bg. */
-  --tw-gadget-bg: color-mix(in srgb, var(--tw-chrome-bg), black 20%);
-}
+/* Default Theme.
+ *
+ * The implementation lives in the global base.css — this file is the
+ * user-selectable handle for it. All it does is pull base.css in (so
+ * the theme switcher loading this file produces the canonical default
+ * look) and document the public --tw-* CSS custom properties that any
+ * theme can override.
+ *
+ * In practice base.css is always linked from index.html directly, so
+ * this @import is redundant for the canonical load order. It stays so
+ * that the file is self-sufficient if loaded in isolation (e.g. a
+ * future theme-preview pane) and to make the dependency explicit. */
+@import url('/dist/client/base.css');
 
-body {
-  /* Default font for anything attached directly to body — e.g. the
-   * windows menu (showContextMenu uses position:fixed and appends to
-   * body), which would otherwise fall back to the browser's serif
-   * default instead of inheriting from #topbar. */
-  font-family: 'Iosevka Nerd Font Mono', 'MOsOul Nerd Font', 'ZedMono Nerd Font', 'JetBrains Mono', monospace;
-  font-size: 13px;
-}
-
-#topbar {
-  display: flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 6px;
-  gap: 4px;
-  font-size: 13px;
-  background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))),
-    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))));
-  user-select: none;
-  -webkit-user-select: none;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 10;
-  transition: transform 0.3s ease;
-  pointer-events: none;
-}
-
-#topbar > * { pointer-events: auto; }
-#topbar.hidden { transform: translateY(-100%); }
-#topbar.hidden > * { pointer-events: none; }
-
-#tb-session, #tb-windows, #tb-right { display: flex; align-items: center; gap: 4px; position: relative; }
-#tb-title { flex: 1; text-align: center;}
-#tb-windows #win-tabs { display: flex; gap: 2px; }
-
-/* --- Custom dropdown (themable, replaces native <select>) --- */
-.tw-dropdown { position: relative; display: inline-flex; align-items: center; }
-.tw-dropdown-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  border-radius: 3px;
-  padding: 2px 6px;
-  font-family: inherit;
-  font-size: 13px;
-  cursor: pointer;
-  min-width: 0;
-  width: 100%;
-}
-.tw-dropdown-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tw-dropdown-arrow { opacity: 0.7; font-size: 10px; }
-.tw-dropdown-menu {
-  position: absolute;
-  top: calc(100% + 2px);
-  left: 0;
-  min-width: 100%;
-  border-radius: 4px;
-  z-index: 200;
-  padding: 2px 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-  background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome-bg), white calc(5% * var(--tw-theme-contrast))),
-    color-mix(in srgb, var(--tw-chrome-bg), black calc(5% * var(--tw-theme-contrast))));
-  /* max-height / overflow-y live in base.css. */
-}
-.tw-dropdown-item {
-  padding: 2px 8px;
-  cursor: pointer;
-  white-space: nowrap;
-  font-family: inherit;
-  font-size: 13px;
-}
-/* Session menu items have a fixed-width gutter so the name column stays
- * aligned whether the row has a check mark or not. */
-.tw-dd-session-item {
-  padding-left: 26px;
-  padding-right: 22px;
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.tw-dd-session-item.current::before {
-  content: '\2713';
-  position: absolute;
-  left: 10px;
-  width: 12px;
-}
-.tw-dd-session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tw-dd-session-status {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  transform: translateY(-50%);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4) inset;
-}
-.tw-dd-session-delete {
-  background: transparent;
-  border: none;
-  padding: 0 2px;
-  color: inherit;
-  font-size: 12px;
-  opacity: 0.65;
-}
-.tw-dd-session-delete:hover { opacity: 1; }
-/* Context menu is position:fixed at the cursor — `min-width: 100%` would
- * otherwise resolve to the viewport width. Let the content size it. */
-.tw-dropdown-menu.tw-dd-context { min-width: auto; }
-.tw-dd-input {
-  border-radius: 3px;
-  padding: 2px 6px;
-  font-family: inherit;
-  font-size: 13px;
-  outline: none;
-  flex: 1;
-  min-width: 140px;
-}
-/* Shared label width so input fields align across rows in a menu. */
-/* Window-tab context menu is a single-row editor; keep it compact. */
-.tw-dd-context-win .tw-menu-label { min-width: auto; padding-right: 6px; }
-.tw-dd-context-win .tw-dd-input { min-width: 120px; }
-
-#topbar .tb-btn {
-  border-radius: 3px;
-  border-color: transparent;
-  background: transparent;
-  padding: 2px 8px;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-/* Session menu button: [ + | name ] — single button, opens the sessions dropdown */
-#topbar .tb-btn-session {
-  display: inline-flex;
-  align-items: stretch;
-  padding: 0;
-  gap: 0;
-}
-#topbar .tb-btn-session .tb-session-plus {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  border-right: 1px solid var(--tw-bevel-lo);
-}
-#topbar .tb-btn-session .tb-session-plus::before {
-  content: '';
-  display: block;
-  width: 8px;
-  height: 8px;
-  background: var(--tw-text);
-}
-#topbar .tb-btn-session .tb-session-name {
-  padding: 2px 8px;
-}
-
-#topbar .tb-sep { width: 12px; }
-
-#topbar .tw-win-tab {
-  background: none;
-  border-radius: 3px;
-  border-color: transparent;
-  padding: 2px 8px;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 13px;
-  line-height: 1.4;
-}
-#topbar .tw-win-tab.active,
-#topbar .tb-btn.open,
-#topbar .tb-btn-session.open {
-  background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))),
-    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))));
-  border-color: color-mix(in srgb, var(--tw-chrome), white 10%);
-}
-
-/* New-window button appended to #win-tabs */
-#topbar .tb-btn-new-window { margin-left: 2px; font-weight: bold; }
-
-/* Compact window button: [3: name | +] — mirror of the session button */
-#topbar .tb-btn-window-compact {
-  display: inline-flex;
-  align-items: stretch;
-  padding: 0;
-  gap: 0;
-}
-#topbar .tb-btn-window-compact .tb-window-compact-label {
-  padding: 2px 8px;
-  border-right: 1px solid var(--tw-bevel-lo);
-}
-/* In tabs mode the button next to the tab strip only shows the gadget. */
-#topbar .tb-btn-window-compact.tabs-shown .tb-window-compact-label { display: none; }
-/* Match the ☰ button's visual footprint so the topbar's right-side
- * controls read as a pair of equally-sized click targets. */
-#topbar .tb-btn-window-compact.tabs-shown {
-  width: 28px;
-  height: 28px;
-  justify-content: center;
-}
-#topbar .tb-btn-window-compact .tb-window-compact-plus {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  position: relative;
-}
-/* Outer square — thin line, transparent interior. */
-#topbar .tb-btn-window-compact .tb-window-compact-plus::before {
-  content: '';
-  position: absolute;
-  width: 10px;
-  height: 8px;
-  border: 1px solid var(--tw-text);
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  box-sizing: content-box;
-}
-/* Inner top-left mini-window — contrasting fill + thin border, nested in
- * the outer square's top-left corner (window-on-top-of-windows icon). */
-#topbar .tb-btn-window-compact .tb-window-compact-plus::after {
-  content: '';
-  position: absolute;
-  width: 4px;
-  height: 2px;
-  background: var(--tw-text);
-  border: 1px solid var(--tw-chrome);
-  top: calc(50% - 4px);
-  left: calc(50% - 5px);
-  box-sizing: content-box;
-}
-
-#topbar #btn-menu {
-  width: 28px; height: 28px;
-  padding: 0;
-  font-size: 22px;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-#menu-wrap { position: relative; }
-
-/* Settings menu shares the .tw-dropdown-menu styling — only the
- * right-anchor and fixed min-width are settings-specific. */
-#menu-dropdown {
-  right: 0; left: auto;
-  top: calc(100% + 4px);
-  min-width: 270px;
-}
-
-#menu-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 5px 12px;
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-#terminal { --tw-terminal-right: 3px; position: absolute; left: 3px; right: var(--tw-terminal-right); bottom: 3px; top: 3px; }
-body.topbar-pinned #terminal { top: 31px; }
+/* --------------------------------------------------------------------
+ * Public CSS custom-property contract.
+ *
+ * Themes set these to vary the look without touching structural rules.
+ * Defaults all live in base.css `:root`; the values listed here are
+ * what a minimal theme can rely on as the starting point.
+ *
+ * Colour family
+ *   --tw-primary           Driven by Hue/Sat/Lightness sliders.
+ *   --tw-chrome            Toolbar / frame / active-element fill;
+ *                          defaults to --tw-primary.
+ *   --tw-chrome-bg         Menu and panel background; default is
+ *                          --tw-chrome shifted slightly darker.
+ *   --tw-bevel-hi /        Translucent white / black at --tw-depth
+ *   --tw-bevel-lo          alpha; the light / shadow edge of a 3D
+ *                          gadget bevel.
+ *   --tw-menu-bevel-hi /   Same idea, scoped to dropdown menus so a
+ *   --tw-menu-bevel-lo     theme can give popovers a different bevel
+ *                          treatment from the toolbar.
+ *
+ * Gadgets (inputs, buttons, slider thumbs, scrollbar thumbs)
+ *   --tw-gadget-bg         Resting fill.
+ *   --tw-gadget-hover      Hover fill.
+ *   --tw-gadget-active     Pressed / active fill.
+ *
+ * Typography
+ *   --tw-ui-font           Topbar / dropdown / menu UI font stack.
+ *   --tw-text              Default text colour for chrome surfaces.
+ *   --tw-text-muted /      Subdued text and rule lines.
+ *   --tw-muted
+ *
+ * Status / semantic
+ *   --tw-status-active /   Session status dot colours.
+ *   --tw-status-inactive
+ *   --tw-danger-bg /       Toast and confirm-modal destructive variants.
+ *   --tw-danger-border
+ *   --tw-success-bg        Toast and confirm-modal success variants.
+ *
+ * Background gradient (driven by BG sliders)
+ *   --tw-background-hue, --tw-background-saturation,
+ *   --tw-background-brightest, --tw-background-darkest,
+ *   --tw-antialias-bg     Mid-stop colour used for aa-blending.
+ *
+ * Tmux scrollbar
+ *   --tw-scrollbar-width                 Total bar width.
+ *   --tw-scrollbar-inset-top /           How far in from each
+ *     -right / -bottom                   viewport edge the bar sits.
+ *   --tw-scrollbar-topbar-offset         Distance from viewport top
+ *                                        when the topbar is pinned.
+ *   --tw-scrollbar-track-bg /            Track / thumb fills + bevel
+ *     -thumb-bg / -thumb-hover /         colours; thumb-active is the
+ *     -thumb-active                      drag colour.
+ *   --tw-scrollbar-track-bevel-hi /      Track and thumb bevel
+ *     -track-bevel-lo / -thumb-bevel-hi  highlights / shadows.
+ *     / -thumb-bevel-lo
+ *
+ * Menu-scoped slider material (read inside #menu-dropdown)
+ *   --tw-slider-fill                     Filled portion of the track.
+ *   --tw-slider-track-bg                 Empty portion of the track.
+ *   --tw-slider-track-bevel-hi /         Track bevel highlights /
+ *     -track-bevel-lo                    shadows.
+ *   --tw-slider-thumb-bg /               Thumb resting / pressed fill.
+ *     -thumb-bg-active
+ *   --tw-slider-thumb-bevel-hi /         Thumb bevel highlights /
+ *     -thumb-bevel-lo                    shadows. */

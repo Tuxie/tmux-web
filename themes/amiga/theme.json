@@ -9,7 +9,7 @@
   "themes": [
     {
       "name": "AmigaOS 3.1",
-      "css": "amiga.css",
+      "css": "amigaos31.css",
       "defaultFont": "Topaz8 Amiga1200 Nerd Font",
       "defaultFontSize": 18.5,
       "defaultSpacing": 1.05,
@@ -27,7 +27,7 @@
     },
     {
       "name": "Amiga Scene 2000",
-      "css": "scene.css",
+      "css": "amigascene2k.css",
       "defaultFont": "mOsOul Nerd Font",
       "defaultFontSize": 18.5,
       "defaultSpacing": 1.1,

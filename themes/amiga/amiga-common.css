@@ -1,49 +1,45 @@
-/* Scene Theme */
+/* Shared Amiga theme foundation.
+ *
+ * Pulled in by both `amigaos31.css` and `amigascene2k.css`. Holds the
+ * baseline Amiga look (frame paint, topbar layout, button bevels,
+ * dropdown chrome) — variants override fonts, gradient direction, and
+ * the colour family on top. The `@import` of the global base.css keeps
+ * the structural defaults reachable without relying on the HTML link
+ * order. */
+@import url('/dist/client/base.css');
 
 :root {
-  /* --tw-chrome, --tw-bevel-hi, --tw-bevel-lo all inherit from base.css
-   * via --tw-primary and --tw-theme-contrast. Theme Hue / Sat / Lightness
-   * / Contrast sliders drive them; theme.json sets the defaults
-   * (hue 222, sat 36%, ltn 27%, contrast 100). */
-  --tw-ui-font: 'MicroKnight Nerd Font', monospace;
-  --tw-gadget-bg: rgba(255, 255, 255, 0.12);
-  --tw-text: #fff;
-  --tw-muted: rgba(255, 255, 255, 0.3);
+  /* --tw-chrome inherits from base.css → --tw-primary = hsl(hue, sat, ltn).
+   * Theme Hue / Sat / Lightness sliders drive it; theme.json sets the
+   * defaults (hue 216, sat 38%, ltn 62%) for the classic Workbench blue. */
+  /* Bevels inherit from base.css: rgba(255,255,255,depth) / rgba(0,0,0,depth).
+   * theme.json defaultDepth: 100 gives the classic opaque B/W look. */
+  --tw-ui-font: 'Topaz8 Amiga1200 Nerd Font', monospace;
+  --tw-ui-font-size: 17px;
+  --tw-chrome-bg: hsl(0 0% calc(var(--tw-theme-ltn) + 10%));
+  --tw-gadget-bg: hsl(0 0% calc(var(--tw-theme-ltn) + 5%));
+  --tw-text: #000;
+  /* --tw-muted falls back to base.css's color-mix(--tw-text, transparent
+   * 40%) so footer / labels / section headers actually read as muted
+   * against the workbench-grey surface. */
   --tw-status-active: #2c2;
   --tw-status-inactive: #c22;
   --tw-danger-bg: #a04040;
-  --tw-danger-border: hsl(var(--tw-theme-hue, 222) 36% 5%);
+  --tw-danger-border: #000;
   --tw-success-bg: #4a8c4a;
-
-  /* --tw-antialias-bg inherited from default.css — derived from the
-   * BG sliders at the 42% gradient midpoint, correct for Scene's
-   * radial gradient. */
 }
 
 body {
-  /* Hue / saturation / brightest / darkest are all driven by sliders
-   * ("BG Hue", "BG Saturation", "BG Brightest", "BG Darkest"). The
-   * gradient keeps its original 0% / 42% / 100% stops so the radial
-   * falloff shape stays recognisable; the 42% midpoint is interpolated
-   * between the two endpoint sliders (≈0.58·brightest + 0.42·darkest).
-   * Values outside [0,100] are fine — HSL clamps lightness. */
-  background: radial-gradient(circle at center,
-    hsl(
-      var(--tw-background-hue, 183)
-      calc(var(--tw-background-saturation, 80) * 1%)
-      calc(var(--tw-background-brightest, 10) * 1%)
-    ) 0%,
-    hsl(
-      var(--tw-background-hue, 183)
-      calc(var(--tw-background-saturation, 80) * 1%)
-      calc((var(--tw-background-brightest, 10) * 0.58 + var(--tw-background-darkest, 5) * 0.42) * 1%)
-    ) 42%,
-    hsl(
-      var(--tw-background-hue, 183)
-      calc(var(--tw-background-saturation, 80) * 1%)
-      calc(var(--tw-background-darkest, 5) * 1%)
-    ) 100%);
-  font-family: 'mOsOul Nerd Font', monospace;
+  /* Slider-driven: Hue / Saturation / Brightest are set by the BG
+   * sliders (defaultBackgroundSaturation = -100 collapses to pure
+   * grey, defaultBackgroundBrightest = 72 is Workbench grey). A flat
+   * body uses Brightest only; Darkest is ignored here. */
+  background: hsl(
+    var(--tw-background-hue, 0)
+    calc(var(--tw-background-saturation, 0) * 1%)
+    calc(var(--tw-background-brightest, 72) * 1%)
+  );
+  /* font-family inherits from base.css via --tw-ui-font (Topaz8 here). */
 }
 
 /* ---------------------------------------------------------------------
@@ -61,25 +57,22 @@ body {
 }
 #frame-top, #frame-bottom {
   left: 4px; right: 4px; height: 6px;
-  border-top: 2px solid var(--tw-menu-bevel-hi);
+  border-top: 2px solid var(--tw-bevel-hi);
   border-bottom: 2px solid var(--tw-bevel-lo);
 }
-#frame-top    { top: 0; background: color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))); }
-#frame-bottom { bottom: 0; background: color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))); }
+#frame-top    { top: 0; }
+#frame-bottom { bottom: 0; }
 #frame-left, #frame-right {
   top: 6px; bottom: 4px; width: 6px;
-  background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))),
-    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))));
 }
 #frame-left {
   left: 0;
-  border-left: 2px solid var(--tw-menu-bevel-hi);
+  border-left: 2px solid var(--tw-bevel-hi);
   border-right: 2px solid var(--tw-bevel-lo);
 }
 #frame-right {
   right: 0;
-  border-left: 2px solid var(--tw-menu-bevel-hi);
+  border-left: 2px solid var(--tw-bevel-hi);
   border-right: 2px solid var(--tw-bevel-lo);
 }
 /* All four corners share one border-color pattern: outer TL pixel is
@@ -90,10 +83,10 @@ body {
   width: 6px; height: 6px;
   border: none;
 }
-#frame-tl { width: 4px;  top: 0;    left: 0;  border-top: 2px solid var(--tw-menu-bevel-hi); border-left: 2px solid var(--tw-menu-bevel-hi); background: color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))); }
-#frame-tr { width: 4px;  top: 0;    right: 0; border-top: 2px solid var(--tw-menu-bevel-hi); border-right: 2px solid var(--tw-bevel-lo); background: color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))); }
-#frame-bl { height: 4px; bottom: 0; left: 0;  border-bottom: 2px solid var(--tw-bevel-lo); border-left: 2px solid var(--tw-menu-bevel-hi); background: color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))); }
-#frame-br { height: 4px; bottom: 0; right: 0; border-bottom: 2px solid var(--tw-bevel-lo); border-right: 2px solid var(--tw-bevel-lo); background: color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))); }
+#frame-tl { width: 4px;  top: 0;    left: 0;  border-top: 2px solid var(--tw-bevel-hi); border-left: 2px solid var(--tw-bevel-hi); }
+#frame-tr { width: 4px;  top: 0;    right: 0; border-top: 2px solid var(--tw-bevel-hi); border-right: 2px solid var(--tw-bevel-lo); }
+#frame-bl { height: 4px; bottom: 0; left: 0;  border-bottom: 2px solid var(--tw-bevel-lo); border-left: 2px solid var(--tw-bevel-hi); }
+#frame-br { height: 4px; bottom: 0; right: 0; border-bottom: 2px solid var(--tw-bevel-lo); border-right: 2px solid var(--tw-bevel-lo); }
 
 /* ---------------------------------------------------------------------
  * Topbar — sits inside the frame (6px inset from top/left/right).
@@ -102,14 +95,12 @@ body {
   display: flex;
   align-items: stretch;
   height: 28px;
-  background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))),
-    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))));
-  font-size: 19px;
+  background: var(--tw-chrome);
   position: absolute;
   top: 0px; left: 0px; right: 0px;
   z-index: 10;
   padding: 0;
+  gap: 0;
   border: none;
   transition: transform 0.3s ease;
   pointer-events: none;
@@ -119,93 +110,77 @@ body {
 #topbar.hidden > * { pointer-events: none; }
 
 #tb-session, #tb-windows, #tb-right { display: flex; align-items: stretch; gap: 2px; position: relative; }
-/* Session plus + name buttons sit flush against each other, no gap. */
-#tb-session { gap: 0; }
 #tb-title {
   flex: 1;
-  font-size: 16px;
-  line-height: 1;
   padding: 0 8px;
   text-align: center;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
+  background: var(--tw-chrome);
   border: 2px solid;
   border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
 }
 #tb-windows #win-tabs { display: flex; gap: 0; }
-#tb-session { margin-left: 0; }
+#tb-session { margin-left: 0; gap: 0; }
 
 /* ---------------------------------------------------------------------
  * Topbar buttons — Amiga raised bevel (outer white TL, black BR).
  * Pressed / .open state flips all four borders to black.
  * ------------------------------------------------------------------- */
 #topbar .tb-btn {
-  background: transparent;
+  background: var(--tw-chrome);
   border: 2px solid;
   border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   margin: 0;
   padding: 0 8px;
-  font-family: inherit;
-  font-size: 14px;
-  line-height: 1;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-#topbar .tb-btn:hover,
-#topbar .tw-win-tab:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-#topbar .tw-win-tab:not(.active):hover {
-  color: color-mix(in srgb, var(--tw-muted), white 10%);
-}
+#topbar .tb-btn:hover { background: var(--tw-chrome); }
 #topbar .tb-btn:active {
-  border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo);
-  background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))),
-    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))));
+  border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-hi) var(--tw-bevel-lo);
+  background: var(--tw-chrome);
 }
 
+/* Session button [ + | name ] — two-segment, no left border so it butts
+ * flush against the window frame. */
 /* Session plus button — standalone topbar button carrying the
  * Amiga title-bar close-gadget glyph. Opens the session dropdown. */
 #topbar .tb-btn-session-plus {
   width: 28px;
   padding: 0;
+  background: var(--tw-chrome);
 }
 #topbar .tb-btn-session-plus .tb-session-plus {
   display: block;
   width: 8px; height: 12px;
-  background: var(--tw-text); border: 2px solid #000;
-  /* Shift the glyph 1px back down relative to the button's
-   * up-nudge — the close-gadget rectangle reads better slightly
-   * below the optical centreline. */
+  background: #fff; border: 2px solid #000;
   transform: translateY(1px);
 }
 
 /* Session-name button — regular topbar button, just taller text. */
-#topbar .tb-btn-session { font-size: 16px; padding: 0 10px; }
+#topbar .tb-btn-session { padding: 0 10px; }
 /* Pressed look while any topbar menu is open — flip all borders black
- * and reverse the toolbar gradient, matching the active-tab treatment. */
+ * and swap to the active-tab Workbench blue. The btn-menu selector is
+ * doubled with #topbar so it ties the (#topbar #btn-menu) rule below
+ * on specificity and still wins on cascade order. */
 #topbar .tb-btn-session.open,
 #topbar .tb-btn-session-plus.open,
 #topbar .tb-btn-window-compact.open,
 #topbar .tw-win-tab.open,
-#btn-menu.open {
+#topbar #btn-menu.open {
   border-color: var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-lo);
-  background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))),
-    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))));
+  background: var(--tw-chrome);
 }
 
 /* Compact window button [ name | + ] — mirror of the session button. */
 #topbar .tb-btn-window-compact {
   justify-content: flex-start;
   padding: 0;
-  background: transparent;
-  font-size: 16px;
+  background: var(--tw-chrome);
   align-items: stretch;
 }
 #topbar .tb-btn-window-compact .tb-window-compact-label {
@@ -217,11 +192,27 @@ body {
   text-shadow: none; font-weight: normal;
 }
 #topbar .tb-btn-window-compact.tabs-shown .tb-window-compact-label { display: none; }
-#topbar .tb-btn-window-compact.tabs-shown .tb-window-compact-plus { border-left: none; }
+#topbar .tb-btn-window-compact.tabs-shown .tb-window-compact-plus {
+  border-left: none;
+  /* Drop the fixed 32px so the glyph collapses into whatever content
+   * area the 28px wrap leaves us (28px - 2px*2 borders = 24px). The
+   * inner ::before/::after sit at 17×15 / 8×7 and fit comfortably. */
+  width: 100%;
+}
+/* Pin the gadget width so it lines up with the close-gadget and the
+ * depth-gadget — the three Amiga title-bar buttons should read as a
+ * uniform set. The compact (windows) and depth (menu) gadgets visibly
+ * needed an extra ~3px past the close-gadget's 28px to compensate for
+ * how their denser glyphs read against the shared bevels with their
+ * neighbours. `height: auto` cancels base.css's default-theme 28px
+ * pin so align-items:stretch can size the wrap to the topbar's
+ * content area, keeping the bottom border flush with the rest of the
+ * toolbar. */
+#topbar .tb-btn-window-compact.tabs-shown { width: 31px; height: auto; }
 #topbar .tb-btn-window-compact .tb-window-compact-plus {
   display: flex; align-items: center; justify-content: center;
   width: 32px;
-  background: transparent;
+  background: var(--tw-chrome);
   border-left: 2px solid var(--tw-bevel-hi);
   flex-shrink: 0;
   position: relative;
@@ -240,7 +231,7 @@ body {
 #topbar .tb-btn-window-compact .tb-window-compact-plus::after {
   content: ''; position: absolute;
   width: 8px; height: 7px;
-  background: var(--tw-text);
+  background: #fff;
   border: 2px solid #000;
   border-right-width: 2px;
   border-bottom-width: 2px;
@@ -251,56 +242,54 @@ body {
 /* Window tabs in #tb-windows. */
 #topbar .tw-win-tab {
   background: transparent;
+  color: var(--tw-muted);
   padding: 0 6px;
   margin: 0;
   cursor: pointer;
-  font-family: inherit;
-  font-size: 16px;
   border: 2px solid;
   border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-#topbar .tw-win-tab.active {
-  background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))),
-    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))));
-}
+#topbar .tw-win-tab:hover { background: transparent; }
+#topbar .tw-win-tab.active { background: var(--tw-chrome); color: var(--tw-bevel-hi); }
 #tb-windows .tb-btn {
+  color: var(--tw-bevel-hi);
   text-shadow: -1px 0 black, 0 1px black, 1px 0 black, 0 -1px black;
   font-weight: bold;
 }
 
-/* Nudge every topbar button's inner content up by 1 device px without
- * moving the button box — 2px padding-bottom vs 0 padding-top shifts
- * the flex-centred centreline up by 1px. The outer button border
- * stays flush with the topbar's bottom so no backdrop shows through. */
-#topbar .tb-btn,
-#topbar .tb-btn-session,
-#topbar .tb-btn-session-plus,
-#topbar .tb-btn-window-compact .tb-window-compact-label,
-#topbar .tb-btn-window-compact .tb-window-compact-plus,
-#topbar .tw-win-tab,
-#tb-title {
-  padding-bottom: 2px;
-  padding-top: 0;
-}
 
 /* Settings button — modelled on the AmigaOS 3.1 depth-gadget at the
  * right of a window's titlebar: two overlapping windows, one behind
- * (grey) and one in front (white). */
+ * (grey) and one in front (white). Width matches the windows-compact
+ * gadget so the two right-side gadgets read as a matched pair. The
+ * `#topbar #btn-menu` selector pins the width past base.css's 28px
+ * default-theme rule (same 2-ID specificity, but loaded later via the
+ * theme @import). */
 #menu-wrap { display: flex; align-items: stretch; width: auto; }
-#btn-menu {
-  background: transparent;
+#topbar #btn-menu {
+  background: var(--tw-chrome);
   color: transparent;        /* hide the ☰ fallback glyph */
   text-shadow: none;
   font-size: 0;
-  padding: 0;
-  width: 32px;
+  /* Match the 1px-up nudge applied to every other topbar button so
+   * the depth-gadget pseudo-elements line up with the close-gadget,
+   * window-compact glyph, and text labels. */
+  padding: 0 0 2px;
+  width: 31px;
+  /* `height: auto` cancels base.css's default-theme 28px pin so
+   * align-items:stretch from #topbar can size the wrap to the
+   * topbar's content area, keeping the bottom border flush with the
+   * rest of the toolbar. */
+  height: auto;
   position: relative;
   flex-shrink: 0;
 }
 /* Back window — grey fill, offset to top-left. The extra `-1px` on
  * both pseudo-elements' `top` matches the 1px-up nudge applied to
- * every other topbar glyph (see the topbar padding rule above). */
+ * every other topbar glyph. */
 #btn-menu::before {
   content: '';
   position: absolute;
@@ -318,7 +307,7 @@ body {
   position: absolute;
   width: 12px;
   height: 9px;
-  background: var(--tw-text);
+  background: #fff;
   border: 2px solid #000;
   top: calc(50% - 3px);
   left: calc(50% - 4px);
@@ -334,21 +323,18 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome-bg), white calc(6% * var(--tw-theme-contrast))),
-    color-mix(in srgb, var(--tw-chrome-bg), black calc(6% * var(--tw-theme-contrast))));
+  background: var(--tw-gadget-bg);
   border: 2px solid;
-  border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
+  /* 1px top + 1px bottom padding (4px sides) gives the selector a
+   * little vertical breathing room above the bare line height. */
   padding: 1px 4px;
-  height: 22px;
-  font-family: inherit;
-  font-size: 15px;
   cursor: pointer;
   width: 100%;
   min-width: 0;
 }
 .tw-dropdown-trigger:active,
-.tw-dropdown.open > .tw-dropdown-trigger { border-color: var(--tw-bevel-lo) var(--tw-menu-bevel-hi) var(--tw-menu-bevel-hi) var(--tw-bevel-lo); }
+.tw-dropdown.open > .tw-dropdown-trigger { border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-hi) var(--tw-bevel-lo); }
 .tw-dropdown-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tw-dropdown-arrow { font-size: 12px; }
 .tw-dropdown-menu {
@@ -356,18 +342,18 @@ body {
   top: 100%;
   left: 0;
   min-width: 100%;
-  background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome-bg), white calc(6% * var(--tw-theme-contrast))),
-    color-mix(in srgb, var(--tw-chrome-bg), black calc(6% * var(--tw-theme-contrast))));
+  background: var(--tw-chrome-bg);
   border: 2px solid;
-  border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   z-index: 200;
   padding: 2px 0;
-  font-size: 15px;
   /* max-height / overflow-y live in base.css. */
 }
 .tw-dropdown-item { padding: 2px 12px; cursor: pointer; white-space: nowrap; }
-.tw-dropdown-sep { border: none; border-top: 2px solid var(--tw-menu-bevel-hi); margin: 3px 4px; }
+.tw-dropdown-item:hover { background: var(--tw-chrome); color: var(--tw-bevel-hi); }
+/* `.selected` text colour comes from base.css's --tw-text-strong rule
+ * so the picked option reads as strong-text across all themes. */
+.tw-dropdown-sep { border: none; border-top: 2px solid #888; margin: 3px 4px; }
 .tw-dropdown-menu.tw-dd-sessions-menu { min-width: 160px; }
 .tw-dropdown-menu.tw-dd-context { min-width: auto; }
 
@@ -389,14 +375,19 @@ body {
   width: 8px; height: 8px;
   border-radius: 50%;
   transform: translateY(-50%);
-  box-shadow: 0 0 0 1px #000 inset;
+  box-shadow: 0 0 0 1px var(--tw-bevel-lo) inset;
 }
 
 /* Text input used in some context-menu dropdowns — sunken bevel. */
 .tw-dd-input {
+  background: var(--tw-gadget-bg);
   border: 2px solid;
-  border-color: var(--tw-bevel-lo) var(--tw-menu-bevel-hi) var(--tw-menu-bevel-hi) var(--tw-bevel-lo);
+  border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-hi) var(--tw-bevel-lo);
   border-radius: 0;
+  padding: 1px 4px;
+  outline: none;
+  flex: 1;
+  min-width: 160px;
 }
 .tw-dd-context-win .tw-menu-label { min-width: auto; padding-right: 6px; }
 .tw-dd-context-win .tw-dd-input { min-width: 130px; }
@@ -407,16 +398,14 @@ body {
  * differ, so the overrides below are tiny.
  * ------------------------------------------------------------------- */
 #menu-dropdown {
-  /* right: 0 (not a negative overhang) so the scrollbar — rendered at
-   * the menu's right edge when the contents overflow — stays within
-   * the viewport. A -6px overhang pushed most of the scrollbar track
-   * off-screen. */
+  /* right: 0 so the overflow scrollbar stays inside the viewport. */
   right: 0; left: auto;
   min-width: 270px;
   padding: 4px 0;
 }
 .tw-menu-row { display: flex; align-items: center; gap: 3px; padding: 2px 12px;
-            cursor: pointer; white-space: nowrap; font-size: 15px; }
+            cursor: pointer; white-space: nowrap; }
+.tw-menu-row:hover { background: var(--tw-chrome); color: var(--tw-bevel-hi); }
 .tw-menu-row-static { cursor: default; gap: 3px; }
 /* AmigaOS 3.1 GadTools-style checkbox. Raised sunken well when unchecked,
  * sunken bevel with a filled square when checked — mirrors the look of
@@ -425,59 +414,60 @@ body {
   -webkit-appearance: none;
   appearance: none;
   box-sizing: border-box;
-  width: 16px;
-  height: 16px;
+  /* Font-size content area + 1px padding on each side + 2px border on
+   * each side = font-size + 6px total with border-box. */
+  width: calc(var(--tw-ui-font-size) + 6px);
+  height: calc(var(--tw-ui-font-size) + 6px);
   margin: 0 6px 0 0;
-  padding: 0;
+  padding: 1px;
   background: var(--tw-gadget-bg);
   border: 2px solid;
-  border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   border-radius: 0;
   cursor: pointer;
   position: relative;
   flex-shrink: 0;
 }
-.tw-dropdown-menu input[type="checkbox"]:checked {
-  background: var(--tw-gadget-active);
-  border-color: var(--tw-bevel-lo) var(--tw-menu-bevel-hi) var(--tw-menu-bevel-hi) var(--tw-bevel-lo);
-}
+/* Checked state: bevel and background stay put — only the bold √
+ * (U+221A) check mark appears in the box. The pseudo-element fills
+ * the checkbox and uses flex-centering so the glyph itself (not just
+ * its line box) sits at the centre regardless of font metrics. */
 .tw-dropdown-menu input[type="checkbox"]:checked::after {
-  content: '';
+  content: '\221A';
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 6px;
-  height: 6px;
-  background: var(--tw-text);
-  transform: translate(-50%, -50%);
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--tw-ui-font-size);
+  font-weight: bold;
+  line-height: 1;
+  color: var(--tw-bevel-lo);
 }
 
 /* Selects and number inputs — Amiga sunken bevel. */
 .tw-menu-input-select {
   background: var(--tw-gadget-bg);
   border: 2px solid;
-  border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-menu-bevel-hi);
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   padding: 1px 0 1px 3px;
   height: 22px;
   margin: 0 2px;
-  font-family: inherit;
-  font-size: 15px;
   outline: none;
 }
 .tw-menu-input-number {
   background: var(--tw-gadget-bg);
   border: 2px solid;
-  border-color: var(--tw-bevel-lo) var(--tw-menu-bevel-hi) var(--tw-menu-bevel-hi) var(--tw-bevel-lo);
+  border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-hi) var(--tw-bevel-lo);
   border-radius: 0;
-  padding: 1px;
-  font-family: inherit;
-  font-size: 15px;
+  padding: 1px 4px;
   width: 46px;
 }
 
 /* In-menu buttons (reset colours/font, drops refresh/purge, per-row
  * trash). Override the topbar blue with neutral grey. */
 #menu-dropdown .tb-btn {
+  background: var(--tw-gadget-bg);
   height: 22px;
 }
 /* Glyph-only buttons with Unicode arrows use sans-serif so ↺/↻ render
@@ -499,7 +489,7 @@ body {
  * otherwise wins — scope this one to the same id to outrank it. */
 #topbar .tw-dd-sessions-menu .tb-btn {
   background: var(--tw-gadget-bg);
-  border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-menu-bevel-hi);
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   height: 22px;
 }
 
@@ -519,22 +509,16 @@ body {
   justify-content: space-between;
   gap: 12px;
   padding: 5px 12px;
-  font-size: 12px;
+  color: var(--tw-muted);
   white-space: nowrap;
 }
 #menu-footer:hover { background: none; }
 
-/* Slider structure lives in base.css. Scene only overrides the
- * material: glassy white fill on a theme-hued thumb, with the
- * menu-specific bevel-hi tone. Dimensions, active-press bevel flip,
- * and pseudo-element layout inherit from base. */
-#menu-dropdown {
-  --tw-slider-fill: rgba(255, 255, 255, 0.55);
-  --tw-slider-track-bevel-hi: var(--tw-menu-bevel-hi);
-  --tw-slider-thumb-bg: hsl(var(--tw-theme-hue, 222) 15% 42%);
-  --tw-slider-thumb-bg-active: hsl(var(--tw-theme-hue, 222) 15% 52%);
-  --tw-slider-thumb-bevel-hi: var(--tw-menu-bevel-hi);
-}
+input { accent-color: var(--tw-chrome); }
+
+/* Slider structure lives in base.css; Amiga's material matches the
+ * base defaults (--tw-chrome / --tw-gadget-bg / --tw-bevel-hi/-lo),
+ * so no per-theme overrides needed here. */
 
 /* ---------------------------------------------------------------------
  * Terminal — inset inside the window frame.

@@ -260,7 +260,13 @@ export function listThemes(packs: PackInfo[]): ThemeInfo[] {
       prev = resolved;
     }
   }
-  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+  // "Default" is pinned at the top of the list as the canonical
+  // baseline; every other theme falls under it in alphabetical order.
+  return [...seen.values()].sort((a, b) => {
+    if (a.name === 'Default') return -1;
+    if (b.name === 'Default') return 1;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 export function listFonts(packs: PackInfo[]): FontInfo[] {

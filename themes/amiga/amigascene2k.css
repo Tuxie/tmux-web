@@ -1,0 +1,144 @@
+/* Amiga Scene 2000 Theme.
+ *
+ * Layers on top of amiga-common.css. Only carries the visual deltas
+ * that distinguish Scene from AmigaOS 3.1 — gradients in place of
+ * solid chrome, the radial body wallpaper, the glassy slider material,
+ * and the colour-family / accent overrides. All padding, margin,
+ * sizing, flex, and layout inherit from amiga-common. */
+@import url('amiga-common.css');
+
+:root {
+  --tw-ui-font: 'MicroKnight Nerd Font', monospace;
+  --tw-gadget-bg: rgba(255, 255, 255, 0.12);
+  --tw-text: #fff;
+  --tw-muted: rgba(255, 255, 255, 0.3);
+  --tw-danger-border: hsl(var(--tw-theme-hue, 222) 36% 5%);
+}
+
+/* Body uses a radial gradient — the BG sliders drive hue, saturation,
+ * and the brightest/darkest endpoints. The 42% midpoint is interpolated
+ * (≈0.58·brightest + 0.42·darkest) so the falloff shape stays. */
+body {
+  background: radial-gradient(circle at center,
+    hsl(
+      var(--tw-background-hue, 183)
+      calc(var(--tw-background-saturation, 80) * 1%)
+      calc(var(--tw-background-brightest, 10) * 1%)
+    ) 0%,
+    hsl(
+      var(--tw-background-hue, 183)
+      calc(var(--tw-background-saturation, 80) * 1%)
+      calc((var(--tw-background-brightest, 10) * 0.58 + var(--tw-background-darkest, 5) * 0.42) * 1%)
+    ) 42%,
+    hsl(
+      var(--tw-background-hue, 183)
+      calc(var(--tw-background-saturation, 80) * 1%)
+      calc(var(--tw-background-darkest, 5) * 1%)
+    ) 100%);
+}
+
+/* Frame surfaces: paint a top→bottom gradient and use the lighter
+ * --tw-menu-bevel-hi for the highlight edges. */
+#frame-top    { background: color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))); }
+#frame-bottom { background: color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))); }
+#frame-top, #frame-bottom { border-top-color: var(--tw-menu-bevel-hi); }
+#frame-left, #frame-right {
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))));
+  border-left-color: var(--tw-menu-bevel-hi);
+}
+#frame-tl,
+#frame-tr { background: color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))); }
+#frame-bl,
+#frame-br { background: color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))); }
+#frame-tl { border-top-color: var(--tw-menu-bevel-hi); border-left-color: var(--tw-menu-bevel-hi); }
+#frame-tr { border-top-color: var(--tw-menu-bevel-hi); }
+#frame-bl { border-left-color: var(--tw-menu-bevel-hi); }
+
+/* Topbar: subtle gradient instead of the AmigaOS flat blue. */
+#topbar {
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))));
+}
+
+/* Topbar widgets sit transparent over the topbar gradient. */
+#tb-title,
+#topbar .tb-btn,
+#topbar .tb-btn-session-plus,
+#topbar .tb-btn-window-compact,
+#topbar .tb-btn-window-compact .tb-window-compact-plus,
+#topbar .tw-win-tab,
+#topbar #btn-menu { background: transparent; }
+
+/* Hover treatment: faint highlight on buttons + win tabs. */
+#topbar .tb-btn:hover,
+#topbar .tw-win-tab:hover { background: rgba(255, 255, 255, 0.1); }
+#topbar .tw-win-tab:not(.active):hover { color: color-mix(in srgb, var(--tw-muted), white 10%); }
+
+/* Pressed / open / active-tab share one reversed-gradient look. */
+#topbar .tb-btn:active,
+#topbar .tb-btn-session.open,
+#topbar .tb-btn-session-plus.open,
+#topbar .tb-btn-window-compact.open,
+#topbar .tw-win-tab.open,
+#topbar .tw-win-tab.active,
+#topbar #btn-menu.open {
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))));
+}
+/* Active win tab also flips to the all-black bevel — it picks up the
+ * same border-color as the .open buttons (already handled in
+ * amiga-common's grouped rule). The :active-only border-color override
+ * keeps Scene's TL-only highlight on press. */
+#topbar .tb-btn:active {
+  border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo);
+}
+
+/* The close-gadget glyph reads better 1px below the optical centreline. */
+#topbar .tb-btn-session-plus .tb-session-plus { transform: translateY(1px); }
+
+/* Dropdown trigger + menu: chrome gradient with menu-bevel-hi
+ * highlights so the closed selector and its open menu share the same
+ * surface treatment as the topbar. */
+.tw-dropdown-trigger,
+.tw-dropdown-menu {
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--tw-chrome), white calc(6% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), black calc(6% * var(--tw-theme-contrast))));
+  border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
+}
+.tw-dropdown-trigger:active,
+.tw-dropdown.open > .tw-dropdown-trigger {
+  border-color: var(--tw-bevel-lo) var(--tw-menu-bevel-hi) var(--tw-menu-bevel-hi) var(--tw-bevel-lo);
+}
+.tw-dropdown-sep { border-top-color: var(--tw-menu-bevel-hi); }
+
+/* Form gadgets in the menu use the menu-bevel-hi tone too. */
+.tw-dd-input,
+.tw-menu-input-number {
+  border-color: var(--tw-bevel-lo) var(--tw-menu-bevel-hi) var(--tw-menu-bevel-hi) var(--tw-bevel-lo);
+}
+.tw-menu-input-select {
+  border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-menu-bevel-hi);
+}
+.tw-dropdown-menu input[type="checkbox"] {
+  border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
+}
+
+/* Sliders: glassy white fill, theme-hued thumb. Geometry inherits
+ * from base.css; only the material differs. */
+#menu-dropdown {
+  --tw-slider-fill: rgba(255, 255, 255, 0.55);
+  --tw-slider-track-bevel-hi: var(--tw-menu-bevel-hi);
+  --tw-slider-thumb-bg: hsl(var(--tw-theme-hue, 222) 15% 42%);
+  --tw-slider-thumb-bg-active: hsl(var(--tw-theme-hue, 222) 15% 52%);
+  --tw-slider-thumb-bevel-hi: var(--tw-menu-bevel-hi);
+}
+
+/* Session menu accents: square-root sigil for the current session,
+ * opaque inset stroke around the status dot. */
+.tw-dd-session-item.current::before { content: '\221A'; }
+.tw-dd-session-status { box-shadow: 0 0 0 1px #000 inset; }

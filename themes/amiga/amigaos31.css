@@ -1,0 +1,7 @@
+/* AmigaOS 3.1 Theme.
+ *
+ * The actual rules live in amiga-common.css — AmigaOS 3.1 is the
+ * baseline Amiga look, so the shared file already paints it correctly.
+ * Anything truly unique to 3.1 (and not also Scene 2000) goes below
+ * the @import. */
+@import url('amiga-common.css');

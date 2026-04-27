@@ -28,13 +28,26 @@ html, body { height: 100%; overflow: hidden; }
   --tw-gadget-hover: color-mix(in srgb, var(--tw-gadget-bg), white 8%);
   --tw-gadget-active: color-mix(in srgb, var(--tw-gadget-bg), white 15%);
 
-  /* === UI FONT (themes override; used by topbar, dropdowns, menus) === */
-  --tw-ui-font: system-ui, sans-serif;
+  /* === UI FONT (themes override; used by topbar, dropdowns, menus) ===
+   * The triple is the single source of truth for chrome/menu typography
+   * — themes change the family, size, or line-height to retune the
+   * whole UI in one place. Per-element overrides (e.g. a smaller footer
+   * label or a larger glyph button) are still allowed where the
+   * deliberate deviation is the point. */
+  --tw-ui-font: 'Iosevka Nerd Font Mono', 'MOsOul Nerd Font', 'ZedMono Nerd Font', 'JetBrains Mono', monospace;
+  --tw-ui-font-size: 13px;
+  --tw-ui-line-height: 1;
 
   /* === TEXT === */
   --tw-text: #d4d4d4;
   --tw-text-muted: color-mix(in srgb, var(--tw-text), transparent 40%);
   --tw-muted: var(--tw-text-muted);
+  /* Brighter sibling of --tw-text, used to mark the currently-selected
+   * item in dropdown lists (regular `.selected` and the session menu's
+   * `.current`). The naming mirrors the existing muted/strong pair from
+   * typographic terminology — "strong" is the conventional counterpart
+   * to "muted" on the emphasis axis. Themes override as needed. */
+  --tw-text-strong: color-mix(in srgb, var(--tw-text), white 30%);
 
   /* === STATUS === */
   --tw-status-active: #2ecc40;
@@ -55,6 +68,15 @@ html, body { height: 100%; overflow: hidden; }
 
   /* === TMUX SCROLLBAR === */
   --tw-scrollbar-width: 14px;
+  /* Insets keep the bar inside the window frame. Themes with a visible
+   * frame (default's 3px gradient gap, etc.) override these so the
+   * scrollbar sits between the topbar/top-frame and the bottom frame
+   * without painting over them. Defaults to 0 = flush against the
+   * viewport (Amiga's intentional behaviour). */
+  --tw-scrollbar-inset-top: 0px;
+  --tw-scrollbar-inset-right: 0px;
+  --tw-scrollbar-inset-bottom: 0px;
+  --tw-scrollbar-topbar-offset: 28px;
   --tw-scrollbar-track-bg: var(--tw-slider-track-bg, var(--tw-gadget-bg));
   --tw-scrollbar-thumb-bg: var(--tw-slider-thumb-bg, var(--tw-gadget-hover));
   --tw-scrollbar-thumb-hover: var(--tw-gadget-active);
@@ -93,13 +115,14 @@ body.scrollbar-autohide #terminal { right: var(--tw-terminal-right); }
 
 .tw-scrollbar {
   position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  top: var(--tw-scrollbar-inset-top);
+  right: var(--tw-scrollbar-inset-right);
+  bottom: var(--tw-scrollbar-inset-bottom);
   width: var(--tw-scrollbar-width);
   z-index: 8;
   color: var(--tw-text);
 }
+body.topbar-pinned .tw-scrollbar { top: var(--tw-scrollbar-topbar-offset); }
 .tw-scrollbar-track {
   position: absolute;
   inset: 2px;
@@ -258,7 +281,7 @@ input[type="range"]::-moz-range-thumb {
 #menu-dropdown .tw-dropdown,
 #menu-dropdown input[type="range"] { flex: 1; }
 
-.tw-menu-row { display: flex; align-items: center; gap: 4px; padding: 2px 8px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+.tw-menu-row { display: flex; align-items: center; gap: 4px; padding: 2px 8px; cursor: pointer; font-size: var(--tw-ui-font-size); white-space: nowrap; }
 .tw-menu-row-static { cursor: default; gap: 4px; }
 .tw-menu-row-inline { gap: 12px; }
 .tw-menu-row-inline label { display: inline-flex; align-items: center; gap: 4px; }
@@ -266,7 +289,7 @@ input[type="range"]::-moz-range-thumb {
 .tw-menu-label-clickable { cursor: pointer; }
 .tw-menu-input-select, .tw-menu-input-number {
   background: var(--tw-gadget-bg); border: 1px solid var(--tw-bevel-lo); color: var(--tw-text);
-  border-radius: 2px; padding: 1px 4px; font-family: inherit; font-size: 12px;
+  border-radius: 2px; padding: 1px 4px; font-family: inherit; font-size: var(--tw-ui-font-size);
 }
 .tw-menu-input-number { width: 46px; }
 .tw-menu-hr, .tw-dropdown-sep { border: none; height: 1px; background: var(--tw-muted); margin: 5px 8px 3px; }
@@ -294,7 +317,7 @@ input[type="range"]::-moz-range-thumb {
 }
 
 /* Menu footer: left and right side labels. */
-#menu-footer { justify-content: space-between; color: var(--tw-muted); font-size: 11px; }
+#menu-footer { justify-content: space-between; color: var(--tw-muted); font-size: var(--tw-ui-font-size); }
 
 /* "Dropped files" row: stacked header + list. Selector is double-classed
  * so the column + stretch beats any theme .tw-menu-row rule with
@@ -302,7 +325,7 @@ input[type="range"]::-moz-range-thumb {
 .tw-menu-row.tw-menu-row-drops { flex-direction: column; align-items: stretch; gap: 4px; }
 .tw-drops-header { display: flex; align-items: center; gap: 8px; }
 #drops-count { flex: 1; }
-#drops-list { max-height: 140px; overflow-y: auto; font-size: 13px; }
+#drops-list { max-height: 140px; overflow-y: auto; font-size: var(--tw-ui-font-size); }
 #drops-list .tw-drops-empty { font-style: italic; color: var(--tw-muted); padding: 4px 0; }
 #drops-list .tw-drops-row {
   display: flex; align-items: center; gap: 6px;
@@ -360,7 +383,7 @@ input[type="range"]::-moz-range-thumb {
   border: 1px solid var(--tw-bevel-hi); border-radius: 4px;
   padding: 14px 16px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
-  font-size: 13px;
+  font-size: var(--tw-ui-font-size);
 }
 .tw-clip-prompt-title { font-weight: bold; margin-bottom: 8px; }
 .tw-clip-prompt-body { margin-bottom: 10px; word-break: break-all; }
@@ -486,12 +509,16 @@ body {
   font-family: var(--tw-ui-font);
 }
 
-:where(.tw-dropdown-item) { color: var(--tw-text); }
-:where(.tw-dropdown-item:hover) { background: var(--tw-gadget-hover); }
-:where(.tw-dropdown-item.selected) { background: var(--tw-gadget-active); }
-/* Keyboard-focused option (tracked via aria-activedescendant on the
- * trigger — focus stays on the trigger, so we can't use :focus). */
-:where(.tw-dropdown-item.tw-dd-active) { background: var(--tw-gadget-hover); }
+/* Unselected dropdown items use the muted text colour — matching the
+ * menu-row labels. Hover and keyboard-focus bump to --tw-text as a
+ * preview of the about-to-be-selected state. The actual selected item
+ * (regular `.selected` or the session menu's `.current`) jumps to
+ * --tw-text-strong so the picked option stands out across the list. */
+:where(.tw-dropdown-item) { color: var(--tw-text-muted); }
+:where(.tw-dropdown-item:hover) { background: var(--tw-gadget-hover); color: var(--tw-text); }
+:where(.tw-dropdown-item.tw-dd-active) { background: var(--tw-gadget-hover); color: var(--tw-text); }
+:where(.tw-dropdown-item.selected),
+:where(.tw-dd-session-item.current) { background: var(--tw-gadget-active); color: var(--tw-text-strong); }
 
 
 :where(.tw-dd-input) {
@@ -508,3 +535,329 @@ body {
   background: var(--tw-gadget-bg);
   color: var(--tw-text);
 }
+
+/* ====================================================================
+ * Default theme implementation.
+ *
+ * The "Default" user-selectable theme is base.css itself — the
+ * overrides below were merged in from themes/default/default.css so
+ * other themes that @import base.css inherit the same look unless they
+ * choose to override. Anything genuinely structural (sizing, layout,
+ * variable contracts) belongs above this line; anything below is
+ * default look-and-feel that another theme is free to replace.
+ * ================================================================== */
+
+:root {
+  --tw-ui-font: 'Iosevka Nerd Font Mono', 'MOsOul Nerd Font', 'ZedMono Nerd Font', 'JetBrains Mono', monospace;
+  /* Default inputs are slightly darker than chrome — override gadget-bg. */
+  --tw-gadget-bg: color-mix(in srgb, var(--tw-chrome-bg), black 20%);
+  /* Inset the tmux scrollbar so the body-gradient frame stays visible
+   * above (3px top frame when topbar autohidden) and below (3px bottom
+   * frame). The right edge is flush against the viewport — the bar
+   * itself acts as the right frame so the user can grab it without
+   * having to land inside a 3px sliver. Topbar pinned: bar starts
+   * flush at the topbar's bottom (28px) so no top frame slips
+   * between them. */
+  --tw-scrollbar-inset-top: 3px;
+  --tw-scrollbar-inset-right: 0px;
+  --tw-scrollbar-inset-bottom: 3px;
+  --tw-scrollbar-topbar-offset: 28px;
+}
+
+body {
+  /* Default font for anything attached directly to body — e.g. the
+   * windows menu (showContextMenu uses position:fixed and appends to
+   * body), which would otherwise fall back to the browser's serif
+   * default instead of inheriting from #topbar. */
+  font-family: var(--tw-ui-font);
+  font-size: var(--tw-ui-font-size);
+}
+
+#topbar {
+  display: flex;
+  /* `stretch` so every flex child (including the trigger containers
+   * like #tb-session and #menu-wrap) fills the topbar height. That
+   * keeps `.tw-dropdown-menu`'s `top: calc(100% + 2px)` resolving to
+   * the same y-coordinate for every dropdown. Each child's internal
+   * align-items:center still centers its own contents. */
+  align-items: stretch;
+  height: 28px;
+  padding: 0 6px;
+  gap: 4px;
+  font-size: var(--tw-ui-font-size);
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))));
+  user-select: none;
+  -webkit-user-select: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  transition: transform 0.3s ease;
+  pointer-events: none;
+}
+
+#topbar > * { pointer-events: auto; }
+#topbar.hidden { transform: translateY(-100%); }
+#topbar.hidden > * { pointer-events: none; }
+
+#tb-session, #tb-windows, #tb-right { display: flex; align-items: stretch; gap: 4px; position: relative; }
+#tb-title { flex: 1; text-align: center; display: flex; align-items: center; justify-content: center; line-height: var(--tw-ui-line-height); }
+#tb-windows #win-tabs { display: flex; gap: 2px; }
+
+/* --- Custom dropdown (themable, replaces native <select>) --- */
+.tw-dropdown { position: relative; display: inline-flex; align-items: center; }
+.tw-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: var(--tw-ui-font-size);
+  cursor: pointer;
+  min-width: 0;
+  width: 100%;
+}
+.tw-dropdown-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tw-dropdown-arrow { opacity: 0.7; font-size: 10px; }
+.tw-dropdown-menu {
+  position: absolute;
+  /* `top: 100%` (no extra gap) so the menu sits flush with the
+   * trigger's bottom — same offset the JS-positioned dropdowns use
+   * (`menu.style.top = rect.bottom`), so every dropdown lines up. */
+  top: 100%;
+  left: 0;
+  min-width: 100%;
+  border-radius: 4px;
+  z-index: 200;
+  padding: 2px 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--tw-chrome-bg), white calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome-bg), black calc(5% * var(--tw-theme-contrast))));
+  /* max-height / overflow-y live in base.css. */
+}
+.tw-dropdown-item {
+  padding: 2px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  font-size: var(--tw-ui-font-size);
+}
+/* Session menu items have a fixed-width gutter so the name column stays
+ * aligned whether the row has a check mark or not. */
+.tw-dd-session-item {
+  padding-left: 26px;
+  padding-right: 22px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tw-dd-session-item.current::before {
+  content: '\2713';
+  position: absolute;
+  left: 10px;
+  width: 12px;
+}
+.tw-dd-session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tw-dd-session-status {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transform: translateY(-50%);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4) inset;
+}
+.tw-dd-session-delete {
+  background: transparent;
+  border: none;
+  padding: 0 2px;
+  color: inherit;
+  font-size: var(--tw-ui-font-size);
+  opacity: 0.65;
+}
+.tw-dd-session-delete:hover { opacity: 1; }
+/* Context menu is position:fixed at the cursor — `min-width: 100%` would
+ * otherwise resolve to the viewport width. Let the content size it. */
+.tw-dropdown-menu.tw-dd-context { min-width: auto; }
+.tw-dd-input {
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: var(--tw-ui-font-size);
+  outline: none;
+  flex: 1;
+  min-width: 140px;
+}
+/* Shared label width so input fields align across rows in a menu. */
+/* Window-tab context menu is a single-row editor; keep it compact. */
+.tw-dd-context-win .tw-menu-label { min-width: auto; padding-right: 6px; }
+.tw-dd-context-win .tw-dd-input { min-width: 120px; }
+
+#topbar .tb-btn {
+  border-radius: 3px;
+  border-color: transparent;
+  background: transparent;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--tw-ui-font-size);
+  line-height: var(--tw-ui-line-height);
+}
+
+/* Session menu button: [ + | name ] — single button, opens the sessions dropdown */
+#topbar .tb-btn-session {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  gap: 0;
+}
+#topbar .tb-btn-session .tb-session-plus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  border-right: 1px solid var(--tw-bevel-lo);
+}
+#topbar .tb-btn-session .tb-session-plus::before {
+  content: '';
+  display: block;
+  width: 8px;
+  height: 8px;
+  background: var(--tw-text);
+}
+#topbar .tb-btn-session .tb-session-name {
+  padding: 2px 8px;
+}
+
+#topbar .tb-sep { width: 12px; }
+
+#topbar .tw-win-tab {
+  background: none;
+  border-radius: 3px;
+  border-color: transparent;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--tw-ui-font-size);
+  line-height: var(--tw-ui-line-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#topbar .tw-win-tab.active,
+#topbar .tb-btn.open,
+#topbar .tb-btn-session.open {
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, var(--tw-chrome), black calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), white calc(5% * var(--tw-theme-contrast))));
+  border-color: color-mix(in srgb, var(--tw-chrome), white 10%);
+}
+
+/* New-window button appended to #win-tabs */
+#topbar .tb-btn-new-window { margin-left: 2px; font-weight: bold; }
+
+/* Compact window button: [3: name | +] — mirror of the session button */
+#topbar .tb-btn-window-compact {
+  display: inline-flex;
+  align-items: stretch;
+  padding: 0;
+  gap: 0;
+}
+#topbar .tb-btn-window-compact .tb-window-compact-label {
+  padding: 2px 8px;
+  border-right: 1px solid var(--tw-bevel-lo);
+}
+/* In tabs mode the button next to the tab strip only shows the gadget. */
+#topbar .tb-btn-window-compact.tabs-shown .tb-window-compact-label { display: none; }
+/* Match the ☰ button's visual footprint so the topbar's right-side
+ * controls read as a pair of equally-sized click targets. */
+#topbar .tb-btn-window-compact.tabs-shown {
+  width: 28px;
+  height: 28px;
+  justify-content: center;
+}
+#topbar .tb-btn-window-compact .tb-window-compact-plus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  position: relative;
+}
+/* Outer square — thin line, transparent interior. */
+#topbar .tb-btn-window-compact .tb-window-compact-plus::before {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 8px;
+  border: 1px solid var(--tw-text);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  box-sizing: content-box;
+}
+/* Inner top-left mini-window — contrasting fill + thin border, nested in
+ * the outer square's top-left corner (window-on-top-of-windows icon). */
+#topbar .tb-btn-window-compact .tb-window-compact-plus::after {
+  content: '';
+  position: absolute;
+  width: 4px;
+  height: 2px;
+  background: var(--tw-text);
+  border: 1px solid var(--tw-chrome);
+  top: calc(50% - 4px);
+  left: calc(50% - 5px);
+  box-sizing: content-box;
+}
+
+#topbar #btn-menu {
+  width: 28px; height: 28px;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#menu-wrap { position: relative; }
+
+/* Settings menu shares the .tw-dropdown-menu styling — only the
+ * right-anchor and fixed min-width are settings-specific. The `top`
+ * offset stays inherited from .tw-dropdown-menu so all dropdowns line
+ * up at the same distance from their trigger. */
+#menu-dropdown {
+  right: 0; left: auto;
+  min-width: 270px;
+  /* Lift the menu-scoped slider material above the gadget baseline so
+   * the track and thumb stand out against the dropdown's chrome-bg.
+   * Fill is brightened above the track so the LEFT (filled) half of
+   * each slider reads as brighter than the RIGHT (unfilled) half. */
+  --tw-slider-fill: color-mix(in srgb, var(--tw-chrome), white 50%);
+  --tw-slider-track-bg: color-mix(in srgb, var(--tw-gadget-bg), white 15%);
+  --tw-slider-thumb-bg: color-mix(in srgb, var(--tw-gadget-bg), white 30%);
+}
+
+#menu-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 12px;
+  font-size: var(--tw-ui-font-size);
+  white-space: nowrap;
+}
+
+#terminal { --tw-terminal-right: 3px; position: absolute; left: 3px; right: var(--tw-terminal-right); bottom: 3px; top: 3px; }
+body.topbar-pinned #terminal { top: 31px; }
+
+/* Bevel-less, transparent scrollbar track — the page background (i.e.
+ * the terminal viewport's colour) shows through so the bar reads as a
+ * thumb floating over the terminal, not a chrome gadget pasted on top. */
+.tw-scrollbar-track { border: none; background: transparent; }
