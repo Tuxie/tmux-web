@@ -1302,9 +1302,11 @@ export class Topbar {
 
 /** Strip the boilerplate that tmux's `set-titles-string` (or shell
  *  prompts that mimic it) wraps around the actual pane title:
- *  `session:idx:winname - "Actual title" #pane,#window` → `Actual title`.
+ *  `session:idx:winname - "Actual title" suffix` → `Actual title`.
+ *  tmux versions/configs vary the suffix (`#{session_alerts}`,
+ *  `%pane,@window`, etc.), so anchor on the stable quoted payload.
  *  Falls back to the raw string when the pattern doesn't match. */
 function stripTitleDecoration(raw: string): string {
-  const m = /^[^:]+:[^:]+:[^"]+- "(.+)"(?:\s+#\S+)?\s*$/.exec(raw);
+  const m = /^[^:]+:[^:]+:.+ - "(.+)"(?:\s+\S.*)?\s*$/.exec(raw);
   return m ? m[1] : raw;
 }

@@ -314,6 +314,15 @@ describe('Topbar.init + updateTitle / updateWindows / renderWinTabs', () => {
     expect(title.textContent).toBe('hello world');
   });
 
+  it('updateTitle strips tmux set-titles decoration with pane/window id suffixes', async () => {
+    const t = await mountTopbar();
+    await t.init();
+    t.updateTitle('main:0:tmux-web - "tmux-web" %1,@2');
+    const title = (globalThis.document as any).getElementById('tb-title');
+    expect(title.textContent).toBe('tmux-web');
+    expect(title.title).toBe('tmux-web');
+  });
+
   it('clicking the top-left button asks Electrobun to close the window', async () => {
     const hostMessages: unknown[] = [];
     installGlobals();
