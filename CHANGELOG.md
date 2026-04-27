@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## 1.10.3 — 2026-04-27
+
+### Fixed
+
+- **Titlebar startup text strips tmux suffix variants.** The topbar now
+  extracts the quoted pane title from tmux `set-titles-string` output
+  even when the suffix is shaped like `%pane,@window`, preventing
+  startup from briefly showing `session:index:window - "title" ...`
+  metadata until the next window refresh.
+- **Amiga Scene 2000 resize handle uses the Scene hue.** The resize
+  gadget triangle no longer uses plain white or translucent grey; it
+  uses the theme-hued muted Scene tone.
+
+### Changed
+
+- **Amiga Scene 2000 resize handle is brighter.** The resize gadget
+  triangle is now 20% brighter than the base muted Scene tone while
+  keeping the same hue and saturation.
+
 ## 1.10.2 — 2026-04-27
 
 ### Fixed
