@@ -254,7 +254,7 @@ body {
 
 /* Window tabs in #tb-windows. */
 #topbar .tw-win-tab {
-  background: transparent;
+  background: var(--tw-chrome);
   color: var(--tw-muted);
   padding: 0 6px;
   margin: 0;

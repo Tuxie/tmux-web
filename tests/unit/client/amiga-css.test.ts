@@ -38,4 +38,9 @@ describe('Amiga theme CSS', () => {
   test('window tabs are separated so inactive tab bevels match standalone topbar buttons', () => {
     expect(commonCss).toMatch(/#tb-windows #win-tabs\s*\{\s*display:\s*flex;\s*gap:\s*2px;\s*\}/);
   });
+
+  test('AmigaOS 3.1 window tabs cover the topbar bevel with a chrome surface', () => {
+    expect(commonCss).toMatch(/#topbar \.tw-win-tab\s*\{[^}]*background:\s*var\(--tw-chrome\);/s);
+    expect(sceneCss).toMatch(/#topbar \.tw-win-tab,[^}]*\{\s*background:\s*transparent;/s);
+  });
 });
