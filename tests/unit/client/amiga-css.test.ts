@@ -41,6 +41,8 @@ describe('Amiga theme CSS', () => {
 
   test('AmigaOS 3.1 window tabs cover the topbar bevel with a chrome surface', () => {
     expect(commonCss).toMatch(/#topbar \.tw-win-tab\s*\{[^}]*background:\s*var\(--tw-chrome\);/s);
+    expect(commonCss).toMatch(/#topbar \.tw-win-tab:hover\s*\{\s*background:\s*var\(--tw-chrome\);\s*\}/);
     expect(sceneCss).toMatch(/#topbar \.tw-win-tab,[^}]*\{\s*background:\s*transparent;/s);
+    expect(sceneCss).toMatch(/#topbar \.tw-win-tab:hover\s*\{\s*background:\s*rgba\(255,\s*255,\s*255,\s*0\.1\);\s*\}/);
   });
 });
