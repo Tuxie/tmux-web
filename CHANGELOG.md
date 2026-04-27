@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.10.0 — 2026-04-27
+
 ### Added
 
 - **Themeable tmux scrollbar.** A scrollbar overlay sits alongside
@@ -9,6 +11,77 @@
   and themeable per pack, instead of relying on browser-native scrollbar
   styling. Implementation plan and rationale at
   `docs/superpowers/plans/2026-04-25-themeable-tmux-scrollbar.md`.
+- **Workbench-style Amiga scrollbar.** Both Amiga themes get a chunky
+  bar with a 2 × 2 chess-pattern strip behind the thumb, a scroll-up
+  / scroll-down cluster (hold-to-repeat, JS-driven `.pressed`
+  bevel-flip), and a no-op resize gadget anchored at the page bottom
+  with a clip-path triangle framed by a black border. AmigaOS 3.1
+  uses flat workbench bevels; Scene 2000 paints a top-down gradient
+  across the whole bar with a thumb that brightens on hover and
+  inverts gradient + bevel while dragging.
+- **IosevkaTerm Compact** — the IosevkaTerm font patched with Nerd
+  Font glyphs, then run through fontforge to scale OS/2 + hhea
+  vertical metrics to ~85% of the source, replaces "Iosevka Nerd
+  Font Mono" as the Default theme's monospace font. The terminal
+  spacing slider sits at line-height: 1 by default and stays
+  compact.
+- **Iosevka Amiga** fallback — IosevkaTerm Nerd Font rescaled em
+  1000→1600 with every glyph translated +312 units so its letter
+  midline lands on the Amiga bitmap-font letter midline. Hidden
+  from the font picker; attached as a per-font fallback on every
+  Amiga theme font so missing BMP / Nerd-Font PUA glyphs render
+  baseline-aligned with the surrounding Amiga text. Lets the three
+  Amiga bitmap fonts ship unpatched (~5–7 KB each) instead of
+  carrying their own 1 MB Nerd-Font copy.
+- **Two new Amiga fonts.** `P0T-NOoDLE` and `Topaz8 Amiga500` join
+  the existing `MicroKnight`, `Topaz8 Amiga1200`, and `mOsOul`. The
+  `Nerd Font` suffix is stripped from the family + filename of all
+  five (the glyphs come from `Iosevka Amiga` now).
+- **Push-based per-window pane titles.** A `refresh-client -B`
+  subscription on the per-session control client emits
+  `#{W:#{window_index}\t#{pane_title}\x1f}` whenever any window's
+  active-pane title changes; the topbar uses the resulting map to
+  populate live tooltips on the win-tab buttons and the windows-menu
+  entries, and to keep the centre title in sync without polling.
+- **Reusable font-tooling scripts.** `scripts/patch-nerd-font.sh`
+  runs Nerd Fonts FontPatcher with `--complete` and rewrites OS/2 +
+  hhea metrics by a percent argument; `scripts/build-fallback-font.sh`
+  rescales em + vertical metrics, applies a uniform Y-translate, and
+  rewrites the SFNT name table. Both are dependency-checked
+  (fontforge / woff2_compress / `tmp/FontPatcher`) and emit ttf+woff2
+  to `tmp/`.
+- **Sessions-menu window count.** Each running session row gets a
+  muted `(N windows)` badge between the session name and the
+  running/stopped dot, fed by `#{session_windows}` in the
+  `list-sessions` query.
+
+### Changed
+
+- **Topbar bevel reads continuous across section gaps.** A raised
+  `box-shadow inset` on `#topbar` paints a 2 px bevel-hi top + 2 px
+  bevel-lo bottom band that the section gaps sit over, so adjacent
+  buttons' raised bevels read as one continuous Workbench-style edge.
+- **AmigaOS 3.1 menus pop without drop shadows;** Scene 2000 keeps
+  them. Settings menu in both Amiga themes is wider (500 px) with a
+  120 px label column.
+- **Default-theme footer text is 20 % smaller** and renders via
+  `calc(var(--tw-ui-font-size) * 0.8)` so it still scales with
+  theme font-size overrides.
+- **Title bar clips with ellipsis instead of wrapping.** Hovering
+  the centre title surfaces the full text via the native tooltip;
+  the `set-titles-string`-style decoration `session:idx:winname -
+  "Actual title" #pane,#window` is stripped on the client so only
+  the inner quoted title shows.
+- **Hamburger button** in the Default theme drops the ☰ glyph 2 px
+  to the optical centre — IosevkaTerm Compact's metric-tightened
+  build positions the glyph slightly high relative to its line-box
+  centre.
+- **Fonts are loaded with a `hidden?: boolean` + `fallbacks?:
+  string[]` contract.** Hidden fonts register an `@font-face` for
+  fallback use but don't appear in the font picker; per-font
+  `fallbacks` are appended to the xterm.js font stack only when
+  that family is the active terminal font, so the Amiga `Iosevka
+  Amiga` fallback is scoped to Amiga themes.
 
 ### Removed
 
@@ -23,6 +96,9 @@
   bundled-tmux experiment cost more in build complexity and
   cross-arch packaging churn than it saved over depending on the
   system tmux.
+- **Kill-session menu entry** removed from the sessions-menu popover
+  (the server-side `kill` action stays in place for the contextmenu
+  paths that still expose it).
 
 ## 1.9.0 — 2026-04-25
 
