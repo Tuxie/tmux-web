@@ -158,13 +158,13 @@ body {
  * so they read against the darker glassy chrome:
  *   - Up / down arrowheads in the scrollbar buttons take the muted
  *     foreground tone so they don't shout against the bar gradient.
- *   - The resize handle triangle uses the same muted tone instead of
- *     the AmigaOS 3.1 white fill.
+ *   - The resize handle triangle uses Scene's subdued theme-hued tone
+ *     instead of the AmigaOS 3.1 white fill.
  *   - The √ check mark inside ticked checkboxes is kept pure white
  *     for legibility. */
 .tw-scrollbar-up::before,
 .tw-scrollbar-down::before { background: var(--tw-muted); }
-.tw-scrollbar-resize::after { background: var(--tw-muted); }
+.tw-scrollbar-resize::after { background: hsl(var(--tw-theme-hue, 222) 15% 42%); }
 .tw-dropdown-menu input[type="checkbox"]:checked::after { color: #fff; }
 
 /* Scrollbar gradients — replace amiga-common's flat chrome.
