@@ -407,11 +407,11 @@ describe('desktop tmux-web launch helpers', () => {
     const marker = `/tmp/tmux-web-close-${crypto.randomUUID()}`;
     const server = await startTmuxWebServer(
       await bunScriptLaunch(`
-        process.stdout.write('tmux-web listening on http://127.0.0.1:38123\\n');
         process.on('SIGTERM', () => {
           require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'closed');
           process.exit(0);
         });
+        process.stdout.write('tmux-web listening on http://127.0.0.1:38123\\n');
         setInterval(() => {}, 1_000);
       `),
     );
