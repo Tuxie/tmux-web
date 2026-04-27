@@ -63,14 +63,17 @@ export function buildTitlesFetchArgs(session: string): string[] {
 }
 
 /** Parse a `#{W:idx\tactive\ttitle\x1f}` subscription value into a
- *  per-window title map. The active flag is consumed only as a
- *  subscription-fire trigger and discarded after parsing — clients
- *  read the active flag from the canonical windows list. Empty /
- *  malformed records are silently dropped; titles may contain tabs
- *  (we only split on the first two). */
+ *  per-window title map plus the active window index. Empty / malformed
+ *  records are silently dropped; titles may contain tabs (we only split
+ *  on the first two). */
 export function parseTitlesValue(raw: string): Record<string, string> {
+  return parseTitlesSnapshot(raw).titles;
+}
+
+export function parseTitlesSnapshot(raw: string): { titles: Record<string, string>; activeIndex: string | null } {
   const out: Record<string, string> = {};
-  if (!raw) return out;
+  let activeIndex: string | null = null;
+  if (!raw) return { titles: out, activeIndex };
   for (const entry of raw.split('\x1f')) {
     if (!entry) continue;
     const firstTab = entry.indexOf('\t');
@@ -80,11 +83,11 @@ export function parseTitlesValue(raw: string): Record<string, string> {
     const rest = entry.slice(firstTab + 1);
     const secondTab = rest.indexOf('\t');
     if (secondTab < 0) continue;
-    /* rest.slice(0, secondTab) is `#{window_active}` ("0" or "1"); we
-     * don't currently need it on the client. */
+    const active = rest.slice(0, secondTab);
+    if (active === '1' && activeIndex === null) activeIndex = idx;
     out[idx] = rest.slice(secondTab + 1);
   }
-  return out;
+  return { titles: out, activeIndex };
 }
 
 async function runListing(deps: TmuxListingsDeps, args: readonly string[]): Promise<string | null> {

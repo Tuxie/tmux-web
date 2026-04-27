@@ -5,6 +5,7 @@ import {
   getPaneTitleViaTmux,
   TITLES_FORMAT,
   parseTitlesValue,
+  parseTitlesSnapshot,
 } from '../../../src/server/tmux-listings.ts';
 import { TmuxCommandError, type TmuxControl } from '../../../src/server/tmux-control.ts';
 
@@ -171,6 +172,17 @@ describe('tmux-listings: TITLES_FORMAT (active-window subscription regression)',
     expect(parseTitlesValue(aActive)).toEqual({
       '0': 'zsh prompt',
       '1': 'vim - file.txt',
+    });
+  });
+
+  test('parser exposes the active window index from the subscription payload', () => {
+    const raw = '0\t0\tzsh prompt\x1f1\t1\tvim - file.txt\x1f';
+    expect(parseTitlesSnapshot(raw)).toEqual({
+      titles: {
+        '0': 'zsh prompt',
+        '1': 'vim - file.txt',
+      },
+      activeIndex: '1',
     });
   });
 

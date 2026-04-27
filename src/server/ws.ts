@@ -20,7 +20,7 @@ import {
   buildTitlesSubscriptionArgs,
   buildTitlesUnsubscribeArgs,
   buildTitlesFetchArgs,
-  parseTitlesValue,
+  parseTitlesSnapshot,
 } from './tmux-listings.js';
 import {
   SCROLLBAR_FORMAT,
@@ -80,6 +80,11 @@ interface WsConnState {
    *  changes. The client uses these as tooltips on the win-tab buttons
    *  and the windows-menu entries. */
   titles: Record<string, string>;
+  /** Last canonical window list sent to this websocket. The tmux titles
+   *  subscription includes `#{window_active}`, so keyboard-driven window
+   *  switches can patch this cache and update the active tab immediately
+   *  while the slower list-windows refresh runs as a backstop. */
+  windows: WindowInfo[];
   titlesSubscriptionName: string;
   titlesSubscriptionSession: string | null;
   /** Monotonically-increasing counter. Each new switchSession call bumps
@@ -237,6 +242,7 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
         scrollbarPendingDragQueued: false,
         scrollbarPendingDragPosition: undefined,
         titles: {},
+        windows: [],
         titlesSubscriptionName: nextTitlesSubscriptionName(),
         titlesSubscriptionSession: null,
         switchSerial: 0,
@@ -532,6 +538,7 @@ function handleScrollbarSubscriptionChanged(name: string, value: string, session
 function handleTitlesSubscriptionChanged(name: string, value: string, session: string | undefined, reg: WsRegistry, opts: WsServerOptions): void {
   const clientSets = session ? [reg.wsClientsBySession.get(session)] : Array.from(reg.wsClientsBySession.values());
   let matched = false;
+  const snapshot = parseTitlesSnapshot(value);
   for (const clients of clientSets) {
     if (!clients) continue;
     for (const ws of clients) {
@@ -539,9 +546,14 @@ function handleTitlesSubscriptionChanged(name: string, value: string, session: s
       const { state } = ws.data;
       if (state.titlesSubscriptionName !== name) continue;
       matched = true;
-      const titles = parseTitlesValue(value);
-      state.titles = titles;
-      ws.send(frameTTMessage({ titles }));
+      state.titles = snapshot.titles;
+      const windows = windowsWithActiveIndex(state.windows, snapshot.activeIndex);
+      if (windows) {
+        state.windows = windows;
+        ws.send(frameTTMessage({ session: state.registeredSession, titles: snapshot.titles, windows }));
+      } else {
+        ws.send(frameTTMessage({ titles: snapshot.titles }));
+      }
     }
   }
   /* The TITLES_FORMAT includes `#{window_active}`, so a tmux-side
@@ -550,6 +562,12 @@ function handleTitlesSubscriptionChanged(name: string, value: string, session: s
    * notification in tmux control mode, so we piggy-back on titles to
    * refetch the windows list and propagate the new active flag. */
   if (matched && session) void broadcastWindowsForSession(reg, session, opts);
+}
+
+function windowsWithActiveIndex(windows: WindowInfo[], activeIndex: string | null): WindowInfo[] | null {
+  if (!activeIndex || windows.length === 0) return null;
+  if (!windows.some(w => w.index === activeIndex)) return null;
+  return windows.map(w => ({ ...w, active: w.index === activeIndex }));
 }
 
 function runTmuxForSession(opts: WsServerOptions, sessionName: string, args: readonly string[]): Promise<string> {
@@ -656,9 +674,9 @@ async function setupTitlesState(
   try {
     const raw = await runTmuxForSession(opts, sessionName, buildTitlesFetchArgs(sessionName));
     if (ws.readyState !== WS_OPEN || state.registeredSession !== sessionName) return;
-    const titles = parseTitlesValue(raw);
-    state.titles = titles;
-    ws.send(frameTTMessage({ titles }));
+    const snapshot = parseTitlesSnapshot(raw);
+    state.titles = snapshot.titles;
+    ws.send(frameTTMessage({ titles: snapshot.titles }));
   } catch (err) {
     debug(opts.config, `titles initial fetch failed for ${sessionName}: ${(err as Error).message}`);
   }
@@ -1304,6 +1322,7 @@ async function sendStartupWindowState(ws: ServerWebSocket<WsData>, sessionName: 
     if (!windows || windows.length === 0) continue;
 
     const msg: ServerMessage = { session: sessionName, windows };
+    ws.data.state.windows = windows;
     if (sessions && sessions.length > 0) msg.sessions = sessions;
     if (title !== undefined) msg.title = title;
     debug(opts.config, `startup window state ready for ${sessionName} in ${Date.now() - startedAt}ms`);
@@ -1326,7 +1345,10 @@ async function sendWindowState(ws: ServerWebSocket<WsData>, sessionName: string,
       // `if (msg.windows)` so a missing field is a no-op there.
       const msg: ServerMessage = { session: sessionName };
       if (sessions && sessions.length > 0) msg.sessions = sessions;
-      if (windows && windows.length > 0) msg.windows = windows;
+      if (windows && windows.length > 0) {
+        msg.windows = windows;
+        ws.data.state.windows = windows;
+      }
       if (title !== undefined) msg.title = title;
       ws.send(frameTTMessage(msg));
     }
@@ -1381,6 +1403,7 @@ async function broadcastWindowsForSession(
   // Convert to `Array.from(clients)` if any future change adds an await.
   for (const ws of clients) {
     if (ws.readyState !== WS_OPEN) continue;
+    ws.data.state.windows = windows;
     ws.send(frameTTMessage({ session: sessionName, windows }));
   }
 }

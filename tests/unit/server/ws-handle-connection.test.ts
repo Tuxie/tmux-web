@@ -626,6 +626,93 @@ describe('ws handleConnection — non-testMode actions & sendWindowState', () =>
     o.ws.close();
   }, 15000);
 
+  test('titles subscription flips active window immediately without waiting for list-windows', async () => {
+    const { path: tmuxBin } = makeFakeTmux();
+    const listeners = new Map<TmuxNotification['type'], Array<(n: any) => void>>();
+    const runCalls: string[][] = [];
+    let blockListWindows = false;
+    let releaseListWindows!: () => void;
+    const listWindowsBlocked = new Promise<void>(r => { releaseListWindows = r; });
+    const tmuxControl: TmuxControl = {
+      attachSession: async () => {},
+      detachSession: () => {},
+      run: async (args) => {
+        runCalls.push([...args]);
+        if (args[0] === 'list-windows') {
+          if (blockListWindows) await listWindowsBlocked;
+          return '0\tone\t1\n1\ttwo\t0\n';
+        }
+        if (args[0] === 'display-message') return 'pane';
+        return '';
+      },
+      on: (event, cb) => {
+        const arr = listeners.get(event) ?? [];
+        arr.push(cb);
+        listeners.set(event, arr);
+        return () => {
+          const idx = arr.indexOf(cb);
+          if (idx >= 0) arr.splice(idx, 1);
+        };
+      },
+      hasSession: () => false,
+      close: async () => {},
+    };
+    h = await startTestServer({ testMode: false, tmuxBin, tmuxControl });
+    const o = openWs(h.wsUrl);
+    await o.opened;
+
+    await waitForMsg(o.messages, m =>
+      m.session === 'main' &&
+      Array.isArray(m.windows) &&
+      m.windows.some((w: any) => w.index === '0' && w.active === true),
+      8000,
+    );
+    const titleSubscription = await waitForMsg(o.messages, m => m.titles, 8000);
+    expect(titleSubscription).toBeTruthy();
+    const titlesSubscriptionName = await waitFor(() => {
+      const call = runCalls.find(args =>
+        args[0] === 'refresh-client' &&
+        args[1] === '-B' &&
+        typeof args[2] === 'string' &&
+        args[2].startsWith('tw-titles-'),
+      );
+      return call?.[2]?.split(':')[0] ?? '';
+    }, 8000);
+    expect(titlesSubscriptionName).toBeTruthy();
+
+    o.messages.length = 0;
+    blockListWindows = true;
+    for (const cb of listeners.get('subscriptionChanged') ?? []) {
+      cb({
+        type: 'subscriptionChanged',
+        name: titlesSubscriptionName,
+        session: 'main',
+        sessionId: '$1',
+        windowId: '@2',
+        windowIndex: '1',
+        paneId: '%4',
+        value: '0\t0\tone-title\x1f1\t1\ttwo-title\x1f',
+      });
+    }
+
+    try {
+      const got = await waitForMsg(o.messages, m =>
+        m.session === 'main' &&
+        Array.isArray(m.windows) &&
+        m.windows.some((w: any) => w.index === '1' && w.active === true),
+        250,
+      );
+      expect(got?.windows).toEqual([
+        { index: '0', name: 'one', active: false },
+        { index: '1', name: 'two', active: true },
+      ]);
+    } finally {
+      releaseListWindows();
+    }
+
+    o.ws.close();
+  }, 15000);
+
   test('scrollbar setup waits for attach and uses the session control client', async () => {
     const { path: tmuxBin } = makeFakeTmux();
     let resolveAttach!: () => void;
