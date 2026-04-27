@@ -8,7 +8,7 @@
 @import url('amiga-common.css');
 
 :root {
-  --tw-ui-font: 'MicroKnight Nerd Font', monospace;
+  --tw-ui-font: 'MicroKnight', 'Iosevka Amiga', monospace;
   --tw-gadget-bg: rgba(255, 255, 255, 0.12);
   --tw-text: #fff;
   --tw-muted: rgba(255, 255, 255, 0.3);

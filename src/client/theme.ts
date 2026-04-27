@@ -36,6 +36,12 @@ export type FontInfo = {
    *  manifest. Rendered as the font picker option's `title=` so hovering
    *  reveals the credit. */
   copyright?: string;
+  /** When true the font is registered as a CSS fallback but excluded from
+   *  the user-facing font picker. */
+  hidden?: boolean;
+  /** Family names to append after this font in the xterm.js font stack
+   *  when it's the active terminal font. */
+  fallbacks?: string[];
 };
 
 
@@ -93,6 +99,19 @@ export async function listFonts(): Promise<FontInfo[]> {
 
 export function getActiveTheme(): string {
   return activeTheme;
+}
+
+/** Build the font-family stack for xterm.js. The primary family is
+ *  followed by any per-font `fallbacks` declared in the active pack
+ *  manifest, then the generic `monospace` keyword. Each named family is
+ *  double-quoted so multi-word names round-trip correctly through xterm's
+ *  shorthand parser. */
+export function buildXtermFontStack(family: string, fonts: FontInfo[]): string {
+  const info = fonts.find(f => f.family === family);
+  const fallbacks = info?.fallbacks ?? [];
+  const parts = [family, ...fallbacks].map(f => `"${f}"`);
+  parts.push('monospace');
+  return parts.join(', ');
 }
 
 export async function loadAllFonts(): Promise<void> {

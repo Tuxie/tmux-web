@@ -176,11 +176,14 @@ Tests follow a strict policy: failing tests indicate implementation bugs and are
 - **tmux-web** — © 2026 Per Wigren <per@wigren.eu>. The frontend, server, and packaging.
 - **[tmux](https://tmux.github.io)** — the terminal multiplexer that does most of the actual work.
 - **[xterm.js](https://xtermjs.org)** — the in-browser terminal emulator.
-- **[Iosevka](https://typeof.net/Iosevka/)** — the Default theme's monospace font, by Belleve Invis.
+- **[Iosevka](https://typeof.net/Iosevka/)** — the Default theme ships **IosevkaTerm Compact**, the IosevkaTerm variant patched with Nerd Font glyphs and with vertical metrics tightened to ~85% so the line box stays compact at line-height 1. By Belleve Invis.
 - **Amiga fonts** — bundled with the AmigaOS 3.1 and Amiga Scene 2000 themes. Sourced from [rewtnull/amigafonts](https://github.com/rewtnull/amigafonts):
-  - **MicroKnight Nerd Font** — Niels Krogh "Nölb/Grafictive" Mortensen & dMG/t!s^dS!
-  - **Topaz8 Amiga1200 Nerd Font** — Amiga Inc & dMG/t!s^dS!
-  - **mOsOul Nerd Font** — Desoto/Mo'Soul & dMG/t!s^dS!
+  - **MicroKnight** — Niels Krogh "Nölb/Grafictive" Mortensen & dMG/t!s^dS!
+  - **P0T-NOoDLE** — Leo "Nudel" Davidson; TrueType by dMG of Trueschool & Divine Stylers
+  - **Topaz8 Amiga1200** — Amiga Inc & dMG/t!s^dS!
+  - **Topaz8 Amiga500** — Amiga Inc & dMG/t!s^dS!
+  - **mOsOul** — Desoto/Mo'Soul & dMG/t!s^dS!
+  - **Iosevka Amiga** (hidden fallback, em+metrics rewritten to match the Amiga bitmap geometry) — covers BMP / Nerd Font glyphs missing from the bitmap fonts. Belleve Invis.
 
 ## License
 

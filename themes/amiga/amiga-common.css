@@ -14,7 +14,11 @@
    * defaults (hue 216, sat 38%, ltn 62%) for the classic Workbench blue. */
   /* Bevels inherit from base.css: rgba(255,255,255,depth) / rgba(0,0,0,depth).
    * theme.json defaultDepth: 100 gives the classic opaque B/W look. */
-  --tw-ui-font: 'Topaz8 Amiga1200 Nerd Font', monospace;
+  /* `Iosevka Amiga` is a hidden fallback (em+metrics rewritten to match
+   * the Amiga bitmap fonts). It supplies the BMP geometric / box-drawing
+   * shapes and the Nerd Font PUA glyphs that the source bitmap fonts
+   * never had, baseline-aligned with the surrounding Amiga letters. */
+  --tw-ui-font: 'Topaz8 Amiga1200', 'Iosevka Amiga', monospace;
   --tw-ui-font-size: 17px;
   --tw-chrome-bg: hsl(0 0% calc(var(--tw-theme-ltn) + 10%));
   --tw-gadget-bg: hsl(0 0% calc(var(--tw-theme-ltn) + 5%));
@@ -378,7 +382,11 @@ body {
   box-shadow: 0 0 0 1px var(--tw-bevel-lo) inset;
 }
 
-/* Text input used in some context-menu dropdowns — sunken bevel. */
+/* Text input used in some context-menu dropdowns — sunken bevel.
+ * `caret-shape: block` switches the I-beam caret to a Workbench-style
+ * full-cell block. Spec is CSS Basic UI 4; currently honoured by Safari
+ * 16.4+. Chromium and Firefox still draw the line caret — they ignore
+ * the property until they ship support. */
 .tw-dd-input {
   background: var(--tw-gadget-bg);
   border: 2px solid;
@@ -388,6 +396,7 @@ body {
   outline: none;
   flex: 1;
   min-width: 160px;
+  caret-shape: block;
 }
 .tw-dd-context-win .tw-menu-label { min-width: auto; padding-right: 6px; }
 .tw-dd-context-win .tw-dd-input { min-width: 130px; }
@@ -467,6 +476,7 @@ body {
   border-radius: 0;
   padding: 1px 4px;
   width: 46px;
+  caret-shape: block;
 }
 
 /* In-menu buttons (reset colours/font, drops refresh/purge, per-row

@@ -600,6 +600,7 @@ export class Topbar {
     // both places.
     fontSelect.innerHTML = '';
     for (const font of fonts) {
+      if (font.hidden) continue;
       const opt = document.createElement('option');
       opt.value = font.family;
       opt.textContent = font.family;

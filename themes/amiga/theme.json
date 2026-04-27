@@ -2,16 +2,19 @@
   "author": "tmux-web",
   "version": "1",
   "fonts": [
-    { "file": "MicroKnight Nerd Font.woff2", "family": "MicroKnight Nerd Font", "copyright": "Niels Krogh \"Nölb/Grafictive\" Mortensen & dMG/t!s^dS!" },
-    { "file": "Topaz8 Amiga1200 Nerd Font.woff2", "family": "Topaz8 Amiga1200 Nerd Font", "copyright": "Amiga Inc & dMG/t!s^dS!" },
-    { "file": "mOsOul Nerd Font.woff2", "family": "mOsOul Nerd Font", "copyright": "Desoto/Mo'Soul & dMG/t!s^dS!" }
+    { "file": "MicroKnight.woff2",      "family": "MicroKnight",      "copyright": "Niels Krogh \"Nölb/Grafictive\" Mortensen & dMG/t!s^dS!", "fallbacks": ["Iosevka Amiga"] },
+    { "file": "P0T-NOoDLE.woff2",       "family": "P0T-NOoDLE",       "copyright": "Leo \"Nudel\" Davidson; TrueType by dMG of Trueschool & Divine Stylers", "fallbacks": ["Iosevka Amiga"] },
+    { "file": "Topaz8 Amiga1200.woff2", "family": "Topaz8 Amiga1200", "copyright": "Amiga Inc & dMG/t!s^dS!",                                "fallbacks": ["Iosevka Amiga"] },
+    { "file": "Topaz8 Amiga500.woff2",  "family": "Topaz8 Amiga500",  "copyright": "Amiga Inc & dMG/t!s^dS!",                                "fallbacks": ["Iosevka Amiga"] },
+    { "file": "mOsOul.woff2",           "family": "mOsOul",           "copyright": "Desoto/Mo'Soul & dMG/t!s^dS!",                          "fallbacks": ["Iosevka Amiga"] },
+    { "file": "Iosevka Amiga.woff2",    "family": "Iosevka Amiga",    "copyright": "be5invis (rescaled to Amiga geometry)",                 "hidden": true }
   ],
   "themes": [
     {
       "name": "AmigaOS 3.1",
       "css": "amigaos31.css",
-      "defaultFont": "Topaz8 Amiga1200 Nerd Font",
-      "defaultFontSize": 18.5,
+      "defaultFont": "Topaz8 Amiga1200",
+      "defaultFontSize": 17,
       "defaultSpacing": 1.05,
       "defaultColours": "Gruvbox Light",
       "defaultOpacity": 0,
@@ -28,8 +31,8 @@
     {
       "name": "Amiga Scene 2000",
       "css": "amigascene2k.css",
-      "defaultFont": "mOsOul Nerd Font",
-      "defaultFontSize": 18.5,
+      "defaultFont": "mOsOul",
+      "defaultFontSize": 17,
       "defaultSpacing": 1.1,
       "defaultColours": "Dracula",
       "defaultOpacity": 0,

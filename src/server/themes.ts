@@ -11,6 +11,16 @@ export type FontInfo = {
    *  as a tooltip on the font picker so the credit is discoverable from
    *  the menu without opening the manifest. */
   copyright?: string;
+  /** When true the font is loaded (so it's available as a CSS fallback)
+   *  but not offered in the user-facing font picker. Used for derived
+   *  fallback faces — e.g. an Iosevka rescaled to Amiga geometry that
+   *  fills in BMP/PUA glyphs missing from the Amiga bitmap fonts. */
+  hidden?: boolean;
+  /** Additional family names appended after this font in the xterm.js
+   *  font stack when it's the active terminal font. Use to attach a
+   *  metrics-matched fallback (typically a hidden font in the same pack)
+   *  without polluting the global stack for unrelated themes. */
+  fallbacks?: string[];
 };
 
 export type ThemeInfo = {
@@ -52,7 +62,7 @@ export type ColourInfo = {
 export type PackManifest = {
   author?: string;
   version?: string;
-  fonts?: { file: string; family: string; copyright?: string }[];
+  fonts?: { file: string; family: string; copyright?: string; hidden?: boolean; fallbacks?: string[] }[];
   colours?: { file: string; name: string; variant?: 'dark' | 'light' }[];
   themes?: {
     name: string; css: string;
@@ -281,6 +291,8 @@ export function listFonts(packs: PackInfo[]): FontInfo[] {
         pack: pack.dir,
         packDir: pack.fullPath,
         copyright: font.copyright,
+        hidden: font.hidden === true ? true : undefined,
+        fallbacks: font.fallbacks,
       });
     }
   }

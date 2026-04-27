@@ -5,3 +5,12 @@
  * Anything truly unique to 3.1 (and not also Scene 2000) goes below
  * the @import. */
 @import url('amiga-common.css');
+
+/* Active window tab keeps the same outset bevel as inactive tabs.
+ * Without this override base.css's `.tw-win-tab.active` rule (specificity
+ * 020) wins on border-color over amiga-common's base `.tw-win-tab` rule
+ * (specificity 010), and the active tab ends up with a chrome-tinted
+ * outline instead of the workbench bevel-hi/bevel-lo bevel. */
+#topbar .tw-win-tab.active {
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
+}

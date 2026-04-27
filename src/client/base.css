@@ -34,7 +34,7 @@ html, body { height: 100%; overflow: hidden; }
    * whole UI in one place. Per-element overrides (e.g. a smaller footer
    * label or a larger glyph button) are still allowed where the
    * deliberate deviation is the point. */
-  --tw-ui-font: 'Iosevka Nerd Font Mono', 'MOsOul Nerd Font', 'ZedMono Nerd Font', 'JetBrains Mono', monospace;
+  --tw-ui-font: 'IosevkaTerm Compact', 'MOsOul Nerd Font', 'ZedMono Nerd Font', 'JetBrains Mono', monospace;
   --tw-ui-font-size: 13px;
   --tw-ui-line-height: 1;
 
@@ -548,7 +548,7 @@ body {
  * ================================================================== */
 
 :root {
-  --tw-ui-font: 'Iosevka Nerd Font Mono', 'MOsOul Nerd Font', 'ZedMono Nerd Font', 'JetBrains Mono', monospace;
+  --tw-ui-font: 'IosevkaTerm Compact', 'MOsOul Nerd Font', 'ZedMono Nerd Font', 'JetBrains Mono', monospace;
   /* Default inputs are slightly darker than chrome — override gadget-bg. */
   --tw-gadget-bg: color-mix(in srgb, var(--tw-chrome-bg), black 20%);
   /* Inset the tmux scrollbar so the body-gradient frame stays visible

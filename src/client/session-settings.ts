@@ -60,7 +60,7 @@ export function clampPercent0to100(v: number): number {
 export const DEFAULT_SESSION_SETTINGS: SessionSettings = {
   theme: 'Default',
   colours: 'Gruvbox Dark',
-  fontFamily: 'Iosevka Nerd Font Mono',
+  fontFamily: 'IosevkaTerm Compact',
   fontSize: 18,
   spacing: 0.85,
   opacity: 0,

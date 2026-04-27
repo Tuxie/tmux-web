@@ -277,7 +277,7 @@ Session settings are persisted server-side at `~/.config/tmux-web/sessions.json`
     "<name>": {
       "theme": "Default",
       "colours": "Gruvbox Dark",
-      "fontFamily": "Iosevka Nerd Font Mono",
+      "fontFamily": "IosevkaTerm Compact",
       "fontSize": 18,
       "spacing": 0.85,
       "opacity": 0,

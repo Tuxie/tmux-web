@@ -2,7 +2,7 @@
   "author": "tmux-web",
   "version": "1",
   "fonts": [
-    { "file": "Iosevka Nerd Font Mono.woff2", "family": "Iosevka Nerd Font Mono", "copyright": "be5invis" }
+    { "file": "IosevkaTerm Compact.woff2", "family": "IosevkaTerm Compact", "copyright": "be5invis (IosevkaTerm patched with Nerd Font glyphs, vertical metrics tightened to ~85%)" }
   ],
   "colours": [
     { "file": "colours/gruvbox-dark.toml", "name": "Gruvbox Dark", "variant": "dark" },
@@ -20,9 +20,9 @@
     {
       "name": "Default",
       "css": "default.css",
-      "defaultFont": "Iosevka Nerd Font Mono",
+      "defaultFont": "IosevkaTerm Compact",
       "defaultFontSize": 16,
-      "defaultSpacing": 0.9,
+      "defaultSpacing": 1,
       "defaultColours": "Nord",
       "defaultOpacity": 40,
       "defaultBackgroundHue": 222,

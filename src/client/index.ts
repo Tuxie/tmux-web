@@ -15,7 +15,7 @@ import { installAuthenticatedFetch } from './auth-fetch.js';
 import { clientLog } from './client-log.js';
 import { installDropsPanel } from './ui/drops-panel.js';
 import { getFontSubpixelAA } from './prefs.js';
-import { applyTheme, loadAllFonts, listThemes } from './theme.js';
+import { applyTheme, buildXtermFontStack, listFonts, loadAllFonts, listThemes } from './theme.js';
 import { fetchColours } from './colours.js';
 import { createColourControls } from './colour-controls.js';
 import {
@@ -74,6 +74,7 @@ async function main() {
   await initSessionStore();
   clientLog('session-store:done');
   await loadAllFonts();
+  const fonts = await listFonts();
   clientLog('fonts:done');
 
   // If any of the three boot fetches failed, collapse the labels into
@@ -185,7 +186,7 @@ async function main() {
   });
   page.style.setProperty('--tw-page-bg', colourControls.pageBgFor(settings));
   await adapter.init(container, {
-    fontFamily: `"${settings.fontFamily}", monospace`,
+    fontFamily: buildXtermFontStack(settings.fontFamily, fonts),
     fontSize: settings.fontSize,
     lineHeight: settings.spacing,
     theme: colourControls.terminalThemeFor(settings),
@@ -261,7 +262,7 @@ async function main() {
 
       if (adapter.updateOptions) {
         adapter.updateOptions({
-          fontFamily: `"${s.fontFamily}", monospace`,
+          fontFamily: buildXtermFontStack(s.fontFamily, fonts),
           fontSize: s.fontSize,
           lineHeight: s.spacing,
           opacity: s.opacity,

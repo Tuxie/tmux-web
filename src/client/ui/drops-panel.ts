@@ -61,7 +61,9 @@ export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promis
       const revoke = document.createElement('button');
       revoke.type = 'button';
       revoke.className = 'tb-btn tw-drops-revoke';
-      // Nerd Font nf-cod-trash (U+EA81). Topaz8 NF ships this glyph.
+      // Nerd Font nf-cod-trash (U+EA81). Comes from IosevkaTerm Compact
+      // (Default theme) or via the Iosevka Amiga fallback that backs every
+      // Amiga theme font.
       revoke.textContent = '\uEA81';
       revoke.title = `Remove ${d.filename} from disk`;
       revoke.addEventListener('click', async (ev) => {
