@@ -21,7 +21,7 @@
       "name": "Default",
       "css": "default.css",
       "defaultFont": "IosevkaTerm Compact",
-      "defaultFontSize": 16,
+      "defaultFontSize": 17,
       "defaultSpacing": 1,
       "defaultColours": "Nord",
       "defaultOpacity": 40,
