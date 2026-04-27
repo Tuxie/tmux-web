@@ -1232,7 +1232,16 @@ export class Topbar {
     if (windowChanged) {
       if (this.lastActiveWindowIndex !== null) this.show();
       this.lastActiveWindowIndex = activeIdx;
-      this.tbTitle.textContent = '';
+      /* Populate the title from the per-window titles map (already
+       * pushed by the server's `refresh-client -B` subscription
+       * before this windows broadcast) so a tmux-side switch doesn't
+       * blank `#tb-title` while we wait for the next PTY-OSC title.
+       * Clearing `textContent` while leaving the `title=` attr alone
+       * was the visible bug: empty bar with a stale tooltip. If we
+       * have no cached title yet, leave the previous text in place
+       * — the next OSC will overwrite it shortly. */
+      const cachedTitle = activeIdx !== null ? this.cachedTitles[activeIdx] : undefined;
+      if (cachedTitle !== undefined) this.updateTitle(cachedTitle);
     }
     this.cachedWindows = windows.slice();
     this.renderWinTabs();
