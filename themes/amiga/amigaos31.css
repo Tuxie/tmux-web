@@ -6,6 +6,11 @@
  * the @import. */
 @import url('amiga-common.css');
 
+#tb-title {
+  text-align: left;
+  justify-content: flex-start;
+}
+
 /* Active window tab keeps the same outset bevel as inactive tabs.
  * Without this override base.css's `.tw-win-tab.active` rule (specificity
  * 020) wins on border-color over amiga-common's base `.tw-win-tab` rule
