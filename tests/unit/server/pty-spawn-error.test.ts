@@ -1,6 +1,8 @@
 import { describe, test, expect } from "bun:test";
 import { spawnPty, buildPtyEnv } from "../../../src/server/pty.ts";
 
+const TRUE_BIN = process.platform === "darwin" ? "/usr/bin/true" : "/bin/true";
+
 describe("spawnPty Bun.spawn error handling (cluster 15 / F5)", () => {
   test("non-existent binary surfaces a structured spawnError, not a thrown exception", () => {
     // The previous shape let `Bun.spawn` propagate up; ws.ts:252 didn't
@@ -28,10 +30,10 @@ describe("spawnPty Bun.spawn error handling (cluster 15 / F5)", () => {
   });
 
   test("successful spawn does not set spawnError (regression guard)", () => {
-    // /bin/true exists everywhere we run unit tests (Linux + macOS CI).
+    // macOS/BSD puts true in /usr/bin, while Linux CI has /bin/true.
     // We just verify the absence of `spawnError` and that `pid` is real.
     const pty = spawnPty({
-      command: { file: "/bin/true", args: [] },
+      command: { file: TRUE_BIN, args: [] },
       env: buildPtyEnv(),
       cols: 80, rows: 24,
     });

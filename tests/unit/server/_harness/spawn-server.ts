@@ -8,6 +8,8 @@ import { execFileAsync } from '../../../../src/server/exec.ts';
 import type { DropStorage } from '../../../../src/server/file-drop.ts';
 import type { ServerConfig } from '../../../../src/shared/types.ts';
 
+export const TRUE_BIN = process.platform === 'darwin' ? '/usr/bin/true' : '/bin/true';
+
 /** Build a fake TmuxControl that dispatches `run()` calls through
  *  execFileAsync against the given binary. Good enough for tests that
  *  use the fake-tmux shell-script harness: the command path (display-
@@ -66,7 +68,7 @@ export async function startTestServer(opts: HarnessOpts = {}): Promise<Harness> 
     tls: false,
     testMode: opts.testMode ?? true,
     debug: false,
-    tmuxBin: opts.tmuxBin ?? '/bin/true',
+    tmuxBin: opts.tmuxBin ?? TRUE_BIN,
     tmuxConf: tmuxConfPath,
     auth: opts.auth ?? { enabled: false },
     ...opts.configOverrides,

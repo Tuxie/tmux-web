@@ -21,6 +21,10 @@
   `sleep` command instead of GNU-only `sleep infinity`, which caused
   macOS/BSD runners to terminate the fake tmux-web shim and fail the
   release matrix before packaging.
+- **macOS release tests use the platform `true` binary.** Server
+  harness tests no longer assume `/bin/true` exists on macOS runners,
+  avoiding false spawn failures in WebSocket auth and PTY spawn
+  regression tests.
 
 ### Changed
 
