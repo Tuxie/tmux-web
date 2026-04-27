@@ -20,6 +20,13 @@ const EXCLUDES = new Set<string>([
   // mechanical cases required to cover the slider-table + menu render
   // paths. Public surface is tested in tests/unit/client/ui/topbar.test.ts.
   'src/client/ui/topbar.ts',
+  // Tracked in docs/ideas/scrollbar-full-coverage-harness.md — the
+  // controller is dominated by closure-based event handlers (drag
+  // rAF coalescing, autohide reveal/hide cycle, hold-to-repeat
+  // arrow timers, dispose teardown) that need a richer DOM stub
+  // and a fake-timer harness to exercise. Public surface is
+  // partially tested in tests/unit/client/ui/scrollbar.test.ts.
+  'src/client/ui/scrollbar.ts',
   'src/server/assets-embedded.ts',
   // Pure interface / type-alias declaration files. The TS compiler
   // erases them at runtime so lcov never emits an SF: record. Listed

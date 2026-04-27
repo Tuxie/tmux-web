@@ -16,33 +16,36 @@ describe("bundled themes", () => {
     const scene = themes.find(theme => theme.name === "Amiga Scene 2000");
     expect(scene).toBeDefined();
     expect(scene!.pack).toBe("amiga");
-    expect(scene!.css).toBe("scene.css");
+    expect(scene!.css).toBe("amigascene2k.css");
     expect(scene!.defaultColours).toBe("Dracula");
-    expect(scene!.defaultFont).toBe("mOsOul Nerd Font");
-    expect(scene!.defaultFontSize).toBe(18.5);
+    expect(scene!.defaultFont).toBe("mOsOul");
+    expect(scene!.defaultFontSize).toBe(17);
     expect(scene!.defaultSpacing).toBe(1.1);
     expect(scene!.defaultTuiBgOpacity).toBe(70);
 
     const amiga = themes.find(theme => theme.name === "AmigaOS 3.1");
     expect(amiga).toBeDefined();
-    expect(amiga!.defaultFont).toBe("Topaz8 Amiga1200 Nerd Font");
-    expect(amiga!.defaultFontSize).toBe(18.5);
+    expect(amiga!.css).toBe("amigaos31.css");
+    expect(amiga!.defaultFont).toBe("Topaz8 Amiga1200");
+    expect(amiga!.defaultFontSize).toBe(17);
     expect(amiga!.defaultSpacing).toBe(1.05);
 
     const fonts = listFonts(packs);
     expect(fonts).toContainEqual({
-      family: "MicroKnight Nerd Font",
-      file: "MicroKnight Nerd Font.woff2",
+      family: "MicroKnight",
+      file: "MicroKnight.woff2",
       pack: "amiga",
       packDir: path.join(THEMES, "amiga"),
       copyright: "Niels Krogh \"Nölb/Grafictive\" Mortensen & dMG/t!s^dS!",
+      fallbacks: ["Iosevka Amiga"],
     });
     expect(fonts).toContainEqual({
-      family: "mOsOul Nerd Font",
-      file: "mOsOul Nerd Font.woff2",
+      family: "mOsOul",
+      file: "mOsOul.woff2",
       pack: "amiga",
       packDir: path.join(THEMES, "amiga"),
       copyright: "Desoto/Mo'Soul & dMG/t!s^dS!",
+      fallbacks: ["Iosevka Amiga"],
     });
   });
 });

@@ -64,7 +64,7 @@ test-e2e-headed: dist/client/xterm.js
 # regressions like the v1.8.0 bunfs/embedded-tmux miss
 # (CHANGELOG.md `1.8.1`).
 test-post-compile: tmux-web
-	$(BUN) test tests/post-compile/
+	cd tests/post-compile && TMUX_WEB_BINARY=$(CURDIR)/tmux-web $(BUN) test
 
 # --- Benchmarks ---
 

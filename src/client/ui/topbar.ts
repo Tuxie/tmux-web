@@ -175,7 +175,7 @@ export class Topbar {
     }
   }
 
-  private cachedSessions: Array<{ id: string; name: string }> = [];
+  private cachedSessions: Array<{ id: string; name: string; windows?: number }> = [];
   private refreshInFlight: Promise<void> | null = null;
 
   /** Returned promise resolves once `cachedSessions` reflects a fresh
@@ -189,7 +189,7 @@ export class Topbar {
       try {
         const [running] = await Promise.all([
           fetch('/api/sessions').then(r =>
-            r.ok ? r.json() as Promise<Array<{ id: string; name: string }>> : null
+            r.ok ? r.json() as Promise<Array<{ id: string; name: string; windows?: number }>> : null
           ),
           initSessionStore(),
         ]);
@@ -376,7 +376,7 @@ export class Topbar {
     void this.refreshCachedSessions();
 
     // Right-click behaves like left-click — opens the same rich session
-    // menu (which already has Name, New session, and Kill session).
+    // menu (Name, New session, and per-row delete for stopped sessions).
     btn.addEventListener('contextmenu', (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
@@ -1080,8 +1080,9 @@ export class Topbar {
       closeItem.addEventListener('click', (ev) => {
         ev.stopPropagation();
         close();
-        // Themed confirm-modal: see kill-session callsite above for
-        // why native confirm() was retired (cluster 13 / F4).
+        // Themed confirm-modal in place of native confirm() — cluster
+        // 13 / F4. (The kill-session callsite that used to share this
+        // pattern was retired with the menu row in 1.10.0.)
         void showConfirmModal<boolean>({
           title: 'Close window?',
           body: `Close window "${activeName}"?`,

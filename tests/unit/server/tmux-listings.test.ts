@@ -3,6 +3,8 @@ import {
   listSessionsViaTmux,
   listWindowsViaTmux,
   getPaneTitleViaTmux,
+  TITLES_FORMAT,
+  parseTitlesValue,
 } from '../../../src/server/tmux-listings.ts';
 import { TmuxCommandError, type TmuxControl } from '../../../src/server/tmux-control.ts';
 
@@ -19,24 +21,38 @@ function stubControl(respond: (args: readonly string[]) => Promise<string>): Tmu
 }
 
 describe('tmux-listings: listSessionsViaTmux', () => {
-  test('queries with TAB-separated session_id/session_name and parses output', async () => {
+  test('queries with TAB-separated session_id/session_name/session_windows and parses output', async () => {
     let receivedArgs: readonly string[] | null = null;
     const control = stubControl(async (args) => {
       receivedArgs = args;
-      return '$0\tmain\n$1\tdev\n';
+      return '$0\tmain\t3\n$1\tdev\t1\n';
     });
     const out = await listSessionsViaTmux({ tmuxControl: control, tmuxBin: '/bin/false', preferControl: true });
-    expect(receivedArgs).toEqual(['list-sessions', '-F', '#{session_id}\t#{session_name}']);
+    expect(receivedArgs).toEqual(['list-sessions', '-F', '#{session_id}\t#{session_name}\t#{session_windows}']);
     expect(out).toEqual([
-      { id: '0', name: 'main' },
-      { id: '1', name: 'dev' },
+      { id: '0', name: 'main', windows: 3 },
+      { id: '1', name: 'dev', windows: 1 },
     ]);
   });
 
   test('preserves colons inside session names (regression: would have been mis-split with `:`)', async () => {
-    const control = stubControl(async () => '$2\tnode:server\n');
+    const control = stubControl(async () => '$2\tnode:server\t5\n');
     const out = await listSessionsViaTmux({ tmuxControl: control, tmuxBin: '/bin/false', preferControl: true });
-    expect(out).toEqual([{ id: '2', name: 'node:server' }]);
+    expect(out).toEqual([{ id: '2', name: 'node:server', windows: 5 }]);
+  });
+
+  test('parses session names containing tabs (the windows count is the trailing field)', () => {
+    /* Names with embedded tabs are unusual but legal in tmux — the
+     * parser pops the trailing `#{session_windows}` and re-joins the
+     * middle to recover the name. */
+    // Synthesise via the real parser (parseSessionLines is the workhorse).
+    // We don't expose it via the listSessionsViaTmux call shape; instead
+    // we round-trip a session whose name contains a tab.
+    const control = stubControl(async () => '$3\twith\ttab\t7\n');
+    return listSessionsViaTmux({ tmuxControl: control, tmuxBin: '/bin/false', preferControl: true })
+      .then((out) => {
+        expect(out).toEqual([{ id: '3', name: 'with\ttab', windows: 7 }]);
+      });
   });
 
   test('falls back to execFileAsync when control client throws TmuxCommandError', async () => {
@@ -111,6 +127,56 @@ describe('tmux-listings: listWindowsViaTmux', () => {
     const control = stubControl(async () => '0\tonly\t1\n');
     const out = await listWindowsViaTmux('main', { tmuxControl: control, tmuxBin: '/bin/false', preferControl: true });
     expect(out).toEqual([{ index: '0', name: 'only', active: true }]);
+  });
+});
+
+/* ---------------------------------------------------------------------
+ * Regression: tmux-side window switches must update the active win-tab
+ *
+ * `tmux refresh-client -B name::FORMAT` only re-fires `%subscription-
+ * changed` when the format string's *value* differs between evaluations.
+ * There is no dedicated `%active-window-changed` notification in tmux
+ * control mode, so the only way to detect a `prefix n`/`prefix p` style
+ * window switch is to encode the active flag *into the subscription
+ * format itself* — flipping which window's `#{window_active}` is `1`
+ * forces the value to differ and the notification fires.
+ *
+ * This regressed before because the original format was
+ * `#{W:#{window_index}\t#{pane_title}\x1f}` — neither of those fields
+ * changes when the active window switches within a session, so tmux
+ * silently suppressed the notification and the client kept showing the
+ * old active tab until something else (add/close/rename) triggered a
+ * refetch.
+ *
+ * The two assertions below pin both halves of the invariant: the format
+ * literally contains `#{window_active}`, AND simulated outputs that
+ * differ only in which window is active produce different raw strings
+ * (so tmux WILL fire) while parsing to the same titles map (so the
+ * client doesn't see spurious title churn).
+ * ------------------------------------------------------------------- */
+describe('tmux-listings: TITLES_FORMAT (active-window subscription regression)', () => {
+  test('format includes #{window_active} so active switches re-fire', () => {
+    expect(TITLES_FORMAT).toContain('#{window_active}');
+  });
+
+  test('switching active flag changes the raw value but not the parsed titles', () => {
+    /* Simulated tmux outputs from two snapshots of the same session:
+     * window 0 ("zsh") and window 1 ("vim") with stable titles, with
+     * the only delta being which one carries `#{window_active}` = 1. */
+    const aActive = '0\t1\tzsh prompt\x1f1\t0\tvim - file.txt\x1f';
+    const bActive = '0\t0\tzsh prompt\x1f1\t1\tvim - file.txt\x1f';
+
+    expect(aActive).not.toEqual(bActive); // tmux fires %subscription-changed
+    expect(parseTitlesValue(aActive)).toEqual(parseTitlesValue(bActive)); // same titles
+    expect(parseTitlesValue(aActive)).toEqual({
+      '0': 'zsh prompt',
+      '1': 'vim - file.txt',
+    });
+  });
+
+  test('parser preserves tabs inside titles (only the first two are field separators)', () => {
+    const raw = '5\t1\tcol\twith\ttabs\x1f';
+    expect(parseTitlesValue(raw)).toEqual({ '5': 'col\twith\ttabs' });
   });
 });
 

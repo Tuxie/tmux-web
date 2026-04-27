@@ -1,0 +1,8 @@
+# Local bunfig override. The project-root bunfig pins the test root
+# to `tests/unit` so a plain `bun test` inside the repo only sweeps
+# unit specs. The post-compile suite lives outside that root and
+# must be invoked explicitly — when callers `cd` into this directory
+# first, Bun finds *this* bunfig and runs the smoke specs from here.
+[test]
+root = "."
+include = ["**/*.test.ts"]

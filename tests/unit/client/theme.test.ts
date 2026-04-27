@@ -6,6 +6,8 @@ import {
   loadAllFonts,
   getActiveTheme,
   clearCaches,
+  buildXtermFontStack,
+  type FontInfo,
 } from '../../../src/client/theme.ts';
 
 interface Link {
@@ -241,5 +243,34 @@ describe('theme module', () => {
     clearCaches();
     await listThemes();
     expect(calls).toBe(2);
+  });
+});
+
+describe('buildXtermFontStack', () => {
+  const font = (family: string, fallbacks?: string[]): FontInfo => {
+    const info: FontInfo = { family, file: `${family}.woff2`, pack: 'p' };
+    if (fallbacks) info.fallbacks = fallbacks;
+    return info;
+  };
+
+  test('quotes the primary family and ends with monospace', () => {
+    expect(buildXtermFontStack('IosevkaTerm Compact', [font('IosevkaTerm Compact')]))
+      .toBe('"IosevkaTerm Compact", monospace');
+  });
+
+  test('appends per-font fallbacks before monospace', () => {
+    /* The Amiga bitmap fonts ship with `fallbacks: ["Iosevka Amiga"]`
+     * so missing BMP / Nerd-Font PUA glyphs render baseline-aligned
+     * with the surrounding Amiga text. Order matters: primary first,
+     * fallback(s) next, generic monospace last. */
+    expect(buildXtermFontStack('Topaz8 Amiga1200', [font('Topaz8 Amiga1200', ['Iosevka Amiga'])]))
+      .toBe('"Topaz8 Amiga1200", "Iosevka Amiga", monospace');
+  });
+
+  test('falls back gracefully when the family is not in the manifest', () => {
+    /* No matching `FontInfo` → no fallbacks stack on. The primary is
+     * still quoted and monospace still terminates. */
+    expect(buildXtermFontStack('Custom Font', []))
+      .toBe('"Custom Font", monospace');
   });
 });

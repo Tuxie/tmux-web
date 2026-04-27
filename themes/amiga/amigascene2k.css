@@ -189,6 +189,11 @@ body {
 }
 .tw-scrollbar-thumb { left: 3px; right: 2px; }
 .tw-scrollbar-track::before { left: 3px; right: 2px; }
+/* Drop the track's top border in Scene — base.css paints a 1 px
+ * sunken-bevel top edge that reads as a hairline above the thumb at
+ * max scroll, conflicting with Scene's gradient bg. The
+ * bottom + L/R bevel is preserved (they're set elsewhere or kept). */
+.tw-scrollbar-track { border-top: none; }
 /* The resize gadget's right-angle triangle nudges 1 px to the right
  * so it visually centres in Scene's narrower bar (vs amiga-common's
  * `right: 3px` which is tuned for the wider AmigaOS 3.1 bar). */
@@ -223,8 +228,17 @@ body {
 }
 .tw-scrollbar-thumb {
   background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome), white calc(8% * var(--tw-theme-contrast))),
-    color-mix(in srgb, var(--tw-chrome), black calc(8% * var(--tw-theme-contrast))));
+    color-mix(in srgb, var(--tw-chrome), white calc(20% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), black calc(10% * var(--tw-theme-contrast))));
+  /* No `border` — the gradient runs edge-to-edge so the top stop
+   * reaches row 0 cleanly. The raised bevel is painted with stacked
+   * `box-shadow inset` declarations instead, which avoid the
+   * sub-pixel-AA hairline that an actual `border: solid` produces at
+   * the corner miters when paired with a light top stop. */
+  border: none;
+  box-shadow:
+    inset  2px  2px 0 var(--tw-bevel-hi),    /* top + left  light */
+    inset -2px -2px 0 var(--tw-bevel-lo);    /* bot + right dark  */
 }
 /* Hover: a slightly brighter top stop, same gradient direction. */
 .tw-scrollbar-thumb:hover {

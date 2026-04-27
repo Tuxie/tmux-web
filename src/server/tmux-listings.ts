@@ -37,12 +37,18 @@ function paneTitleArgs(session: string): readonly string[] {
   return ['display-message', '-t', session, '-p', '#{pane_title}'];
 }
 
-/* Format string for the per-window title subscription. `#{W:fmt}` iterates
- * over every window in the current session; inside, `#{window_index}` and
- * `#{pane_title}` resolve to that window's index + active-pane title.
- * The unit-separator (`\x1f`) ends each window's record so the receiver
- * can split unambiguously even if a title happens to contain `\t`. */
-export const TITLES_FORMAT = '#{W:#{window_index}\t#{pane_title}\x1f}';
+/* Format string for the per-window title subscription. `#{W:fmt}`
+ * iterates over every window in the current session; inside,
+ * `#{window_index}`, `#{window_active}`, and `#{pane_title}` resolve
+ * to that window's index, its 0/1 active flag, and its active-pane
+ * title. The unit-separator (`\x1f`) ends each window's record so the
+ * receiver can split unambiguously even if a title happens to contain
+ * `\t`. The active-flag inclusion is what makes tmux-side window
+ * switches (`prefix n`/`prefix p`) re-fire the subscription — without
+ * it, switching the active window in a session leaves the
+ * idx-and-titles concatenation unchanged and tmux suppresses the
+ * notification. */
+export const TITLES_FORMAT = '#{W:#{window_index}\t#{window_active}\t#{pane_title}\x1f}';
 
 export function buildTitlesSubscriptionArgs(name: string): string[] {
   return ['refresh-client', '-B', `${name}::${TITLES_FORMAT}`];
@@ -56,18 +62,27 @@ export function buildTitlesFetchArgs(session: string): string[] {
   return ['display-message', '-p', '-t', session, '-F', TITLES_FORMAT];
 }
 
-/** Parse a `#{W:idx\ttitle\x1f}` subscription value into a per-window
- *  title map. Empty / malformed records are silently dropped. */
+/** Parse a `#{W:idx\tactive\ttitle\x1f}` subscription value into a
+ *  per-window title map. The active flag is consumed only as a
+ *  subscription-fire trigger and discarded after parsing — clients
+ *  read the active flag from the canonical windows list. Empty /
+ *  malformed records are silently dropped; titles may contain tabs
+ *  (we only split on the first two). */
 export function parseTitlesValue(raw: string): Record<string, string> {
   const out: Record<string, string> = {};
   if (!raw) return out;
   for (const entry of raw.split('\x1f')) {
     if (!entry) continue;
-    const tab = entry.indexOf('\t');
-    if (tab < 0) continue;
-    const idx = entry.slice(0, tab);
+    const firstTab = entry.indexOf('\t');
+    if (firstTab < 0) continue;
+    const idx = entry.slice(0, firstTab);
     if (!idx) continue;
-    out[idx] = entry.slice(tab + 1);
+    const rest = entry.slice(firstTab + 1);
+    const secondTab = rest.indexOf('\t');
+    if (secondTab < 0) continue;
+    /* rest.slice(0, secondTab) is `#{window_active}` ("0" or "1"); we
+     * don't currently need it on the client. */
+    out[idx] = rest.slice(secondTab + 1);
   }
   return out;
 }

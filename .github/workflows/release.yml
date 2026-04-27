@@ -226,7 +226,12 @@ jobs:
           smoke_dir="$(mktemp -d)"
           tar -xJf "$tarball" -C "$smoke_dir"
           chmod 0755 "$smoke_dir/tmux-web"
-          TMUX_WEB_BINARY="$smoke_dir/tmux-web" bun test tests/post-compile/
+          # `cd` so Bun picks up `tests/post-compile/bunfig.toml`,
+          # which overrides the project-root bunfig that pins
+          # `[test].root = "tests/unit"` (otherwise the post-compile
+          # path is filtered out and Bun reports "no test files").
+          TMUX_WEB_BINARY="$smoke_dir/tmux-web" \
+            bash -c 'cd tests/post-compile && bun test'
 
       - name: Build tmux-term desktop app
         # Temporarily skip macOS tmux-term artifacts until we can sign them

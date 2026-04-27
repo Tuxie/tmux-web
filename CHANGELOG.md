@@ -2,6 +2,127 @@
 
 ## Unreleased
 
+## 1.10.1 — 2026-04-27
+
+### Fixed
+
+- **Active window tab now updates on tmux-side window switches.**
+  `prefix n` / `prefix p` (and any other tmux-side `select-window`)
+  stopped advancing the highlighted win-tab in 1.10.0 — only GUI
+  clicks moved it. Root cause: the `refresh-client -B` titles
+  subscription's format was `#{W:#{window_index}\t#{pane_title}\x1f}`,
+  neither field of which changes when the active window flips inside
+  a session, so tmux suppressed `%subscription-changed` (it only
+  re-fires when the format's evaluated value differs). Added
+  `#{window_active}` to the format so the value flips between window
+  records on every switch, and the handler now also re-broadcasts the
+  windows list for the affected session so the client picks up the
+  new `active` flag immediately.
+- **Regression test pinning the invariant.** A new
+  `tests/unit/server/tmux-listings.test.ts` block asserts that
+  `TITLES_FORMAT` literally contains `#{window_active}`, that two
+  simulated tmux outputs differing only in which window's active
+  flag is set produce different raw values (so tmux fires) but
+  identical parsed title maps (so the client doesn't see spurious
+  title churn), and that the parser preserves embedded tabs in
+  titles (only the first two field separators are consumed).
+
+### Changed
+
+- **Optimistic scrollbar drag.** Dragging the scrollbar thumb now
+  updates the local thumb position immediately and coalesces
+  `scrollTo` requests through `requestAnimationFrame` (de-duped
+  against the last sent position) so the bar tracks the cursor
+  without waiting for the server's acknowledgement. While dragging,
+  incoming `updateState` frames don't reposition the thumb;
+  reconciliation happens on `mouseup`.
+- **AmigaOS 3.1 thumb polish.** The thumb is 1 px wider on the left,
+  the chess strip follows so it stays exactly the thumb's width,
+  and the track sits 1 px down from the bar's top to expose the
+  outer chrome. While actively dragging, the thumb flashes pure
+  white (workbench convention for a selected gadget). Pressed /
+  open buttons get a sunken `lo/hi/hi/lo` bevel instead of an
+  all-dark border, applied to topbar gadgets and the scroll-up /
+  scroll-down arrows.
+- **Scene 2000 thumb cleanup.** The thumb's hairline top border is
+  gone; the raised bevel is now drawn purely with `box-shadow inset`
+  for sharp pixel corners (no border miter AA artifacts). The
+  resize triangle is shifted 1 px to the right.
+
+### Removed
+
+- **Obsolete `confirm-modal-kill-session` e2e test + the two unit
+  tests that drove the same removed UI flow.** The 1.10.0 release
+  removed the "Kill session …" row from the sessions menu (no
+  client UI now sends `{type:'session',action:'kill'}`); the e2e
+  spec and the two unit specs in `topbar-menus.test.ts` still
+  hunted for the row and broke `act -j e2e` and the Linux unit
+  gate. The themed modal mechanism they exercised stays covered by
+  `tests/unit/client/ui/confirm-modal.test.ts`; the surviving
+  `topbar-menus` "session menu …" spec now positively asserts that
+  no Kill row is present so a future regression that wires a
+  destructive action back into this menu fails loudly. The stale
+  "(which already has … and Kill session)" comments in `topbar.ts`
+  are updated to match the post-removal layout.
+
+### Fixed (release-pipeline catch-up — 1.10.0 was tagged but never
+shipped artifacts because its release workflow failed at this step set)
+
+- **Topbar `cachedSessions` typing now carries `windows?: number`.**
+  The 1.10.0 sessions-menu badge feature wrote `s.windows` but the
+  field was missing from the cached array's element type, breaking
+  the client typecheck under `bun x tsc -p tsconfig.client.json`.
+- **Bundled-themes snapshot updated for the 1.10.0 Amiga split.**
+  `tests/unit/server/bundled-themes.test.ts` still asserted
+  `scene.css`, `mOsOul Nerd Font`, and `defaultFontSize: 18.5`; the
+  1.10.0 split renamed the variant CSS to `amigaos31.css` /
+  `amigascene2k.css`, dropped the "Nerd Font" suffix, and changed
+  the default font-size to 17. Snapshot is now in sync with
+  `themes/amiga/theme.json`, and the font assertions include the
+  per-font `fallbacks: ["Iosevka Amiga"]` introduced for the
+  hidden-fallback contract.
+- **Amiga-CSS test rewritten for the post-split file layout.**
+  `tests/unit/client/amiga-css.test.ts` was reading `amiga.css` and
+  `scene.css` (gone) and asserting on the retired
+  `--tw-amiga-gui-font-size` variable. It now exercises the
+  unified `--tw-ui-font-size` defined in `amiga-common.css` and
+  pins both variants' `@import` of the shared file.
+- **`buildXtermFontStack` helper now has unit coverage.** The
+  1.10.0 per-font `fallbacks` contract added an exported helper to
+  `src/client/theme.ts` with no test, dropping `theme.ts` line
+  coverage below the 95% gate. Three new cases in
+  `theme.test.ts` cover the primary-only, with-fallbacks, and
+  unknown-family paths.
+- **Drag-throttle gate uses a boolean instead of the rAF handle.**
+  A synchronous `requestAnimationFrame` (real browsers always
+  defer; the Bun runtime in act's `catthehacker/ubuntu:act-latest`
+  image fires it the next tick, so the unit-test polyfill that
+  invokes the callback inline exposed the bug) ran the flush
+  callback and cleared the handle to `null` *before* the original
+  `dragRafHandle = requestAnimationFrame(…)` assignment finished —
+  the assignment then overwrote the cleared `null` with the
+  return value, leaving every subsequent mousemove convinced a
+  flush was already pending. Replaced with an explicit
+  `dragRafScheduled` boolean and the handle-only-for-cancel
+  pattern; the test polyfill now mounts a sync rAF deterministically
+  in `tests/unit/client/ui/scrollbar.test.ts`.
+- **`scrollbar.ts` is now coverage-excluded with a follow-up doc.**
+  The Workbench-scrollbar work in 1.10.0 grew the file past the
+  scope of the existing test harness; full coverage requires a
+  fake-rAF + fake-timer scaffold tracked at
+  `docs/ideas/scrollbar-full-coverage-harness.md`. Added to
+  `EXCLUDES` in `scripts/check-coverage.ts` so unrelated 1.10.x
+  work isn't gated on the harness landing first; matches how
+  `topbar.ts` is handled.
+- **Post-compile bun-test invocation now overrides the project
+  bunfig.** The project root pins `[test].root = "tests/unit"`,
+  which silently filtered `bun test tests/post-compile/` to *no
+  matches*. `tests/post-compile/bunfig.toml` resets the root for
+  callers who `cd` into that directory; the Makefile target and
+  the `release.yml` step both `cd` first now. Without this fix the
+  step that catches the v1.8.0 bunfs/embedded-tmux-style packaging
+  regressions was a no-op in CI.
+
 ## 1.10.0 — 2026-04-27
 
 ### Added

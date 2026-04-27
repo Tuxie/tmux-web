@@ -83,6 +83,24 @@ export function createScrollbarController(opts: {
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
   let arrowDelayTimer: ReturnType<typeof setTimeout> | null = null;
   let arrowRepeatTimer: ReturnType<typeof setInterval> | null = null;
+  /* Drag throttle: mousemove fires ~60×/s but we only need to push a
+   * new drag position to the server once per animation frame, and
+   * only when the position actually changed. Without this, fast drags
+   * spam tmux with redundant scroll-up/down keystrokes that all aim
+   * at the same target position. */
+  /* `dragRafScheduled` gates re-queuing in the mousemove handler;
+   * `dragRafHandle` only exists so dispose can cancel a pending frame.
+   * Using a separate boolean is necessary because a synchronous `rAF`
+   * (e.g. the test polyfill) runs the callback and clears the handle
+   * to `null` BEFORE the original `dragRafHandle = requestAnimationFrame(...)`
+   * assignment completes — overwriting the cleared `null` with the
+   * polyfill's return value would then make every subsequent mousemove
+   * see a non-null handle and skip scheduling. The boolean is the
+   * authoritative "is a flush pending" signal. */
+  let dragRafScheduled = false;
+  let dragRafHandle: number | null = null;
+  let dragLatestPos = 0;
+  let dragLastSentPos: number | null = null;
 
   function render(): void {
     const unavailable = !!state.unavailable || state.alternateOn;
@@ -204,6 +222,7 @@ export function createScrollbarController(opts: {
     if (!canUsePointerScrollbar()) return;
 
     dragging = true;
+    dragLastSentPos = null;   /* fresh drag — first move should send */
     const rect = thumb.getBoundingClientRect();
     dragGrabOffsetPx = Math.max(0, Math.min(ev.clientY - rect.top, rect.height || thumb.offsetHeight || 0));
     opts.root.classList.add('dragging');
@@ -212,9 +231,43 @@ export function createScrollbarController(opts: {
     ev.stopPropagation();
   }
 
+  function flushDragSend(): void {
+    dragRafScheduled = false;
+    dragRafHandle = null;
+    if (!dragging) return;
+    if (dragLastSentPos === dragLatestPos) return;
+    sendDrag(dragLatestPos);
+    dragLastSentPos = dragLatestPos;
+  }
+
   function onDocumentMouseMove(ev: MouseEvent): void {
     if (dragging) {
-      sendDrag(Math.max(0, Math.min(scrollPositionForClientY(ev.clientY, dragGrabOffsetPx), state.historySize)));
+      const newPos = Math.max(0, Math.min(scrollPositionForClientY(ev.clientY, dragGrabOffsetPx), state.historySize));
+      /* Coalesce on rAF — mousemove fires ~60×/s but only one send
+       * per animation frame is enough, and we de-dup against the last
+       * sent value so a stationary cursor doesn't keep re-firing. */
+      dragLatestPos = newPos;
+      if (!dragRafScheduled) {
+        dragRafScheduled = true;
+        /* Browsers schedule the flush on the next paint frame so a
+         * burst of mousemoves coalesces into a single send. Test /
+         * non-browser environments without `requestAnimationFrame`
+         * flush synchronously here so each mousemove still produces
+         * its expected send. */
+        if (typeof requestAnimationFrame === 'function') {
+          dragRafHandle = requestAnimationFrame(flushDragSend);
+        } else {
+          flushDragSend();
+        }
+      }
+      /* Optimistically reposition the thumb under the cursor before
+       * the server's state update arrives — without this, the thumb
+       * lags behind the mouse by one round-trip + tmux redraw. The
+       * `updateState` handler ignores the server's scrollPosition
+       * while dragging so a stale snapshot can't yank the thumb
+       * backwards mid-drag. */
+      state = { ...state, scrollPosition: newPos };
+      render();
       if (autohide) opts.root.classList.add('visible');
       ev.preventDefault();
       ev.stopPropagation();
@@ -229,6 +282,19 @@ export function createScrollbarController(opts: {
   function onDocumentMouseUp(): void {
     stopArrowRepeat();
     if (!dragging) return;
+    /* Flush any pending coalesced drag position so the user's final
+     * cursor location reaches the server even if mouseup fired before
+     * the next animation frame. */
+    if (dragRafHandle !== null) {
+      cancelAnimationFrame(dragRafHandle);
+      dragRafHandle = null;
+    }
+    dragRafScheduled = false;
+    if (dragLastSentPos !== dragLatestPos) {
+      sendDrag(dragLatestPos);
+      dragLastSentPos = dragLatestPos;
+    }
+    dragLastSentPos = null;
     dragging = false;
     dragGrabOffsetPx = 0;
     opts.root.classList.remove('dragging');
@@ -292,7 +358,13 @@ export function createScrollbarController(opts: {
 
   return {
     updateState(next: ScrollbarState) {
-      state = next;
+      /* During an active drag the user's optimistic scrollPosition
+       * leads the server's view, so a stale server snapshot would
+       * yank the thumb backwards visibly. Pin scrollPosition to our
+       * local value while the drag is in flight; everything else
+       * (mode flags, history size, etc.) accepts the server update
+       * normally. */
+      state = dragging ? { ...next, scrollPosition: state.scrollPosition } : next;
       render();
     },
     setAutohide(value: boolean) {
@@ -305,6 +377,11 @@ export function createScrollbarController(opts: {
     dispose() {
       if (hideTimer) clearTimeout(hideTimer);
       stopArrowRepeat();
+      if (dragRafHandle !== null) {
+        cancelAnimationFrame(dragRafHandle);
+        dragRafHandle = null;
+      }
+      dragRafScheduled = false;
       dragging = false;
       dragGrabOffsetPx = 0;
       opts.root.classList.remove('dragging');

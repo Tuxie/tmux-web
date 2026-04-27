@@ -2,6 +2,19 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 import { setupDocument, el, type StubElement } from '../_dom.ts';
 import { computeScrollbarThumb, createScrollbarController } from '../../../../src/client/ui/scrollbar.ts';
 
+/* The drag handler uses `requestAnimationFrame` to coalesce mousemove
+ * sends in real browsers. Bun exposes rAF in some runtimes (e.g. the
+ * Linux Docker image used by `act`) but not bare CLI; the production
+ * path then never fires the queued flush during a test. Polyfill it
+ * synchronously so each scheduled flush runs as soon as it's queued —
+ * the behaviour we want test-side (one send per mousemove) without
+ * having to expose a custom scheduler hook from the controller. */
+(globalThis as any).requestAnimationFrame = (cb: FrameRequestCallback) => {
+  cb(0);
+  return 0;
+};
+(globalThis as any).cancelAnimationFrame = () => {};
+
 function state(overrides: Partial<Parameters<ReturnType<typeof createScrollbarController>['updateState']>[0]> = {}) {
   return {
     paneId: '%4',
@@ -121,7 +134,11 @@ describe('createScrollbarController', () => {
       requestFit: () => {},
     });
 
-    expect(root.children).toHaveLength(1);
+    /* Track is the first child and is reused (same object). The
+     * Workbench-style scroll-up / scroll-down / resize children are
+     * appended after it on first init — count is incidental, the
+     * load-bearing assertion is that the pre-existing track + thumb
+     * are not replaced. */
     expect(root.children[0]).toBe(track);
     expect(track.children).toHaveLength(1);
     expect(track.children[0]).toBe(thumb);

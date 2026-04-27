@@ -32,3 +32,36 @@
 :root {
   --tw-scrollbar-thumb-margin-bottom: 5px;
 }
+
+/* Pull the thumb 1 px further to the left (vs amiga-common's 4 px) so
+ * a touch more of the chess strip shows on the right than on the left
+ * — visually balances against the workbench-blue chrome. The chess
+ * strip behind the thumb follows so it stays exactly the thumb's
+ * width. */
+.tw-scrollbar-thumb,
+.tw-scrollbar-track::before { left: 3px; }
+
+/* Push the track 1 px down from the top of the bar so the bar's
+ * outer chrome shows through above the track. */
+.tw-scrollbar-track { top: 1px; }
+
+/* While the user is actively dragging the thumb, paint it pure white —
+ * matches the workbench convention of selected gadgets flashing to a
+ * solid highlight colour. */
+.tw-scrollbar.dragging .tw-scrollbar-thumb { background: #fff; }
+
+/* Pressed / open buttons get a true sunken bevel (dark top + left,
+ * bright bottom + right) instead of amiga-common's all-dark border.
+ * Applies to topbar gadgets (session, session-plus, window-compact,
+ * win-tab.open, menu) and the scrollbar's scroll-up / scroll-down. */
+#topbar .tb-btn-session.open,
+#topbar .tb-btn-session-plus.open,
+#topbar .tb-btn-window-compact.open,
+#topbar .tw-win-tab.open,
+#topbar #btn-menu.open,
+.tw-scrollbar-up.pressed,
+.tw-scrollbar-down.pressed,
+.tw-scrollbar-up:active,
+.tw-scrollbar-down:active {
+  border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-hi) var(--tw-bevel-lo);
+}

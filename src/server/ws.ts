@@ -159,7 +159,7 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
   }));
   unsubscribers.push(opts.tmuxControl.on('subscriptionChanged', (n) => {
     handleScrollbarSubscriptionChanged(n.name, n.value, n.session, reg);
-    handleTitlesSubscriptionChanged(n.name, n.value, n.session, reg);
+    handleTitlesSubscriptionChanged(n.name, n.value, n.session, reg, opts);
   }));
 
   const upgrade = (req: Request, server: BunServer<WsData>): Response | undefined => {
@@ -529,19 +529,27 @@ function handleScrollbarSubscriptionChanged(name: string, value: string, session
   }
 }
 
-function handleTitlesSubscriptionChanged(name: string, value: string, session: string | undefined, reg: WsRegistry): void {
+function handleTitlesSubscriptionChanged(name: string, value: string, session: string | undefined, reg: WsRegistry, opts: WsServerOptions): void {
   const clientSets = session ? [reg.wsClientsBySession.get(session)] : Array.from(reg.wsClientsBySession.values());
+  let matched = false;
   for (const clients of clientSets) {
     if (!clients) continue;
     for (const ws of clients) {
       if (ws.readyState !== WS_OPEN) continue;
       const { state } = ws.data;
       if (state.titlesSubscriptionName !== name) continue;
+      matched = true;
       const titles = parseTitlesValue(value);
       state.titles = titles;
       ws.send(frameTTMessage({ titles }));
     }
   }
+  /* The TITLES_FORMAT includes `#{window_active}`, so a tmux-side
+   * window switch (e.g. `prefix n`) re-fires this subscription even
+   * when no title changed. There's no dedicated `%active-window`
+   * notification in tmux control mode, so we piggy-back on titles to
+   * refetch the windows list and propagate the new active flag. */
+  if (matched && session) void broadcastWindowsForSession(reg, session, opts);
 }
 
 function runTmuxForSession(opts: WsServerOptions, sessionName: string, args: readonly string[]): Promise<string> {
