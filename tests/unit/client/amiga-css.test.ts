@@ -30,8 +30,8 @@ describe('Amiga theme CSS', () => {
     expect(sceneCss).not.toMatch(/--tw-ui-font-size:/);
   });
 
-  test('Scene 2000 mutes the resize handle triangle', () => {
+  test('Scene 2000 uses a brighter muted resize handle triangle', () => {
     expect(commonCss).toMatch(/\.tw-scrollbar-resize::after\s*\{[^}]*background:\s*#fff;/s);
-    expect(sceneCss).toMatch(/\.tw-scrollbar-resize::after\s*\{[^}]*background:\s*hsl\(var\(--tw-theme-hue,\s*222\)\s*15%\s*42%\);/s);
+    expect(sceneCss).toMatch(/\.tw-scrollbar-resize::after\s*\{[^}]*background:\s*hsl\(var\(--tw-theme-hue,\s*222\)\s*15%\s*calc\(42%\s*\*\s*1\.2\)\);/s);
   });
 });
