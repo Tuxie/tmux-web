@@ -134,7 +134,7 @@ body {
   border: 2px solid;
   border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
 }
-#tb-windows #win-tabs { display: flex; gap: 0; }
+#tb-windows #win-tabs { display: flex; gap: 2px; }
 #tb-session { margin-left: 0; gap: 0; }
 
 /* ---------------------------------------------------------------------
@@ -264,9 +264,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-#topbar .tw-win-tab:not(.active) {
-  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
 }
 #topbar .tw-win-tab:hover { background: transparent; }
 #topbar .tw-win-tab.active { background: var(--tw-chrome); color: var(--tw-bevel-hi); }

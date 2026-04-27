@@ -35,8 +35,7 @@ describe('Amiga theme CSS', () => {
     expect(sceneCss).toMatch(/\.tw-scrollbar-resize::after\s*\{[^}]*background:\s*hsl\(var\(--tw-theme-hue,\s*222\)\s*15%\s*calc\(42%\s*\*\s*1\.2\)\);/s);
   });
 
-  test('inactive window tabs use the same raised bevel as topbar buttons', () => {
-    const raisedBevel = /border-color:\s*var\(--tw-bevel-hi\)\s+var\(--tw-bevel-lo\)\s+var\(--tw-bevel-lo\)\s+var\(--tw-bevel-hi\);/;
-    expect(commonCss).toMatch(new RegExp(`#topbar \\.tw-win-tab:not\\(\\.active\\)\\s*\\{[^}]*${raisedBevel.source}`, 's'));
+  test('window tabs are separated so inactive tab bevels match standalone topbar buttons', () => {
+    expect(commonCss).toMatch(/#tb-windows #win-tabs\s*\{\s*display:\s*flex;\s*gap:\s*2px;\s*\}/);
   });
 });
