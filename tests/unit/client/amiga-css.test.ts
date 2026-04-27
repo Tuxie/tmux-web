@@ -32,7 +32,7 @@ describe('Amiga theme CSS', () => {
 
   test('Scene 2000 uses a brighter muted resize handle triangle', () => {
     expect(commonCss).toMatch(/\.tw-scrollbar-resize::after\s*\{[^}]*background:\s*#fff;/s);
-    expect(sceneCss).toMatch(/\.tw-scrollbar-resize::after\s*\{[^}]*background:\s*hsl\(var\(--tw-theme-hue,\s*222\)\s*15%\s*calc\(42%\s*\*\s*1\.2\)\);/s);
+    expect(sceneCss).toMatch(/\.tw-scrollbar-resize::after\s*\{[^}]*background:\s*hsl\(var\(--tw-theme-hue,\s*222\)\s*15%\s*calc\(42%\s*\*\s*1\.44\)\);/s);
   });
 
   test('window tabs are separated so inactive tab bevels match standalone topbar buttons', () => {

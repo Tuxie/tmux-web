@@ -164,7 +164,7 @@ body {
  *     for legibility. */
 .tw-scrollbar-up::before,
 .tw-scrollbar-down::before { background: var(--tw-muted); }
-.tw-scrollbar-resize::after { background: hsl(var(--tw-theme-hue, 222) 15% calc(42% * 1.2)); }
+.tw-scrollbar-resize::after { background: hsl(var(--tw-theme-hue, 222) 15% calc(42% * 1.44)); }
 .tw-dropdown-menu input[type="checkbox"]:checked::after { color: #fff; }
 
 /* Scrollbar gradients — replace amiga-common's flat chrome.
