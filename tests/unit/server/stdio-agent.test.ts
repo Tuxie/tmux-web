@@ -385,7 +385,74 @@ describe('stdio agent runtime', () => {
     agent.close();
   });
 
-  test('client-msg switch-session to missing session emits channel-error and keeps old ref', async () => {
+  test('client-msg switch-session fails when no tmux client PID matches channel PTY', async () => {
+    const io = new FakeIo();
+    const attached: Array<{ session: string; cols?: number; rows?: number }> = [];
+    const detached: string[] = [];
+    const runCalls: string[][] = [];
+    const tmuxControl: TmuxControl = {
+      ...createNullTmuxControl(),
+      attachSession: async (session: string, size?: { cols: number; rows: number }) => {
+        attached.push({ session, ...size });
+      },
+      detachSession: (session: string) => { detached.push(session); },
+      run: async (args: readonly string[]) => {
+        runCalls.push([...args]);
+        if (args[0] === 'list-clients' && args.includes('#{client_pid}\t#{client_tty}\t#{client_name}')) {
+          return '9999\t/dev/pts/other\tother\n';
+        }
+        if (args[0] === 'switch-client') return '';
+        return '';
+      },
+      hasSession: (session: string) => ['main', 'dev'].includes(session),
+    };
+    const makePty: AgentPtyFactory = (opts) => ({
+      pid: 4242,
+      session: opts.session,
+      onData() {},
+      onExit() {},
+      write() {},
+      resize() {},
+      kill() {},
+    }) as any;
+
+    const agent = runStdioAgent({
+      input: io.input as any,
+      write: io.write,
+      makePty,
+      tmuxControl,
+      version: 'test',
+    });
+
+    io.emitFrame({ v: 1, type: 'open', channelId: 'c1', session: 'main', cols: 80, rows: 24 });
+    await flushAsyncWork();
+    io.emitFrame({
+      v: 1,
+      type: 'client-msg',
+      channelId: 'c1',
+      data: JSON.stringify({ type: 'switch-session', name: 'dev' }),
+    });
+    await flushAsyncWork();
+
+    expect(runCalls.filter(args => args[0] === 'switch-client')).toEqual([]);
+    expect(detached).toEqual(['dev']);
+    expect(io.frames()).toContainEqual({
+      v: 1,
+      type: 'channel-error',
+      channelId: 'c1',
+      code: 'switch-session-failed',
+      message: 'PTY tmux client not found',
+    });
+    expect(io.frames()).not.toContainEqual({
+      v: 1,
+      type: 'server-msg',
+      channelId: 'c1',
+      data: { session: 'dev' },
+    });
+    agent.close();
+  });
+
+  test('client-msg switch-session proceeds when hasSession is false but attach succeeds', async () => {
     const io = new FakeIo();
     const attached: Array<{ session: string; cols?: number; rows?: number }> = [];
     const detached: string[] = [];
@@ -393,6 +460,139 @@ describe('stdio agent runtime', () => {
       ...createNullTmuxControl(),
       attachSession: async (session: string, size?: { cols: number; rows: number }) => {
         attached.push({ session, ...size });
+      },
+      detachSession: (session: string) => { detached.push(session); },
+      run: async (args: readonly string[]) => {
+        if (args[0] === 'list-clients' && args.includes('#{client_pid}\t#{client_tty}\t#{client_name}')) {
+          return '4242\t/dev/pts/fake\tclient-1\n';
+        }
+        if (args[0] === 'switch-client') return '';
+        if (args[0] === 'list-clients' && args.includes('#{client_tty}\t#{client_name}\t#{client_session}')) {
+          return '/dev/pts/fake\tclient-1\tdev\n';
+        }
+        return '';
+      },
+      hasSession: () => false,
+    };
+    const makePty: AgentPtyFactory = (opts) => ({
+      pid: 4242,
+      session: opts.session,
+      onData() {},
+      onExit() {},
+      write() {},
+      resize() {},
+      kill() {},
+    }) as any;
+
+    const agent = runStdioAgent({
+      input: io.input as any,
+      write: io.write,
+      makePty,
+      tmuxControl,
+      version: 'test',
+    });
+
+    io.emitFrame({ v: 1, type: 'open', channelId: 'c1', session: 'main', cols: 80, rows: 24 });
+    await flushAsyncWork();
+    io.emitFrame({
+      v: 1,
+      type: 'client-msg',
+      channelId: 'c1',
+      data: JSON.stringify({ type: 'switch-session', name: 'dev' }),
+    });
+    await flushAsyncWork();
+
+    expect(attached).toEqual([
+      { session: 'main', cols: 80, rows: 24 },
+      { session: 'dev', cols: 80, rows: 24 },
+    ]);
+    expect(detached).toEqual(['main']);
+    expect(io.frames()).toContainEqual({
+      v: 1,
+      type: 'server-msg',
+      channelId: 'c1',
+      data: { session: 'dev' },
+    });
+    agent.close();
+  });
+
+  test('client-msg switch-session attach rejection leaves old ref without ack', async () => {
+    const io = new FakeIo();
+    const attached: Array<{ session: string; cols?: number; rows?: number }> = [];
+    const detached: string[] = [];
+    const runCalls: string[][] = [];
+    const tmuxControl: TmuxControl = {
+      ...createNullTmuxControl(),
+      attachSession: async (session: string, size?: { cols: number; rows: number }) => {
+        attached.push({ session, ...size });
+        if (session === 'dev') throw new Error('no such session: dev');
+      },
+      detachSession: (session: string) => { detached.push(session); },
+      run: async (args: readonly string[]) => {
+        runCalls.push([...args]);
+        return '';
+      },
+      hasSession: () => false,
+    };
+    const makePty: AgentPtyFactory = (opts) => ({
+      pid: 4242,
+      session: opts.session,
+      onData() {},
+      onExit() {},
+      write() {},
+      resize() {},
+      kill() {},
+    }) as any;
+
+    const agent = runStdioAgent({
+      input: io.input as any,
+      write: io.write,
+      makePty,
+      tmuxControl,
+      version: 'test',
+    });
+
+    io.emitFrame({ v: 1, type: 'open', channelId: 'c1', session: 'main', cols: 80, rows: 24 });
+    await flushAsyncWork();
+    io.emitFrame({
+      v: 1,
+      type: 'client-msg',
+      channelId: 'c1',
+      data: JSON.stringify({ type: 'switch-session', name: 'dev' }),
+    });
+    await flushAsyncWork();
+
+    expect(attached).toEqual([
+      { session: 'main', cols: 80, rows: 24 },
+      { session: 'dev', cols: 80, rows: 24 },
+    ]);
+    expect(runCalls).toEqual([]);
+    expect(detached).toEqual([]);
+    expect(io.frames()).toContainEqual({
+      v: 1,
+      type: 'channel-error',
+      channelId: 'c1',
+      code: 'switch-session-failed',
+      message: 'no such session: dev',
+    });
+    expect(io.frames()).not.toContainEqual({
+      v: 1,
+      type: 'server-msg',
+      channelId: 'c1',
+      data: { session: 'dev' },
+    });
+    agent.close();
+  });
+
+  test('client-msg switch-session attach failure emits channel-error and keeps old ref', async () => {
+    const io = new FakeIo();
+    const attached: Array<{ session: string; cols?: number; rows?: number }> = [];
+    const detached: string[] = [];
+    const tmuxControl: TmuxControl = {
+      ...createNullTmuxControl(),
+      attachSession: async (session: string, size?: { cols: number; rows: number }) => {
+        attached.push({ session, ...size });
+        if (session === 'missing') throw new Error('no such session: missing');
       },
       detachSession: (session: string) => { detached.push(session); },
       run: async (args: readonly string[]) => {
@@ -444,6 +644,7 @@ describe('stdio agent runtime', () => {
 
     expect(attached).toEqual([
       { session: 'main', cols: 80, rows: 24 },
+      { session: 'missing', cols: 80, rows: 24 },
       { session: 'dev', cols: 80, rows: 24 },
     ]);
     expect(detached).toEqual(['main']);
@@ -452,7 +653,7 @@ describe('stdio agent runtime', () => {
       type: 'channel-error',
       channelId: 'c1',
       code: 'switch-session-failed',
-      message: 'session not found: missing',
+      message: 'no such session: missing',
     });
     expect(io.frames()).toContainEqual({
       v: 1,

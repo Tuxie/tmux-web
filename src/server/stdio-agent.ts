@@ -165,15 +165,12 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
       '-F',
       '#{client_pid}\t#{client_tty}\t#{client_name}',
     ]);
-    const candidates: string[] = [];
     for (const line of out.split('\n')) {
       if (!line) continue;
       const [pid, tty, name] = line.split('\t');
       const candidate = name || tty || null;
-      if (candidate) candidates.push(candidate);
       if (Number(pid) === channel.pty.pid) return candidate;
     }
-    if (candidates.length === 1) return candidates[0]!;
     return null;
   };
 
@@ -196,11 +193,6 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
     const newSession = sanitizeSession(newSessionRaw);
     if (newSession === oldSession) {
       send({ v: 1, type: 'server-msg', channelId: channel.id, data: { session: newSession } });
-      return;
-    }
-
-    if (!opts.tmuxControl.hasSession(newSession)) {
-      sendChannelError(channel.id, 'switch-session-failed', `session not found: ${newSession}`);
       return;
     }
 
