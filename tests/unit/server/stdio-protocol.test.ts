@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   decodeFramePayload,
+  decodePtyBytes,
   encodeFrame,
   encodePtyBytes,
   FrameDecoder,
@@ -43,6 +44,40 @@ describe('stdio protocol framing', () => {
       channelId: 'c1',
       data: 'AAEC/w==',
     });
+  });
+
+  test('decodes valid pty bytes from base64 payload', () => {
+    const bytes = Buffer.from([0, 1, 2, 255]);
+    const frame = encodePtyBytes('c1', bytes);
+    expect(decodePtyBytes(frame)).toEqual(bytes);
+  });
+
+  test('rejects malformed pty base64 payloads', () => {
+    expect(() =>
+      decodePtyBytes({
+        v: 1,
+        type: 'pty-out',
+        channelId: 'c1',
+        data: 'not base64??',
+      }),
+    ).toThrow(/invalid base64/);
+  });
+
+  test('rejects open frames missing required fields', () => {
+    const payload = Buffer.from(JSON.stringify({ v: 1, type: 'open' }));
+    expect(() => decodeFramePayload(payload)).toThrow(/invalid stdio frame/);
+  });
+
+  test('rejects unknown frame types', () => {
+    const payload = Buffer.from(JSON.stringify({ v: 1, type: 'bogus' }));
+    expect(() => decodeFramePayload(payload)).toThrow(/invalid stdio frame/);
+  });
+
+  test('rejects channel frames with wrong field types', () => {
+    const payload = Buffer.from(
+      JSON.stringify({ v: 1, type: 'resize', channelId: 'c1', cols: '80', rows: 24 }),
+    );
+    expect(() => decodeFramePayload(payload)).toThrow(/invalid stdio frame/);
   });
 
   test('oversized frame throws before allocation grows unbounded', () => {

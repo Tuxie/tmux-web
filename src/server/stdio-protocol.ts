@@ -24,11 +24,22 @@ export function encodeFrame(frame: StdioFrame): Buffer {
 }
 
 export function decodeFramePayload(payload: Buffer): StdioFrame {
-  const parsed = JSON.parse(payload.toString('utf8'));
-  if (!parsed || parsed.v !== STDIO_PROTOCOL_VERSION || typeof parsed.type !== 'string') {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(payload.toString('utf8'));
+  } catch {
     throw new Error('invalid stdio frame');
   }
-  return parsed as StdioFrame;
+
+  if (!isRecord(parsed) || parsed.v !== STDIO_PROTOCOL_VERSION || typeof parsed.type !== 'string') {
+    throw new Error('invalid stdio frame');
+  }
+
+  if (!isValidFrame(parsed)) {
+    throw new Error('invalid stdio frame');
+  }
+
+  return parsed;
 }
 
 export function encodePtyBytes(
@@ -40,6 +51,9 @@ export function encodePtyBytes(
 }
 
 export function decodePtyBytes(frame: Extract<StdioFrame, { type: 'pty-in' | 'pty-out' }>): Buffer {
+  if (!isValidBase64(frame.data)) {
+    throw new Error('invalid base64');
+  }
   return Buffer.from(frame.data, 'base64');
 }
 
@@ -70,5 +84,75 @@ export class FrameDecoder {
     }
 
     return frames;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0;
+}
+
+function isValidBase64(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length % 4 !== 0) {
+    return false;
+  }
+  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) {
+    return false;
+  }
+  return Buffer.from(value, 'base64').toString('base64') === value;
+}
+
+function hasString(frame: Record<string, unknown>, key: string): boolean {
+  return typeof frame[key] === 'string';
+}
+
+function hasPositiveInteger(frame: Record<string, unknown>, key: string): boolean {
+  return isPositiveInteger(frame[key]);
+}
+
+function hasOwn(frame: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(frame, key);
+}
+
+function hasChannelId(frame: Record<string, unknown>): boolean {
+  return hasString(frame, 'channelId');
+}
+
+function isValidFrame(frame: Record<string, unknown>): frame is StdioFrame {
+  switch (frame.type) {
+    case 'hello':
+    case 'shutdown':
+      return true;
+    case 'hello-ok':
+      return hasString(frame, 'agentVersion');
+    case 'host-error':
+      return hasString(frame, 'code') && hasString(frame, 'message');
+    case 'open':
+      return (
+        hasChannelId(frame) &&
+        hasString(frame, 'session') &&
+        hasPositiveInteger(frame, 'cols') &&
+        hasPositiveInteger(frame, 'rows')
+      );
+    case 'open-ok':
+      return hasChannelId(frame) && hasString(frame, 'session');
+    case 'pty-in':
+    case 'pty-out':
+      return hasChannelId(frame) && isValidBase64(frame.data);
+    case 'resize':
+      return hasChannelId(frame) && hasPositiveInteger(frame, 'cols') && hasPositiveInteger(frame, 'rows');
+    case 'client-msg':
+      return hasChannelId(frame) && hasString(frame, 'data');
+    case 'server-msg':
+      return hasChannelId(frame) && hasOwn(frame, 'data');
+    case 'close':
+      return hasChannelId(frame) && (!hasOwn(frame, 'reason') || hasString(frame, 'reason'));
+    case 'channel-error':
+      return hasChannelId(frame) && hasString(frame, 'code') && hasString(frame, 'message');
+    default:
+      return false;
   }
 }
