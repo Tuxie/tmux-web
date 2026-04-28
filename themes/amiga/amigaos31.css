@@ -47,8 +47,15 @@
 .tw-scrollbar-track::before { left: 3px; }
 
 /* Push the track 1 px down from the top of the bar so the bar's
- * outer chrome shows through above the track. */
-.tw-scrollbar-track { top: 1px; }
+ * outer chrome shows through above the track. The 1px side shadows
+ * widen only the painted field; the track box itself stays the same
+ * size, so the thumb geometry is unchanged. */
+.tw-scrollbar-track {
+  top: 1px;
+  box-shadow:
+    -1px 0 0 var(--tw-scrollbar-track-bg),
+     1px 0 0 var(--tw-scrollbar-track-bg);
+}
 
 /* While the user is actively dragging the thumb, paint it pure white —
  * matches the workbench convention of selected gadgets flashing to a
