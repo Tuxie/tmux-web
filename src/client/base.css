@@ -775,6 +775,15 @@ body {
   padding: 2px 8px;
 }
 
+#topbar .tb-btn-session-plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#topbar .tb-btn-session-plus .tb-session-plus::before {
+  content: '+';
+}
+
 #topbar .tb-sep { width: 12px; }
 
 #topbar .tw-win-tab {
