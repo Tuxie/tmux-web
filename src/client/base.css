@@ -780,11 +780,6 @@ body {
   align-items: center;
   justify-content: center;
 }
-#topbar .tb-btn-session-plus .tb-session-plus::before {
-  content: '+';
-  font-size: 2em;
-  line-height: 1;
-}
 
 #topbar .tb-sep { width: 12px; }
 

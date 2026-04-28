@@ -1,10 +1,10 @@
 /* Default Theme.
  *
- * The implementation lives in the global base.css — this file is the
- * user-selectable handle for it. All it does is pull base.css in (so
- * the theme switcher loading this file produces the canonical default
- * look) and document the public --tw-* CSS custom properties that any
- * theme can override.
+ * Most implementation lives in the global base.css — this file is the
+ * user-selectable handle for it. It pulls base.css in (so the theme
+ * switcher loading this file produces the canonical default look),
+ * documents the public --tw-* CSS custom properties that any theme can
+ * override, and holds small Default-only styling rules.
  *
  * In practice base.css is always linked from index.html directly, so
  * this @import is redundant for the canonical load order. It stays so
@@ -77,3 +77,16 @@
  *     -thumb-bg-active
  *   --tw-slider-thumb-bevel-hi /         Thumb bevel highlights /
  *     -thumb-bevel-lo                    shadows. */
+
+#topbar .tb-btn-session-plus {
+  width: 28px;
+  height: 28px;
+  padding: 2px 0 0;
+  box-sizing: border-box;
+}
+
+#topbar .tb-btn-session-plus .tb-session-plus::before {
+  content: '+';
+  font-size: 2em;
+  line-height: 1;
+}
