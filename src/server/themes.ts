@@ -46,6 +46,8 @@ export type ThemeInfo = {
   defaultBackgroundSaturation?: number;
   defaultBackgroundBrightest?: number;
   defaultBackgroundDarkest?: number;
+  defaultTopbarAutohide?: boolean;
+  defaultScrollbarAutohide?: boolean;
   author?: string;
   version?: string;
   source: 'user' | 'bundled';
@@ -85,6 +87,8 @@ export type PackManifest = {
   defaultBackgroundSaturation?: number;
   defaultBackgroundBrightest?: number;
   defaultBackgroundDarkest?: number;
+  defaultTopbarAutohide?: boolean;
+  defaultScrollbarAutohide?: boolean;
   }[];
 };
 
@@ -255,6 +259,8 @@ export function listThemes(packs: PackInfo[]): ThemeInfo[] {
         defaultBackgroundSaturation: theme.defaultBackgroundSaturation,
         defaultBackgroundBrightest: theme.defaultBackgroundBrightest,
         defaultBackgroundDarkest: theme.defaultBackgroundDarkest,
+        defaultTopbarAutohide: theme.defaultTopbarAutohide,
+        defaultScrollbarAutohide: theme.defaultScrollbarAutohide,
       };
       const resolved = mergeInheritable(parent, own);
       const info: ThemeInfo = {

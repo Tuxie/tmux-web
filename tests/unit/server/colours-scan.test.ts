@@ -15,7 +15,8 @@ beforeAll(() => {
     author: "t", version: "1",
     colours: [{ file: "colours/a.toml", name: "A", variant: "dark" }],
     themes: [{ name: "T1", css: "t.css",
-      defaultColours: "A", defaultFont: "F", defaultFontSize: 14, defaultSpacing: 1.1 }],
+      defaultColours: "A", defaultFont: "F", defaultFontSize: 14, defaultSpacing: 1.1,
+      defaultTopbarAutohide: true, defaultScrollbarAutohide: true }],
   }));
   fs.writeFileSync(path.join(pack, "t.css"), "/* */");
 });
@@ -37,6 +38,8 @@ describe("listColours / listThemes", () => {
     expect(t1.defaultColours).toBe("A");
     expect(t1.defaultFontSize).toBe(14);
     expect(t1.defaultSpacing).toBe(1.1);
+    expect(t1.defaultTopbarAutohide).toBe(true);
+    expect(t1.defaultScrollbarAutohide).toBe(true);
   });
 
   test("skips colour entry with invalid rel path", () => {

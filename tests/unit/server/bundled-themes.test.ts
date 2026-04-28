@@ -23,12 +23,18 @@ describe("bundled themes", () => {
     expect(scene!.defaultSpacing).toBe(1.1);
     expect(scene!.defaultTuiBgOpacity).toBe(70);
 
+    const defaultTheme = themes.find(theme => theme.name === "Default");
+    expect(defaultTheme).toBeDefined();
+    expect(defaultTheme!.defaultScrollbarAutohide).toBe(true);
+    expect(defaultTheme!.defaultTopbarAutohide).toBeUndefined();
+
     const amiga = themes.find(theme => theme.name === "AmigaOS 3.1");
     expect(amiga).toBeDefined();
     expect(amiga!.css).toBe("amigaos31.css");
     expect(amiga!.defaultFont).toBe("Topaz8 Amiga1200");
     expect(amiga!.defaultFontSize).toBe(17);
     expect(amiga!.defaultSpacing).toBe(1.05);
+    expect(amiga!.defaultScrollbarAutohide).toBeUndefined();
 
     const fonts = listFonts(packs);
     expect(fonts).toContainEqual({

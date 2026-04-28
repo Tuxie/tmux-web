@@ -23,6 +23,8 @@ export type ThemeInfo = {
   defaultBackgroundSaturation?: number;
   defaultBackgroundBrightest?: number;
   defaultBackgroundDarkest?: number;
+  defaultTopbarAutohide?: boolean;
+  defaultScrollbarAutohide?: boolean;
   author?: string;
   version?: string;
   source: 'user' | 'bundled';

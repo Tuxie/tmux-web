@@ -93,7 +93,16 @@ describe("session-settings", () => {
     await initSessionStore();
     const s = loadSessionSettings("foo", null, {
       defaults: DEFAULT_SESSION_SETTINGS,
-      themeDefaults: { colours: "Dracula", fontFamily: "X", fontSize: 14, spacing: 1.2, opacity: 25, tuiBgOpacity: 70 },
+      themeDefaults: {
+        colours: "Dracula",
+        fontFamily: "X",
+        fontSize: 14,
+        spacing: 1.2,
+        opacity: 25,
+        tuiBgOpacity: 70,
+        topbarAutohide: true,
+        scrollbarAutohide: true,
+      },
     });
     expect(s.colours).toBe("Dracula");
     expect(s.fontFamily).toBe("X");
@@ -101,6 +110,8 @@ describe("session-settings", () => {
     expect(s.spacing).toBe(1.2);
     expect(s.opacity).toBe(25);
     expect(s.tuiBgOpacity).toBe(70);
+    expect(s.topbarAutohide).toBe(true);
+    expect(s.scrollbarAutohide).toBe(true);
   });
 
   test("theme defaults overlay handles missing themeDefaults object", async () => {
@@ -220,13 +231,24 @@ describe("session-settings", () => {
 
   test("applyThemeDefaults overwrites all fields when provided", async () => {
     const start = { ...DEFAULT_SESSION_SETTINGS, colours: "Old", fontFamily: "Old", fontSize: 10, spacing: 1.5, opacity: 30, tuiBgOpacity: 80 };
-    const result = applyThemeDefaults(start, { colours: "New", fontFamily: "New", fontSize: 20, spacing: 0.9, opacity: 55, tuiBgOpacity: 70 });
+    const result = applyThemeDefaults(start, {
+      colours: "New",
+      fontFamily: "New",
+      fontSize: 20,
+      spacing: 0.9,
+      opacity: 55,
+      tuiBgOpacity: 70,
+      topbarAutohide: true,
+      scrollbarAutohide: true,
+    });
     expect(result.colours).toBe("New");
     expect(result.fontFamily).toBe("New");
     expect(result.fontSize).toBe(20);
     expect(result.spacing).toBe(0.9);
     expect(result.opacity).toBe(55);
     expect(result.tuiBgOpacity).toBe(70);
+    expect(result.topbarAutohide).toBe(true);
+    expect(result.scrollbarAutohide).toBe(true);
   });
 
   test("applyThemeDefaults leaves fields unchanged when theme has no default", async () => {

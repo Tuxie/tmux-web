@@ -120,6 +120,8 @@ async function main() {
     backgroundSaturation: currentTheme.defaultBackgroundSaturation,
     backgroundBrightest: currentTheme.defaultBackgroundBrightest,
     backgroundDarkest: currentTheme.defaultBackgroundDarkest,
+    topbarAutohide: currentTheme.defaultTopbarAutohide,
+    scrollbarAutohide: currentTheme.defaultScrollbarAutohide,
   } : undefined;
 
   const liveSettings = getLiveSessionSettings(sessionName);

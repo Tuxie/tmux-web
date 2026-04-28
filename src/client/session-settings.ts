@@ -102,6 +102,8 @@ export interface ThemeDefaults {
   backgroundSaturation?: number;
   backgroundBrightest?: number;
   backgroundDarkest?: number;
+  topbarAutohide?: boolean;
+  scrollbarAutohide?: boolean;
 }
 
 export interface LoadOpts {
@@ -226,6 +228,8 @@ export function loadSessionSettings(name: string, live: SessionSettings | null, 
   if (td.backgroundSaturation !== undefined) overlay.backgroundSaturation = td.backgroundSaturation;
   if (td.backgroundBrightest !== undefined) overlay.backgroundBrightest = td.backgroundBrightest;
   if (td.backgroundDarkest !== undefined) overlay.backgroundDarkest = td.backgroundDarkest;
+  if (td.topbarAutohide !== undefined) overlay.topbarAutohide = td.topbarAutohide;
+  if (td.scrollbarAutohide !== undefined) overlay.scrollbarAutohide = td.scrollbarAutohide;
   return { ...opts.defaults, ...overlay };
 }
 
@@ -283,6 +287,8 @@ export function applyThemeDefaults(s: SessionSettings, td: ThemeDefaults): Sessi
     backgroundSaturation: td.backgroundSaturation ?? s.backgroundSaturation,
     backgroundBrightest: td.backgroundBrightest ?? s.backgroundBrightest,
     backgroundDarkest: td.backgroundDarkest ?? s.backgroundDarkest,
+    topbarAutohide: td.topbarAutohide ?? s.topbarAutohide,
+    scrollbarAutohide: td.scrollbarAutohide ?? s.scrollbarAutohide,
   };
 }
 

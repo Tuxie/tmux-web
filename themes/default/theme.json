@@ -33,7 +33,8 @@
       "defaultThemeSat": 15,
       "defaultThemeLtn": 15,
       "defaultThemeContrast": 0,
-      "defaultDepth": 20
+      "defaultDepth": 20,
+      "defaultScrollbarAutohide": true
     }
   ]
 }
