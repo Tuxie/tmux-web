@@ -11,6 +11,7 @@ import type { ServerConfig } from '../shared/types.js';
 import { DEFAULT_HOST, DEFAULT_PORT, LOCALHOST_IPS } from '../shared/constants.js';
 import { parseAllowOriginFlag, canonicaliseAllowedIp } from './origin.js';
 import { embeddedAssets } from './assets-embedded.js';
+import { eventInputFromNodeReadable, runStdioAgent } from './stdio-agent.js';
 import pkg from '../../package.json' with { type: 'json' };
 import type { DropStorage } from './file-drop.js';
 
@@ -280,6 +281,22 @@ export function resolveRuntimeBaseDir(opts: RuntimeBaseDirOptions = {}): string 
     : path.join(tmpBase, `tmux-web-${uid}`);
 }
 
+export interface StdioAgentLaunchOptions {
+  tmuxBin: string;
+  tmuxConfPath: string;
+}
+
+export function buildStdioAgentLaunchOptions(
+  parsed: Pick<ConfigResult, 'stdioAgent'>,
+  opts: { runtimeBaseDir?: string } = {},
+): StdioAgentLaunchOptions | null {
+  if (!parsed.stdioAgent) return null;
+  return {
+    tmuxBin: 'tmux',
+    tmuxConfPath: path.join(opts.runtimeBaseDir ?? resolveRuntimeBaseDir(), 'tmux.conf'),
+  };
+}
+
 async function startServer() {
   process.env.PATH = appendTmuxSearchDirsToPath(process.env.PATH);
 
@@ -289,7 +306,8 @@ async function startServer() {
     a => a === '--password' || a === '-p' || a.startsWith('--password=') || a.startsWith('-p='),
   );
 
-  const { config, host, port, help, version, reset, resetTls, resetAuth } = parseConfig(process.argv.slice(2));
+  const parsedConfig = parseConfig(process.argv.slice(2));
+  const { config, host, port, help, version, stdioAgent, reset, resetTls, resetAuth } = parsedConfig;
 
   if (version) {
     console.log(`tmux-web ${VERSION}`);
@@ -357,6 +375,41 @@ Options:
       console.log(`No running instance at ${connectHost}:${port} (or not reachable).`);
     }
     process.exit(0);
+  }
+
+  if (stdioAgent) {
+    const launch = buildStdioAgentLaunchOptions(parsedConfig);
+    if (!launch) {
+      process.exit(1);
+    }
+
+    const tmuxControl = createTmuxControl({
+      tmuxBin: launch.tmuxBin,
+      tmuxConfPath: launch.tmuxConfPath,
+    });
+    const agent = runStdioAgent({
+      input: eventInputFromNodeReadable(process.stdin),
+      write: (buf) => process.stdout.write(buf),
+      tmuxControl,
+      version: VERSION,
+      tmuxBin: launch.tmuxBin,
+      tmuxConfPath: launch.tmuxConfPath,
+    });
+
+    let cleanupRan = false;
+    const cleanup = async (): Promise<void> => {
+      if (cleanupRan) return;
+      cleanupRan = true;
+      agent.close();
+      await tmuxControl.close();
+    };
+    for (const sig of ['SIGINT', 'SIGTERM'] as const) {
+      process.on(sig, () => {
+        void cleanup().finally(() => process.exit(0));
+      });
+    }
+    process.on('exit', () => { void cleanup(); });
+    return;
   }
 
   if (!config) {
