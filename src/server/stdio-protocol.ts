@@ -35,11 +35,12 @@ export function decodeFramePayload(payload: Buffer): StdioFrame {
     throw new Error('invalid stdio frame');
   }
 
-  if (!isValidFrame(parsed)) {
+  const frame = canonicalizeFrame(parsed);
+  if (!frame) {
     throw new Error('invalid stdio frame');
   }
 
-  return parsed;
+  return frame;
 }
 
 export function encodePtyBytes(
@@ -105,54 +106,117 @@ function isValidBase64(value: unknown): value is string {
   return Buffer.from(value, 'base64').toString('base64') === value;
 }
 
-function hasString(frame: Record<string, unknown>, key: string): boolean {
-  return typeof frame[key] === 'string';
-}
-
-function hasPositiveInteger(frame: Record<string, unknown>, key: string): boolean {
-  return isPositiveInteger(frame[key]);
-}
-
 function hasOwn(frame: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(frame, key);
 }
 
-function hasChannelId(frame: Record<string, unknown>): boolean {
-  return hasString(frame, 'channelId');
+function stringValue(frame: Record<string, unknown>, key: string): string | null {
+  const value = frame[key];
+  return typeof value === 'string' ? value : null;
 }
 
-function isValidFrame(frame: Record<string, unknown>): frame is StdioFrame {
+function positiveIntegerValue(frame: Record<string, unknown>, key: string): number | null {
+  const value = frame[key];
+  return isPositiveInteger(value) ? value : null;
+}
+
+function channelIdValue(frame: Record<string, unknown>): string | null {
+  return stringValue(frame, 'channelId');
+}
+
+function canonicalizeFrame(frame: Record<string, unknown>): StdioFrame | null {
   switch (frame.type) {
     case 'hello':
+      return { v: STDIO_PROTOCOL_VERSION, type: 'hello' };
     case 'shutdown':
-      return true;
-    case 'hello-ok':
-      return hasString(frame, 'agentVersion');
-    case 'host-error':
-      return hasString(frame, 'code') && hasString(frame, 'message');
-    case 'open':
-      return (
-        hasChannelId(frame) &&
-        hasString(frame, 'session') &&
-        hasPositiveInteger(frame, 'cols') &&
-        hasPositiveInteger(frame, 'rows')
-      );
-    case 'open-ok':
-      return hasChannelId(frame) && hasString(frame, 'session');
+      return { v: STDIO_PROTOCOL_VERSION, type: 'shutdown' };
+    case 'hello-ok': {
+      const agentVersion = stringValue(frame, 'agentVersion');
+      if (agentVersion === null) return null;
+      return { v: STDIO_PROTOCOL_VERSION, type: 'hello-ok', agentVersion };
+    }
+    case 'host-error': {
+      const code = stringValue(frame, 'code');
+      const message = stringValue(frame, 'message');
+      if (code === null || message === null) return null;
+      return { v: STDIO_PROTOCOL_VERSION, type: 'host-error', code, message };
+    }
+    case 'open': {
+      const channelId = channelIdValue(frame);
+      const session = stringValue(frame, 'session');
+      const cols = positiveIntegerValue(frame, 'cols');
+      const rows = positiveIntegerValue(frame, 'rows');
+      if (channelId === null || session === null || cols === null || rows === null) {
+        return null;
+      }
+      return {
+        v: STDIO_PROTOCOL_VERSION,
+        type: 'open',
+        channelId,
+        session,
+        cols,
+        rows,
+      };
+    }
+    case 'open-ok': {
+      const channelId = channelIdValue(frame);
+      const session = stringValue(frame, 'session');
+      if (channelId === null || session === null) return null;
+      return { v: STDIO_PROTOCOL_VERSION, type: 'open-ok', channelId, session };
+    }
     case 'pty-in':
-    case 'pty-out':
-      return hasChannelId(frame) && isValidBase64(frame.data);
-    case 'resize':
-      return hasChannelId(frame) && hasPositiveInteger(frame, 'cols') && hasPositiveInteger(frame, 'rows');
-    case 'client-msg':
-      return hasChannelId(frame) && hasString(frame, 'data');
-    case 'server-msg':
-      return hasChannelId(frame) && hasOwn(frame, 'data');
-    case 'close':
-      return hasChannelId(frame) && (!hasOwn(frame, 'reason') || hasString(frame, 'reason'));
-    case 'channel-error':
-      return hasChannelId(frame) && hasString(frame, 'code') && hasString(frame, 'message');
+    case 'pty-out': {
+      const channelId = channelIdValue(frame);
+      if (channelId === null || !isValidBase64(frame.data)) return null;
+      return { v: STDIO_PROTOCOL_VERSION, type: frame.type, channelId, data: frame.data };
+    }
+    case 'resize': {
+      const channelId = channelIdValue(frame);
+      const cols = positiveIntegerValue(frame, 'cols');
+      const rows = positiveIntegerValue(frame, 'rows');
+      if (channelId === null || cols === null || rows === null) return null;
+      return {
+        v: STDIO_PROTOCOL_VERSION,
+        type: 'resize',
+        channelId,
+        cols,
+        rows,
+      };
+    }
+    case 'client-msg': {
+      const channelId = channelIdValue(frame);
+      const data = stringValue(frame, 'data');
+      if (channelId === null || data === null) return null;
+      return { v: STDIO_PROTOCOL_VERSION, type: 'client-msg', channelId, data };
+    }
+    case 'server-msg': {
+      const channelId = channelIdValue(frame);
+      if (channelId === null || !hasOwn(frame, 'data')) return null;
+      return { v: STDIO_PROTOCOL_VERSION, type: 'server-msg', channelId, data: frame.data };
+    }
+    case 'close': {
+      const channelId = channelIdValue(frame);
+      const reason = stringValue(frame, 'reason');
+      if (channelId === null || (hasOwn(frame, 'reason') && reason === null)) return null;
+      if (reason !== null) {
+        return { v: STDIO_PROTOCOL_VERSION, type: 'close', channelId, reason };
+      }
+      return { v: STDIO_PROTOCOL_VERSION, type: 'close', channelId };
+    }
+    case 'channel-error': {
+      const channelId = channelIdValue(frame);
+      const code = stringValue(frame, 'code');
+      const message = stringValue(frame, 'message');
+      if (channelId === null || code === null || message === null) return null;
+      return {
+        v: STDIO_PROTOCOL_VERSION,
+        type: 'channel-error',
+        channelId,
+        code,
+        message,
+      };
+    }
     default:
-      return false;
+      return null;
   }
 }

@@ -80,6 +80,33 @@ describe('stdio protocol framing', () => {
     expect(() => decodeFramePayload(payload)).toThrow(/invalid stdio frame/);
   });
 
+  test('canonicalizes hello frames by removing extra fields', () => {
+    const payload = Buffer.from(JSON.stringify({ v: 1, type: 'hello', channelId: 'smuggled' }));
+    expect(decodeFramePayload(payload)).toEqual({ v: 1, type: 'hello' });
+  });
+
+  test('canonicalizes channel frames by removing extra fields', () => {
+    const payload = Buffer.from(
+      JSON.stringify({
+        v: 1,
+        type: 'open',
+        channelId: 'c1',
+        session: 'main',
+        cols: 80,
+        rows: 24,
+        unexpected: true,
+      }),
+    );
+    expect(decodeFramePayload(payload)).toEqual({
+      v: 1,
+      type: 'open',
+      channelId: 'c1',
+      session: 'main',
+      cols: 80,
+      rows: 24,
+    });
+  });
+
   test('oversized frame throws before allocation grows unbounded', () => {
     const decoder = new FrameDecoder({ maxFrameBytes: 8 });
     const encoded = encodeFrame({ v: 1, type: 'hello' });
