@@ -163,6 +163,122 @@ describe('stdio agent runtime', () => {
     agent.close();
   });
 
+  test('client-msg resize and pty writes are channel-scoped', () => {
+    const io = new FakeIo();
+    const ptys: any[] = [];
+    const makePty: AgentPtyFactory = (opts) => {
+      const pty = {
+        session: opts.session,
+        writes: [] as string[],
+        resizes: [] as Array<[number, number]>,
+        onDataCb: (_data: string) => {},
+        onExitCb: () => {},
+        onData(cb: (data: string) => void) { this.onDataCb = cb; },
+        onExit(cb: () => void) { this.onExitCb = cb; },
+        write(data: string) { this.writes.push(data); },
+        resize(cols: number, rows: number) { this.resizes.push([cols, rows]); },
+        kill() {},
+      };
+      ptys.push(pty);
+      return pty as any;
+    };
+
+    const agent = runStdioAgent({
+      input: io.input as any,
+      write: io.write,
+      makePty,
+      tmuxControl: createNullTmuxControl(),
+      version: 'test',
+    });
+
+    io.emitFrame({ v: 1, type: 'hello' });
+    io.emitFrame({ v: 1, type: 'open', channelId: 'c1', session: 'main', cols: 80, rows: 24 });
+    io.emitFrame({ v: 1, type: 'open', channelId: 'c2', session: 'dev', cols: 100, rows: 30 });
+    io.emitFrame({
+      v: 1,
+      type: 'client-msg',
+      channelId: 'c2',
+      data: JSON.stringify({ type: 'resize', cols: 120, rows: 40 }),
+    });
+    io.emitFrame({ v: 1, type: 'pty-in', channelId: 'c2', data: Buffer.from('x').toString('base64') });
+
+    expect(ptys[0]!.resizes).toEqual([]);
+    expect(ptys[1]!.resizes).toEqual([[120, 40]]);
+    expect(ptys[0]!.writes).toEqual([]);
+    expect(ptys[1]!.writes).toEqual(['x']);
+    agent.close();
+  });
+
+  test('client-msg unsupported routed actions emit channel-error', () => {
+    const io = new FakeIo();
+    const makePty: AgentPtyFactory = (opts) => ({
+      session: opts.session,
+      onData() {},
+      onExit() {},
+      write() {},
+      resize() {},
+      kill() {},
+    }) as any;
+
+    const agent = runStdioAgent({
+      input: io.input as any,
+      write: io.write,
+      makePty,
+      tmuxControl: createNullTmuxControl(),
+      version: 'test',
+    });
+
+    io.emitFrame({ v: 1, type: 'open', channelId: 'c1', session: 'main', cols: 80, rows: 24 });
+    io.emitFrame({
+      v: 1,
+      type: 'client-msg',
+      channelId: 'c1',
+      data: JSON.stringify({ type: 'window', action: 'select', index: '1' }),
+    });
+
+    expect(io.frames()).toContainEqual({
+      v: 1,
+      type: 'channel-error',
+      channelId: 'c1',
+      code: 'unsupported-client-action',
+      message: 'unsupported client action: window',
+    });
+    agent.close();
+  });
+
+  test('client-msg unknown JSON is routed as PTY write', () => {
+    const io = new FakeIo();
+    const ptys: any[] = [];
+    const makePty: AgentPtyFactory = (opts) => {
+      const pty = {
+        session: opts.session,
+        writes: [] as string[],
+        onData() {},
+        onExit() {},
+        write(data: string) { this.writes.push(data); },
+        resize() {},
+        kill() {},
+      };
+      ptys.push(pty);
+      return pty as any;
+    };
+
+    const agent = runStdioAgent({
+      input: io.input as any,
+      write: io.write,
+      makePty,
+      tmuxControl: createNullTmuxControl(),
+      version: 'test',
+    });
+
+    io.emitFrame({ v: 1, type: 'open', channelId: 'c1', session: 'main', cols: 80, rows: 24 });
+    io.emitFrame({ v: 1, type: 'client-msg', channelId: 'c1', data: '{"x":1}' });
+
+    expect(ptys[0]!.writes).toEqual(['{"x":1}']);
+    expect(io.frames().filter(f => f.type === 'channel-error')).toEqual([]);
+    agent.close();
+  });
+
   test('--stdio-agent parse result has a launch path instead of falling through to missing config', () => {
     const parsed = parseConfig(['--stdio-agent']);
     const launch = buildStdioAgentLaunchOptions(parsed, {

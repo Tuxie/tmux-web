@@ -8,6 +8,7 @@ import {
   type StdioFrame,
 } from './stdio-protocol.js';
 import type { TmuxControl } from './tmux-control.js';
+import { routeClientMessage, type PendingRead, type WsAction } from './ws-router.js';
 
 export interface AgentPtyFactoryOptions {
   session: string;
@@ -31,6 +32,7 @@ interface Channel {
   id: string;
   session: string;
   pty: BunPty;
+  pendingReads: Map<string, PendingRead>;
 }
 
 export function eventInputFromNodeReadable(input: NodeJS.ReadableStream): EventEmitter {
@@ -126,7 +128,12 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
       return;
     }
 
-    const channel: Channel = { id: frame.channelId, session, pty };
+    const channel: Channel = {
+      id: frame.channelId,
+      session,
+      pty,
+      pendingReads: new Map(),
+    };
     channels.set(frame.channelId, channel);
     pty.onData((data) => {
       if (channels.get(frame.channelId) !== channel) return;
@@ -140,6 +147,64 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
 
     void opts.tmuxControl.attachSession(session, { cols: frame.cols, rows: frame.rows }).catch(() => {});
     send({ v: 1, type: 'open-ok', channelId: frame.channelId, session });
+  };
+
+  const sendChannelError = (channelId: string, code: string, message: string): void => {
+    send({ v: 1, type: 'channel-error', channelId, code, message });
+  };
+
+  const unsupportedClientAction = (channel: Channel, act: WsAction): void => {
+    sendChannelError(channel.id, 'unsupported-client-action', `unsupported client action: ${act.type}`);
+  };
+
+  const dispatchClientAction = (channel: Channel, act: WsAction): void => {
+    try {
+      switch (act.type) {
+        case 'pty-write':
+          channel.pty.write(act.data);
+          return;
+        case 'pty-resize':
+          channel.pty.resize(act.cols, act.rows);
+          return;
+        case 'colour-variant':
+        case 'switch-session':
+        case 'window':
+        case 'session':
+        case 'scrollbar':
+        case 'clipboard-deny':
+        case 'clipboard-grant-persist':
+        case 'clipboard-request-content':
+        case 'clipboard-reply':
+          unsupportedClientAction(channel, act);
+          return;
+      }
+    } catch (err) {
+      sendChannelError(
+        channel.id,
+        'client-action-failed',
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  };
+
+  const handleClientMessage = (frame: Extract<StdioFrame, { type: 'client-msg' }>): void => {
+    const channel = channels.get(frame.channelId);
+    if (!channel) return;
+    let actions: WsAction[];
+    try {
+      actions = routeClientMessage(frame.data, {
+        currentSession: channel.session,
+        pendingReads: channel.pendingReads,
+      });
+    } catch (err) {
+      sendChannelError(
+        channel.id,
+        'client-message-failed',
+        err instanceof Error ? err.message : String(err),
+      );
+      return;
+    }
+    for (const act of actions) dispatchClientAction(channel, act);
   };
 
   const onFrame = (frame: StdioFrame): void => {
@@ -171,6 +236,9 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
         if (channel) channel.pty.resize(frame.cols, frame.rows);
         return;
       }
+      case 'client-msg':
+        handleClientMessage(frame);
+        return;
       case 'close':
         closeChannel(frame.channelId);
         return;
