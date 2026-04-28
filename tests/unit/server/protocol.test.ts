@@ -67,6 +67,13 @@ describe('processData', () => {
     expect(result.messages.some(m => m.clipboard === 'dGVzdA==')).toBe(true);
   });
 
+  it('strips echoed xterm identity replies from PTY output', () => {
+    const data = 'before\x1b[>0;276;0c middle \x1bP>|xterm.js(6.0.0)\x1b\\ echoctl ^[[>0;276;0c ^[P>|xterm.js(6.0.0)^[\\after';
+    const result = processData(data, 'main');
+    expect(result.output).toBe('before middle  echoctl  after');
+    expect(result.messages).toEqual([]);
+  });
+
   it('returns empty messages for data with no OSC sequences', () => {
     const result = processData('ls -la\r\nfoo bar\r\n', 'main');
     expect(result.messages).toEqual([]);

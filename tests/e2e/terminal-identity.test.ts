@@ -25,6 +25,19 @@ async function sendProbeThroughPty(page: import('@playwright/test').Page, probe:
   }, probe);
 }
 
+async function terminalBufferText(page: import('@playwright/test').Page): Promise<string> {
+  return page.evaluate(() => {
+    const term = (window as any).__adapter?.term;
+    const buffer = term?.buffer?.active;
+    if (!buffer) return '';
+    const lines: string[] = [];
+    for (let y = 0; y < buffer.length; y++) {
+      lines.push(buffer.getLine(y)?.translateToString(true) ?? '');
+    }
+    return lines.join('\n');
+  });
+}
+
 test('xterm.js answers Secondary DA probes on the input WebSocket path', async ({ page }) => {
   await boot(page);
 
@@ -36,6 +49,7 @@ test('xterm.js answers Secondary DA probes on the input WebSocket path', async (
   );
   const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
   expect(sent).toContain('\x1b[>0;276;0c');
+  await expect.poll(() => terminalBufferText(page), { timeout: 1000 }).not.toContain('0;276;0c');
 });
 
 test('xterm.js answers XTVERSION probes on the input WebSocket path', async ({ page }) => {
@@ -50,6 +64,7 @@ test('xterm.js answers XTVERSION probes on the input WebSocket path', async ({ p
   );
   const sent: string[] = await page.evaluate(() => (window as any).__wsSent);
   expect(sent).toContain('\x1bP>|xterm.js(6.0.0)\x1b\\');
+  await expect.poll(() => terminalBufferText(page), { timeout: 1000 }).not.toContain('>|xterm.js(');
 });
 
 function shellSingleQuote(s: string): string {

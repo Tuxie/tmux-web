@@ -23,6 +23,10 @@ export interface ProcessResult {
 const OSC_TITLE_RE = /\x1b\]([02]);([^\x07\x1b]*?)(?:\x07|\x1b\\)/g;
 const OSC_52_WRITE_RE = /\x1b\]52;[^;]*;([A-Za-z0-9+/=]+)(?:\x07|\x1b\\)/g;
 const OSC_52_READ_RE = /\x1b\]52;([^;]*);\?(?:\x07|\x1b\\)/g;
+const XTERM_SECONDARY_DA_REPLY_RE = /\x1b\[>0;276;0c/g;
+const XTERM_VERSION_REPLY_RE = /\x1bP>\|xterm\.js\([^)]*\)\x1b\\/g;
+const ECHOCTL_XTERM_SECONDARY_DA_REPLY_RE = /\^\[\[>0;276;0c/g;
+const ECHOCTL_XTERM_VERSION_REPLY_RE = /\^\[P>\|xterm\.js\([^)]*\)\^\[\\/g;
 
 /** Maximum byte length of an OSC 52 write payload (base64 string length).
  *  Matches the 1 MiB cap on the read path in ws.ts. */
@@ -92,7 +96,11 @@ export function processData(data: string, _currentSession: string): ProcessResul
   OSC_52_READ_RE.lastIndex = 0;
   const output = data
     .replace(OSC_52_WRITE_RE, '')
-    .replace(OSC_52_READ_RE, '');
+    .replace(OSC_52_READ_RE, '')
+    .replace(XTERM_SECONDARY_DA_REPLY_RE, '')
+    .replace(XTERM_VERSION_REPLY_RE, '')
+    .replace(ECHOCTL_XTERM_SECONDARY_DA_REPLY_RE, '')
+    .replace(ECHOCTL_XTERM_VERSION_REPLY_RE, '');
 
   return { output, messages, titleChanged, detectedSession, detectedTitle, readRequests };
 }

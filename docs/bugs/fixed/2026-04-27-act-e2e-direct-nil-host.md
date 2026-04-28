@@ -73,3 +73,24 @@ The likely area to inspect is the local `act` network/listen configuration or
 event context for the direct job, not the Playwright suite itself. Evidence:
 the direct command never reaches repository checkout, setup, or test steps,
 while the same `e2e` job has just passed as part of the `build` dependency run.
+
+## Resolution
+
+On 2026-04-28, the direct command no longer reproduced the `lookup <nil>`
+failure in the same checkout:
+
+```bash
+act -j e2e -P ubuntu-latest=catthehacker/ubuntu:act-latest
+```
+
+It reached job setup, installed the Linux helpers, set up Bun, built the
+frontend/assets, installed Playwright browsers, ran the Release E2E job, and
+completed successfully:
+
+```text
+108 passed
+Job succeeded
+```
+
+No repository code change was needed. The original failure was an intermittent
+or local `act`/Docker environment problem, not a release workflow bug.
