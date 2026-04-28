@@ -12,6 +12,7 @@ import { DEFAULT_HOST, DEFAULT_PORT, LOCALHOST_IPS } from '../shared/constants.j
 import { parseAllowOriginFlag, canonicaliseAllowedIp } from './origin.js';
 import { embeddedAssets } from './assets-embedded.js';
 import { eventInputFromNodeReadable, runStdioAgent } from './stdio-agent.js';
+import { RemoteAgentManager } from './remote-agent-manager.js';
 import pkg from '../../package.json' with { type: 'json' };
 import type { DropStorage } from './file-drop.js';
 
@@ -616,6 +617,7 @@ Options:
       tmuxConfPath: effectiveTmuxConfPath,
       log: config.debug ? (line) => process.stderr.write(`[debug] ${line}\n`) : undefined,
     });
+  const remoteAgentManager = new RemoteAgentManager();
 
   const handler = await createHttpHandler({
     config,
@@ -657,6 +659,7 @@ Options:
     tmuxConfPath: effectiveTmuxConfPath,
     sessionsStorePath,
     tmuxControl: tmuxControl ?? createNullTmuxControl(),
+    remoteAgentManager,
   });
 
   // Cleanup on every termination path. Without SIGTERM/SIGINT handlers,

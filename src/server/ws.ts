@@ -74,6 +74,8 @@ export interface WsData {
 interface WsConnState {
   pty?: BunPty;
   remoteChannel?: RemoteChannelLike;
+  remoteOpenPending?: boolean;
+  remotePendingMessages?: string[];
   unsubscribeRemoteFrames?: () => void;
   /** Set to `true` in handleOpen when spawnPty returned a structured
    *  spawnError (cluster 15 F5). The WS is closed before being added
@@ -88,6 +90,7 @@ interface WsConnState {
   lastTitle: string;
   pendingReads: Map<string, RouterPendingRead>;
   nextReqId: number;
+  registered?: boolean;
   unsubscribeDrops?: () => void;
   scrollbarState: ScrollbarState;
   scrollbarSubscriptionName: string;
@@ -322,6 +325,8 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
 
   debug(config, `WS connected from ${remoteIp} session=${session} cols=${cols} rows=${rows}`);
   if (remoteHost) {
+    state.remoteOpenPending = true;
+    state.remotePendingMessages = [];
     void handleRemoteOpen(ws, remoteHost, opts, reg);
     return;
   }
@@ -441,7 +446,9 @@ async function handleRemoteOpen(
   debug(config, `WS remote open from ${remoteIp} host=${remoteHost} session=${session} cols=${cols} rows=${rows}`);
 
   if (!opts.remoteAgentManager) {
-    sendPtyExitAndClose(ws, -1, 'remote agent manager unavailable', 'remote unavailable');
+    state.remoteOpenPending = false;
+    state.remotePendingMessages = [];
+    sendPtyExitAndClose(ws, -1, 'remote agent manager unavailable');
     return;
   }
 
@@ -454,15 +461,23 @@ async function handleRemoteOpen(
       return;
     }
     state.remoteChannel = channel;
+    state.remoteOpenPending = false;
     state.unsubscribeRemoteFrames = channel.on('frame', frame => handleRemoteFrame(ws, frame));
     registerWsSession(ws, session, reg);
     state.unsubscribeDrops = onDropsChange(() => {
       if (ws.readyState !== WS_OPEN) return;
       ws.send(frameTTMessage({ dropsChanged: true }));
     });
+    const pending = state.remotePendingMessages ?? [];
+    state.remotePendingMessages = [];
+    for (const text of pending) {
+      routeRemoteMessage(channel, text);
+    }
   } catch (err) {
+    state.remoteOpenPending = false;
+    state.remotePendingMessages = [];
     debug(config, `remote open failed for host=${remoteHost} session=${session}: ${(err as Error).message}`);
-    sendPtyExitAndClose(ws, -1, (err as Error).message, 'remote open failed');
+    sendPtyExitAndClose(ws, -1, (err as Error).message);
   }
 }
 
@@ -491,7 +506,7 @@ function sendPtyExitAndClose(
   ws: ServerWebSocket<WsData>,
   exitCode: number,
   exitReason: string | undefined,
-  closeReason: string,
+  closeReason?: string,
 ): void {
   if (ws.readyState !== WS_OPEN) return;
   try {
@@ -501,7 +516,9 @@ function sendPtyExitAndClose(
       exitReason,
     }));
   } catch { /* ws gone */ }
-  try { ws.close(1011, closeReason); } catch { /* best-effort */ }
+  if (closeReason) {
+    try { ws.close(1011, closeReason); } catch { /* best-effort */ }
+  }
 }
 
 async function tmuxSessionExists(sessionName: string, opts: WsServerOptions): Promise<boolean> {
@@ -591,8 +608,13 @@ async function refreshWindowsAfterSameSessionTitle(
 
 function handleMessage(ws: ServerWebSocket<WsData>, msg: string | Buffer, opts: WsServerOptions, reg: WsRegistry): void {
   const text = typeof msg === 'string' ? msg : Buffer.from(msg).toString('utf8');
-  if (ws.data.state.remoteChannel) {
-    routeRemoteMessage(ws.data.state.remoteChannel, text);
+  if (ws.data.remoteHost) {
+    const { state } = ws.data;
+    if (state.remoteChannel) {
+      routeRemoteMessage(state.remoteChannel, text);
+    } else if (state.remoteOpenPending) {
+      (state.remotePendingMessages ??= []).push(text);
+    }
     return;
   }
   const actions = routeClientMessage(text, {
@@ -620,8 +642,22 @@ function routeRemoteMessage(channel: RemoteChannelLike, text: string): void {
       channel.resize(msg.cols, msg.rows);
       return;
     }
+    if (isRemoteClientMessageType(msg.type)) {
+      channel.sendClientMessage(text);
+      return;
+    }
   }
-  channel.sendClientMessage(text);
+  channel.sendPty(text);
+}
+
+function isRemoteClientMessageType(type: unknown): boolean {
+  return type === 'colour-variant'
+    || type === 'switch-session'
+    || type === 'window'
+    || type === 'session'
+    || type === 'scrollbar'
+    || type === 'clipboard-decision'
+    || type === 'clipboard-read-reply';
 }
 
 function handleClose(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsRegistry): void {
@@ -638,10 +674,12 @@ function handleClose(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: Ws
   }
   cancelPtyOutputWaiters(state);
   state.unsubscribeDrops?.();
-  if (state.remoteChannel) {
+  if (ws.data.remoteHost) {
+    state.remoteOpenPending = false;
+    state.remotePendingMessages = [];
     state.unsubscribeRemoteFrames?.();
-    try { state.remoteChannel.close('websocket closed'); } catch { /* best-effort */ }
-    unregisterWsSession(ws, session, reg);
+    try { state.remoteChannel?.close('websocket closed'); } catch { /* best-effort */ }
+    if (state.registered) unregisterWsSession(ws, session, reg);
     return;
   }
   const next = unregisterWsSession(ws, session, reg);
@@ -672,6 +710,7 @@ function registerWsSession(ws: ServerWebSocket<WsData>, session: string, reg: Ws
   }
   sessionSet.add(ws);
   state.sessionSet = sessionSet;
+  state.registered = true;
 }
 
 function unregisterWsSession(ws: ServerWebSocket<WsData>, session: string, reg: WsRegistry): number {
@@ -684,6 +723,7 @@ function unregisterWsSession(ws: ServerWebSocket<WsData>, session: string, reg: 
   } else {
     reg.sessionRefs.set(session, next);
   }
+  state.registered = false;
   return next;
 }
 

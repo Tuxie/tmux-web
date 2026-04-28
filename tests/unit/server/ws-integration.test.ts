@@ -82,6 +82,16 @@ function waitForMessage(ws: WebSocket): Promise<string> {
   });
 }
 
+function waitForClose(ws: WebSocket): Promise<void> {
+  return new Promise(resolve => {
+    if (ws.readyState === WebSocket.CLOSED) {
+      resolve();
+      return;
+    }
+    ws.addEventListener('close', () => resolve(), { once: true });
+  });
+}
+
 type RemoteEvent =
   | { type: 'open'; host: string; session: string; cols: number; rows: number }
   | { type: 'pty'; data: string }
@@ -126,6 +136,51 @@ function createFakeRemoteManager(remoteEvents: RemoteEvent[]) {
           async openChannel(opts: { session: string; cols: number; rows: number }) {
             remoteEvents.push({ type: 'open', host, session: opts.session, cols: opts.cols, rows: opts.rows });
             return channel;
+          },
+        };
+      },
+      async close() {},
+    },
+  };
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+function createTrackingTmuxControl() {
+  const events: Array<{ type: 'detach'; session: string }> = [];
+  return {
+    events,
+    control: {
+      attachSession: async () => {},
+      detachSession: (session: string) => { events.push({ type: 'detach', session }); },
+      run: async () => '',
+      on: () => () => {},
+      hasSession: () => false,
+      close: async () => {},
+    },
+  };
+}
+
+function createDeferredRemoteManager(remoteEvents: RemoteEvent[]) {
+  const openDeferred = createDeferred<any>();
+  const fake = createFakeRemoteManager(remoteEvents);
+  return {
+    channel: fake.channel,
+    openDeferred,
+    manager: {
+      async getHost(host: string) {
+        return {
+          async openChannel(opts: { session: string; cols: number; rows: number }) {
+            remoteEvents.push({ type: 'open', host, session: opts.session, cols: opts.cols, rows: opts.rows });
+            return await openDeferred.promise;
           },
         };
       },
@@ -219,10 +274,64 @@ describe('ws upgrade success paths', () => {
     expect(remoteEvents).toContainEqual({ type: 'pty', data: 'input' });
     expect(remoteEvents).toContainEqual({ type: 'resize', cols: 120, rows: 40 });
     expect(remoteEvents).toContainEqual({ type: 'client', data: JSON.stringify({ type: 'window', action: 'select', index: '1' }) });
+    ws.send(JSON.stringify({ x: 1 }));
+    await new Promise(r => setTimeout(r, 20));
+    expect(remoteEvents).toContainEqual({ type: 'pty', data: JSON.stringify({ x: 1 }) });
 
     ws.close();
     await new Promise(r => setTimeout(r, 20));
     expect(remoteEvents).toContainEqual({ type: 'close', reason: 'websocket closed' });
+  });
+
+  test('remoteHost without a manager reports ptyExit and never detaches local sessions', async () => {
+    const tracker = createTrackingTmuxControl();
+    h = await startTestServer({ testMode: false, tmuxControl: tracker.control });
+
+    const ws = await open('/ws?remoteHost=prod&session=main&cols=80&rows=24');
+    const msg = await waitForMessage(ws);
+    ws.close();
+    await waitForClose(ws);
+
+    expect(msg).toStartWith('\x00TT:');
+    expect(JSON.parse(msg.slice(4))).toMatchObject({
+      ptyExit: true,
+      exitCode: -1,
+      exitReason: 'remote agent manager unavailable',
+    });
+    expect(tracker.events).toEqual([]);
+  });
+
+  test('remoteHost queues early input until async channel open completes', async () => {
+    const remoteEvents: RemoteEvent[] = [];
+    const fake = createDeferredRemoteManager(remoteEvents);
+    const tracker = createTrackingTmuxControl();
+    h = await startTestServer({
+      remoteAgentManager: fake.manager,
+      testMode: false,
+      tmuxControl: tracker.control,
+    });
+
+    const ws = await open('/ws?remoteHost=prod&session=main&cols=80&rows=24');
+    ws.send('early');
+    ws.send(JSON.stringify({ type: 'resize', cols: 120, rows: 40 }));
+    ws.send(JSON.stringify({ x: 1 }));
+    await new Promise(r => setTimeout(r, 20));
+
+    expect(remoteEvents).toEqual([
+      { type: 'open', host: 'prod', session: 'main', cols: 80, rows: 24 },
+    ]);
+    expect(tracker.events).toEqual([]);
+
+    fake.openDeferred.resolve(fake.channel);
+    await new Promise(r => setTimeout(r, 20));
+
+    expect(remoteEvents).toContainEqual({ type: 'pty', data: 'early' });
+    expect(remoteEvents).toContainEqual({ type: 'resize', cols: 120, rows: 40 });
+    expect(remoteEvents).toContainEqual({ type: 'pty', data: JSON.stringify({ x: 1 }) });
+    expect(tracker.events).toEqual([]);
+
+    ws.close();
+    await new Promise(r => setTimeout(r, 20));
   });
 });
 
