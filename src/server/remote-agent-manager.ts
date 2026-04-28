@@ -86,6 +86,7 @@ export class RemoteHostAgent {
   private readyResolve!: (agent: RemoteHostAgent) => void;
   private readyReject!: (err: unknown) => void;
   private readySettled = false;
+  private tornDown = false;
   readonly ready: Promise<RemoteHostAgent>;
 
   constructor(
@@ -128,6 +129,12 @@ export class RemoteHostAgent {
 
   close(): void {
     this.writeFrame({ v: 1, type: 'shutdown' });
+    this.teardown();
+  }
+
+  private teardown(): void {
+    if (this.tornDown) return;
+    this.tornDown = true;
     try {
       this.proc.stdin.end();
     } catch {
@@ -149,6 +156,7 @@ export class RemoteHostAgent {
         return;
       case 'host-error':
         this.rejectAll(new Error(`remote host ${this.host} error: ${frame.code}: ${frame.message}`));
+        this.teardown();
         this.onDone(this);
         return;
       case 'open-ok': {
@@ -215,6 +223,7 @@ export class RemoteHostAgent {
   }
 
   private handleExit(err?: unknown): void {
+    this.tornDown = true;
     this.rejectAll(err ?? new Error(`remote host ${this.host} agent exited`));
     this.onDone(this);
   }

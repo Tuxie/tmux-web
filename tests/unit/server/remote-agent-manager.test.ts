@@ -7,10 +7,12 @@ class FakeProc extends EventEmitter {
   writes: Buffer[] = [];
   stdout = new EventEmitter();
   flushes = 0;
+  endCalls = 0;
+  killCalls = 0;
   stdin = {
     write: (b: Buffer) => { this.writes.push(Buffer.from(b)); return true; },
     flush: () => { this.flushes += 1; },
-    end: () => {},
+    end: () => { this.endCalls += 1; },
   };
   exited: Promise<void>;
   private exit!: () => void;
@@ -24,7 +26,7 @@ class FakeProc extends EventEmitter {
     this.stdout.emit('data', encodeFrame(frame));
   }
 
-  kill() { this.exit(); }
+  kill() { this.killCalls += 1; this.exit(); }
 }
 
 function collectWrites(proc: FakeProc): StdioFrame[] {
@@ -120,6 +122,29 @@ describe('RemoteAgentManager', () => {
     const first = mgr.getHost('prod');
     procs[0]!.emitFrame({ v: 1, type: 'host-error', code: 'connect', message: 'no route' });
     await expect(first).rejects.toThrow(/no route/);
+    expect(procs[0]!.endCalls).toBe(1);
+    expect(procs[0]!.killCalls).toBe(1);
+
+    const second = mgr.getHost('prod');
+    expect(procs).toHaveLength(2);
+    procs[1]!.emitFrame({ v: 1, type: 'hello-ok', agentVersion: 'test' });
+    await second;
+    await mgr.close();
+  });
+
+  test('tears down and evicts a ready host agent that later reports host-error', async () => {
+    const procs: FakeProc[] = [];
+    const mgr = new RemoteAgentManager({
+      spawn: () => { const p = new FakeProc(); procs.push(p); return p as any; },
+      idleTimeoutMs: 20,
+    });
+
+    const first = mgr.getHost('prod');
+    procs[0]!.emitFrame({ v: 1, type: 'hello-ok', agentVersion: 'test' });
+    await first;
+    procs[0]!.emitFrame({ v: 1, type: 'host-error', code: 'lost', message: 'connection lost' });
+    expect(procs[0]!.endCalls).toBe(1);
+    expect(procs[0]!.killCalls).toBe(1);
 
     const second = mgr.getHost('prod');
     expect(procs).toHaveLength(2);
