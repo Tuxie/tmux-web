@@ -19,9 +19,17 @@ describe('remote route parsing', () => {
   test('host aliases are conservative and slash-free', () => {
     expect(isValidRemoteHostAlias('prod')).toBe(true);
     expect(isValidRemoteHostAlias('prod.example.com')).toBe(true);
+    expect(isValidRemoteHostAlias('-Jbastion')).toBe(false);
     expect(isValidRemoteHostAlias('user@host')).toBe(false);
     expect(isValidRemoteHostAlias('../host')).toBe(false);
     expect(isValidRemoteHostAlias('host;rm')).toBe(false);
+  });
+
+  test('rejects option-looking, dot-only, and overlong host aliases', () => {
+    expect(parseRemotePath('/r/-Jbastion/main')).toBeNull();
+    expect(isValidRemoteHostAlias('.')).toBe(false);
+    expect(isValidRemoteHostAlias('..')).toBe(false);
+    expect(isValidRemoteHostAlias('a'.repeat(256))).toBe(false);
   });
 
   test('buildRemoteWsParams preserves host and sanitized session intent', () => {

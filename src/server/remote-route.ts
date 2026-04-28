@@ -3,7 +3,7 @@ export interface RemoteRoute {
   session: string;
 }
 
-const HOST_RE = /^[A-Za-z0-9._-]+$/;
+const HOST_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 export function isValidRemoteHostAlias(host: string): boolean {
   return host.length > 0 && host.length <= 255 && HOST_RE.test(host);
