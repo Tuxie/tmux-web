@@ -50,4 +50,9 @@ describe('Amiga theme CSS', () => {
     expect(commonCss).toMatch(/\.tw-scrollbar\.unavailable\s*\{\s*opacity:\s*1;\s*\}/);
     expect(commonCss).toMatch(/\.tw-scrollbar\.unavailable \.tw-scrollbar-track,\s*\.tw-scrollbar\.unavailable \.tw-scrollbar-up,\s*\.tw-scrollbar\.unavailable \.tw-scrollbar-down\s*\{\s*display:\s*none;\s*\}/);
   });
+
+  test('AmigaOS 3.1 scrollbar overruns the right edge without changing Scene', () => {
+    expect(os31Css).toMatch(/\.tw-scrollbar\s*\{\s*right:\s*-1px;\s*\}/);
+    expect(sceneCss).not.toMatch(/\.tw-scrollbar\s*\{\s*right:\s*-1px;\s*\}/);
+  });
 });
