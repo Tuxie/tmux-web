@@ -25,6 +25,11 @@ function makeRecordingControl(): TmuxControl & { detached: string[] } {
   };
 }
 
+async function flushAsyncWork(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 describe('stdio agent runtime', () => {
   test('handshakes and opens two independent channels', async () => {
     const io = new FakeIo();
@@ -206,6 +211,128 @@ describe('stdio agent runtime', () => {
     expect(ptys[1]!.resizes).toEqual([[120, 40]]);
     expect(ptys[0]!.writes).toEqual([]);
     expect(ptys[1]!.writes).toEqual(['x']);
+    agent.close();
+  });
+
+  test('client-msg switch-session attaches new session before detaching old session', async () => {
+    const io = new FakeIo();
+    const attached: Array<{ session: string; cols?: number; rows?: number }> = [];
+    const detached: string[] = [];
+    const tmuxControl: TmuxControl = {
+      ...createNullTmuxControl(),
+      attachSession: async (session: string, size?: { cols: number; rows: number }) => {
+        attached.push({ session, ...size });
+      },
+      detachSession: (session: string) => { detached.push(session); },
+      hasSession: (session: string) => ['main', 'dev'].includes(session),
+    };
+    const makePty: AgentPtyFactory = (opts) => ({
+      session: opts.session,
+      onData() {},
+      onExit() {},
+      write() {},
+      resize() {},
+      kill() {},
+    }) as any;
+
+    const agent = runStdioAgent({
+      input: io.input as any,
+      write: io.write,
+      makePty,
+      tmuxControl,
+      version: 'test',
+    });
+
+    io.emitFrame({ v: 1, type: 'open', channelId: 'c1', session: 'main', cols: 80, rows: 24 });
+    await flushAsyncWork();
+    io.emitFrame({ v: 1, type: 'resize', channelId: 'c1', cols: 100, rows: 40 });
+    io.emitFrame({
+      v: 1,
+      type: 'client-msg',
+      channelId: 'c1',
+      data: JSON.stringify({ type: 'switch-session', name: 'dev' }),
+    });
+    await flushAsyncWork();
+
+    expect(attached).toEqual([
+      { session: 'main', cols: 80, rows: 24 },
+      { session: 'dev', cols: 100, rows: 40 },
+    ]);
+    expect(detached).toEqual(['main']);
+    expect(io.frames()).toContainEqual({
+      v: 1,
+      type: 'server-msg',
+      channelId: 'c1',
+      data: { session: 'dev' },
+    });
+    expect(io.frames().filter(f => f.type === 'channel-error')).toEqual([]);
+    agent.close();
+  });
+
+  test('client-msg switch-session to missing session emits channel-error and keeps old ref', async () => {
+    const io = new FakeIo();
+    const attached: Array<{ session: string; cols?: number; rows?: number }> = [];
+    const detached: string[] = [];
+    const tmuxControl: TmuxControl = {
+      ...createNullTmuxControl(),
+      attachSession: async (session: string, size?: { cols: number; rows: number }) => {
+        attached.push({ session, ...size });
+      },
+      detachSession: (session: string) => { detached.push(session); },
+      hasSession: (session: string) => ['main', 'dev'].includes(session),
+    };
+    const makePty: AgentPtyFactory = (opts) => ({
+      session: opts.session,
+      onData() {},
+      onExit() {},
+      write() {},
+      resize() {},
+      kill() {},
+    }) as any;
+
+    const agent = runStdioAgent({
+      input: io.input as any,
+      write: io.write,
+      makePty,
+      tmuxControl,
+      version: 'test',
+    });
+
+    io.emitFrame({ v: 1, type: 'open', channelId: 'c1', session: 'main', cols: 80, rows: 24 });
+    await flushAsyncWork();
+    io.emitFrame({
+      v: 1,
+      type: 'client-msg',
+      channelId: 'c1',
+      data: JSON.stringify({ type: 'switch-session', name: 'missing' }),
+    });
+    await flushAsyncWork();
+    io.emitFrame({
+      v: 1,
+      type: 'client-msg',
+      channelId: 'c1',
+      data: JSON.stringify({ type: 'switch-session', name: 'dev' }),
+    });
+    await flushAsyncWork();
+
+    expect(attached).toEqual([
+      { session: 'main', cols: 80, rows: 24 },
+      { session: 'dev', cols: 80, rows: 24 },
+    ]);
+    expect(detached).toEqual(['main']);
+    expect(io.frames()).toContainEqual({
+      v: 1,
+      type: 'channel-error',
+      channelId: 'c1',
+      code: 'switch-session-failed',
+      message: 'session not found: missing',
+    });
+    expect(io.frames()).toContainEqual({
+      v: 1,
+      type: 'server-msg',
+      channelId: 'c1',
+      data: { session: 'dev' },
+    });
     agent.close();
   });
 

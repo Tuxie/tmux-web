@@ -33,6 +33,7 @@ interface Channel {
   session: string;
   pty: BunPty;
   pendingReads: Map<string, PendingRead>;
+  lastSize: { cols: number; rows: number };
 }
 
 export function eventInputFromNodeReadable(input: NodeJS.ReadableStream): EventEmitter {
@@ -133,6 +134,7 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
       session,
       pty,
       pendingReads: new Map(),
+      lastSize: { cols: frame.cols, rows: frame.rows },
     };
     channels.set(frame.channelId, channel);
     pty.onData((data) => {
@@ -157,6 +159,37 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
     sendChannelError(channel.id, 'unsupported-client-action', `unsupported client action: ${act.type}`);
   };
 
+  const switchChannelSession = async (channel: Channel, newSessionRaw: string): Promise<void> => {
+    const oldSession = channel.session;
+    const newSession = sanitizeSession(newSessionRaw);
+    if (newSession === oldSession) {
+      send({ v: 1, type: 'server-msg', channelId: channel.id, data: { session: newSession } });
+      return;
+    }
+
+    if (!opts.tmuxControl.hasSession(newSession)) {
+      sendChannelError(channel.id, 'switch-session-failed', `session not found: ${newSession}`);
+      return;
+    }
+
+    try {
+      await opts.tmuxControl.attachSession(newSession, channel.lastSize);
+      if (channels.get(channel.id) !== channel) {
+        try { opts.tmuxControl.detachSession(newSession); } catch { /* best-effort */ }
+        return;
+      }
+      opts.tmuxControl.detachSession(oldSession);
+      channel.session = newSession;
+      send({ v: 1, type: 'server-msg', channelId: channel.id, data: { session: newSession } });
+    } catch (err) {
+      sendChannelError(
+        channel.id,
+        'switch-session-failed',
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  };
+
   const dispatchClientAction = (channel: Channel, act: WsAction): void => {
     try {
       switch (act.type) {
@@ -164,10 +197,13 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
           channel.pty.write(act.data);
           return;
         case 'pty-resize':
+          channel.lastSize = { cols: act.cols, rows: act.rows };
           channel.pty.resize(act.cols, act.rows);
           return;
-        case 'colour-variant':
         case 'switch-session':
+          void switchChannelSession(channel, act.name);
+          return;
+        case 'colour-variant':
         case 'window':
         case 'session':
         case 'scrollbar':
@@ -233,7 +269,10 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
       }
       case 'resize': {
         const channel = channels.get(frame.channelId);
-        if (channel) channel.pty.resize(frame.cols, frame.rows);
+        if (channel) {
+          channel.lastSize = { cols: frame.cols, rows: frame.rows };
+          channel.pty.resize(frame.cols, frame.rows);
+        }
         return;
       }
       case 'client-msg':
