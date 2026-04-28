@@ -14,6 +14,7 @@ import {
   getKnownRemoteServers,
   initSessionStore,
   recordKnownRemoteServer,
+  sessionSettingsKey,
   setLastActiveSession,
   applyThemeDefaults,
   DEFAULT_SESSION_SETTINGS,
@@ -180,6 +181,10 @@ export class Topbar {
   private cachedSessions: Array<{ id: string; name: string; windows?: number }> = [];
   private cachedRemoteSessions = new Map<string, Array<{ id: string; name: string; windows?: number }>>();
   private refreshInFlight: { promise: Promise<void>; includeRemote: boolean } | null = null;
+
+  private currentSettingsKey(): string {
+    return sessionSettingsKey(this.currentSession, remoteHostFromPath(location.pathname));
+  }
 
   /** Returned promise resolves once `cachedSessions` reflects a fresh
    *  `/api/sessions` response (or the existing cache stays, on error).
@@ -668,7 +673,7 @@ export class Topbar {
 
     const getSettings = (): SessionSettings => {
       const live = this.opts.getLiveSettings();
-      return loadSessionSettings(this.currentSession, live, { defaults: DEFAULT_SESSION_SETTINGS });
+      return loadSessionSettings(this.currentSettingsKey(), live, { defaults: DEFAULT_SESSION_SETTINGS });
     };
 
     // Keep a CSS custom property on each range input reflecting its value
@@ -685,7 +690,7 @@ export class Topbar {
     const commit = (patch: Partial<SessionSettings>) => {
       const current = getSettings();
       const updated: SessionSettings = { ...current, ...patch };
-      saveSessionSettings(this.currentSession, updated);
+      saveSessionSettings(this.currentSettingsKey(), updated);
       this.opts.onSettingsChange?.(updated);
     };
 
@@ -820,7 +825,7 @@ export class Topbar {
       td.scrollbarAutohide = theme?.defaultScrollbarAutohide ?? DEFAULT_SESSION_SETTINGS.scrollbarAutohide;
       const current = getSettings();
       const updated = applyThemeDefaults({ ...current, theme: name }, td);
-      saveSessionSettings(this.currentSession, updated);
+      saveSessionSettings(this.currentSettingsKey(), updated);
       syncUi(updated);
       this.opts.onSettingsChange?.(updated);
     });
@@ -950,18 +955,18 @@ export class Topbar {
     // SETTINGS + patch`. Skip until the live settings exist.
     const live = this.opts.getLiveSettings();
     if (!live) return;
-    const current = loadSessionSettings(this.currentSession, live, {
+    const current = loadSessionSettings(this.currentSettingsKey(), live, {
       defaults: DEFAULT_SESSION_SETTINGS,
     });
     const updated: SessionSettings = { ...current, ...patch };
-    saveSessionSettings(this.currentSession, updated);
+    saveSessionSettings(this.currentSettingsKey(), updated);
     this.syncAutohideSettings(updated);
     this.opts.onSettingsChange?.(updated);
     this.opts.onAutohideChange?.();
   }
 
   private setupAutoHide(): void {
-    const initialSettings = loadSessionSettings(this.currentSession, this.opts.getLiveSettings(), {
+    const initialSettings = loadSessionSettings(this.currentSettingsKey(), this.opts.getLiveSettings(), {
       defaults: DEFAULT_SESSION_SETTINGS,
     });
     this.syncAutohideSettings(initialSettings);
@@ -1339,12 +1344,14 @@ export class Topbar {
     // persisted settings and re-apply them: otherwise the new session
     // would inherit the previous session's theme, colours, font, etc.
     if (switched) {
-      const liveFromPrev = getLiveSessionSettings(session);
-      const newSettings = loadSessionSettings(session, liveFromPrev, {
+      const newRemoteHost = remoteHost ?? remoteHostFromPath(newPath);
+      const key = sessionSettingsKey(session, newRemoteHost);
+      const liveFromPrev = getLiveSessionSettings(key);
+      const newSettings = loadSessionSettings(key, liveFromPrev, {
         defaults: DEFAULT_SESSION_SETTINGS,
       });
-      setLastActiveSession(session);
-      saveSessionSettings(session, newSettings);
+      setLastActiveSession(key);
+      saveSessionSettings(key, newSettings);
       this.syncSettingsUi?.(newSettings);
       void this.opts.onSettingsChange?.(newSettings);
     }

@@ -507,6 +507,18 @@ describe('sessions menu: running/stopped states and current marker', () => {
     expect(remoteMain.className).toContain('current');
   });
 
+  it('remote updateSession saves settings under a remote key, not a local session name', async () => {
+    const t = await mountTopbar({ session: 'main' });
+    _resetSessionStore({ sessions: {}, knownServers: ['dev'] } as any);
+
+    t.updateSession('remote-main', 'dev');
+
+    const { getStoredSessionNames, loadSessionSettings, DEFAULT_SESSION_SETTINGS } = await import('../../../../src/client/session-settings.ts');
+    expect(getStoredSessionNames()).toEqual([]);
+    const saved = loadSessionSettings('/r/dev/remote-main', null, { defaults: DEFAULT_SESSION_SETTINGS });
+    expect(saved.fontSize).toBe(DEFAULT_SESSION_SETTINGS.fontSize);
+  });
+
   it('clicking a remote session row passes the remote host to onSwitchSession', async () => {
     const switched: Array<{ name: string; host?: string }> = [];
     const t = await mountTopbar({ session: 'main' });

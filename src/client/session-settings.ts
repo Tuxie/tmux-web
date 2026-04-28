@@ -123,6 +123,14 @@ function isValidRemoteHostAlias(host: string): boolean {
   return host.length > 0 && host.length <= 255 && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(host);
 }
 
+export function sessionSettingsKey(name: string, remoteHost?: string | null): string {
+  return remoteHost && isValidRemoteHostAlias(remoteHost) ? `/r/${remoteHost}/${name}` : name;
+}
+
+function isRemoteSessionSettingsKey(name: string): boolean {
+  return name.startsWith('/r/');
+}
+
 /** Fetch the persisted settings map from the server. Call once on startup.
  *  Failures (non-ok response or network error) are recorded through
  *  `boot-errors.ts` so `main()` can surface a single combined toast
@@ -263,7 +271,7 @@ export async function deleteSessionSettings(name: string): Promise<void> {
 
 /** Returns the names of all sessions persisted in the server-side store. */
 export function getStoredSessionNames(): string[] {
-  return Object.keys(cache.sessions);
+  return Object.keys(cache.sessions).filter(name => !isRemoteSessionSettingsKey(name));
 }
 
 /** Returns stored settings from the last-active session (for new-session inheritance). */

@@ -1,6 +1,6 @@
 import type { TerminalAdapter } from './adapters/types.js';
 import type { ClientConfig, SwitchSessionMessage } from '../shared/types.js';
-import { Connection, buildWsUrl, sessionFromPath } from './connection.js';
+import { Connection, buildWsUrl, remoteHostFromPath, sessionFromPath } from './connection.js';
 import { handleServerData } from './message-handler.js';
 import { Topbar } from './ui/topbar.js';
 import { installMouseHandler, buildWheelSgrSequences } from './ui/mouse.js';
@@ -32,6 +32,7 @@ import {
   loadSessionSettings,
   saveSessionSettings,
   getLiveSessionSettings,
+  sessionSettingsKey,
   setLastActiveSession,
   initSessionStore,
   flushPersist,
@@ -98,7 +99,10 @@ async function main() {
   // Read from the URL every time we need it — the URL is rewritten in place
   // via history.replaceState when tmux switches sessions, so saves must follow.
   const getSession = (): string => sessionFromPath(location.pathname);
+  const getRemoteHost = (): string | null => remoteHostFromPath(location.pathname);
+  const getSettingsKey = (): string => sessionSettingsKey(getSession(), getRemoteHost());
   const sessionName = getSession();
+  const settingsKey = getSettingsKey();
   const currentTheme = themes.find(t => t.name === DEFAULT_SESSION_SETTINGS.theme) ?? themes[0];
   const themeDefaults = currentTheme ? {
     colours: currentTheme.defaultColours,
@@ -124,13 +128,13 @@ async function main() {
     scrollbarAutohide: currentTheme.defaultScrollbarAutohide,
   } : undefined;
 
-  const liveSettings = getLiveSessionSettings(sessionName);
-  let settings = loadSessionSettings(sessionName, liveSettings, {
+  const liveSettings = getLiveSessionSettings(settingsKey);
+  let settings = loadSessionSettings(settingsKey, liveSettings, {
     defaults: DEFAULT_SESSION_SETTINGS,
     themeDefaults,
   });
-  setLastActiveSession(sessionName);
-  saveSessionSettings(sessionName, settings);
+  setLastActiveSession(settingsKey);
+  saveSessionSettings(settingsKey, settings);
 
   await applyTheme(settings.theme);
   applyBackgroundHue(settings.backgroundHue);
@@ -237,7 +241,7 @@ async function main() {
       const colourChanged = s.colours !== settings.colours;
       const scrollbarAutohideChanged = s.scrollbarAutohide !== settings.scrollbarAutohide;
       settings = s;
-      saveSessionSettings(getSession(), s);
+      saveSessionSettings(getSettingsKey(), s);
       document.body.classList.toggle('topbar-pinned', !s.topbarAutohide);
       if (scrollbarAutohideChanged) applyScrollbarLayout(s.scrollbarAutohide);
       if (colourChanged) colourControls.sendVariant(s.colours);

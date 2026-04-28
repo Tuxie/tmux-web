@@ -7,6 +7,7 @@ import {
   saveSessionSettings,
   getStoredSessionNames,
   getLiveSessionSettings,
+  sessionSettingsKey,
   setLastActiveSession,
   getKnownRemoteServers,
   recordKnownRemoteServer,
@@ -175,6 +176,22 @@ describe("session-settings", () => {
     });
     await initSessionStore();
     expect(getStoredSessionNames().sort()).toEqual(["alpha", "beta"]);
+  });
+
+  test("getStoredSessionNames excludes remote session setting keys", async () => {
+    setupFakeFetch({
+      sessions: {
+        alpha: { theme: "T", colours: "x", fontFamily: "f", fontSize: 1, spacing: 1, opacity: 0 },
+        "/r/dev/alpha": { theme: "T", colours: "remote", fontFamily: "f", fontSize: 1, spacing: 1, opacity: 0 },
+      },
+    });
+    await initSessionStore();
+    expect(getStoredSessionNames()).toEqual(["alpha"]);
+  });
+
+  test("sessionSettingsKey namespaces remote sessions by host", () => {
+    expect(sessionSettingsKey("main")).toBe("main");
+    expect(sessionSettingsKey("main", "dev")).toBe("/r/dev/main");
   });
 
   test("loads pre-existing settings from server", async () => {
