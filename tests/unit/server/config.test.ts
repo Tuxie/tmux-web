@@ -68,6 +68,12 @@ test("--help short-circuits parsing with help:true", () => {
   expect(r.config).toBeNull();
 });
 
+test("--stdio-agent short-circuits parsing with stdioAgent:true", () => {
+  const r = parseConfig(["--stdio-agent"]);
+  expect(r.stdioAgent).toBe(true);
+  expect(r.config).toBeNull();
+});
+
 test("short flags: -i / -u / -p / -d map to their long forms", () => {
   const { config } = parseConfig([
     "-i", "10.0.0.1",

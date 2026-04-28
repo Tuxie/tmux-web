@@ -87,6 +87,7 @@ export interface ConfigResult {
   port: number;
   help?: boolean;
   version?: boolean;
+  stdioAgent?: boolean;
   reset?: boolean;
   resetTls?: boolean;
   resetAuth?: { username: string; password: string | undefined };
@@ -118,12 +119,14 @@ export function parseConfig(argv: string[]): ConfigResult {
       debug:          { type: 'boolean', short: 'd', default: false },
       help:           { type: 'boolean', short: 'h', default: false },
       version:        { type: 'boolean', short: 'V', default: false },
+      'stdio-agent':  { type: 'boolean', default: false },
     },
     strict: true,
   });
 
   if (args.version) return { config: null, host: '', port: 0, version: true };
   if (args.help) return { config: null, host: '', port: 0, help: true };
+  if (args['stdio-agent']) return { config: null, host: '', port: 0, stdioAgent: true };
 
   const { host, port } = parseListenAddr(args.listen!);
 
@@ -311,6 +314,7 @@ Options:
       --tmux-conf <path>       Alternative tmux.conf to load instead of user default
       --themes-dir <path>      User theme-pack directory override
       --test                   Test mode: use cat PTY, bypass IP/Origin allowlists
+      --stdio-agent             Run stdio remote-agent mode instead of HTTP server
       --reset                  Delete saved settings and restart running instances
   -d, --debug                  Log debug messages to stderr
   -V, --version                Print version and exit
