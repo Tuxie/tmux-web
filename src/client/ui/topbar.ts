@@ -179,7 +179,7 @@ export class Topbar {
   }
 
   private cachedSessions: Array<{ id: string; name: string; windows?: number }> = [];
-  private cachedRemoteSessions = new Map<string, Array<{ id: string; name: string; windows?: number }>>();
+  private cachedRemoteSessions = new Map<string, Array<{ id: string; name: string; windows?: number; running?: boolean }>>();
   private refreshInFlight: { promise: Promise<void>; includeRemote: boolean } | null = null;
 
   private currentSettingsKey(): string {
@@ -214,7 +214,7 @@ export class Topbar {
           try {
             const res = await fetch('/api/remote-sessions?host=' + encodeURIComponent(host));
             if (!res.ok) return null;
-            const sessions = await res.json() as Array<{ id: string; name: string; windows?: number }>;
+            const sessions = await res.json() as Array<{ id: string; name: string; windows?: number; running?: boolean }>;
             return { host, sessions };
           } catch {
             return null;
@@ -1308,7 +1308,20 @@ export class Topbar {
     this.cachedSessions = sessions.slice();
   }
 
-  markSessionStopped(session: string): void {
+  markSessionStopped(session: string, remoteHost?: string | null): void {
+    if (remoteHost) {
+      const sessions = this.cachedRemoteSessions.get(remoteHost) ?? [];
+      let found = false;
+      this.cachedRemoteSessions.set(remoteHost, sessions.map(s => {
+        if (s.name !== session) return s;
+        found = true;
+        return { ...s, id: s.id || '', running: false };
+      }));
+      if (!found) {
+        this.cachedRemoteSessions.set(remoteHost, [...sessions, { id: '', name: session, running: false }]);
+      }
+      return;
+    }
     this.cachedSessions = this.cachedSessions.filter(s => s.name !== session);
   }
 

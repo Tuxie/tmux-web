@@ -552,6 +552,29 @@ describe('sessions menu: running/stopped states and current marker', () => {
     expect(dot.className).toContain('stopped');
     expect(dot.attrs['aria-label']).toBe('Not running');
   });
+
+  it('marks the current remote session stopped after its PTY exits', async () => {
+    const switched: Array<{ name: string; host?: string }> = [];
+    const t = await mountTopbar({ session: 'r/dev/work' });
+    (t as any).opts.onSwitchSession = (name: string, host?: string) => switched.push({ name, host });
+    (t as any).cachedRemoteSessions = new Map([
+      ['dev', [{ id: '2', name: 'work', windows: 1 }]],
+    ]);
+    _resetSessionStore({ sessions: {}, knownServers: ['dev'] } as any);
+
+    t.markSessionStopped('work', 'dev');
+
+    const menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+    const work = rowByName(sessionRows(menu), 'work');
+
+    expect(statusDot(work).className).toContain('stopped');
+    expect(work.className).toContain('current');
+
+    work.click();
+
+    expect(switched).toEqual([{ name: 'work', host: 'dev' }]);
+  });
 });
 
 // ─── shared interaction helpers ──────────────────────────────────────────────
