@@ -38,13 +38,21 @@
   --tw-scrollbar-thumb-margin-bottom: 5px;
 }
 
-/* Pull the thumb 1 px further to the left (vs amiga-common's 4 px) so
- * a touch more of the chess strip shows on the right than on the left
- * — visually balances against the workbench-blue chrome. The chess
- * strip behind the thumb follows so it stays exactly the thumb's
- * width. */
+/* OS 3.1 uses a full-width Workbench scrollbar: the track/travel
+ * area, thumb, up/down buttons, and resize gadget all share the same
+ * left/right edges. The shared Amiga baseline insets the track/thumb
+ * to expose a chess strip; OS 3.1 instead lets the track take the
+ * button cluster's -2px edge overrun and fills that track with the
+ * thumb and pattern. */
+.tw-scrollbar-track {
+  left: -2px;
+  right: -2px;
+}
 .tw-scrollbar-thumb,
-.tw-scrollbar-track::before { left: 3px; }
+.tw-scrollbar-track::before {
+  left: 0;
+  right: 0;
+}
 
 /* Push the track 1 px down from the top of the bar so the bar's
  * outer chrome shows through above the track. */
