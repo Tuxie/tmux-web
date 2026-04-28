@@ -782,6 +782,8 @@ body {
 }
 #topbar .tb-btn-session-plus .tb-session-plus::before {
   content: '+';
+  font-size: 5em;
+  line-height: 1;
 }
 
 #topbar .tb-sep { width: 12px; }
