@@ -214,11 +214,16 @@ Use `bun`. No `pnpm`, `npm`, `tsx`, or `vitest`.
     --tmux-conf <path>         Alternative tmux.conf
     --themes-dir <path>        User theme-pack directory override
     --test                     Test mode: cat PTY, bypass IP/Origin allowlists
+    --stdio-agent              Run stdio remote-agent mode instead of HTTP server
     --reset                    Delete saved settings and restart running instances
 -d, --debug                    Log debug messages to stderr
 -V, --version                  Print version and exit
 -h, --help                     Show this help
 ```
+
+Remote agent mode: local tmux-web can serve `/r/<ssh-config-host>/<session>` and start
+`ssh -T <ssh-config-host> tmux-web --stdio-agent`. SSH aliases are resolved by OpenSSH;
+tmux-web does not store SSH credentials.
 
 ## Production Binary
 
