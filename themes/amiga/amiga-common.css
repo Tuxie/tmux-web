@@ -122,7 +122,7 @@ body {
 #topbar.hidden { transform: translateY(-150%); }
 #topbar.hidden > * { pointer-events: none; }
 
-#tb-session, #tb-windows, #tb-right { display: flex; align-items: stretch; gap: 2px; position: relative; }
+#tb-session, #tb-windows, #tb-right { display: flex; align-items: stretch; gap: 0; position: relative; }
 #tb-title {
   flex: 1;
   padding: 0 8px;
@@ -134,8 +134,9 @@ body {
   border: 2px solid;
   border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
 }
-#tb-windows #win-tabs { display: flex; gap: 2px; }
+#tb-windows #win-tabs { display: flex; gap: 0; }
 #tb-session { margin-left: 0; gap: 0; }
+#topbar .tb-btn-new-window { margin-left: 0; }
 
 /* ---------------------------------------------------------------------
  * Topbar buttons — Amiga raised bevel (outer white TL, black BR).
