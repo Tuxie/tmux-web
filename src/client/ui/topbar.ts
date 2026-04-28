@@ -102,7 +102,7 @@ export interface TopbarOptions {
   onSettingsChange?: (s: SessionSettings) => void | Promise<void>;
   /** Switch to a different (or new) session without a full page reload —
    *  caller is expected to update the URL and reconnect the WebSocket. */
-  onSwitchSession?: (name: string, remoteHost?: string) => void;
+  onSwitchSession?: (name: string, remoteHost?: string | null) => void;
   /** True when the underlying WS is OPEN. Topbar consults this before
    *  firing UI-driven commit messages (rename / kill / select-window /
    *  switch-session etc.) so a click-while-disconnected surfaces a
@@ -284,7 +284,7 @@ export class Topbar {
       session: { id: string | null; name: string; windows?: number };
       isCurrent: boolean;
       isRunning: boolean;
-      remoteHost?: string;
+      remoteHost?: string | null;
       allowDelete?: boolean;
     },
   ): void {
@@ -370,6 +370,7 @@ export class Topbar {
             session: s,
             isCurrent,
             isRunning,
+            remoteHost: currentRemoteHost ? null : undefined,
             allowDelete: !isRunning,
           });
         }
@@ -1347,9 +1348,11 @@ export class Topbar {
     this.renderWinTabs();
   }
 
-  updateSession(session: string, remoteHost?: string): void {
+  updateSession(session: string, remoteHost?: string | null): void {
     const prevPath = location.pathname;
-    const newPath = remoteHost ? `/r/${remoteHost}/${session}` : remotePathForSession(prevPath, session);
+    const newPath = remoteHost === null
+      ? `/${session}`
+      : remoteHost ? `/r/${remoteHost}/${session}` : remotePathForSession(prevPath, session);
     const switched = prevPath !== newPath;
     if (switched) {
       history.replaceState(null, '', newPath);

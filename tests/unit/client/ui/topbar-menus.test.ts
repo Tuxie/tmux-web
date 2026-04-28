@@ -507,6 +507,23 @@ describe('sessions menu: running/stopped states and current marker', () => {
     expect(remoteMain.className).toContain('current');
   });
 
+  it('clicking a local row while viewing a remote session explicitly switches to local', async () => {
+    const switched: Array<{ name: string; host?: string | null }> = [];
+    const t = await mountTopbar({ session: 'r/dev/main' });
+    (t as any).opts.onSwitchSession = (name: string, host?: string | null) => switched.push({ name, host });
+    (t as any).cachedSessions = [{ id: '1', name: 'local-main' }];
+    (t as any).cachedRemoteSessions = new Map([
+      ['dev', [{ id: '2', name: 'main', windows: 1 }]],
+    ]);
+    _resetSessionStore({ sessions: {}, knownServers: ['dev'] } as any);
+
+    const menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+    rowByName(sessionRows(menu), 'local-main').click();
+
+    expect(switched).toEqual([{ name: 'local-main', host: null }]);
+  });
+
   it('remote updateSession saves settings under a remote key, not a local session name', async () => {
     const t = await mountTopbar({ session: 'main' });
     _resetSessionStore({ sessions: {}, knownServers: ['dev'] } as any);

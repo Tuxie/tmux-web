@@ -222,7 +222,7 @@ async function main() {
       adapter.fit();
     },
     onSwitchSession: (name, remoteHost) => {
-      if (remoteHost) {
+      if (remoteHost !== undefined) {
         topbar.updateSession(name, remoteHost);
         connection.reconnect();
         return;
