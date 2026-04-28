@@ -268,6 +268,7 @@ describe('buildWsUrl', () => {
       protocol: 'https:',
       host: 'example.com:4022',
       href: 'https://example.com:4022/',
+      pathname: '/',
     };
   });
 
@@ -282,6 +283,7 @@ describe('buildWsUrl', () => {
       protocol: 'http:',
       host: '127.0.0.1:4022',
       href: 'http://127.0.0.1:4022/',
+      pathname: '/',
     };
     expect(buildWsUrl('dev', 120, 40)).toBe(
       'ws://127.0.0.1:4022/ws?cols=120&rows=40&session=dev',
@@ -293,6 +295,7 @@ describe('buildWsUrl', () => {
       protocol: 'http:',
       host: '127.0.0.1:4022',
       href: 'http://tmux-term-user:p%40ss%2Fw%3Ard@127.0.0.1:4022/',
+      pathname: '/',
     };
     expect(buildWsUrl('dev', 120, 40)).toBe(
       'ws://tmux-term-user:p%40ss%2Fw%3Ard@127.0.0.1:4022/ws?cols=120&rows=40&session=dev',
@@ -304,6 +307,7 @@ describe('buildWsUrl', () => {
       protocol: 'http:',
       host: '127.0.0.1:4022',
       href: 'http://127.0.0.1:4022/',
+      pathname: '/',
     };
     expect(buildWsUrl('dev', 120, 40, 'tmux-term-user:p%40ss%2Fw%3Ard')).toBe(
       'ws://tmux-term-user:p%40ss%2Fw%3Ard@127.0.0.1:4022/ws?cols=120&rows=40&session=dev',
@@ -314,5 +318,38 @@ describe('buildWsUrl', () => {
     expect(buildWsUrl('my session', 80, 24)).toBe(
       'wss://example.com:4022/ws?cols=80&rows=24&session=my%20session',
     );
+  });
+
+  it('includes remoteHost from /r/<host>/<session> page path', () => {
+    (globalThis as any).location = {
+      protocol: 'https:',
+      host: 'example.com:4022',
+      href: 'https://example.com:4022/r/prod/main',
+      pathname: '/r/prod/main',
+    };
+    const url = buildWsUrl('main', 80, 24);
+    expect(url).toContain('/ws?');
+    expect(url).toContain('remoteHost=prod');
+    expect(url).toContain('session=main');
+  });
+
+  it('does not include remoteHost for invalid leading-dash remote path', () => {
+    (globalThis as any).location = {
+      protocol: 'https:',
+      host: 'example.com:4022',
+      href: 'https://example.com:4022/r/-Jbad/main',
+      pathname: '/r/-Jbad/main',
+    };
+    expect(buildWsUrl('main', 80, 24)).not.toContain('remoteHost=');
+  });
+
+  it('preserves tw_auth from the current page URL', () => {
+    (globalThis as any).location = {
+      protocol: 'http:',
+      host: '127.0.0.1:4022',
+      href: 'http://127.0.0.1:4022/r/prod/main?tw_auth=token%2Fvalue',
+      pathname: '/r/prod/main',
+    };
+    expect(buildWsUrl('main', 80, 24)).toContain('tw_auth=token%2Fvalue');
   });
 });

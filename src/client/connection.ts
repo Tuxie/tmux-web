@@ -88,5 +88,20 @@ export function buildWsUrl(session: string, cols: number, rows: number, wsBasicA
     : current.username
     ? `${current.username}${current.password ? `:${current.password}` : ''}@`
     : '';
-  return `${protocol}//${auth}${location.host}/ws?cols=${cols}&rows=${rows}&session=${encodeURIComponent(session)}`;
+  const params = new URLSearchParams();
+  params.set('cols', String(cols));
+  params.set('rows', String(rows));
+  params.set('session', session);
+  const remoteHost = extractRemoteHost(location.pathname ?? current.pathname);
+  if (remoteHost) params.set('remoteHost', remoteHost);
+  const twAuth = current.searchParams.get('tw_auth');
+  if (twAuth !== null) params.set('tw_auth', twAuth);
+  return `${protocol}//${auth}${location.host}/ws?${params.toString().replace(/\+/g, '%20')}`;
+}
+
+function extractRemoteHost(pathname: string): string | null {
+  const parts = pathname.split('/');
+  if (parts[1] !== 'r' || !parts[2] || !parts[3]) return null;
+  const host = parts[2];
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(host) ? host : null;
 }
