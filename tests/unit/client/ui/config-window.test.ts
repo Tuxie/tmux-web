@@ -1,4 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test';
+import fs from 'fs';
 import { setupDocument, stubFetch, type StubDoc, type StubElement } from '../_dom.js';
 import { _resetSessionStore } from '../../../../src/client/session-settings.ts';
 
@@ -192,5 +193,13 @@ describe('configuration window', () => {
 
     const latest = JSON.parse(calls.at(-1)!.init!.body as string);
     expect(latest.servers.some((s: any) => s.host === 'gamma.example.com')).toBe(false);
+  });
+
+  it('places the server editor below the server list', () => {
+    const css = fs.readFileSync('src/client/base.css', 'utf-8');
+    const match = /\.tw-config-pane-servers\s*\{(?<body>[^}]+)\}/.exec(css);
+    expect(match?.groups?.body).toContain('display: flex');
+    expect(match?.groups?.body).toContain('flex-direction: column');
+    expect(match?.groups?.body).not.toContain('grid-template-columns');
   });
 });

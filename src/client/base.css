@@ -638,9 +638,8 @@ body {
 }
 
 .tw-config-pane-servers {
-  display: grid;
-  grid-template-columns: minmax(320px, 1fr) minmax(260px, 340px);
-  align-items: start;
+  display: flex;
+  flex-direction: column;
 }
 
 .tw-config-server-list,
@@ -735,7 +734,8 @@ body {
     border-bottom: 1px solid var(--tw-muted);
   }
   .tw-config-pane-servers {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
   }
 }
 
