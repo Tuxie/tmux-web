@@ -1610,4 +1610,23 @@ describe('Session inheritance: theme switch updates session settings', () => {
     expect(stored.colours).toBe('E2E Green');
     expect(stored.fontFamily).toBe('E2E Secondary Font');
   });
+
+  it('theme switch resets missing autohide defaults to base off', async () => {
+    await mountTopbarWithSettings({
+      themes: [
+        { ...FX_PRIMARY, defaultScrollbarAutohide: true },
+        FX_ALT,
+      ],
+      sessions: { main: { theme: 'Default', scrollbarAutohide: true, topbarAutohide: true } },
+    });
+
+    const themeEl = input('inp-theme');
+    themeEl.value = 'E2E Alt Theme';
+    themeEl.dispatch('change', { target: themeEl });
+    await flushAsync(10);
+
+    const stored = storedMain();
+    expect(stored.scrollbarAutohide).toBe(false);
+    expect(stored.topbarAutohide).toBe(false);
+  });
 });

@@ -749,8 +749,8 @@ export class Topbar {
       if (theme?.defaultBackgroundSaturation !== undefined) td.backgroundSaturation = theme.defaultBackgroundSaturation;
       if (theme?.defaultBackgroundBrightest !== undefined) td.backgroundBrightest = theme.defaultBackgroundBrightest;
       if (theme?.defaultBackgroundDarkest !== undefined) td.backgroundDarkest = theme.defaultBackgroundDarkest;
-      if (theme?.defaultTopbarAutohide !== undefined) td.topbarAutohide = theme.defaultTopbarAutohide;
-      if (theme?.defaultScrollbarAutohide !== undefined) td.scrollbarAutohide = theme.defaultScrollbarAutohide;
+      td.topbarAutohide = theme?.defaultTopbarAutohide ?? DEFAULT_SESSION_SETTINGS.topbarAutohide;
+      td.scrollbarAutohide = theme?.defaultScrollbarAutohide ?? DEFAULT_SESSION_SETTINGS.scrollbarAutohide;
       const current = getSettings();
       const updated = applyThemeDefaults({ ...current, theme: name }, td);
       saveSessionSettings(this.currentSession, updated);

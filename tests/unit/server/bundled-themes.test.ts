@@ -22,6 +22,7 @@ describe("bundled themes", () => {
     expect(scene!.defaultFontSize).toBe(17);
     expect(scene!.defaultSpacing).toBe(1.1);
     expect(scene!.defaultTuiBgOpacity).toBe(70);
+    expect(scene!.defaultScrollbarAutohide).toBeUndefined();
 
     const defaultTheme = themes.find(theme => theme.name === "Default");
     expect(defaultTheme).toBeDefined();
