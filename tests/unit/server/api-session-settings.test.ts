@@ -7,10 +7,12 @@ import { callHandler } from "./_harness/call-handler.ts";
 
 let tmp: string;
 let storePath: string;
+let settingsPath: string;
 
 beforeEach(() => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tw-api-ss-"));
   storePath = path.join(tmp, "sessions.json");
+  settingsPath = path.join(tmp, "settings.json");
 });
 
 afterEach(() => {
@@ -34,7 +36,9 @@ async function makeHandler() {
     themesUserDir: tmp,
     themesBundledDir: tmp, projectRoot: tmp, isCompiled: false,
     sessionsStorePath: storePath,
+    settingsStorePath: settingsPath,
     dropStorage: { root: path.join(tmp, "drop"), maxFilesPerSession: 20, ttlMs: 60_000 },
+    tmuxControl: { run: async () => "", attachSession: async () => {}, detachSession: () => {}, close: async () => {} } as any,
   });
 }
 
@@ -132,5 +136,70 @@ describe("/api/session-settings", () => {
       body: JSON.stringify({ sessions: { main: SAMPLE } }),
     });
     expect(r.status).toBe(200);
+  });
+});
+
+describe("/api/settings", () => {
+  test("GET returns empty knownServers when settings.json is missing", async () => {
+    const handler = await makeHandler();
+    const { status, body } = await call(handler, { method: "GET", url: "/api/settings" });
+    expect(status).toBe(200);
+    expect(JSON.parse(body)).toEqual({ version: 1, knownServers: [] });
+  });
+
+  test("PUT persists valid known remote servers to settings.json", async () => {
+    const handler = await makeHandler();
+    const put = await call(handler, {
+      method: "PUT",
+      url: "/api/settings",
+      body: JSON.stringify({ knownServers: ["dev"] }),
+    });
+    expect(put.status).toBe(200);
+
+    const get = await call(handler, { method: "GET", url: "/api/settings" });
+    expect(JSON.parse(get.body)).toEqual({ version: 1, knownServers: ["dev"] });
+  });
+
+  test("PUT rejects invalid known remote server aliases", async () => {
+    const handler = await makeHandler();
+    const r = await call(handler, {
+      method: "PUT",
+      url: "/api/settings",
+      body: JSON.stringify({ knownServers: ["-Jbad"] }),
+    });
+    expect(r.status).toBe(400);
+    expect(fs.existsSync(settingsPath)).toBe(false);
+  });
+});
+
+describe("/api/remote-sessions", () => {
+  test("GET lists sessions through the remote agent manager", async () => {
+    const handler = await createHttpHandler({
+      config: { host: "", port: 0, allowedIps: new Set(), tls: false, testMode: true, debug: false,
+                tmuxBin: "tmux", auth: { enabled: false } } as any,
+      htmlTemplate: "", distDir: "",
+      themesUserDir: tmp,
+      themesBundledDir: tmp, projectRoot: tmp, isCompiled: false,
+      sessionsStorePath: storePath,
+      settingsStorePath: settingsPath,
+      dropStorage: { root: path.join(tmp, "drop"), maxFilesPerSession: 20, ttlMs: 60_000 },
+      tmuxControl: { run: async () => "", attachSession: async () => {}, detachSession: () => {}, close: async () => {} } as any,
+      remoteAgentManager: {
+        async getHost(host: string) {
+          expect(host).toBe("dev");
+          return { listSessions: async () => [{ id: "1", name: "main", windows: 2 }] };
+        },
+      },
+    });
+
+    const r = await call(handler, { method: "GET", url: "/api/remote-sessions?host=dev" });
+    expect(r.status).toBe(200);
+    expect(JSON.parse(r.body)).toEqual([{ id: "1", name: "main", windows: 2 }]);
+  });
+
+  test("GET rejects invalid remote host aliases", async () => {
+    const handler = await makeHandler();
+    const r = await call(handler, { method: "GET", url: "/api/remote-sessions?host=-Jbad" });
+    expect(r.status).toBe(400);
   });
 });

@@ -8,6 +8,7 @@ import {
   type StdioFrame,
 } from './stdio-protocol.js';
 import type { TmuxControl } from './tmux-control.js';
+import { listSessionsViaTmux } from './tmux-listings.js';
 import { routeClientMessage, type PendingRead, type WsAction } from './ws-router.js';
 
 export interface AgentPtyFactoryOptions {
@@ -379,6 +380,30 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
     for (const act of actions) dispatchClientAction(channel, act);
   };
 
+  const handleListSessions = async (frame: Extract<StdioFrame, { type: 'list-sessions' }>): Promise<void> => {
+    try {
+      const sessions = await listSessionsViaTmux({
+        tmuxControl: opts.tmuxControl,
+        tmuxBin: opts.tmuxBin ?? 'tmux',
+        preferControl: true,
+      });
+      send({
+        v: 1,
+        type: 'sessions',
+        requestId: frame.requestId,
+        sessions: sessions ?? [],
+      });
+    } catch (err) {
+      send({
+        v: 1,
+        type: 'sessions-error',
+        requestId: frame.requestId,
+        code: 'tmux-list-failed',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
   const onFrame = (frame: StdioFrame): void => {
     switch (frame.type) {
       case 'hello':
@@ -413,6 +438,9 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
       }
       case 'client-msg':
         handleClientMessage(frame);
+        return;
+      case 'list-sessions':
+        void handleListSessions(frame);
         return;
       case 'close':
         closeChannel(frame.channelId);

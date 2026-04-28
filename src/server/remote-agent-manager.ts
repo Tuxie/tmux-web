@@ -30,6 +30,11 @@ interface PendingOpen {
   reject: (err: unknown) => void;
 }
 
+interface PendingListSessions {
+  resolve: (sessions: Array<{ id: string; name: string; windows?: number }>) => void;
+  reject: (err: unknown) => void;
+}
+
 type FrameListener = (frame: StdioFrame) => void;
 
 export class RemoteChannel {
@@ -94,6 +99,7 @@ export class RemoteHostAgent {
   private readonly decoder = new FrameDecoder();
   private stderr = '';
   private readonly pendingOpens = new Map<string, PendingOpen>();
+  private readonly pendingListSessions = new Map<string, PendingListSessions>();
   private readonly channels = new Map<string, RemoteChannel>();
   private readyResolve!: (agent: RemoteHostAgent) => void;
   private readyReject!: (err: unknown) => void;
@@ -147,6 +153,16 @@ export class RemoteHostAgent {
     return opened;
   }
 
+  listSessions(): Promise<Array<{ id: string; name: string; windows?: number }>> {
+    this.onActivity(this);
+    const requestId = crypto.randomUUID();
+    const listed = new Promise<Array<{ id: string; name: string; windows?: number }>>((resolve, reject) => {
+      this.pendingListSessions.set(requestId, { resolve, reject });
+    });
+    this.writeFrame({ v: 1, type: 'list-sessions', requestId });
+    return listed;
+  }
+
   close(): void {
     if (this.tornDown) return;
     this.writeFrame({ v: 1, type: 'shutdown' });
@@ -154,7 +170,11 @@ export class RemoteHostAgent {
   }
 
   isReadyAndIdle(): boolean {
-    return this.readySettled && !this.tornDown && this.pendingOpens.size === 0 && this.channels.size === 0;
+    return this.readySettled
+      && !this.tornDown
+      && this.pendingOpens.size === 0
+      && this.pendingListSessions.size === 0
+      && this.channels.size === 0;
   }
 
   private teardown(): void {
@@ -191,6 +211,23 @@ export class RemoteHostAgent {
         this.teardown();
         this.onDone(this);
         return;
+      case 'sessions': {
+        const pending = this.pendingListSessions.get(frame.requestId);
+        if (!pending) return;
+        this.pendingListSessions.delete(frame.requestId);
+        this.onActivity(this);
+        pending.resolve(frame.sessions);
+        this.checkIdle();
+        return;
+      }
+      case 'sessions-error': {
+        const pending = this.pendingListSessions.get(frame.requestId);
+        if (!pending) return;
+        this.pendingListSessions.delete(frame.requestId);
+        pending.reject(new Error(`remote sessions ${frame.requestId} error: ${frame.code}: ${frame.message}`));
+        this.checkIdle();
+        return;
+      }
       case 'open-ok': {
         const pending = this.pendingOpens.get(frame.channelId);
         if (!pending) return;
@@ -255,6 +292,10 @@ export class RemoteHostAgent {
       pending.reject(reason);
     }
     this.pendingOpens.clear();
+    for (const pending of this.pendingListSessions.values()) {
+      pending.reject(reason);
+    }
+    this.pendingListSessions.clear();
     for (const channel of this.channels.values()) {
       channel.emit('frame', { v: 1, type: 'close', channelId: channel.channelId, reason: String(reason) });
       channel.markRemoteClosed();

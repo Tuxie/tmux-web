@@ -30,6 +30,8 @@ import { formatBracketedPasteForDrop } from './drop-paste.js';
 import { sanitizeSession } from './pty.js';
 import { type TmuxControl } from './tmux-control.js';
 import { listSessionsViaTmux, listWindowsViaTmux } from './tmux-listings.js';
+import { isValidRemoteHostAlias } from './remote-route.js';
+import { applySettingsPatch, loadSettings, type ServerSettingsPatch } from './settings-store.js';
 import pkg from '../../package.json' with { type: 'json' };
 
 export interface HttpHandlerOptions {
@@ -41,8 +43,14 @@ export interface HttpHandlerOptions {
   projectRoot: string;
   isCompiled?: boolean;
   sessionsStorePath: string;
+  settingsStorePath?: string;
   dropStorage: DropStorage;
   tmuxControl: TmuxControl;
+  remoteAgentManager?: {
+    getHost(host: string): Promise<{
+      listSessions(): Promise<Array<{ id: string; name: string; windows?: number }>>;
+    }>;
+  };
 }
 
 /** Per-session upload cap. 50 MiB — comfortably larger than typical
@@ -104,6 +112,7 @@ export type SessionPatchValidationResult =
   | { ok: false; reason: string };
 
 const ALLOWED_PATCH_TOP_KEYS = new Set(['lastActive', 'sessions']);
+const ALLOWED_SETTINGS_PATCH_TOP_KEYS = new Set(['knownServers']);
 
 export function validateSessionPatch(value: unknown): SessionPatchValidationResult {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -138,6 +147,33 @@ export function validateSessionPatch(value: unknown): SessionPatchValidationResu
     }
   }
   return { ok: true, patch: obj as SessionsConfigPatch };
+}
+
+type SettingsPatchValidationResult =
+  | { ok: true; patch: ServerSettingsPatch }
+  | { ok: false; reason: string };
+
+function validateSettingsPatch(value: unknown): SettingsPatchValidationResult {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { ok: false, reason: 'patch must be a JSON object' };
+  }
+  const obj = value as Record<string, unknown>;
+  for (const key of Object.keys(obj)) {
+    if (!ALLOWED_SETTINGS_PATCH_TOP_KEYS.has(key)) {
+      return { ok: false, reason: `unknown top-level key: ${key}` };
+    }
+  }
+  if ('knownServers' in obj && obj.knownServers !== undefined) {
+    if (!Array.isArray(obj.knownServers)) {
+      return { ok: false, reason: 'knownServers must be an array' };
+    }
+    for (const host of obj.knownServers) {
+      if (typeof host !== 'string' || !isValidRemoteHostAlias(host)) {
+        return { ok: false, reason: 'knownServers entries must be valid SSH host aliases' };
+      }
+    }
+  }
+  return { ok: true, patch: obj as ServerSettingsPatch };
 }
 
 /** Thin wrapper that resolves the foreground process (so we know
@@ -370,6 +406,8 @@ export async function readBodyCapped(req: Request, max: number): Promise<Buffer 
 
 export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpHandler> {
   const { config, distDir } = opts;
+  const settingsStorePath = opts.settingsStorePath
+    ?? path.join(path.dirname(opts.sessionsStorePath), 'settings.json');
   let bundledDir: string | null = opts.themesBundledDir;
   if (opts.isCompiled) {
     bundledDir = await materializeBundledThemes();
@@ -525,6 +563,25 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
         preferControl: true,
       });
       return new Response(JSON.stringify(sessions ?? []), { headers: JSON_HEADERS });
+    }
+
+    if (pathname === '/api/remote-sessions') {
+      if (method !== 'GET') return new Response(null, { status: 405 });
+      const host = url.searchParams.get('host') ?? '';
+      if (!isValidRemoteHostAlias(host)) {
+        return new Response('Invalid host', { status: 400 });
+      }
+      if (!opts.remoteAgentManager) {
+        return new Response(JSON.stringify([]), { headers: JSON_HEADERS });
+      }
+      try {
+        const agent = await opts.remoteAgentManager.getHost(host);
+        const sessions = await agent.listSessions();
+        return new Response(JSON.stringify(sessions), { headers: JSON_HEADERS });
+      } catch (err) {
+        debug(config, `remote sessions failed for host=${host}: ${err}`);
+        return new Response(JSON.stringify([]), { headers: JSON_HEADERS });
+      }
     }
 
     if (pathname === '/api/windows') {
@@ -727,6 +784,45 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
           return new Response(JSON.stringify(next), { headers: JSON_HEADERS });
         } catch {
           return new Response('Delete failed', { status: 500 });
+        }
+      }
+      return new Response(null, { status: 405 });
+    }
+
+    if (pathname === '/api/settings') {
+      if (method === 'GET') {
+        const cfg = loadSettings(settingsStorePath);
+        return new Response(JSON.stringify(cfg), { headers: JSON_HEADERS });
+      }
+      if (method === 'PUT') {
+        const contentLength = Number(req.headers.get('content-length') ?? 0);
+        if (contentLength > MAX_SESSION_SETTINGS_BYTES) {
+          return new Response('Payload Too Large', { status: 413 });
+        }
+        let body: string;
+        try {
+          const buf = await readBodyCapped(req, MAX_SESSION_SETTINGS_BYTES);
+          if (buf === null) return new Response('Payload Too Large', { status: 413 });
+          body = buf.toString('utf-8');
+        } catch (err) {
+          debug(config, `settings PUT error: ${(err as Error).message}`);
+          return new Response('Bad Request', { status: 400 });
+        }
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(body);
+        } catch {
+          return new Response('Bad JSON', { status: 400 });
+        }
+        const validation = validateSettingsPatch(parsed);
+        if (!validation.ok) {
+          return new Response(validation.reason, { status: 400 });
+        }
+        try {
+          const next = await applySettingsPatch(settingsStorePath, validation.patch);
+          return new Response(JSON.stringify(next), { headers: JSON_HEADERS });
+        } catch {
+          return new Response('Save failed', { status: 500 });
         }
       }
       return new Response(null, { status: 405 });

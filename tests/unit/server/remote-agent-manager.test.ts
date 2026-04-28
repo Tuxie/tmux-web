@@ -84,6 +84,55 @@ describe('RemoteAgentManager', () => {
     await mgr.close();
   });
 
+  test('listSessions multiplexes over the ready agent without opening a channel', async () => {
+    const proc = new FakeProc();
+    const mgr = new RemoteAgentManager({
+      spawn: () => proc as any,
+      idleTimeoutMs: 20,
+    });
+    const host = mgr.getHost('prod');
+    proc.emitFrame({ v: 1, type: 'hello-ok', agentVersion: 'test' });
+    const agent = await host;
+
+    const listed = agent.listSessions();
+    const req = collectWrites(proc).find(f => f.type === 'list-sessions') as any;
+    expect(req.requestId).toBeString();
+    expect(collectWrites(proc).some(f => f.type === 'open')).toBe(false);
+
+    proc.emitFrame({
+      v: 1,
+      type: 'sessions',
+      requestId: req.requestId,
+      sessions: [{ id: '1', name: 'main', windows: 2 }],
+    });
+    expect(await listed).toEqual([{ id: '1', name: 'main', windows: 2 }]);
+    await mgr.close();
+  });
+
+  test('listSessions rejects when the remote agent reports a sessions error', async () => {
+    const proc = new FakeProc();
+    const mgr = new RemoteAgentManager({
+      spawn: () => proc as any,
+      idleTimeoutMs: 20,
+    });
+    const host = mgr.getHost('prod');
+    proc.emitFrame({ v: 1, type: 'hello-ok', agentVersion: 'test' });
+    const agent = await host;
+
+    const listed = agent.listSessions();
+    const req = collectWrites(proc).find(f => f.type === 'list-sessions') as any;
+    proc.emitFrame({
+      v: 1,
+      type: 'sessions-error',
+      requestId: req.requestId,
+      code: 'tmux-list-failed',
+      message: 'no server running',
+    });
+
+    await expect(listed).rejects.toThrow(/no server running/);
+    await mgr.close();
+  });
+
   test('evicts a host agent that exits before handshake so a later call retries', async () => {
     const procs: FakeProc[] = [];
     const mgr = new RemoteAgentManager({

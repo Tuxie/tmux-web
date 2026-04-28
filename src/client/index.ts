@@ -217,7 +217,12 @@ async function main() {
     onAutohideChange: () => {
       adapter.fit();
     },
-    onSwitchSession: (name) => {
+    onSwitchSession: (name, remoteHost) => {
+      if (remoteHost) {
+        topbar.updateSession(name, remoteHost);
+        connection.reconnect();
+        return;
+      }
       // Ask the server to retarget the existing PTY tmux client. Do not
       // update the URL/settings optimistically: attach/switch can take time
       // or fail, and applying the target session's settings before tmux has

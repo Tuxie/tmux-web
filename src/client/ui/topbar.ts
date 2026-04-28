@@ -11,7 +11,9 @@ import {
   deleteSessionSettings,
   getLiveSessionSettings,
   getStoredSessionNames,
+  getKnownRemoteServers,
   initSessionStore,
+  recordKnownRemoteServer,
   setLastActiveSession,
   applyThemeDefaults,
   DEFAULT_SESSION_SETTINGS,
@@ -57,7 +59,7 @@ import {
   requestDesktopToggleMaximize,
   requestDesktopWindowClose,
 } from '../desktop-host.js';
-import { remotePathForSession, sessionFromPath } from '../connection.js';
+import { remoteHostFromPath, remotePathForSession, sessionFromPath } from '../connection.js';
 
 const TITLEBAR_DRAG_RESTORE_THRESHOLD_PX = 4;
 
@@ -99,7 +101,7 @@ export interface TopbarOptions {
   onSettingsChange?: (s: SessionSettings) => void | Promise<void>;
   /** Switch to a different (or new) session without a full page reload —
    *  caller is expected to update the URL and reconnect the WebSocket. */
-  onSwitchSession?: (name: string) => void;
+  onSwitchSession?: (name: string, remoteHost?: string) => void;
   /** True when the underlying WS is OPEN. Topbar consults this before
    *  firing UI-driven commit messages (rename / kill / select-window /
    *  switch-session etc.) so a click-while-disconnected surfaces a
@@ -176,15 +178,20 @@ export class Topbar {
   }
 
   private cachedSessions: Array<{ id: string; name: string; windows?: number }> = [];
-  private refreshInFlight: Promise<void> | null = null;
+  private cachedRemoteSessions = new Map<string, Array<{ id: string; name: string; windows?: number }>>();
+  private refreshInFlight: { promise: Promise<void>; includeRemote: boolean } | null = null;
 
   /** Returned promise resolves once `cachedSessions` reflects a fresh
    *  `/api/sessions` response (or the existing cache stays, on error).
    *  Concurrent callers share the in-flight request so two rapid
    *  dropdown opens can't interleave two fetches and leave the cache
    *  pointing at the slower response's payload. */
-  private refreshCachedSessions(): Promise<void> {
-    if (this.refreshInFlight) return this.refreshInFlight;
+  private refreshCachedSessions(opts: { includeRemote?: boolean } = {}): Promise<void> {
+    const includeRemote = opts.includeRemote === true;
+    if (this.refreshInFlight && (!includeRemote || this.refreshInFlight.includeRemote)) {
+      return this.refreshInFlight.promise;
+    }
+    let currentFlight!: { promise: Promise<void>; includeRemote: boolean };
     const p = (async () => {
       try {
         const [running] = await Promise.all([
@@ -194,10 +201,30 @@ export class Topbar {
           initSessionStore(),
         ]);
         if (running) this.cachedSessions = running;
+        const currentRemoteHost = remoteHostFromPath(location.pathname);
+        if (currentRemoteHost) recordKnownRemoteServer(currentRemoteHost);
+        if (!includeRemote) return;
+        const hosts = getKnownRemoteServers();
+        const remoteResults = await Promise.all(hosts.map(async (host) => {
+          try {
+            const res = await fetch('/api/remote-sessions?host=' + encodeURIComponent(host));
+            if (!res.ok) return null;
+            const sessions = await res.json() as Array<{ id: string; name: string; windows?: number }>;
+            return { host, sessions };
+          } catch {
+            return null;
+          }
+        }));
+        for (const result of remoteResults) {
+          if (result) this.cachedRemoteSessions.set(result.host, result.sessions);
+        }
       } catch { /* keep previous cache */ }
-      finally { this.refreshInFlight = null; }
+      finally {
+        if (this.refreshInFlight === currentFlight) this.refreshInFlight = null;
+      }
     })();
-    this.refreshInFlight = p;
+    currentFlight = { promise: p, includeRemote };
+    this.refreshInFlight = currentFlight;
     return p;
   }
 
@@ -245,36 +272,28 @@ export class Topbar {
     return row;
   }
 
-  private renderSessionsMenu(menu: HTMLElement, close: () => void): void {
-        const current = this.currentSession;
-
-        // Union of running tmux sessions + persisted ones from sessions.json,
-        // sorted case-insensitively by name.
-        const runningByName = new Map(this.cachedSessions.map(s => [s.name, s]));
-        const stored = getStoredSessionNames();
-        const ordered: Array<{ id: string | null; name: string; windows?: number }> = [
-          ...this.cachedSessions.map(s => ({ id: s.id, name: s.name, windows: s.windows })),
-          ...stored
-            .filter(n => !runningByName.has(n))
-            .map(n => ({ id: null as string | null, name: n })),
-        ].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
-
-        // Each row: [ ✓ gutter | name | trashcan? | status dot ]. Stopped
-        // sessions also get a trashcan that deletes the stored settings
-        // entry from sessions.json.
-        for (const s of ordered) {
-          const isCurrent = s.name === current;
-          const isRunning = runningByName.has(s.name);
+  private appendSessionRow(
+    menu: HTMLElement,
+    close: () => void,
+    opts: {
+      session: { id: string | null; name: string; windows?: number };
+      isCurrent: boolean;
+      isRunning: boolean;
+      remoteHost?: string;
+      allowDelete?: boolean;
+    },
+  ): void {
+          const s = opts.session;
           const el = document.createElement('div');
-          el.className = 'tw-dropdown-item tw-dd-session-item' + (isCurrent ? ' current' : '');
+          el.className = 'tw-dropdown-item tw-dd-session-item' + (opts.isCurrent ? ' current' : '');
           el.setAttribute('role', 'option');
           el.setAttribute('tabindex', '-1');
-          el.setAttribute('aria-selected', isCurrent ? 'true' : 'false');
+          el.setAttribute('aria-selected', opts.isCurrent ? 'true' : 'false');
           const name = document.createElement('span');
           name.className = 'tw-dd-session-name';
           name.textContent = s.name;
           el.appendChild(name);
-          if (!isRunning) {
+          if (opts.allowDelete) {
             const del = document.createElement('button');
             del.type = 'button';
             // `tb-btn tw-drops-revoke` mirror the drops-section trashcan — themes
@@ -292,7 +311,7 @@ export class Topbar {
           }
           // Window count, only for running sessions where we know it.
           // Sits to the left of the status dot.
-          if (isRunning && typeof s.windows === 'number') {
+          if (opts.isRunning && typeof s.windows === 'number') {
             const count = document.createElement('span');
             count.className = 'tw-dd-session-windows';
             const label = `${s.windows} window${s.windows === 1 ? '' : 's'}`;
@@ -302,11 +321,11 @@ export class Topbar {
             el.appendChild(count);
           }
           const dot = document.createElement('span');
-          dot.className = 'tw-dd-session-status ' + (isRunning ? 'running' : 'stopped');
+          dot.className = 'tw-dd-session-status ' + (opts.isRunning ? 'running' : 'stopped');
           // Explicit aria-label on top of the existing `title`: `title` is not
           // reliably exposed as an accessible name across screen readers, so
           // the dot would otherwise carry only colour-coded meaning.
-          const status = isRunning ? 'Running' : 'Not running';
+          const status = opts.isRunning ? 'Running' : 'Not running';
           dot.title = status;
           dot.setAttribute('aria-label', status);
           dot.setAttribute('role', 'img');
@@ -314,11 +333,58 @@ export class Topbar {
           el.addEventListener('click', (ev) => {
             ev.stopPropagation();
             close();
-            if (isCurrent) return;
+            if (opts.isCurrent) return;
             if (!this.guardOnline('switch session')) return;
-            this.opts.onSwitchSession?.(s.name);
+            this.opts.onSwitchSession?.(s.name, opts.remoteHost);
           });
           menu.appendChild(el);
+  }
+
+  private renderSessionsMenu(menu: HTMLElement, close: () => void): void {
+        const current = this.currentSession;
+        const currentRemoteHost = remoteHostFromPath(location.pathname);
+
+        // Union of running tmux sessions + persisted ones from sessions.json,
+        // sorted case-insensitively by name.
+        const runningByName = new Map(this.cachedSessions.map(s => [s.name, s]));
+        const stored = getStoredSessionNames();
+        const ordered: Array<{ id: string | null; name: string; windows?: number }> = [
+          ...this.cachedSessions.map(s => ({ id: s.id, name: s.name, windows: s.windows })),
+          ...stored
+            .filter(n => !runningByName.has(n))
+            .map(n => ({ id: null as string | null, name: n })),
+        ].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+
+        // Each row: [ ✓ gutter | name | trashcan? | status dot ]. Stopped
+        // sessions also get a trashcan that deletes the stored settings
+        // entry from sessions.json.
+        for (const s of ordered) {
+          const isCurrent = !currentRemoteHost && s.name === current;
+          const isRunning = runningByName.has(s.name);
+          this.appendSessionRow(menu, close, {
+            session: s,
+            isCurrent,
+            isRunning,
+            allowDelete: !isRunning,
+          });
+        }
+
+        for (const host of getKnownRemoteServers()) {
+          const sessions = (this.cachedRemoteSessions.get(host) ?? [])
+            .slice()
+            .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+          const section = document.createElement('div');
+          section.className = 'tw-menu-section';
+          section.textContent = host;
+          menu.appendChild(section);
+          for (const s of sessions) {
+            this.appendSessionRow(menu, close, {
+              session: s,
+              isCurrent: currentRemoteHost === host && s.name === current,
+              isRunning: true,
+              remoteHost: host,
+            });
+          }
         }
 
         // Rename current session
@@ -358,7 +424,7 @@ export class Topbar {
 
     let sessionDropdown: Dropdown;
     const refreshOpenMenu = (menu: HTMLElement, close: () => void): void => {
-      void this.refreshCachedSessions().then(() => {
+      void this.refreshCachedSessions({ includeRemote: true }).then(() => {
         if (sessionDropdown.menuElement.hidden) return;
         menu.innerHTML = '';
         this.renderSessionsMenu(menu, close);
@@ -1258,9 +1324,9 @@ export class Topbar {
     this.renderWinTabs();
   }
 
-  updateSession(session: string): void {
+  updateSession(session: string, remoteHost?: string): void {
     const prevPath = location.pathname;
-    const newPath = remotePathForSession(prevPath, session);
+    const newPath = remoteHost ? `/r/${remoteHost}/${session}` : remotePathForSession(prevPath, session);
     const switched = prevPath !== newPath;
     if (switched) {
       history.replaceState(null, '', newPath);

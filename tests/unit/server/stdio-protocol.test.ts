@@ -107,6 +107,44 @@ describe('stdio protocol framing', () => {
     });
   });
 
+  test('canonicalizes list-sessions request and response frames', () => {
+    const request = Buffer.from(JSON.stringify({
+      v: 1,
+      type: 'list-sessions',
+      requestId: 'req-1',
+      ignored: true,
+    }));
+    expect(decodeFramePayload(request)).toEqual({
+      v: 1,
+      type: 'list-sessions',
+      requestId: 'req-1',
+    });
+
+    const response = Buffer.from(JSON.stringify({
+      v: 1,
+      type: 'sessions',
+      requestId: 'req-1',
+      sessions: [{ id: '1', name: 'main', windows: 2 }],
+      ignored: true,
+    }));
+    expect(decodeFramePayload(response)).toEqual({
+      v: 1,
+      type: 'sessions',
+      requestId: 'req-1',
+      sessions: [{ id: '1', name: 'main', windows: 2 }],
+    });
+  });
+
+  test('rejects malformed list-sessions response payloads', () => {
+    const payload = Buffer.from(JSON.stringify({
+      v: 1,
+      type: 'sessions',
+      requestId: 'req-1',
+      sessions: [{ id: 1, name: 'main' }],
+    }));
+    expect(() => decodeFramePayload(payload)).toThrow(/invalid stdio frame/);
+  });
+
   test('oversized frame throws before allocation grows unbounded', () => {
     const decoder = new FrameDecoder({ maxFrameBytes: 8 });
     const encoded = encodeFrame({ v: 1, type: 'hello' });

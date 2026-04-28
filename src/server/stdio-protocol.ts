@@ -6,6 +6,9 @@ export type StdioFrame =
   | { v: 1; type: 'hello-ok'; agentVersion: string }
   | { v: 1; type: 'host-error'; code: string; message: string }
   | { v: 1; type: 'shutdown' }
+  | { v: 1; type: 'list-sessions'; requestId: string }
+  | { v: 1; type: 'sessions'; requestId: string; sessions: Array<{ id: string; name: string; windows?: number }> }
+  | { v: 1; type: 'sessions-error'; requestId: string; code: string; message: string }
   | { v: 1; type: 'open'; channelId: string; session: string; cols: number; rows: number }
   | { v: 1; type: 'open-ok'; channelId: string; session: string }
   | { v: 1; type: 'pty-in' | 'pty-out'; channelId: string; data: string }
@@ -124,6 +127,23 @@ function channelIdValue(frame: Record<string, unknown>): string | null {
   return stringValue(frame, 'channelId');
 }
 
+function sessionsValue(value: unknown): Array<{ id: string; name: string; windows?: number }> | null {
+  if (!Array.isArray(value)) return null;
+  const out: Array<{ id: string; name: string; windows?: number }> = [];
+  for (const entry of value) {
+    if (!isRecord(entry)) return null;
+    const id = stringValue(entry, 'id');
+    const name = stringValue(entry, 'name');
+    if (id === null || name === null) return null;
+    const windows = entry.windows;
+    if (windows !== undefined && (!Number.isInteger(windows) || windows < 0)) return null;
+    const session: { id: string; name: string; windows?: number } = { id, name };
+    if (typeof windows === 'number') session.windows = windows;
+    out.push(session);
+  }
+  return out;
+}
+
 function canonicalizeFrame(frame: Record<string, unknown>): StdioFrame | null {
   switch (frame.type) {
     case 'hello':
@@ -140,6 +160,24 @@ function canonicalizeFrame(frame: Record<string, unknown>): StdioFrame | null {
       const message = stringValue(frame, 'message');
       if (code === null || message === null) return null;
       return { v: STDIO_PROTOCOL_VERSION, type: 'host-error', code, message };
+    }
+    case 'list-sessions': {
+      const requestId = stringValue(frame, 'requestId');
+      if (requestId === null) return null;
+      return { v: STDIO_PROTOCOL_VERSION, type: 'list-sessions', requestId };
+    }
+    case 'sessions': {
+      const requestId = stringValue(frame, 'requestId');
+      const sessions = sessionsValue(frame.sessions);
+      if (requestId === null || sessions === null) return null;
+      return { v: STDIO_PROTOCOL_VERSION, type: 'sessions', requestId, sessions };
+    }
+    case 'sessions-error': {
+      const requestId = stringValue(frame, 'requestId');
+      const code = stringValue(frame, 'code');
+      const message = stringValue(frame, 'message');
+      if (requestId === null || code === null || message === null) return null;
+      return { v: STDIO_PROTOCOL_VERSION, type: 'sessions-error', requestId, code, message };
     }
     case 'open': {
       const channelId = channelIdValue(frame);

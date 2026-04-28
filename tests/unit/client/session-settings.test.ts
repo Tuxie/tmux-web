@@ -8,6 +8,8 @@ import {
   getStoredSessionNames,
   getLiveSessionSettings,
   setLastActiveSession,
+  getKnownRemoteServers,
+  recordKnownRemoteServer,
   applyThemeDefaults,
   flushPersist,
   _resetPersistDebounce,
@@ -18,7 +20,12 @@ interface FakeFetchCall { url: string; init?: RequestInit }
 
 function setupFakeFetch(
   initialConfig: { lastActive?: string; sessions: Record<string, any> } | null,
-  opts: { getOk?: boolean; getThrow?: boolean; getReturnsNonObject?: boolean } = {},
+  opts: {
+    getOk?: boolean;
+    getThrow?: boolean;
+    getReturnsNonObject?: boolean;
+    initialSettings?: { knownServers?: string[] };
+  } = {},
 ) {
   const calls: FakeFetchCall[] = [];
   (globalThis as any).fetch = async (url: string, init?: RequestInit) => {
@@ -30,6 +37,9 @@ function setupFakeFetch(
       if (opts.getReturnsNonObject) return { ok: true, json: async () => null } as any;
       if (!initialConfig) return { ok: true, json: async () => ({ version: 1, sessions: {} }) } as any;
       return { ok: true, json: async () => ({ version: 1, ...initialConfig }) } as any;
+    }
+    if (url === '/api/settings' && (!init || init.method === 'GET' || init.method === undefined)) {
+      return { ok: true, json: async () => ({ version: 1, knownServers: opts.initialSettings?.knownServers ?? [] }) } as any;
     }
     // PUT
     return { ok: true, json: async () => ({}) } as any;
@@ -295,8 +305,29 @@ describe("session-settings", () => {
   });
 
   test("_resetSessionStore accepts initial state", () => {
-    _resetSessionStore({ sessions: { seeded: { ...DEFAULT_SESSION_SETTINGS } }, lastActive: "seeded" });
+    _resetSessionStore({ sessions: { seeded: { ...DEFAULT_SESSION_SETTINGS } }, lastActive: "seeded", knownServers: ["dev"] });
     expect(getStoredSessionNames()).toEqual(["seeded"]);
+    expect(getKnownRemoteServers()).toEqual(["dev"]);
+  });
+
+  test("initSessionStore loads known remote servers from /api/settings", async () => {
+    setupFakeFetch({ sessions: {} }, { initialSettings: { knownServers: ["dev", "prod"] } });
+    await initSessionStore();
+    expect(getKnownRemoteServers()).toEqual(["dev", "prod"]);
+  });
+
+  test("recordKnownRemoteServer appends a valid host once and persists to settings.json", async () => {
+    const calls = setupFakeFetch({ sessions: {} }, { initialSettings: { knownServers: ["dev"] } });
+    await initSessionStore();
+
+    recordKnownRemoteServer("prod");
+    recordKnownRemoteServer("prod");
+    recordKnownRemoteServer("-Jbad");
+
+    expect(getKnownRemoteServers()).toEqual(["dev", "prod"]);
+    const puts = calls.filter(c => c.url === "/api/settings" && c.init?.method === "PUT");
+    expect(puts).toHaveLength(1);
+    expect(JSON.parse(puts[0]!.init!.body as string)).toEqual({ knownServers: ["prod"] });
   });
 
   test("deleteSessionSettings removes cache entry and issues DELETE", async () => {

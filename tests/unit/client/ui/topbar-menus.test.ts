@@ -457,6 +457,72 @@ describe('sessions menu: running/stopped states and current marker', () => {
     expect(names).toContain('backup');
     expect(rows.length).toBe(3);
   });
+
+  it('renders local sessions first, then known remote server sections', async () => {
+    const t = await mountTopbar({ session: 'main' });
+    (t as any).cachedSessions = [{ id: '1', name: 'local' }];
+    (t as any).cachedRemoteSessions = new Map([
+      ['dev', [{ id: '2', name: 'remote-a', windows: 1 }]],
+      ['prod', [{ id: '3', name: 'remote-b', windows: 2 }]],
+    ]);
+    _resetSessionStore({ sessions: {}, knownServers: ['dev', 'prod'] } as any);
+
+    const menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+
+    const sequence = menu.children
+      .filter((c: any) =>
+        typeof c.className === 'string'
+        && (c.className.includes('tw-dd-session-item') || c.className.includes('tw-menu-section')),
+      )
+      .map((c: any) => {
+        if (c.className.includes('tw-menu-section')) return `header:${c.textContent}`;
+        const name = c.children.find((x: any) => typeof x.className === 'string' && x.className.includes('tw-dd-session-name'));
+        return `row:${name?.textContent}`;
+      });
+    expect(sequence).toEqual([
+      'row:local',
+      'header:dev',
+      'row:remote-a',
+      'header:prod',
+      'row:remote-b',
+    ]);
+  });
+
+  it('marks the remote current row without marking a same-named local session', async () => {
+    const t = await mountTopbar({ session: 'r/dev/main' });
+    (t as any).cachedSessions = [{ id: '1', name: 'main' }];
+    (t as any).cachedRemoteSessions = new Map([
+      ['dev', [{ id: '2', name: 'main', windows: 1 }]],
+    ]);
+    _resetSessionStore({ sessions: {}, knownServers: ['dev'] } as any);
+
+    const menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+    const rows = sessionRows(menu);
+
+    const localMain = rows[0];
+    const remoteMain = rows[1];
+    expect(localMain.className).not.toContain('current');
+    expect(remoteMain.className).toContain('current');
+  });
+
+  it('clicking a remote session row passes the remote host to onSwitchSession', async () => {
+    const switched: Array<{ name: string; host?: string }> = [];
+    const t = await mountTopbar({ session: 'main' });
+    (t as any).opts.onSwitchSession = (name: string, host?: string) => switched.push({ name, host });
+    (t as any).cachedSessions = [{ id: '1', name: 'main' }];
+    (t as any).cachedRemoteSessions = new Map([
+      ['dev', [{ id: '2', name: 'work', windows: 1 }]],
+    ]);
+    _resetSessionStore({ sessions: {}, knownServers: ['dev'] } as any);
+
+    const menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+    rowByName(sessionRows(menu), 'work').click();
+
+    expect(switched).toEqual([{ name: 'work', host: 'dev' }]);
+  });
 });
 
 // ─── shared interaction helpers ──────────────────────────────────────────────
@@ -781,6 +847,36 @@ describe('session button: click and menu interactions', () => {
     expect(rowByName(sessionRows(menu), 'main')).not.toBeNull();
 
     resolveSessions();
+  });
+
+  it('does not contact known remote servers until the sessions menu is opened', async () => {
+    installGlobals('main');
+    makeDoc();
+    let remoteCalls = 0;
+    stubFetch(async (url: string) => {
+      if (url.startsWith('/api/themes'))           return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/fonts'))            return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/colours'))          return { ok: true, json: async () => [] } as any;
+      if (url.startsWith('/api/session-settings')) return { ok: true, json: async () => ({ version: 1, sessions: {} }) } as any;
+      if (url.startsWith('/api/settings'))         return { ok: true, json: async () => ({ version: 1, knownServers: ['dev'] }) } as any;
+      if (url.startsWith('/api/sessions'))         return { ok: true, json: async () => [{ id: '1', name: 'main' }] } as any;
+      if (url.startsWith('/api/remote-sessions')) {
+        remoteCalls += 1;
+        return { ok: true, json: async () => [{ id: '2', name: 'remote' }] } as any;
+      }
+      if (url.startsWith('/api/drops'))            return { ok: true, json: async () => ({ drops: [] }) } as any;
+      return { ok: true, json: async () => ({}) } as any;
+    });
+    const { Topbar } = await import('../../../../src/client/ui/topbar.ts');
+    const t = new Topbar({ send: () => {}, focus: () => {}, getLiveSettings: () => null });
+    await t.init();
+    await flushAsync();
+    expect(remoteCalls).toBe(0);
+
+    sessionBtn().click();
+    await flushAsync();
+
+    expect(remoteCalls).toBe(1);
   });
 
   it('clicking delete button removes the session via DELETE fetch', async () => {

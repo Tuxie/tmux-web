@@ -403,12 +403,19 @@ Options:
     const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(process.env.HOME ?? '', '.config');
     const sessionsPath = process.env.TMUX_WEB_SESSIONS_FILE
       ?? path.join(xdgConfigHome, 'tmux-web', 'sessions.json');
+    const settingsPath = path.join(xdgConfigHome, 'tmux-web', 'settings.json');
     try {
       fs.unlinkSync(sessionsPath);
       console.log(`Deleted ${sessionsPath}`);
     } catch (err: any) {
       if (err?.code === 'ENOENT') console.log('No saved settings to reset.');
       else throw err;
+    }
+    try {
+      fs.unlinkSync(settingsPath);
+      console.log(`Deleted ${settingsPath}`);
+    } catch (err: any) {
+      if (err?.code !== 'ENOENT') throw err;
     }
     const scheme = resetTls ? 'https' : 'http';
     const connectHost = (host === '0.0.0.0' || host === '::') ? '127.0.0.1' : host;
@@ -531,6 +538,7 @@ Options:
     ?? path.join(configDir, 'themes');
   const sessionsStorePath = process.env.TMUX_WEB_SESSIONS_FILE
     ?? path.join(configDir, 'sessions.json');
+  const settingsStorePath = path.join(configDir, 'settings.json');
 
   const tmuxConfPath = path.join(projectRoot, 'tmux.conf');
   const htmlTemplatePath = path.join(projectRoot, 'src/client/index.html');
@@ -628,8 +636,10 @@ Options:
     projectRoot,
     isCompiled,
     sessionsStorePath,
+    settingsStorePath,
     dropStorage,
     tmuxControl: tmuxControl ?? createNullTmuxControl(),
+    remoteAgentManager,
   });
 
   let tlsOpts: { cert: string; key: string } | undefined;

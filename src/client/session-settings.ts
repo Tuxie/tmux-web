@@ -114,9 +114,14 @@ export interface LoadOpts {
 interface SessionsCache {
   lastActive?: string;
   sessions: Record<string, SessionSettings>;
+  knownServers: string[];
 }
 
-let cache: SessionsCache = { sessions: {} };
+let cache: SessionsCache = { sessions: {}, knownServers: [] };
+
+function isValidRemoteHostAlias(host: string): boolean {
+  return host.length > 0 && host.length <= 255 && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(host);
+}
 
 /** Fetch the persisted settings map from the server. Call once on startup.
  *  Failures (non-ok response or network error) are recorded through
@@ -135,7 +140,17 @@ export async function initSessionStore(): Promise<void> {
       cache = {
         lastActive: typeof cfg.lastActive === 'string' ? cfg.lastActive : undefined,
         sessions: cfg.sessions,
+        knownServers: cache.knownServers,
       };
+    }
+    const settingsRes = await fetch('/api/settings');
+    if (settingsRes.ok) {
+      const settings = await settingsRes.json();
+      if (settings && typeof settings === 'object' && Array.isArray(settings.knownServers)) {
+        cache.knownServers = settings.knownServers.filter((host: unknown): host is string => (
+          typeof host === 'string' && isValidRemoteHostAlias(host)
+        ));
+      }
     }
   } catch (err) {
     recordBootError('settings', err);
@@ -265,6 +280,21 @@ export function setLastActiveSession(name: string): void {
   persist({ lastActive: name });
 }
 
+export function getKnownRemoteServers(): string[] {
+  return cache.knownServers.slice();
+}
+
+export function recordKnownRemoteServer(host: string): void {
+  if (!isValidRemoteHostAlias(host)) return;
+  if (cache.knownServers.includes(host)) return;
+  cache.knownServers = [...cache.knownServers, host];
+  void fetch('/api/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ knownServers: [host] }),
+  }).catch(() => {});
+}
+
 export function applyThemeDefaults(s: SessionSettings, td: ThemeDefaults): SessionSettings {
   return {
     ...s,
@@ -294,5 +324,6 @@ export function applyThemeDefaults(s: SessionSettings, td: ThemeDefaults): Sessi
 
 /** Test/internal: reset the in-memory cache. */
 export function _resetSessionStore(initial?: SessionsCache): void {
-  cache = initial ?? { sessions: {} };
+  cache = initial ?? { sessions: {}, knownServers: [] };
+  if (!cache.knownServers) cache.knownServers = [];
 }

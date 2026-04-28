@@ -73,6 +73,39 @@ describe('stdio agent runtime', () => {
     agent.close();
   });
 
+  test('responds to list-sessions requests using tmux control', async () => {
+    const io = new FakeIo();
+    const control: TmuxControl = {
+      ...createNullTmuxControl(),
+      run: async (args) => {
+        expect(args).toEqual(['list-sessions', '-F', '#{session_id}\t#{session_name}\t#{session_windows}']);
+        return '$1\tmain\t2\n$2\tdev\t1\n';
+      },
+    };
+    const agent = runStdioAgent({
+      input: io.input as any,
+      write: io.write,
+      makePty: (() => { throw new Error('should not open a PTY'); }) as any,
+      tmuxControl: control,
+      version: 'test',
+      tmuxBin: 'tmux',
+    });
+
+    io.emitFrame({ v: 1, type: 'list-sessions', requestId: 'req-1' });
+    await flushAsyncWork();
+
+    expect(io.frames()).toContainEqual({
+      v: 1,
+      type: 'sessions',
+      requestId: 'req-1',
+      sessions: [
+        { id: '1', name: 'main', windows: 2 },
+        { id: '2', name: 'dev', windows: 1 },
+      ],
+    });
+    agent.close();
+  });
+
   test('fatal malformed input sends host-error and prevents later PTY output', () => {
     const io = new FakeIo();
     const control = makeRecordingControl();
