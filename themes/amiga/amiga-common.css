@@ -618,7 +618,8 @@ body.topbar-pinned #terminal { top: 29px; }
 .tw-scrollbar.unavailable {
   opacity: 1;
 }
-.tw-scrollbar.unavailable .tw-scrollbar-track,
+.tw-scrollbar.unavailable .tw-scrollbar-thumb,
+.tw-scrollbar.unavailable .tw-scrollbar-track::before,
 .tw-scrollbar.unavailable .tw-scrollbar-up,
 .tw-scrollbar.unavailable .tw-scrollbar-down {
   display: none;
