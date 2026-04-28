@@ -10,6 +10,7 @@ function delay(ms: number): Promise<void> {
 class FakeProc extends EventEmitter {
   writes: Buffer[] = [];
   stdout = new EventEmitter();
+  stderr = new EventEmitter();
   flushes = 0;
   endCalls = 0;
   killCalls = 0;
@@ -28,6 +29,10 @@ class FakeProc extends EventEmitter {
 
   emitFrame(frame: StdioFrame) {
     this.stdout.emit('data', encodeFrame(frame));
+  }
+
+  emitStderr(text: string) {
+    this.stderr.emit('data', Buffer.from(text));
   }
 
   kill() { this.killCalls += 1; this.exit(); }
@@ -92,6 +97,21 @@ describe('RemoteAgentManager', () => {
     expect(procs).toHaveLength(2);
     procs[1]!.emitFrame({ v: 1, type: 'hello-ok', agentVersion: 'test' });
     await second;
+    await mgr.close();
+  });
+
+  test('includes ssh stderr when a host agent exits before handshake', async () => {
+    const proc = new FakeProc();
+    const mgr = new RemoteAgentManager({
+      spawn: () => proc as any,
+      idleTimeoutMs: 20,
+    });
+
+    const first = mgr.getHost('prod');
+    proc.emitStderr('bash: line 1: tmux-web: command not found\n');
+    proc.kill();
+
+    await expect(first).rejects.toThrow(/tmux-web: command not found/);
     await mgr.close();
   });
 

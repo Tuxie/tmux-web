@@ -3,6 +3,7 @@ import { encodeFrame, encodePtyBytes, FrameDecoder, type StdioFrame } from './st
 export interface AgentProc {
   stdin: { write(data: Buffer): unknown; flush?(): unknown; end(): unknown };
   stdout: { on(event: 'data', cb: (chunk: Buffer | Uint8Array) => void): unknown };
+  stderr?: { on(event: 'data', cb: (chunk: Buffer | Uint8Array) => void): unknown };
   exited: Promise<unknown>;
   kill(): unknown;
 }
@@ -86,6 +87,7 @@ export class RemoteHostAgent {
   private readonly host: string;
   private readonly proc: AgentProc;
   private readonly decoder = new FrameDecoder();
+  private stderr = '';
   private readonly pendingOpens = new Map<string, PendingOpen>();
   private readonly channels = new Map<string, RemoteChannel>();
   private readyResolve!: (agent: RemoteHostAgent) => void;
@@ -110,6 +112,7 @@ export class RemoteHostAgent {
     });
 
     proc.stdout.on('data', chunk => this.handleChunk(chunk));
+    proc.stderr?.on('data', chunk => this.captureStderr(chunk));
     proc.exited.then(
       () => this.handleExit(),
       err => this.handleExit(err),
@@ -163,6 +166,13 @@ export class RemoteHostAgent {
   private handleChunk(chunk: Buffer | Uint8Array): void {
     for (const frame of this.decoder.push(chunk)) {
       this.handleFrame(frame);
+    }
+  }
+
+  private captureStderr(chunk: Buffer | Uint8Array): void {
+    this.stderr += Buffer.from(chunk).toString('utf8');
+    if (this.stderr.length > 4096) {
+      this.stderr = this.stderr.slice(-4096);
     }
   }
 
@@ -249,8 +259,14 @@ export class RemoteHostAgent {
 
   private handleExit(err?: unknown): void {
     this.tornDown = true;
-    this.rejectAll(err ?? new Error(`remote host ${this.host} agent exited`));
+    this.rejectAll(err ?? new Error(this.formatExitMessage()));
     this.onDone(this);
+  }
+
+  private formatExitMessage(): string {
+    const stderr = this.stderr.trim();
+    if (!stderr) return `remote host ${this.host} agent exited`;
+    return `remote host ${this.host} agent exited: ${stderr}`;
   }
 
   private checkIdle(): void {
@@ -343,6 +359,7 @@ function spawnSshAgent(host: string): AgentProc {
       end: () => proc.stdin.end(),
     },
     stdout: adaptReadable(proc.stdout, () => proc.kill()),
+    stderr: adaptReadable(proc.stderr, () => proc.kill()),
     exited: proc.exited,
     kill: () => proc.kill(),
   };
