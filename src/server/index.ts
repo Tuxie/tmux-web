@@ -286,14 +286,72 @@ export interface StdioAgentLaunchOptions {
   tmuxConfPath: string;
 }
 
+export interface MaterializeStdioAgentTmuxConfOptions {
+  runtimeBaseDir: string;
+  projectRoot: string;
+  embeddedAssets?: Record<string, string>;
+  existsSync?: (p: string) => boolean;
+  readFileSync?: (p: string) => string;
+  mkdirSync?: (p: string) => unknown;
+  writeFileSync?: (p: string, content: string) => unknown;
+}
+
+export function materializeStdioAgentTmuxConf(opts: MaterializeStdioAgentTmuxConfOptions): string {
+  const exists = opts.existsSync ?? fs.existsSync;
+  const readFile = opts.readFileSync ?? ((p: string) => fs.readFileSync(p, 'utf-8'));
+  const mkdir = opts.mkdirSync ?? ((p: string) => fs.mkdirSync(p, { recursive: true, mode: 0o700 }));
+  const writeFile = opts.writeFileSync ?? ((p: string, content: string) => fs.writeFileSync(p, content));
+  const runtimeConfPath = path.join(opts.runtimeBaseDir, 'tmux.conf');
+
+  const embeddedTmuxConfPath = opts.embeddedAssets?.['tmux.conf'];
+  const projectTmuxConfPath = path.join(opts.projectRoot, 'tmux.conf');
+  const fallbackTmuxConfPaths = [
+    '/usr/local/share/tmux-web/tmux.conf',
+    '/usr/share/tmux-web/tmux.conf',
+    path.join(path.dirname(opts.projectRoot), 'share/tmux-web/tmux.conf'),
+  ];
+
+  let content = '';
+  if (embeddedTmuxConfPath) {
+    content = readFile(embeddedTmuxConfPath);
+  } else if (exists(projectTmuxConfPath)) {
+    content = readFile(projectTmuxConfPath);
+  } else {
+    const fallback = fallbackTmuxConfPaths.find(exists);
+    if (fallback) content = readFile(fallback);
+  }
+
+  mkdir(opts.runtimeBaseDir);
+  writeFile(runtimeConfPath, content);
+  return runtimeConfPath;
+}
+
 export function buildStdioAgentLaunchOptions(
   parsed: Pick<ConfigResult, 'stdioAgent'>,
-  opts: { runtimeBaseDir?: string } = {},
+  opts: {
+    runtimeBaseDir?: string;
+    projectRoot?: string;
+    embeddedAssets?: Record<string, string>;
+    existsSync?: (p: string) => boolean;
+    readFileSync?: (p: string) => string;
+    mkdirSync?: (p: string) => unknown;
+    writeFileSync?: (p: string, content: string) => unknown;
+  } = {},
 ): StdioAgentLaunchOptions | null {
   if (!parsed.stdioAgent) return null;
+  const runtimeBaseDir = opts.runtimeBaseDir ?? resolveRuntimeBaseDir();
+  const projectRoot = opts.projectRoot ?? path.resolve(import.meta.dir, '../..');
   return {
     tmuxBin: 'tmux',
-    tmuxConfPath: path.join(opts.runtimeBaseDir ?? resolveRuntimeBaseDir(), 'tmux.conf'),
+    tmuxConfPath: materializeStdioAgentTmuxConf({
+      runtimeBaseDir,
+      projectRoot,
+      embeddedAssets: opts.embeddedAssets ?? embeddedAssets,
+      existsSync: opts.existsSync,
+      readFileSync: opts.readFileSync,
+      mkdirSync: opts.mkdirSync,
+      writeFileSync: opts.writeFileSync,
+    }),
   };
 }
 
@@ -378,7 +436,12 @@ Options:
   }
 
   if (stdioAgent) {
-    const launch = buildStdioAgentLaunchOptions(parsedConfig);
+    const isCompiled = !process.execPath.endsWith('bun') && !process.execPath.endsWith('bun.exe');
+    const projectRoot = isCompiled ? path.dirname(process.execPath) : path.resolve(import.meta.dir, '../..');
+    const launch = buildStdioAgentLaunchOptions(parsedConfig, {
+      projectRoot,
+      embeddedAssets,
+    });
     if (!launch) {
       process.exit(1);
     }

@@ -66,11 +66,13 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
     rows: p.rows,
   }));
 
-  const closeChannel = (channelId: string): void => {
+  const closeChannel = (channelId: string, closeOpts: { kill?: boolean } = {}): void => {
     const channel = channels.get(channelId);
     if (!channel) return;
     channels.delete(channelId);
-    try { channel.pty.kill(); } catch { /* best-effort */ }
+    if (closeOpts.kill !== false) {
+      try { channel.pty.kill(); } catch { /* best-effort */ }
+    }
     try { opts.tmuxControl.detachSession(channel.session); } catch { /* best-effort */ }
   };
 
@@ -79,6 +81,19 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
     closed = true;
     for (const id of [...channels.keys()]) closeChannel(id);
   }
+
+  const removeInputListeners = (): void => {
+    opts.input.off('data', onData);
+    opts.input.off('end', onEnd);
+    opts.input.off('error', onError);
+  };
+
+  const closeFatal = (frame: Extract<StdioFrame, { type: 'host-error' }>): void => {
+    if (closed) return;
+    send(frame);
+    removeInputListeners();
+    closeAll();
+  };
 
   const open = (frame: Extract<StdioFrame, { type: 'open' }>): void => {
     if (channels.has(frame.channelId)) {
@@ -120,6 +135,7 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
     pty.onExit(() => {
       if (channels.get(frame.channelId) !== channel) return;
       send({ v: 1, type: 'server-msg', channelId: frame.channelId, data: { ptyExit: true } });
+      closeChannel(frame.channelId, { kill: false });
     });
 
     void opts.tmuxControl.attachSession(session, { cols: frame.cols, rows: frame.rows }).catch(() => {});
@@ -169,7 +185,7 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
     try {
       for (const frame of decoder.push(Buffer.from(chunk))) onFrame(frame);
     } catch (err) {
-      send({
+      closeFatal({
         v: 1,
         type: 'host-error',
         code: 'invalid-frame',
@@ -179,13 +195,12 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
   };
   const onEnd = (): void => closeAll();
   const onError = (err: unknown): void => {
-    send({
+    closeFatal({
       v: 1,
       type: 'host-error',
       code: 'input-error',
       message: err instanceof Error ? err.message : String(err),
     });
-    closeAll();
   };
 
   opts.input.on('data', onData);
@@ -194,9 +209,7 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
 
   return {
     close: () => {
-      opts.input.off('data', onData);
-      opts.input.off('end', onEnd);
-      opts.input.off('error', onError);
+      removeInputListeners();
       closeAll();
     },
   };
