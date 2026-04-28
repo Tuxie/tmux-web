@@ -13,6 +13,16 @@ The user noted this also happened occasionally before the stdio-agent change,
 so do not assume the new remote transport caused it. Treat the remote path as
 one reproduction surface, not necessarily the root cause.
 
+Later the same day, after remote-session routing fixes, the user observed a
+single instance of the same leak shape:
+
+```text
+0;276;0c>|xterm.js(6.0.0)
+```
+
+This reinforces that the bug is still open and can appear as either repeated
+fragments or a single visible fragment.
+
 The fragments correspond to terminal identity replies:
 
 - Secondary DA: `ESC [ > 0 ; 276 ; 0 c` from xterm.js.
