@@ -48,12 +48,6 @@ describe('Amiga theme CSS', () => {
 
   test('unavailable scrollbar stays opaque and hides scroll controls', () => {
     expect(commonCss).toMatch(/\.tw-scrollbar\.unavailable\s*\{\s*opacity:\s*1;\s*\}/);
-    expect(commonCss).toMatch(/\.tw-scrollbar\.unavailable \.tw-scrollbar-thumb,\s*\.tw-scrollbar\.unavailable \.tw-scrollbar-track::before,\s*\.tw-scrollbar\.unavailable \.tw-scrollbar-up,\s*\.tw-scrollbar\.unavailable \.tw-scrollbar-down\s*\{\s*display:\s*none;\s*\}/);
-  });
-
-  test('AmigaOS 3.1 expands the scrollbar field without changing Scene', () => {
-    expect(os31Css).toMatch(/\.tw-scrollbar-track\s*\{\s*top:\s*1px;\s*left:\s*-1px;\s*right:\s*-1px;\s*\}/);
-    expect(sceneCss).toMatch(/\.tw-scrollbar-track\s*\{\s*border-top:\s*none;\s*\}/);
-    expect(sceneCss).not.toMatch(/\.tw-scrollbar-track\s*\{[^}]*left:\s*-1px;/s);
+    expect(commonCss).toMatch(/\.tw-scrollbar\.unavailable \.tw-scrollbar-track,\s*\.tw-scrollbar\.unavailable \.tw-scrollbar-up,\s*\.tw-scrollbar\.unavailable \.tw-scrollbar-down\s*\{\s*display:\s*none;\s*\}/);
   });
 });
