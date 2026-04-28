@@ -3,6 +3,10 @@ import { EventEmitter } from 'node:events';
 import { RemoteAgentManager } from '../../../src/server/remote-agent-manager.js';
 import { encodeFrame, FrameDecoder, type StdioFrame } from '../../../src/server/stdio-protocol.js';
 
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 class FakeProc extends EventEmitter {
   writes: Buffer[] = [];
   stdout = new EventEmitter();
@@ -150,6 +154,96 @@ describe('RemoteAgentManager', () => {
     expect(procs).toHaveLength(2);
     procs[1]!.emitFrame({ v: 1, type: 'hello-ok', agentVersion: 'test' });
     await second;
+    await mgr.close();
+  });
+
+  test('kills an idle host agent after its last channel is remotely closed', async () => {
+    const proc = new FakeProc();
+    const mgr = new RemoteAgentManager({
+      spawn: () => proc as any,
+      idleTimeoutMs: 10,
+    });
+
+    const ready = mgr.getHost('prod');
+    proc.emitFrame({ v: 1, type: 'hello-ok', agentVersion: 'test' });
+    const agent = await ready;
+    const opened = agent.openChannel({ session: 'main', cols: 80, rows: 24 });
+    const open = collectWrites(proc).find(f => f.type === 'open') as any;
+    proc.emitFrame({ v: 1, type: 'open-ok', channelId: open.channelId, session: 'main' });
+    const channel = await opened;
+
+    channel.close();
+    proc.emitFrame({ v: 1, type: 'close', channelId: open.channelId, reason: 'done' });
+    await delay(25);
+
+    expect(proc.killCalls).toBe(1);
+    expect(collectWrites(proc).some(f => f.type === 'shutdown')).toBe(true);
+    await mgr.close();
+  });
+
+  test('cancels pending idle shutdown when a new channel opens before timeout', async () => {
+    const procs: FakeProc[] = [];
+    const mgr = new RemoteAgentManager({
+      spawn: () => { const p = new FakeProc(); procs.push(p); return p as any; },
+      idleTimeoutMs: 30,
+    });
+
+    const ready = mgr.getHost('prod');
+    procs[0]!.emitFrame({ v: 1, type: 'hello-ok', agentVersion: 'test' });
+    const agent = await ready;
+
+    const firstOpened = agent.openChannel({ session: 'main', cols: 80, rows: 24 });
+    const firstOpen = collectWrites(procs[0]!).find(f => f.type === 'open') as any;
+    procs[0]!.emitFrame({ v: 1, type: 'open-ok', channelId: firstOpen.channelId, session: 'main' });
+    const first = await firstOpened;
+    first.close();
+    procs[0]!.emitFrame({ v: 1, type: 'close', channelId: firstOpen.channelId, reason: 'done' });
+
+    await delay(10);
+    const secondOpened = agent.openChannel({ session: 'main', cols: 80, rows: 24 });
+    const opens = collectWrites(procs[0]!).filter(f => f.type === 'open') as any[];
+    const secondOpen = opens[1]!;
+    expect(procs[0]!.killCalls).toBe(0);
+    procs[0]!.emitFrame({ v: 1, type: 'open-ok', channelId: secondOpen.channelId, session: 'main' });
+    const second = await secondOpened;
+
+    await delay(35);
+    expect(procs).toHaveLength(1);
+    expect(procs[0]!.killCalls).toBe(0);
+
+    second.close();
+    procs[0]!.emitFrame({ v: 1, type: 'close', channelId: secondOpen.channelId, reason: 'done' });
+    await delay(40);
+
+    expect(procs[0]!.killCalls).toBe(1);
+    await mgr.close();
+  });
+
+  test('manager close tears down agents and a later getHost spawns a new process', async () => {
+    const procs: FakeProc[] = [];
+    const mgr = new RemoteAgentManager({
+      spawn: () => { const p = new FakeProc(); procs.push(p); return p as any; },
+      idleTimeoutMs: 1000,
+    });
+
+    const ready = mgr.getHost('prod');
+    procs[0]!.emitFrame({ v: 1, type: 'hello-ok', agentVersion: 'test' });
+    const agent = await ready;
+    const opened = agent.openChannel({ session: 'main', cols: 80, rows: 24 });
+    const open = collectWrites(procs[0]!).find(f => f.type === 'open') as any;
+    procs[0]!.emitFrame({ v: 1, type: 'open-ok', channelId: open.channelId, session: 'main' });
+    await opened;
+
+    await mgr.close();
+
+    expect(procs[0]!.endCalls).toBe(1);
+    expect(procs[0]!.killCalls).toBe(1);
+    expect(collectWrites(procs[0]!).some(f => f.type === 'shutdown')).toBe(true);
+
+    const next = mgr.getHost('prod');
+    expect(procs).toHaveLength(2);
+    procs[1]!.emitFrame({ v: 1, type: 'hello-ok', agentVersion: 'test' });
+    await next;
     await mgr.close();
   });
 });

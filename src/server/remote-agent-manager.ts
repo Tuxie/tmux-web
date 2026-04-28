@@ -32,7 +32,11 @@ export class RemoteChannel {
   private readonly frameListeners: FrameListener[] = [];
   private closed = false;
 
-  constructor(channelId: string, writeFrame: (frame: StdioFrame) => void) {
+  constructor(
+    channelId: string,
+    writeFrame: (frame: StdioFrame) => void,
+    private readonly onLocalClose: () => void = () => {},
+  ) {
     this.channelId = channelId;
     this.writeFrame = writeFrame;
   }
@@ -70,6 +74,7 @@ export class RemoteChannel {
     if (this.closed) return;
     this.closed = true;
     this.writeFrame({ v: 1, type: 'close', channelId: this.channelId, reason });
+    this.onLocalClose();
   }
 
   markRemoteClosed(): void {
@@ -93,6 +98,8 @@ export class RemoteHostAgent {
     host: string,
     proc: AgentProc,
     readonly idleTimeoutMs: number,
+    private readonly onActivity: (agent: RemoteHostAgent) => void = () => {},
+    private readonly onIdle: (agent: RemoteHostAgent) => void = () => {},
     private readonly onDone: (agent: RemoteHostAgent) => void = () => {},
   ) {
     this.host = host;
@@ -111,8 +118,13 @@ export class RemoteHostAgent {
   }
 
   openChannel(opts: OpenChannelOptions): Promise<RemoteChannel> {
+    this.onActivity(this);
     const channelId = crypto.randomUUID();
-    const channel = new RemoteChannel(channelId, frame => this.writeFrame(frame));
+    const channel = new RemoteChannel(
+      channelId,
+      frame => this.writeFrame(frame),
+      () => this.checkIdle(),
+    );
     const opened = new Promise<RemoteChannel>((resolve, reject) => {
       this.pendingOpens.set(channelId, { channel, resolve, reject });
     });
@@ -128,8 +140,13 @@ export class RemoteHostAgent {
   }
 
   close(): void {
+    if (this.tornDown) return;
     this.writeFrame({ v: 1, type: 'shutdown' });
     this.teardown();
+  }
+
+  isReadyAndIdle(): boolean {
+    return this.readySettled && !this.tornDown && this.pendingOpens.size === 0 && this.channels.size === 0;
   }
 
   private teardown(): void {
@@ -163,6 +180,7 @@ export class RemoteHostAgent {
         const pending = this.pendingOpens.get(frame.channelId);
         if (!pending) return;
         this.pendingOpens.delete(frame.channelId);
+        this.onActivity(this);
         this.channels.set(frame.channelId, pending.channel);
         pending.resolve(pending.channel);
         return;
@@ -172,6 +190,15 @@ export class RemoteHostAgent {
         if (pending) {
           this.pendingOpens.delete(frame.channelId);
           pending.reject(new Error(`remote channel ${frame.channelId} error: ${frame.code}: ${frame.message}`));
+          this.checkIdle();
+          return;
+        }
+        const channel = this.channels.get(frame.channelId);
+        if (channel) {
+          channel.emit('frame', frame);
+          channel.markRemoteClosed();
+          this.channels.delete(frame.channelId);
+          this.checkIdle();
           return;
         }
         this.channels.get(frame.channelId)?.emit('frame', frame);
@@ -183,6 +210,7 @@ export class RemoteHostAgent {
           channel.markRemoteClosed();
           channel.emit('frame', frame);
           this.channels.delete(frame.channelId);
+          this.checkIdle();
         }
         return;
       }
@@ -204,6 +232,7 @@ export class RemoteHostAgent {
     if (this.readySettled) return;
     this.readySettled = true;
     this.readyResolve(this);
+    this.checkIdle();
   }
 
   private rejectAll(reason: unknown): void {
@@ -227,12 +256,19 @@ export class RemoteHostAgent {
     this.rejectAll(err ?? new Error(`remote host ${this.host} agent exited`));
     this.onDone(this);
   }
+
+  private checkIdle(): void {
+    if (this.isReadyAndIdle()) {
+      this.onIdle(this);
+    }
+  }
 }
 
 export class RemoteAgentManager {
   private readonly spawn: (host: string) => AgentProc;
   private readonly idleTimeoutMs: number;
   private readonly agents = new Map<string, RemoteHostAgent>();
+  private readonly idleTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(opts: RemoteAgentManagerOptions = {}) {
     this.spawn = opts.spawn ?? spawnSshAgent;
@@ -243,6 +279,11 @@ export class RemoteAgentManager {
     let agent = this.agents.get(host);
     if (!agent) {
       agent = new RemoteHostAgent(host, this.spawn(host), this.idleTimeoutMs, closedAgent => {
+        this.cancelIdleTimer(host, closedAgent);
+      }, idleAgent => {
+        this.scheduleIdleShutdown(host, idleAgent);
+      }, closedAgent => {
+        this.cancelIdleTimer(host, closedAgent);
         if (this.agents.get(host) === closedAgent) {
           this.agents.delete(host);
         }
@@ -255,10 +296,32 @@ export class RemoteAgentManager {
   async close(): Promise<void> {
     const agents = [...this.agents.values()];
     this.agents.clear();
+    for (const host of [...this.idleTimers.keys()]) {
+      this.cancelIdleTimer(host);
+    }
     for (const agent of agents) {
       agent.close();
     }
     await Promise.allSettled(agents.map(agent => agent.ready));
+  }
+
+  private cancelIdleTimer(host: string, agent?: RemoteHostAgent): void {
+    if (agent && this.agents.get(host) !== agent) return;
+    const timer = this.idleTimers.get(host);
+    if (!timer) return;
+    clearTimeout(timer);
+    this.idleTimers.delete(host);
+  }
+
+  private scheduleIdleShutdown(host: string, agent: RemoteHostAgent): void {
+    if (this.agents.get(host) !== agent || !agent.isReadyAndIdle() || this.idleTimers.has(host)) return;
+    const timer = setTimeout(() => {
+      this.idleTimers.delete(host);
+      if (this.agents.get(host) !== agent || !agent.isReadyAndIdle()) return;
+      this.agents.delete(host);
+      agent.close();
+    }, this.idleTimeoutMs);
+    this.idleTimers.set(host, timer);
   }
 }
 
