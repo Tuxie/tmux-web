@@ -50,4 +50,8 @@ describe('Amiga theme CSS', () => {
     expect(commonCss).toMatch(/\.tw-scrollbar\.unavailable\s*\{\s*opacity:\s*1;\s*\}/);
     expect(commonCss).toMatch(/\.tw-scrollbar\.unavailable \.tw-scrollbar-track,\s*\.tw-scrollbar\.unavailable \.tw-scrollbar-up,\s*\.tw-scrollbar\.unavailable \.tw-scrollbar-down\s*\{\s*display:\s*none;\s*\}/);
   });
+
+  test('shared Amiga resize gadget is one pixel narrower on each side', () => {
+    expect(commonCss).toMatch(/\.tw-scrollbar-resize\s*\{\s*left:\s*-1px;\s*right:\s*-1px;\s*bottom:\s*-2px;/);
+  });
 });

@@ -705,6 +705,8 @@ body.topbar-pinned #terminal { top: 29px; }
  * the bottom border) and it grows 2px taller so the up/down cluster
  * still meets it flush. */
 .tw-scrollbar-resize {
+  left: -1px;
+  right: -1px;
   bottom: -2px;
   height: calc(var(--tw-scrollbar-arrow-h) + 2px);
 }
