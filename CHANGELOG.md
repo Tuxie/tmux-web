@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+## 1.10.4 — 2026-04-28
+
+### Fixed
+
+- **Homebrew upgrades no longer fail on a missing systemd service
+  template.** The tap formula now treats the Linux user-service file
+  as optional, so macOS upgrades do not abort while looking for
+  `tmux-web.service`.
+- **Amiga theme scrollbar and tab alignment regressions are fixed.**
+  Amiga topbar tabs are gapless again, inactive tab hover bevels match
+  the rest of the topbar controls, and the AmigaOS 3.1 scrollbar field,
+  buttons, thumb area, and resize handle line up on the right edge.
+- **Unavailable Amiga scrollbars stay opaque.** Alternate-screen apps
+  hide the track, thumb, and arrow buttons while preserving the themed
+  scrollbar background and resize handle instead of showing the frame
+  through a transparent bar.
+- **Theme autohide defaults no longer leak into Amiga Scene 2000.**
+  Topbar and scrollbar autohide are now stored per session. Base
+  defaults keep both off, the Default theme opts the scrollbar into
+  autohide, and switching away from Default resets missing autohide
+  defaults back to off.
+- **AmigaOS 3.1 title text is left-aligned.**
+
+### Changed
+
+- **Default theme top-left button polish.** The Default theme now shows
+  a visible `+` glyph in the top-left button, sizes and aligns it like
+  the other topbar buttons, and removes its misleading web tooltip.
+- **Amiga favicon styling.** The favicon now uses an AmigaOS 3.1-style
+  blue frame, grey terminal body, and prompt dots.
+- **tmux lookup delegates to the OS path search.** tmux-web appends
+  common tmux install directories to `$PATH` before launch instead of
+  resolving the binary manually.
+- **Subpixel antialiasing is always enabled.** The menu option was
+  removed.
+- **Default font size is now 17.**
+
 ## 1.10.3 — 2026-04-27
 
 ### Fixed
