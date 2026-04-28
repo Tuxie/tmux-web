@@ -7,6 +7,7 @@ import { createHttpHandler } from './http.js';
 import { createWsHandlers, type WsData } from './ws.js';
 import { cleanupAll as cleanupDrops, defaultDropStorage, type DropStorage } from './file-drop.js';
 import { RemoteAgentManager } from './remote-agent-manager.js';
+import { RemoteTmuxWebManager, parseRemoteHttpBaseUrls } from './remote-tmux-web.js';
 import {
   decodePtyBytes,
   encodeFrame,
@@ -102,7 +103,11 @@ async function startLoopbackServer(opts: StdioAgentOptions): Promise<AgentServer
     ?? path.join(projectRoot, 'themes');
   const distDir = opts.distDir ?? path.join(projectRoot, 'dist');
   const dropStorage = opts.dropStorage ?? defaultDropStorage();
-  const remoteAgentManager = new RemoteAgentManager();
+  const stdioRemoteAgentManager = new RemoteAgentManager();
+  const remoteAgentManager = new RemoteTmuxWebManager({
+    directHttpBaseUrls: parseRemoteHttpBaseUrls(process.env.TMUX_WEB_REMOTE_URLS),
+    stdioManager: stdioRemoteAgentManager,
+  });
   const tmuxConfPath = opts.tmuxConfPath ?? path.join(projectRoot, 'tmux.conf');
   const htmlTemplate = await readHtmlTemplate(opts, projectRoot);
 

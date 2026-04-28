@@ -31,6 +31,7 @@ import {
   parseScrollbarState,
   unavailableScrollbarState,
 } from './scrollbar.js';
+import type { RemoteTmuxWebChannel, RemoteTmuxWebConnectionManager } from './remote-tmux-web.js';
 
 export interface WsServerOptions {
   config: ServerConfig;
@@ -39,25 +40,7 @@ export interface WsServerOptions {
    *  OSC 52 clipboard policy. */
   sessionsStorePath: string;
   tmuxControl: TmuxControl;
-  remoteAgentManager?: RemoteAgentManagerLike;
-}
-
-interface RemoteChannelLike {
-  channelId?: string;
-  on(event: 'frame', cb: (frame: StdioFrame) => void): () => void;
-  sendPty(data: string): void;
-  resize(cols: number, rows: number): void;
-  sendClientMessage(data: string): void;
-  close(reason?: string): void;
-}
-
-interface RemoteHostAgentLike {
-  openChannel(opts: { session: string; cols: number; rows: number }): Promise<RemoteChannelLike>;
-}
-
-interface RemoteAgentManagerLike {
-  getHost(host: string): Promise<RemoteHostAgentLike>;
-  close(): Promise<void> | void;
+  remoteAgentManager?: RemoteTmuxWebConnectionManager;
 }
 
 /** Per-connection state. Bun stores this on the `ws.data` slot so every
@@ -73,7 +56,7 @@ export interface WsData {
 
 interface WsConnState {
   pty?: BunPty;
-  remoteChannel?: RemoteChannelLike;
+  remoteChannel?: RemoteTmuxWebChannel;
   remoteOpenPending?: boolean;
   remotePendingMessages?: string[];
   unsubscribeRemoteFrames?: () => void;
@@ -623,7 +606,7 @@ function handleMessage(ws: ServerWebSocket<WsData>, msg: string | Buffer, opts: 
   for (const act of actions) dispatchAction(ws, act, opts, reg);
 }
 
-function routeRemoteMessage(channel: RemoteChannelLike, text: string): void {
+function routeRemoteMessage(channel: RemoteTmuxWebChannel, text: string): void {
   if (!text.startsWith('{')) {
     channel.sendPty(text);
     return;

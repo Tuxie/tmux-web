@@ -13,6 +13,7 @@ import { parseAllowOriginFlag, canonicaliseAllowedIp } from './origin.js';
 import { embeddedAssets } from './assets-embedded.js';
 import { eventInputFromNodeReadable, runStdioAgent } from './stdio-agent.js';
 import { RemoteAgentManager } from './remote-agent-manager.js';
+import { RemoteTmuxWebManager, parseRemoteHttpBaseUrls } from './remote-tmux-web.js';
 import pkg from '../../package.json' with { type: 'json' };
 import type { DropStorage } from './file-drop.js';
 
@@ -638,7 +639,11 @@ Options:
       tmuxConfPath: effectiveTmuxConfPath,
       log: config.debug ? (line) => process.stderr.write(`[debug] ${line}\n`) : undefined,
     });
-  const remoteAgentManager = new RemoteAgentManager();
+  const stdioRemoteAgentManager = new RemoteAgentManager();
+  const remoteAgentManager = new RemoteTmuxWebManager({
+    directHttpBaseUrls: parseRemoteHttpBaseUrls(process.env.TMUX_WEB_REMOTE_URLS),
+    stdioManager: stdioRemoteAgentManager,
+  });
 
   const handler = await createHttpHandler({
     config,

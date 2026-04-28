@@ -32,6 +32,7 @@ import { type TmuxControl } from './tmux-control.js';
 import { listSessionsViaTmux, listWindowsViaTmux } from './tmux-listings.js';
 import { isValidRemoteHostAlias } from './remote-route.js';
 import { applySettingsPatch, loadSettings, type ServerSettingsPatch } from './settings-store.js';
+import type { RemoteTmuxWebConnectionManager } from './remote-tmux-web.js';
 import pkg from '../../package.json' with { type: 'json' };
 
 export interface HttpHandlerOptions {
@@ -46,11 +47,7 @@ export interface HttpHandlerOptions {
   settingsStorePath?: string;
   dropStorage: DropStorage;
   tmuxControl: TmuxControl;
-  remoteAgentManager?: {
-    getHost(host: string): Promise<{
-      apiGet(path: string): Promise<{ status: number; body: unknown }>;
-    }>;
-  };
+  remoteAgentManager?: RemoteTmuxWebConnectionManager;
 }
 
 /** Per-session upload cap. 50 MiB — comfortably larger than typical
@@ -169,7 +166,7 @@ function validateSettingsPatch(value: unknown): SettingsPatchValidationResult {
     }
     for (const host of obj.knownServers) {
       if (typeof host !== 'string' || !isValidRemoteHostAlias(host)) {
-        return { ok: false, reason: 'knownServers entries must be valid SSH host aliases' };
+        return { ok: false, reason: 'knownServers entries must be valid remote host aliases' };
       }
     }
   }
