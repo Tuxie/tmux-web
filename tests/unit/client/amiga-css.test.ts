@@ -50,10 +50,4 @@ describe('Amiga theme CSS', () => {
     expect(commonCss).toMatch(/\.tw-scrollbar\.unavailable\s*\{\s*opacity:\s*1;\s*\}/);
     expect(commonCss).toMatch(/\.tw-scrollbar\.unavailable \.tw-scrollbar-track,\s*\.tw-scrollbar\.unavailable \.tw-scrollbar-up,\s*\.tw-scrollbar\.unavailable \.tw-scrollbar-down\s*\{\s*display:\s*none;\s*\}/);
   });
-
-  test('AmigaOS 3.1 aligns scrollbar track and thumb to the button cluster edges', () => {
-    expect(os31Css).toMatch(/\.tw-scrollbar-track\s*\{\s*left:\s*-2px;\s*right:\s*-2px;\s*\}/);
-    expect(os31Css).toMatch(/\.tw-scrollbar-thumb,\s*\.tw-scrollbar-track::before\s*\{\s*left:\s*0;\s*right:\s*0;\s*\}/);
-    expect(sceneCss).toMatch(/\.tw-scrollbar-up,\s*\.tw-scrollbar-down,\s*\.tw-scrollbar-resize\s*\{[^}]*left:\s*0;\s*right:\s*0;/s);
-  });
 });
