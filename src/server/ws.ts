@@ -1,6 +1,8 @@
 import type { Server as BunServer, ServerWebSocket, WebSocketHandler } from 'bun';
 import type { ScrollbarState, ServerConfig, ServerMessage, SessionInfo, WindowInfo } from '../shared/types.js';
 import { processData, frameTTMessage } from './protocol.js';
+import { isValidRemoteHostAlias } from './remote-route.js';
+import { decodePtyBytes, type StdioFrame } from './stdio-protocol.js';
 import { deliverOsc52Reply } from './osc52-reply.js';
 import { buildPtyCommand, buildPtyEnv, spawnPty, sanitizeSession, type BunPty } from './pty.js';
 import { isAllowed } from './allowlist.js';
@@ -37,12 +39,32 @@ export interface WsServerOptions {
    *  OSC 52 clipboard policy. */
   sessionsStorePath: string;
   tmuxControl: TmuxControl;
+  remoteAgentManager?: RemoteAgentManagerLike;
+}
+
+interface RemoteChannelLike {
+  channelId?: string;
+  on(event: 'frame', cb: (frame: StdioFrame) => void): () => void;
+  sendPty(data: string): void;
+  resize(cols: number, rows: number): void;
+  sendClientMessage(data: string): void;
+  close(reason?: string): void;
+}
+
+interface RemoteHostAgentLike {
+  openChannel(opts: { session: string; cols: number; rows: number }): Promise<RemoteChannelLike>;
+}
+
+interface RemoteAgentManagerLike {
+  getHost(host: string): Promise<RemoteHostAgentLike>;
+  close(): Promise<void> | void;
 }
 
 /** Per-connection state. Bun stores this on the `ws.data` slot so every
  *  handler (open / message / close) can reach it without closures. */
 export interface WsData {
   remoteIp: string;
+  remoteHost?: string;
   initialSession: string;
   cols: number;
   rows: number;
@@ -51,6 +73,8 @@ export interface WsData {
 
 interface WsConnState {
   pty?: BunPty;
+  remoteChannel?: RemoteChannelLike;
+  unsubscribeRemoteFrames?: () => void;
   /** Set to `true` in handleOpen when spawnPty returned a structured
    *  spawnError (cluster 15 F5). The WS is closed before being added
    *  to `reg.sessionRefs` / `reg.wsClientsBySession`; handleClose must
@@ -220,9 +244,14 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
     const cols = parseInt(url.searchParams.get('cols') || '80');
     const rows = parseInt(url.searchParams.get('rows') || '24');
     const session = sanitizeSession(url.searchParams.get('session') || 'main');
+    const remoteHostRaw = url.searchParams.get('remoteHost') ?? undefined;
+    if (remoteHostRaw !== undefined && !isValidRemoteHostAlias(remoteHostRaw)) {
+      return new Response('Invalid remote host', { status: 400 });
+    }
 
     const data: WsData = {
       remoteIp,
+      remoteHost: remoteHostRaw,
       initialSession: session,
       cols,
       rows,
@@ -272,6 +301,7 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
     websocket,
     close: () => {
       for (const u of unsubscribers) u();
+      void opts.remoteAgentManager?.close();
       // Force-kill any live PTY children. Without this, a PTY whose child
       // exited but whose master FD is still open (e.g. tests using
       // /bin/false as `tmuxBin`) keeps `Bun.serve.stop()` blocked.
@@ -288,9 +318,13 @@ export function createWsHandlers(opts: WsServerOptions): WsHandlers {
 
 function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsRegistry): void {
   const { config, tmuxConfPath } = opts;
-  const { remoteIp, initialSession: session, cols, rows, state } = ws.data;
+  const { remoteIp, remoteHost, initialSession: session, cols, rows, state } = ws.data;
 
   debug(config, `WS connected from ${remoteIp} session=${session} cols=${cols} rows=${rows}`);
+  if (remoteHost) {
+    void handleRemoteOpen(ws, remoteHost, opts, reg);
+    return;
+  }
 
   const command = buildPtyCommand({ testMode: config.testMode, session, tmuxConfPath, tmuxBin: config.tmuxBin });
   const env = buildPtyEnv();
@@ -371,11 +405,7 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
         debug(config, `attachSession(${session}) failed: ${(err as Error).message}`);
       });
   }
-  reg.sessionRefs.set(session, (reg.sessionRefs.get(session) ?? 0) + 1);
-  let sessionSet = reg.wsClientsBySession.get(session);
-  if (!sessionSet) { sessionSet = new Set(); reg.wsClientsBySession.set(session, sessionSet); }
-  sessionSet.add(ws);
-  state.sessionSet = sessionSet;
+  registerWsSession(ws, session, reg);
 
   // Forward drop-list mutations (new drop, auto-unlink on close, TTL
   // sweep, revoke, purge) to this client. Drops are a per-user pool
@@ -398,6 +428,80 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
       try { ws.send(frameTTMessage({ ptyExit: true })); } catch { /* ws gone */ }
     }
   });
+}
+
+async function handleRemoteOpen(
+  ws: ServerWebSocket<WsData>,
+  remoteHost: string,
+  opts: WsServerOptions,
+  reg: WsRegistry,
+): Promise<void> {
+  const { config } = opts;
+  const { remoteIp, initialSession: session, cols, rows, state } = ws.data;
+  debug(config, `WS remote open from ${remoteIp} host=${remoteHost} session=${session} cols=${cols} rows=${rows}`);
+
+  if (!opts.remoteAgentManager) {
+    sendPtyExitAndClose(ws, -1, 'remote agent manager unavailable', 'remote unavailable');
+    return;
+  }
+
+  try {
+    const agent = await opts.remoteAgentManager.getHost(remoteHost);
+    if (ws.readyState !== WS_OPEN) return;
+    const channel = await agent.openChannel({ session, cols, rows });
+    if (ws.readyState !== WS_OPEN) {
+      try { channel.close('websocket closed'); } catch { /* best-effort */ }
+      return;
+    }
+    state.remoteChannel = channel;
+    state.unsubscribeRemoteFrames = channel.on('frame', frame => handleRemoteFrame(ws, frame));
+    registerWsSession(ws, session, reg);
+    state.unsubscribeDrops = onDropsChange(() => {
+      if (ws.readyState !== WS_OPEN) return;
+      ws.send(frameTTMessage({ dropsChanged: true }));
+    });
+  } catch (err) {
+    debug(config, `remote open failed for host=${remoteHost} session=${session}: ${(err as Error).message}`);
+    sendPtyExitAndClose(ws, -1, (err as Error).message, 'remote open failed');
+  }
+}
+
+function handleRemoteFrame(ws: ServerWebSocket<WsData>, frame: StdioFrame): void {
+  if (ws.readyState !== WS_OPEN) return;
+  switch (frame.type) {
+    case 'pty-out':
+      ws.send(decodePtyBytes(frame).toString('utf8'));
+      markPtyOutputForwarded(ws.data.state);
+      return;
+    case 'server-msg':
+      ws.send(frameTTMessage(frame.data as ServerMessage));
+      return;
+    case 'channel-error':
+      sendPtyExitAndClose(ws, -1, frame.message, 'remote channel error');
+      return;
+    case 'close':
+      sendPtyExitAndClose(ws, 0, frame.reason, 'remote channel closed');
+      return;
+    default:
+      return;
+  }
+}
+
+function sendPtyExitAndClose(
+  ws: ServerWebSocket<WsData>,
+  exitCode: number,
+  exitReason: string | undefined,
+  closeReason: string,
+): void {
+  if (ws.readyState !== WS_OPEN) return;
+  try {
+    ws.send(frameTTMessage({
+      ptyExit: true,
+      exitCode,
+      exitReason,
+    }));
+  } catch { /* ws gone */ }
+  try { ws.close(1011, closeReason); } catch { /* best-effort */ }
 }
 
 async function tmuxSessionExists(sessionName: string, opts: WsServerOptions): Promise<boolean> {
@@ -487,11 +591,37 @@ async function refreshWindowsAfterSameSessionTitle(
 
 function handleMessage(ws: ServerWebSocket<WsData>, msg: string | Buffer, opts: WsServerOptions, reg: WsRegistry): void {
   const text = typeof msg === 'string' ? msg : Buffer.from(msg).toString('utf8');
+  if (ws.data.state.remoteChannel) {
+    routeRemoteMessage(ws.data.state.remoteChannel, text);
+    return;
+  }
   const actions = routeClientMessage(text, {
     currentSession: ws.data.state.lastSession,
     pendingReads: ws.data.state.pendingReads,
   });
   for (const act of actions) dispatchAction(ws, act, opts, reg);
+}
+
+function routeRemoteMessage(channel: RemoteChannelLike, text: string): void {
+  if (!text.startsWith('{')) {
+    channel.sendPty(text);
+    return;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    channel.sendPty(text);
+    return;
+  }
+  if (parsed !== null && typeof parsed === 'object') {
+    const msg = parsed as Record<string, unknown>;
+    if (msg.type === 'resize' && typeof msg.cols === 'number' && typeof msg.rows === 'number') {
+      channel.resize(msg.cols, msg.rows);
+      return;
+    }
+  }
+  channel.sendClientMessage(text);
 }
 
 function handleClose(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsRegistry): void {
@@ -508,11 +638,14 @@ function handleClose(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: Ws
   }
   cancelPtyOutputWaiters(state);
   state.unsubscribeDrops?.();
-  state.sessionSet?.delete(ws);
-  if (state.sessionSet && state.sessionSet.size === 0) reg.wsClientsBySession.delete(session);
-  const next = (reg.sessionRefs.get(session) ?? 1) - 1;
+  if (state.remoteChannel) {
+    state.unsubscribeRemoteFrames?.();
+    try { state.remoteChannel.close('websocket closed'); } catch { /* best-effort */ }
+    unregisterWsSession(ws, session, reg);
+    return;
+  }
+  const next = unregisterWsSession(ws, session, reg);
   if (next <= 0) {
-    reg.sessionRefs.delete(session);
     if (!config.testMode) {
       void Promise.all([
         teardownScrollbarState(ws, session, opts),
@@ -527,6 +660,31 @@ function handleClose(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: Ws
     }
   }
   state.pty?.kill();
+}
+
+function registerWsSession(ws: ServerWebSocket<WsData>, session: string, reg: WsRegistry): void {
+  const { state } = ws.data;
+  reg.sessionRefs.set(session, (reg.sessionRefs.get(session) ?? 0) + 1);
+  let sessionSet = reg.wsClientsBySession.get(session);
+  if (!sessionSet) {
+    sessionSet = new Set();
+    reg.wsClientsBySession.set(session, sessionSet);
+  }
+  sessionSet.add(ws);
+  state.sessionSet = sessionSet;
+}
+
+function unregisterWsSession(ws: ServerWebSocket<WsData>, session: string, reg: WsRegistry): number {
+  const { state } = ws.data;
+  state.sessionSet?.delete(ws);
+  if (state.sessionSet && state.sessionSet.size === 0) reg.wsClientsBySession.delete(session);
+  const next = (reg.sessionRefs.get(session) ?? 1) - 1;
+  if (next <= 0) {
+    reg.sessionRefs.delete(session);
+  } else {
+    reg.sessionRefs.set(session, next);
+  }
+  return next;
 }
 
 function nextScrollbarSubscriptionName(): string {

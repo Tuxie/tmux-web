@@ -49,6 +49,7 @@ export interface HarnessOpts {
    *  `tmuxBin` is set and `testMode` is false (so `getForegroundProcess`
    *  / `send-keys -H` paths reach the fake binary), else the null impl. */
   tmuxControl?: TmuxControl;
+  remoteAgentManager?: any;
 }
 
 export async function startTestServer(opts: HarnessOpts = {}): Promise<Harness> {
@@ -101,7 +102,13 @@ export async function startTestServer(opts: HarnessOpts = {}): Promise<Harness> 
     tmuxControl,
   });
 
-  const ws = createWsHandlers({ config, tmuxConfPath, sessionsStorePath, tmuxControl });
+  const ws = createWsHandlers({
+    config,
+    tmuxConfPath,
+    sessionsStorePath,
+    tmuxControl,
+    remoteAgentManager: opts.remoteAgentManager,
+  });
 
   const server = Bun.serve<WsData, never>({
     hostname: '127.0.0.1',
