@@ -345,6 +345,7 @@ async function main() {
       onDropsChanged: () => { void dropsPanel?.refresh(); },
       onScrollbar: (state) => scrollbar.updateState(state),
       onPtyExit: () => {
+        topbar.markSessionStopped(getSession());
         // Server signals the underlying PTY/tmux process exited. The
         // server intentionally does not initiate the close itself (Bun
         // 1.3.13 leaves `server.stop()` blocked when it does). Closing

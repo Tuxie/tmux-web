@@ -338,7 +338,7 @@ export class Topbar {
           el.addEventListener('click', (ev) => {
             ev.stopPropagation();
             close();
-            if (opts.isCurrent) return;
+            if (opts.isCurrent && opts.isRunning) return;
             if (!this.guardOnline('switch session')) return;
             this.opts.onSwitchSession?.(s.name, opts.remoteHost);
           });
@@ -1306,6 +1306,10 @@ export class Topbar {
 
   updateSessions(sessions: SessionInfo[]): void {
     this.cachedSessions = sessions.slice();
+  }
+
+  markSessionStopped(session: string): void {
+    this.cachedSessions = this.cachedSessions.filter(s => s.name !== session);
   }
 
   updateTitle(title: string): void {

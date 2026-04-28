@@ -1011,4 +1011,27 @@ describe('sessions menu: click-to-start-and-switch flow', () => {
     rowByName(rows, 'work').click();
     expect(switched).toEqual(['work', 'main', 'work']);
   });
+
+  it('clicking the current session still restarts it when it is stored-only after its PTY exits', async () => {
+    const switched: string[] = [];
+    const t = await mountTopbar({ session: 'work' });
+    (t as any).opts.onSwitchSession = (name: string) => switched.push(name);
+
+    _resetSessionStore({ sessions: { work: {} as any } });
+    (t as any).cachedSessions = [{ id: '2', name: 'work' }];
+    t.markSessionStopped('work');
+
+    const close = () => {};
+    const menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, close);
+    const rows = sessionRows(menu);
+    const work = rowByName(rows, 'work');
+
+    expect(statusDot(work).className).toContain('stopped');
+    expect(work.className).toContain('current');
+
+    work.click();
+
+    expect(switched).toEqual(['work']);
+  });
 });
