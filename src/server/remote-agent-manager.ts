@@ -1,7 +1,7 @@
 import { encodeFrame, encodePtyBytes, FrameDecoder, type StdioFrame } from './stdio-protocol.js';
 
 export interface AgentProc {
-  stdin: { write(data: Buffer): unknown; end(): unknown };
+  stdin: { write(data: Buffer): unknown; flush?(): unknown; end(): unknown };
   stdout: { on(event: 'data', cb: (chunk: Buffer | Uint8Array) => void): unknown };
   exited: Promise<unknown>;
   kill(): unknown;
@@ -88,7 +88,12 @@ export class RemoteHostAgent {
   private readySettled = false;
   readonly ready: Promise<RemoteHostAgent>;
 
-  constructor(host: string, proc: AgentProc, readonly idleTimeoutMs: number) {
+  constructor(
+    host: string,
+    proc: AgentProc,
+    readonly idleTimeoutMs: number,
+    private readonly onDone: (agent: RemoteHostAgent) => void = () => {},
+  ) {
     this.host = host;
     this.proc = proc;
     this.ready = new Promise<RemoteHostAgent>((resolve, reject) => {
@@ -144,6 +149,7 @@ export class RemoteHostAgent {
         return;
       case 'host-error':
         this.rejectAll(new Error(`remote host ${this.host} error: ${frame.code}: ${frame.message}`));
+        this.onDone(this);
         return;
       case 'open-ok': {
         const pending = this.pendingOpens.get(frame.channelId);
@@ -183,6 +189,7 @@ export class RemoteHostAgent {
 
   private writeFrame(frame: StdioFrame): void {
     this.proc.stdin.write(encodeFrame(frame));
+    this.proc.stdin.flush?.();
   }
 
   private resolveReady(): void {
@@ -209,6 +216,7 @@ export class RemoteHostAgent {
 
   private handleExit(err?: unknown): void {
     this.rejectAll(err ?? new Error(`remote host ${this.host} agent exited`));
+    this.onDone(this);
   }
 }
 
@@ -225,7 +233,11 @@ export class RemoteAgentManager {
   getHost(host: string): Promise<RemoteHostAgent> {
     let agent = this.agents.get(host);
     if (!agent) {
-      agent = new RemoteHostAgent(host, this.spawn(host), this.idleTimeoutMs);
+      agent = new RemoteHostAgent(host, this.spawn(host), this.idleTimeoutMs, closedAgent => {
+        if (this.agents.get(host) === closedAgent) {
+          this.agents.delete(host);
+        }
+      });
       this.agents.set(host, agent);
     }
     return agent.ready;
@@ -251,6 +263,7 @@ function spawnSshAgent(host: string): AgentProc {
   return {
     stdin: {
       write: data => proc.stdin.write(data),
+      flush: () => proc.stdin.flush(),
       end: () => proc.stdin.end(),
     },
     stdout: adaptReadable(proc.stdout, () => proc.kill()),
