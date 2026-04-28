@@ -4,7 +4,6 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   desktopExtraArgs,
-  findTmuxInPath,
 } from '../../../src/desktop/tmux-path.ts';
 
 const originalPath = process.env.PATH;
@@ -27,19 +26,12 @@ function makeExecutable(name: string): string {
 }
 
 describe('desktop entrypoint helpers', () => {
-  test('findTmuxInPath returns the first executable tmux on PATH', () => {
-    const tmux = makeExecutable('tmux');
-    process.env.PATH = path.dirname(tmux);
-
-    expect(findTmuxInPath()).toBe(tmux);
-  });
-
-  test('desktopExtraArgs passes PATH tmux by default', () => {
+  test('desktopExtraArgs leaves default tmux lookup to the tmux-web server PATH', () => {
     const tmux = makeExecutable('tmux');
     process.env.PATH = path.dirname(tmux);
     delete process.env.TMUX_TERM_TMUX_BIN;
 
-    expect(desktopExtraArgs()).toEqual(['--tmux', tmux]);
+    expect(desktopExtraArgs()).toEqual([]);
   });
 
   test('desktopExtraArgs lets TMUX_TERM_TMUX_BIN override PATH', () => {
@@ -50,7 +42,7 @@ describe('desktop entrypoint helpers', () => {
     expect(desktopExtraArgs()).toEqual(['--tmux', '/custom/tmux']);
   });
 
-  test('desktopExtraArgs does not fall back to a sibling bundled tmux when PATH has none', () => {
+  test('desktopExtraArgs does not fall back to a sibling bundled tmux', () => {
     const tmux = makeExecutable('tmux');
     const bun = path.join(path.dirname(tmux), 'bun');
     fs.writeFileSync(bun, '#!/bin/sh\nexit 0\n', { mode: 0o755 });

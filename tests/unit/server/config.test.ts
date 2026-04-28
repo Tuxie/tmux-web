@@ -1,5 +1,10 @@
 import { expect, test, describe } from "bun:test";
-import { parseConfig, resolveRuntimeBaseDir } from "../../../src/server/index.js";
+import {
+  appendTmuxSearchDirsToPath,
+  parseConfig,
+  resolveRuntimeBaseDir,
+  TMUX_SEARCH_DIRS,
+} from "../../../src/server/index.js";
 
 test("parseConfig returns default values", () => {
   const { config } = parseConfig([]);
@@ -9,6 +14,15 @@ test("parseConfig returns default values", () => {
 test("parseConfig defaults tmuxBin to host tmux", () => {
   const { config } = parseConfig([]);
   expect(config?.tmuxBin).toBe("tmux");
+});
+
+test("appendTmuxSearchDirsToPath appends tmux search dirs after existing PATH entries", () => {
+  const base = ["/custom/bin", TMUX_SEARCH_DIRS[2]].join(":");
+  expect(appendTmuxSearchDirsToPath(base)).toBe([
+    "/custom/bin",
+    TMUX_SEARCH_DIRS[2],
+    ...TMUX_SEARCH_DIRS.filter(dir => dir !== TMUX_SEARCH_DIRS[2]),
+  ].join(":"));
 });
 
 test("parseConfig with --no-tls returns tls: false", () => {

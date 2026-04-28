@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { parseArgs } from 'util';
-import { tmpdir, userInfo } from 'os';
+import { homedir, tmpdir, userInfo } from 'os';
 import { createHttpHandler } from './http.js';
 import { createWsHandlers, type WsData } from './ws.js';
 import { createTmuxControl, createNullTmuxControl } from './tmux-control.js';
@@ -15,6 +15,30 @@ import pkg from '../../package.json' with { type: 'json' };
 import type { DropStorage } from './file-drop.js';
 
 const VERSION: string = (pkg as { version: string }).version;
+const HOME_DIR = process.env.HOME || homedir();
+export const TMUX_SEARCH_DIRS = [
+  path.join(HOME_DIR, 'bin'),
+  path.join(HOME_DIR, '.local', 'bin'),
+  '/opt/homebrew/bin',
+  '/home/linuxbrew/.linuxbrew/bin',
+  '/opt/local/bin',
+  '/usr/local/bin',
+  '/snap/bin',
+];
+
+export function appendTmuxSearchDirsToPath(existingPath: string | undefined): string {
+  const seen = new Set<string>();
+  const dirs: string[] = [];
+  for (const dir of [
+    ...(existingPath ?? '').split(path.delimiter),
+    ...TMUX_SEARCH_DIRS,
+  ]) {
+    if (!dir || seen.has(dir)) continue;
+    seen.add(dir);
+    dirs.push(dir);
+  }
+  return dirs.join(path.delimiter);
+}
 
 export interface ServerCleanupResources {
   ws: { close: () => void };
@@ -254,6 +278,8 @@ export function resolveRuntimeBaseDir(opts: RuntimeBaseDirOptions = {}): string 
 }
 
 async function startServer() {
+  process.env.PATH = appendTmuxSearchDirsToPath(process.env.PATH);
+
   // Check before parseConfig so we can detect CLI password usage before it's
   // merged into config (env var vs CLI flag indistinguishable afterwards).
   const argvHasPassword = process.argv.some(
