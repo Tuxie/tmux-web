@@ -132,6 +132,11 @@ export interface RemoteServerConfig {
   compression: boolean;
 }
 
+export interface RemoteServerSection {
+  host: string;
+  label: string;
+}
+
 let cache: SessionsCache = { sessions: {}, knownServers: [], servers: [] };
 
 function isValidRemoteHostAlias(host: string): boolean {
@@ -345,14 +350,23 @@ export function setLastActiveSession(name: string): void {
 }
 
 export function getKnownRemoteServers(): string[] {
-  const hosts = [...cache.knownServers];
-  const seen = new Set(hosts);
+  return getRemoteServerSections().map(section => section.host);
+}
+
+export function getRemoteServerSections(): RemoteServerSection[] {
+  const sections: RemoteServerSection[] = [];
+  const seen = new Set<string>();
   for (const server of cache.servers) {
     if (seen.has(server.host)) continue;
     seen.add(server.host);
-    hosts.push(server.host);
+    sections.push({ host: server.host, label: server.name || server.host });
   }
-  return hosts;
+  for (const host of cache.knownServers) {
+    if (seen.has(host)) continue;
+    seen.add(host);
+    sections.push({ host, label: host });
+  }
+  return sections;
 }
 
 export function getRemoteServers(): RemoteServerConfig[] {
@@ -369,14 +383,7 @@ export function saveRemoteServers(servers: RemoteServerConfig[]): void {
 }
 
 export function recordKnownRemoteServer(host: string): void {
-  if (!isValidRemoteHostAlias(host)) return;
-  if (cache.knownServers.includes(host)) return;
-  cache.knownServers = [...cache.knownServers, host];
-  void fetch('/api/settings', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ knownServers: [host] }),
-  }).catch(() => {});
+  void host;
 }
 
 export function applyThemeDefaults(s: SessionSettings, td: ThemeDefaults): SessionSettings {

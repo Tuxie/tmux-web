@@ -459,14 +459,39 @@ describe('sessions menu: running/stopped states and current marker', () => {
     expect(rows.length).toBe(3);
   });
 
-  it('renders local sessions first, then known remote server sections', async () => {
+  it('renders local sessions first, then remote server sections using configured names', async () => {
     const t = await mountTopbar({ session: 'main' });
     (t as any).cachedSessions = [{ id: '1', name: 'local' }];
     (t as any).cachedRemoteSessions = new Map([
-      ['dev', [{ id: '2', name: 'remote-a', windows: 1 }]],
-      ['prod', [{ id: '3', name: 'remote-b', windows: 2 }]],
+      ['dev.example.com', [{ id: '2', name: 'remote-a', windows: 1 }]],
+      ['prod.example.com', [{ id: '3', name: 'remote-b', windows: 2 }]],
     ]);
-    _resetSessionStore({ sessions: {}, knownServers: ['dev', 'prod'] } as any);
+    _resetSessionStore({
+      sessions: {},
+      knownServers: [],
+      servers: [
+        {
+          id: 'dev',
+          name: 'Development Box',
+          host: 'dev.example.com',
+          port: 22,
+          protocol: 'ssh',
+          username: 'per',
+          savePassword: false,
+          compression: true,
+        },
+        {
+          id: 'prod',
+          name: '',
+          host: 'prod.example.com',
+          port: 443,
+          protocol: 'https',
+          username: 'per',
+          savePassword: false,
+          compression: false,
+        },
+      ],
+    } as any);
 
     const menu = (globalThis.document as any).createElement('div');
     (t as any).renderSessionsMenu(menu, () => {});
@@ -483,9 +508,9 @@ describe('sessions menu: running/stopped states and current marker', () => {
       });
     expect(sequence).toEqual([
       'row:local',
-      'header:dev',
+      'header:Development Box',
       'row:remote-a',
-      'header:prod',
+      'header:prod.example.com',
       'row:remote-b',
     ]);
   });

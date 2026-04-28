@@ -12,9 +12,8 @@ import {
   deleteSessionSettings,
   getLiveSessionSettings,
   getStoredSessionNames,
-  getKnownRemoteServers,
+  getRemoteServerSections,
   initSessionStore,
-  recordKnownRemoteServer,
   sessionSettingsKey,
   setLastActiveSession,
   applyThemeDefaults,
@@ -207,10 +206,8 @@ export class Topbar {
           initSessionStore(),
         ]);
         if (running) this.cachedSessions = running;
-        const currentRemoteHost = remoteHostFromPath(location.pathname);
-        if (currentRemoteHost) recordKnownRemoteServer(currentRemoteHost);
         if (!includeRemote) return;
-        const hosts = getKnownRemoteServers();
+        const hosts = getRemoteServerSections().map(section => section.host);
         const remoteResults = await Promise.all(hosts.map(async (host) => {
           try {
             const res = await fetch('/api/remote-sessions?host=' + encodeURIComponent(host));
@@ -376,13 +373,13 @@ export class Topbar {
           });
         }
 
-        for (const host of getKnownRemoteServers()) {
+        for (const { host, label } of getRemoteServerSections()) {
           const sessions = (this.cachedRemoteSessions.get(host) ?? [])
             .slice()
             .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
           const section = document.createElement('div');
           section.className = 'tw-menu-section';
-          section.textContent = host;
+          section.textContent = label;
           menu.appendChild(section);
           for (const s of sessions) {
             const isRunning = s.running !== false;

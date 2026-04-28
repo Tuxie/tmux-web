@@ -10,6 +10,7 @@ import {
   sessionSettingsKey,
   setLastActiveSession,
   getKnownRemoteServers,
+  getRemoteServerSections,
   getRemoteServers,
   recordKnownRemoteServer,
   saveRemoteServers,
@@ -372,7 +373,45 @@ describe("session-settings", () => {
       savePassword: false,
       compression: true,
     }]);
-    expect(getKnownRemoteServers()).toEqual(["legacy", "dev.example.com"]);
+    expect(getKnownRemoteServers()).toEqual(["dev.example.com", "legacy"]);
+  });
+
+  test("remote server sections use configured names and fall back to host", async () => {
+    setupFakeFetch({ sessions: {} }, {
+      initialSettings: {
+        knownServers: ["legacy"],
+        servers: [
+          {
+            id: "dev",
+            name: "Development Box",
+            host: "dev.example.com",
+            port: 22,
+            protocol: "ssh",
+            username: "per",
+            savePassword: false,
+            compression: true,
+          },
+          {
+            id: "prod",
+            name: "",
+            host: "prod.example.com",
+            port: 443,
+            protocol: "https",
+            username: "per",
+            savePassword: false,
+            compression: false,
+          },
+        ],
+      },
+    });
+
+    await initSessionStore();
+
+    expect(getRemoteServerSections()).toEqual([
+      { host: "dev.example.com", label: "Development Box" },
+      { host: "prod.example.com", label: "prod.example.com" },
+      { host: "legacy", label: "legacy" },
+    ]);
   });
 
   test("saveRemoteServers replaces the structured server list through settings.json", async () => {
@@ -419,7 +458,7 @@ describe("session-settings", () => {
     });
   });
 
-  test("recordKnownRemoteServer appends a valid host once and persists to settings.json", async () => {
+  test("recordKnownRemoteServer does not add legacy knownServers anymore", async () => {
     const calls = setupFakeFetch({ sessions: {} }, { initialSettings: { knownServers: ["dev"] } });
     await initSessionStore();
 
@@ -427,10 +466,9 @@ describe("session-settings", () => {
     recordKnownRemoteServer("prod");
     recordKnownRemoteServer("-Jbad");
 
-    expect(getKnownRemoteServers()).toEqual(["dev", "prod"]);
+    expect(getKnownRemoteServers()).toEqual(["dev"]);
     const puts = calls.filter(c => c.url === "/api/settings" && c.init?.method === "PUT");
-    expect(puts).toHaveLength(1);
-    expect(JSON.parse(puts[0]!.init!.body as string)).toEqual({ knownServers: ["prod"] });
+    expect(puts).toHaveLength(0);
   });
 
   test("deleteSessionSettings removes cache entry and issues DELETE", async () => {
