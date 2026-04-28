@@ -285,6 +285,9 @@ export function resolveRuntimeBaseDir(opts: RuntimeBaseDirOptions = {}): string 
 export interface StdioAgentLaunchOptions {
   tmuxBin: string;
   tmuxConfPath: string;
+  sessionsStorePath: string;
+  projectRoot: string;
+  isCompiled: boolean;
 }
 
 export interface MaterializeStdioAgentTmuxConfOptions {
@@ -332,6 +335,7 @@ export function buildStdioAgentLaunchOptions(
   opts: {
     runtimeBaseDir?: string;
     projectRoot?: string;
+    isCompiled?: boolean;
     embeddedAssets?: Record<string, string>;
     existsSync?: (p: string) => boolean;
     readFileSync?: (p: string) => string;
@@ -342,8 +346,13 @@ export function buildStdioAgentLaunchOptions(
   if (!parsed.stdioAgent) return null;
   const runtimeBaseDir = opts.runtimeBaseDir ?? resolveRuntimeBaseDir();
   const projectRoot = opts.projectRoot ?? path.resolve(import.meta.dir, '../..');
+  const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(process.env.HOME ?? '', '.config');
   return {
     tmuxBin: 'tmux',
+    sessionsStorePath: process.env.TMUX_WEB_SESSIONS_FILE
+      ?? path.join(xdgConfigHome, 'tmux-web', 'sessions.json'),
+    projectRoot,
+    isCompiled: opts.isCompiled ?? false,
     tmuxConfPath: materializeStdioAgentTmuxConf({
       runtimeBaseDir,
       projectRoot,
@@ -448,6 +457,7 @@ Options:
     const projectRoot = isCompiled ? path.dirname(process.execPath) : path.resolve(import.meta.dir, '../..');
     const launch = buildStdioAgentLaunchOptions(parsedConfig, {
       projectRoot,
+      isCompiled,
       embeddedAssets,
     });
     if (!launch) {
@@ -465,6 +475,9 @@ Options:
       version: VERSION,
       tmuxBin: launch.tmuxBin,
       tmuxConfPath: launch.tmuxConfPath,
+      sessionsStorePath: launch.sessionsStorePath,
+      projectRoot: launch.projectRoot,
+      isCompiled: launch.isCompiled,
     });
 
     let cleanupRan = false;

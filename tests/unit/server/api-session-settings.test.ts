@@ -187,14 +187,35 @@ describe("/api/remote-sessions", () => {
       remoteAgentManager: {
         async getHost(host: string) {
           expect(host).toBe("dev");
-          return { listSessions: async () => [{ id: "1", name: "main", windows: 2 }] };
+          return {
+            async apiGet(apiPath: string) {
+              if (apiPath === "/api/sessions") {
+                return { status: 200, body: [{ id: "1", name: "main", windows: 2 }] };
+              }
+              if (apiPath === "/api/session-settings") {
+                return {
+                  status: 200,
+                  body: {
+                    version: 1,
+                    sessions: {
+                      archived: { theme: "Default", colours: "Nord", fontFamily: "F", fontSize: 18, spacing: 1, opacity: 0 },
+                    },
+                  },
+                };
+              }
+              return { status: 404, body: "Not Found" };
+            },
+          };
         },
       },
     });
 
     const r = await call(handler, { method: "GET", url: "/api/remote-sessions?host=dev" });
     expect(r.status).toBe(200);
-    expect(JSON.parse(r.body)).toEqual([{ id: "1", name: "main", windows: 2 }]);
+    expect(JSON.parse(r.body)).toEqual([
+      { id: "", name: "archived", running: false },
+      { id: "1", name: "main", windows: 2, running: true },
+    ]);
   });
 
   test("GET rejects invalid remote host aliases", async () => {

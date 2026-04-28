@@ -383,10 +383,11 @@ export class Topbar {
           section.textContent = host;
           menu.appendChild(section);
           for (const s of sessions) {
+            const isRunning = s.running !== false;
             this.appendSessionRow(menu, close, {
               session: s,
               isCurrent: currentRemoteHost === host && s.name === current,
-              isRunning: true,
+              isRunning,
               remoteHost: host,
             });
           }

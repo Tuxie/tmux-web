@@ -135,6 +135,36 @@ describe('stdio protocol framing', () => {
     });
   });
 
+  test('canonicalizes API request and response frames', () => {
+    expect(decodeFramePayload(Buffer.from(JSON.stringify({
+      v: 1,
+      type: 'api-get',
+      requestId: 'req-1',
+      path: '/api/sessions',
+      ignored: true,
+    })))).toEqual({
+      v: 1,
+      type: 'api-get',
+      requestId: 'req-1',
+      path: '/api/sessions',
+    });
+
+    expect(decodeFramePayload(Buffer.from(JSON.stringify({
+      v: 1,
+      type: 'api-response',
+      requestId: 'req-1',
+      status: 200,
+      body: [{ id: '1', name: 'main' }],
+      ignored: true,
+    })))).toEqual({
+      v: 1,
+      type: 'api-response',
+      requestId: 'req-1',
+      status: 200,
+      body: [{ id: '1', name: 'main' }],
+    });
+  });
+
   test('rejects malformed list-sessions response payloads', () => {
     const payload = Buffer.from(JSON.stringify({
       v: 1,

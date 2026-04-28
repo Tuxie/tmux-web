@@ -535,6 +535,23 @@ describe('sessions menu: running/stopped states and current marker', () => {
 
     expect(switched).toEqual([{ name: 'work', host: 'dev' }]);
   });
+
+  it('renders stored-only remote sessions as not running', async () => {
+    const t = await mountTopbar({ session: 'main' });
+    (t as any).cachedSessions = [{ id: '1', name: 'main' }];
+    (t as any).cachedRemoteSessions = new Map([
+      ['dev', [{ id: '', name: 'archived', running: false }]],
+    ]);
+    _resetSessionStore({ sessions: {}, knownServers: ['dev'] } as any);
+
+    const menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+    const archivedRow = rowByName(sessionRows(menu), 'archived');
+    expect(archivedRow).not.toBeNull();
+    const dot = statusDot(archivedRow);
+    expect(dot.className).toContain('stopped');
+    expect(dot.attrs['aria-label']).toBe('Not running');
+  });
 });
 
 // ─── shared interaction helpers ──────────────────────────────────────────────

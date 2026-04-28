@@ -56,6 +56,9 @@ export interface WindowInfo {
 export interface SessionInfo {
   id: string;
   name: string;
+  /** False for stored settings whose tmux session is not currently
+   *  running. Omitted by older/local live-only APIs and treated as true. */
+  running?: boolean;
   /** Window count from `#{session_windows}`. Optional because older
    *  server builds (and persisted-only stopped sessions on the client)
    *  don't supply it. */

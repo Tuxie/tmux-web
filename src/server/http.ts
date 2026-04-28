@@ -48,7 +48,7 @@ export interface HttpHandlerOptions {
   tmuxControl: TmuxControl;
   remoteAgentManager?: {
     getHost(host: string): Promise<{
-      listSessions(): Promise<Array<{ id: string; name: string; windows?: number }>>;
+      apiGet(path: string): Promise<{ status: number; body: unknown }>;
     }>;
   };
 }
@@ -174,6 +174,43 @@ function validateSettingsPatch(value: unknown): SettingsPatchValidationResult {
     }
   }
   return { ok: true, patch: obj as ServerSettingsPatch };
+}
+
+function isSessionInfoArray(value: unknown): value is Array<{ id: string; name: string; windows?: number }> {
+  return Array.isArray(value) && value.every(entry => (
+    entry
+    && typeof entry === 'object'
+    && typeof (entry as { id?: unknown }).id === 'string'
+    && typeof (entry as { name?: unknown }).name === 'string'
+    && (
+      (entry as { windows?: unknown }).windows === undefined
+      || typeof (entry as { windows?: unknown }).windows === 'number'
+    )
+  ));
+}
+
+function isRemoteSessionSettingsKey(name: string): boolean {
+  return name.startsWith('/r/');
+}
+
+function mergeSessionMenuEntries(
+  running: Array<{ id: string; name: string; windows?: number }>,
+  settings: unknown,
+): Array<{ id: string; name: string; windows?: number; running: boolean }> {
+  const byName = new Map<string, { id: string; name: string; windows?: number; running: boolean }>();
+  for (const session of running) {
+    byName.set(session.name, { ...session, running: true });
+  }
+  const sessions = settings && typeof settings === 'object'
+    ? (settings as { sessions?: unknown }).sessions
+    : null;
+  if (sessions && typeof sessions === 'object' && !Array.isArray(sessions)) {
+    for (const name of Object.keys(sessions)) {
+      if (isRemoteSessionSettingsKey(name) || byName.has(name)) continue;
+      byName.set(name, { id: '', name, running: false });
+    }
+  }
+  return [...byName.values()].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 }
 
 /** Thin wrapper that resolves the foreground process (so we know
@@ -576,8 +613,15 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
       }
       try {
         const agent = await opts.remoteAgentManager.getHost(host);
-        const sessions = await agent.listSessions();
-        return new Response(JSON.stringify(sessions), { headers: JSON_HEADERS });
+        const [sessionsResponse, settingsResponse] = await Promise.all([
+          agent.apiGet('/api/sessions'),
+          agent.apiGet('/api/session-settings'),
+        ]);
+        const running = sessionsResponse.status === 200 && isSessionInfoArray(sessionsResponse.body)
+          ? sessionsResponse.body
+          : [];
+        const settings = settingsResponse.status === 200 ? settingsResponse.body : null;
+        return new Response(JSON.stringify(mergeSessionMenuEntries(running, settings)), { headers: JSON_HEADERS });
       } catch (err) {
         debug(config, `remote sessions failed for host=${host}: ${err}`);
         return new Response(JSON.stringify([]), { headers: JSON_HEADERS });

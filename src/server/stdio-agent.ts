@@ -1,5 +1,12 @@
 import { EventEmitter } from 'node:events';
-import { buildPtyCommand, buildPtyEnv, sanitizeSession, spawnPty, type BunPty } from './pty.js';
+import { userInfo } from 'node:os';
+import path from 'node:path';
+import { LOCALHOST_IPS } from '../shared/constants.js';
+import type { ServerConfig } from '../shared/types.js';
+import { createHttpHandler } from './http.js';
+import { createWsHandlers, type WsData } from './ws.js';
+import { cleanupAll as cleanupDrops, defaultDropStorage, type DropStorage } from './file-drop.js';
+import { RemoteAgentManager } from './remote-agent-manager.js';
 import {
   decodePtyBytes,
   encodeFrame,
@@ -8,33 +15,39 @@ import {
   type StdioFrame,
 } from './stdio-protocol.js';
 import type { TmuxControl } from './tmux-control.js';
-import { listSessionsViaTmux } from './tmux-listings.js';
-import { routeClientMessage, type PendingRead, type WsAction } from './ws-router.js';
-
-export interface AgentPtyFactoryOptions {
-  session: string;
-  cols: number;
-  rows: number;
-}
-
-export type AgentPtyFactory = (opts: AgentPtyFactoryOptions) => BunPty;
+import { embeddedAssets } from './assets-embedded.js';
 
 export interface StdioAgentOptions {
   input: EventEmitter;
   write: (buf: Buffer) => unknown;
-  makePty?: AgentPtyFactory;
   tmuxControl: TmuxControl;
   version: string;
   tmuxBin?: string;
   tmuxConfPath?: string;
+  sessionsStorePath?: string;
+  settingsStorePath?: string;
+  projectRoot?: string;
+  isCompiled?: boolean;
+  htmlTemplate?: string;
+  distDir?: string;
+  themesUserDir?: string;
+  themesBundledDir?: string;
+  dropStorage?: DropStorage;
+  fetch?: typeof fetch;
+  webSocketFactory?: (url: string) => WebSocket;
+  serverFactory?: () => Promise<AgentServer>;
+}
+
+export interface AgentServer {
+  baseUrl: string;
+  close(): Promise<void>;
 }
 
 interface Channel {
   id: string;
-  session: string;
-  pty: BunPty;
-  pendingReads: Map<string, PendingRead>;
-  lastSize: { cols: number; rows: number };
+  ws: WebSocket;
+  opened: boolean;
+  pending: string[];
 }
 
 export function eventInputFromNodeReadable(input: NodeJS.ReadableStream): EventEmitter {
@@ -45,10 +58,136 @@ export function eventInputFromNodeReadable(input: NodeJS.ReadableStream): EventE
   return emitter;
 }
 
+function stdioAgentConfig(tmuxBin: string): ServerConfig {
+  return {
+    host: '127.0.0.1',
+    port: 0,
+    allowedIps: new Set(LOCALHOST_IPS),
+    allowedOrigins: [],
+    tls: false,
+    tmuxBin,
+    testMode: false,
+    debug: false,
+    exposeClientAuth: false,
+    auth: {
+      enabled: false,
+      username: userInfo().username,
+      password: undefined,
+    },
+  };
+}
+
+async function readHtmlTemplate(opts: StdioAgentOptions, projectRoot: string): Promise<string> {
+  if (opts.htmlTemplate !== undefined) return opts.htmlTemplate;
+  const embeddedHtmlPath = embeddedAssets['src/client/index.html'];
+  if (embeddedHtmlPath) return Bun.file(embeddedHtmlPath).text();
+  const htmlPath = path.join(projectRoot, 'src/client/index.html');
+  try {
+    return await Bun.file(htmlPath).text();
+  } catch {
+    return '';
+  }
+}
+
+async function startLoopbackServer(opts: StdioAgentOptions): Promise<AgentServer> {
+  const projectRoot = opts.projectRoot ?? path.resolve(import.meta.dir, '../..');
+  const config = stdioAgentConfig(opts.tmuxBin ?? 'tmux');
+  const sessionsStorePath = opts.sessionsStorePath
+    ?? path.join(process.env.XDG_CONFIG_HOME || path.join(process.env.HOME ?? '', '.config'), 'tmux-web', 'sessions.json');
+  const settingsStorePath = opts.settingsStorePath
+    ?? path.join(path.dirname(sessionsStorePath), 'settings.json');
+  const themesUserDir = opts.themesUserDir
+    ?? path.join(path.dirname(sessionsStorePath), 'themes');
+  const themesBundledDir = opts.themesBundledDir
+    ?? path.join(projectRoot, 'themes');
+  const distDir = opts.distDir ?? path.join(projectRoot, 'dist');
+  const dropStorage = opts.dropStorage ?? defaultDropStorage();
+  const remoteAgentManager = new RemoteAgentManager();
+  const tmuxConfPath = opts.tmuxConfPath ?? path.join(projectRoot, 'tmux.conf');
+  const htmlTemplate = await readHtmlTemplate(opts, projectRoot);
+
+  const handler = await createHttpHandler({
+    config,
+    htmlTemplate,
+    distDir,
+    themesUserDir,
+    themesBundledDir,
+    projectRoot,
+    isCompiled: opts.isCompiled,
+    sessionsStorePath,
+    settingsStorePath,
+    dropStorage,
+    tmuxControl: opts.tmuxControl,
+    remoteAgentManager,
+  });
+  const ws = createWsHandlers({
+    config,
+    tmuxConfPath,
+    sessionsStorePath,
+    tmuxControl: opts.tmuxControl,
+    remoteAgentManager,
+  });
+
+  const server = Bun.serve<WsData, never>({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch(req, srv) {
+      const url = new URL(req.url);
+      if (url.pathname.startsWith('/ws') || req.headers.get('upgrade')?.toLowerCase() === 'websocket') {
+        const rejected = ws.upgrade(req, srv);
+        if (rejected) return rejected;
+        return undefined;
+      }
+      return handler(req, srv);
+    },
+    error() {
+      return new Response('Internal Server Error', { status: 500 });
+    },
+    websocket: ws.websocket,
+  });
+
+  return {
+    baseUrl: `http://${server.hostname}:${server.port}`,
+    async close() {
+      try { ws.close(); } catch { /* best-effort */ }
+      try { await remoteAgentManager.close(); } catch { /* best-effort */ }
+      server.stop(true);
+      try { await cleanupDrops(dropStorage); } catch { /* best-effort */ }
+    },
+  };
+}
+
+function responseBody(response: Response): Promise<unknown> {
+  const contentType = response.headers.get('content-type') ?? '';
+  if (contentType.toLowerCase().includes('application/json')) return response.json();
+  return response.text();
+}
+
+function isSessionInfoArray(value: unknown): value is Array<{ id: string; name: string; windows?: number; running?: boolean }> {
+  return Array.isArray(value) && value.every(entry => (
+    entry
+    && typeof entry === 'object'
+    && typeof (entry as { id?: unknown }).id === 'string'
+    && typeof (entry as { name?: unknown }).name === 'string'
+    && (
+      (entry as { windows?: unknown }).windows === undefined
+      || typeof (entry as { windows?: unknown }).windows === 'number'
+    )
+    && (
+      (entry as { running?: unknown }).running === undefined
+      || typeof (entry as { running?: unknown }).running === 'boolean'
+    )
+  ));
+}
+
 export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
   const decoder = new FrameDecoder();
   const channels = new Map<string, Channel>();
+  const fetchImpl = opts.fetch ?? fetch;
+  const webSocketFactory = opts.webSocketFactory ?? ((url: string) => new WebSocket(url));
   let closed = false;
+  let serverPromise: Promise<AgentServer> | null = null;
+  let server: AgentServer | null = null;
 
   const send = (frame: StdioFrame): void => {
     try {
@@ -58,32 +197,28 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
     }
   };
 
-  const makePty = opts.makePty ?? ((p: AgentPtyFactoryOptions) => spawnPty({
-    command: buildPtyCommand({
-      testMode: false,
-      session: p.session,
-      tmuxConfPath: opts.tmuxConfPath ?? '',
-      tmuxBin: opts.tmuxBin ?? 'tmux',
-    }),
-    env: buildPtyEnv(),
-    cols: p.cols,
-    rows: p.rows,
-  }));
+  const getServer = async (): Promise<AgentServer> => {
+    if (!serverPromise) {
+      serverPromise = (opts.serverFactory ?? (() => startLoopbackServer(opts)))().then(started => {
+        server = started;
+        return started;
+      });
+    }
+    return serverPromise;
+  };
 
-  const closeChannel = (channelId: string, closeOpts: { kill?: boolean } = {}): void => {
+  const closeChannel = (channelId: string, reason = 'channel closed'): void => {
     const channel = channels.get(channelId);
     if (!channel) return;
     channels.delete(channelId);
-    if (closeOpts.kill !== false) {
-      try { channel.pty.kill(); } catch { /* best-effort */ }
-    }
-    try { opts.tmuxControl.detachSession(channel.session); } catch { /* best-effort */ }
+    try { channel.ws.close(1000, reason); } catch { /* best-effort */ }
   };
 
   function closeAll(): void {
     if (closed) return;
     closed = true;
-    for (const id of [...channels.keys()]) closeChannel(id);
+    for (const id of [...channels.keys()]) closeChannel(id, 'agent closed');
+    void server?.close();
   }
 
   const removeInputListeners = (): void => {
@@ -99,306 +234,114 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
     closeAll();
   };
 
-  const open = (frame: Extract<StdioFrame, { type: 'open' }>): void => {
-    if (channels.has(frame.channelId)) {
-      closeChannel(frame.channelId);
-    }
-
-    const session = sanitizeSession(frame.session);
-    let pty: BunPty;
-    try {
-      pty = makePty({ session, cols: frame.cols, rows: frame.rows });
-    } catch (err) {
-      send({
-        v: 1,
-        type: 'channel-error',
-        channelId: frame.channelId,
-        code: 'pty-spawn-failed',
-        message: err instanceof Error ? err.message : String(err),
-      });
-      return;
-    }
-
-    if (pty.spawnError) {
-      send({
-        v: 1,
-        type: 'channel-error',
-        channelId: frame.channelId,
-        code: 'pty-spawn-failed',
-        message: pty.spawnError.message,
-      });
-      return;
-    }
-
-    const channel: Channel = {
-      id: frame.channelId,
-      session,
-      pty,
-      pendingReads: new Map(),
-      lastSize: { cols: frame.cols, rows: frame.rows },
-    };
-    channels.set(frame.channelId, channel);
-    pty.onData((data) => {
-      if (channels.get(frame.channelId) !== channel) return;
-      send(encodePtyBytes(frame.channelId, Buffer.from(data, 'utf8'), 'pty-out'));
-    });
-    pty.onExit(() => {
-      if (channels.get(frame.channelId) !== channel) return;
-      send({ v: 1, type: 'server-msg', channelId: frame.channelId, data: { ptyExit: true } });
-      closeChannel(frame.channelId, { kill: false });
-    });
-
-    void opts.tmuxControl.attachSession(session, { cols: frame.cols, rows: frame.rows }).catch(() => {});
-    send({ v: 1, type: 'open-ok', channelId: frame.channelId, session });
-  };
-
   const sendChannelError = (channelId: string, code: string, message: string): void => {
     send({ v: 1, type: 'channel-error', channelId, code, message });
   };
 
-  const sendClientActionError = (channelId: string, code: string, message: string): void => {
-    send({
-      v: 1,
-      type: 'server-msg',
-      channelId,
-      data: { error: true, code, message },
-    });
-  };
-
-  const unsupportedClientAction = (channel: Channel, act: WsAction): void => {
-    sendClientActionError(channel.id, 'unsupported-client-action', `unsupported client action: ${act.type}`);
-  };
-
-  const isSafeTmuxIndex = (index: unknown): index is string => (
-    typeof index === 'string' && /^[0-9]+$/.test(index)
-  );
-
-  const isSafeTmuxName = (name: string): boolean => {
-    const trimmed = name.trim();
-    if (!trimmed) return false;
-    if (trimmed.startsWith('-')) return false;
-    if (trimmed.includes(':') || trimmed.includes('.')) return false;
-    return true;
-  };
-
-  const applyWindowAction = async (
-    channel: Channel,
-    act: Extract<WsAction, { type: 'window' }>,
-  ): Promise<void> => {
-    const session = channel.session;
-    const target = isSafeTmuxIndex(act.index) ? `${session}:${act.index}` : null;
-    let args: string[] | null = null;
-
-    switch (act.action) {
-      case 'select':
-        if (!target) {
-          sendClientActionError(channel.id, 'window-action-failed', 'window select requires a numeric index');
-          return;
-        }
-        args = ['select-window', '-t', target];
-        break;
-      case 'new':
-        args = ['new-window', '-t', session];
-        if (typeof act.name === 'string') {
-          if (!isSafeTmuxName(act.name)) {
-            sendClientActionError(channel.id, 'window-action-failed', 'unsafe window name');
-            return;
-          }
-          args.push('-n', act.name.trim());
-        }
-        break;
-      case 'rename':
-        if (!target || typeof act.name !== 'string') {
-          sendClientActionError(channel.id, 'window-action-failed', 'window rename requires a numeric index and name');
-          return;
-        }
-        if (!isSafeTmuxName(act.name)) {
-          sendClientActionError(channel.id, 'window-action-failed', 'unsafe window name');
-          return;
-        }
-        args = ['rename-window', '-t', target, '--', act.name.trim()];
-        break;
-      case 'close':
-        if (!target) {
-          sendClientActionError(channel.id, 'window-action-failed', 'window close requires a numeric index');
-          return;
-        }
-        args = ['kill-window', '-t', target];
-        break;
-      default:
-        sendClientActionError(channel.id, 'unsupported-client-action', `unsupported window action: ${act.action}`);
-        return;
-    }
-
-    try {
-      await opts.tmuxControl.run(args);
-    } catch (err) {
-      sendClientActionError(
-        channel.id,
-        'window-action-failed',
-        err instanceof Error ? err.message : String(err),
-      );
-    }
-  };
-
-  const tmuxClientForPty = async (channel: Channel): Promise<string | null> => {
-    const out = await opts.tmuxControl.run([
-      'list-clients',
-      '-F',
-      '#{client_pid}\t#{client_tty}\t#{client_name}',
-    ]);
-    for (const line of out.split('\n')) {
-      if (!line) continue;
-      const [pid, tty, name] = line.split('\t');
-      const candidate = name || tty || null;
-      if (Number(pid) === channel.pty.pid) return candidate;
-    }
-    return null;
-  };
-
-  const tmuxClientSession = async (client: string): Promise<string | null> => {
-    const out = await opts.tmuxControl.run([
-      'list-clients',
-      '-F',
-      '#{client_tty}\t#{client_name}\t#{client_session}',
-    ]);
-    for (const line of out.split('\n')) {
-      if (!line) continue;
-      const [tty, name, session] = line.split('\t');
-      if (client === tty || client === name) return session || null;
-    }
-    return null;
-  };
-
-  const switchChannelSession = async (channel: Channel, newSessionRaw: string): Promise<void> => {
-    const oldSession = channel.session;
-    const newSession = sanitizeSession(newSessionRaw);
-    if (newSession === oldSession) {
-      send({ v: 1, type: 'server-msg', channelId: channel.id, data: { session: newSession } });
+  const sendToRemoteWs = (channel: Channel, data: string): void => {
+    if (!channel.opened) {
+      channel.pending.push(data);
       return;
     }
-
-    let newSessionAttached = false;
-    try {
-      await opts.tmuxControl.attachSession(newSession, channel.lastSize);
-      newSessionAttached = true;
-      if (channels.get(channel.id) !== channel) {
-        try { opts.tmuxControl.detachSession(newSession); } catch { /* best-effort */ }
-        return;
-      }
-
-      const client = await tmuxClientForPty(channel);
-      if (!client) throw new Error('PTY tmux client not found');
-      if (channels.get(channel.id) !== channel) {
-        try { opts.tmuxControl.detachSession(newSession); } catch { /* best-effort */ }
-        return;
-      }
-
-      await opts.tmuxControl.run(['switch-client', '-c', client, '-t', newSession]);
-      if (channels.get(channel.id) !== channel) {
-        try { opts.tmuxControl.detachSession(newSession); } catch { /* best-effort */ }
-        return;
-      }
-
-      const reportedSession = await tmuxClientSession(client);
-      if (reportedSession !== newSession) {
-        throw new Error(`PTY tmux client still on ${reportedSession ?? '<unknown>'}`);
-      }
-      if (channels.get(channel.id) !== channel) {
-        try { opts.tmuxControl.detachSession(newSession); } catch { /* best-effort */ }
-        return;
-      }
-
-      opts.tmuxControl.detachSession(oldSession);
-      newSessionAttached = false;
-      channel.session = newSession;
-      send({ v: 1, type: 'server-msg', channelId: channel.id, data: { session: newSession } });
-    } catch (err) {
-      if (newSessionAttached) {
-        try { opts.tmuxControl.detachSession(newSession); } catch { /* best-effort */ }
-      }
-      sendChannelError(
-        channel.id,
-        'switch-session-failed',
-        err instanceof Error ? err.message : String(err),
-      );
-    }
+    channel.ws.send(data);
   };
 
-  const dispatchClientAction = (channel: Channel, act: WsAction): void => {
-    try {
-      switch (act.type) {
-        case 'pty-write':
-          channel.pty.write(act.data);
-          return;
-        case 'pty-resize':
-          channel.lastSize = { cols: act.cols, rows: act.rows };
-          channel.pty.resize(act.cols, act.rows);
-          return;
-        case 'switch-session':
-          void switchChannelSession(channel, act.name);
-          return;
-        case 'window':
-          void applyWindowAction(channel, act);
-          return;
-        case 'colour-variant':
-        case 'session':
-        case 'scrollbar':
-        case 'clipboard-deny':
-        case 'clipboard-grant-persist':
-        case 'clipboard-request-content':
-        case 'clipboard-reply':
-          unsupportedClientAction(channel, act);
-          return;
-      }
-    } catch (err) {
-      sendChannelError(
-        channel.id,
-        'client-action-failed',
-        err instanceof Error ? err.message : String(err),
-      );
+  const open = async (frame: Extract<StdioFrame, { type: 'open' }>): Promise<void> => {
+    if (channels.has(frame.channelId)) {
+      closeChannel(frame.channelId, 'channel replaced');
     }
-  };
 
-  const handleClientMessage = (frame: Extract<StdioFrame, { type: 'client-msg' }>): void => {
-    const channel = channels.get(frame.channelId);
-    if (!channel) return;
-    let actions: WsAction[];
     try {
-      actions = routeClientMessage(frame.data, {
-        currentSession: channel.session,
-        pendingReads: channel.pendingReads,
+      const started = await getServer();
+      if (closed) return;
+      const url = new URL('/ws', started.baseUrl);
+      url.searchParams.set('session', frame.session);
+      url.searchParams.set('cols', String(frame.cols));
+      url.searchParams.set('rows', String(frame.rows));
+      const remoteWs = webSocketFactory(url.href);
+      const channel: Channel = {
+        id: frame.channelId,
+        ws: remoteWs,
+        opened: false,
+        pending: [],
+      };
+      channels.set(frame.channelId, channel);
+
+      remoteWs.binaryType = 'arraybuffer';
+      remoteWs.addEventListener('open', () => {
+        if (channels.get(frame.channelId) !== channel || closed) return;
+        channel.opened = true;
+        send({ v: 1, type: 'open-ok', channelId: frame.channelId, session: frame.session });
+        const pending = channel.pending.splice(0);
+        for (const msg of pending) remoteWs.send(msg);
+      });
+      remoteWs.addEventListener('message', (event) => {
+        if (channels.get(frame.channelId) !== channel || closed) return;
+        const data = typeof event.data === 'string'
+          ? Buffer.from(event.data, 'utf8')
+          : Buffer.from(event.data as ArrayBuffer);
+        send(encodePtyBytes(frame.channelId, data, 'pty-out'));
+      });
+      remoteWs.addEventListener('close', (event) => {
+        if (channels.get(frame.channelId) !== channel) return;
+        channels.delete(frame.channelId);
+        send({ v: 1, type: 'close', channelId: frame.channelId, reason: event.reason || 'remote websocket closed' });
+      });
+      remoteWs.addEventListener('error', () => {
+        if (channels.get(frame.channelId) !== channel) return;
+        sendChannelError(frame.channelId, 'remote-websocket-error', 'remote websocket error');
       });
     } catch (err) {
-      sendChannelError(
-        channel.id,
-        'client-message-failed',
-        err instanceof Error ? err.message : String(err),
-      );
-      return;
+      sendChannelError(frame.channelId, 'remote-open-failed', err instanceof Error ? err.message : String(err));
     }
-    for (const act of actions) dispatchClientAction(channel, act);
+  };
+
+  const handleApiGet = async (frame: Extract<StdioFrame, { type: 'api-get' }>): Promise<void> => {
+    try {
+      if (!frame.path.startsWith('/')) {
+        send({ v: 1, type: 'api-response', requestId: frame.requestId, status: 400, body: 'Bad Request' });
+        return;
+      }
+      const started = await getServer();
+      const url = new URL(frame.path, started.baseUrl);
+      if (url.origin !== started.baseUrl) {
+        send({ v: 1, type: 'api-response', requestId: frame.requestId, status: 400, body: 'Bad Request' });
+        return;
+      }
+      const response = await fetchImpl(url.href);
+      send({
+        v: 1,
+        type: 'api-response',
+        requestId: frame.requestId,
+        status: response.status,
+        body: await responseBody(response),
+      });
+    } catch (err) {
+      send({
+        v: 1,
+        type: 'api-error',
+        requestId: frame.requestId,
+        code: 'api-get-failed',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
   };
 
   const handleListSessions = async (frame: Extract<StdioFrame, { type: 'list-sessions' }>): Promise<void> => {
     try {
-      const sessions = await listSessionsViaTmux({
-        tmuxControl: opts.tmuxControl,
-        tmuxBin: opts.tmuxBin ?? 'tmux',
-        preferControl: true,
-      });
-      send({
-        v: 1,
-        type: 'sessions',
-        requestId: frame.requestId,
-        sessions: sessions ?? [],
-      });
+      const started = await getServer();
+      const response = await fetchImpl(new URL('/api/sessions', started.baseUrl).href);
+      const body = await responseBody(response);
+      if (response.status !== 200 || !isSessionInfoArray(body)) {
+        throw new Error(`remote /api/sessions returned ${response.status}`);
+      }
+      send({ v: 1, type: 'sessions', requestId: frame.requestId, sessions: body });
     } catch (err) {
       send({
         v: 1,
         type: 'sessions-error',
         requestId: frame.requestId,
-        code: 'tmux-list-failed',
+        code: 'api-sessions-failed',
         message: err instanceof Error ? err.message : String(err),
       });
     }
@@ -410,37 +353,31 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
         send({ v: 1, type: 'hello-ok', agentVersion: opts.version });
         return;
       case 'open':
-        open(frame);
+        void open(frame);
         return;
       case 'pty-in': {
         const channel = channels.get(frame.channelId);
         if (!channel) return;
-        try {
-          channel.pty.write(decodePtyBytes(frame).toString('utf8'));
-        } catch (err) {
-          send({
-            v: 1,
-            type: 'channel-error',
-            channelId: frame.channelId,
-            code: 'pty-input-failed',
-            message: err instanceof Error ? err.message : String(err),
-          });
-        }
+        sendToRemoteWs(channel, decodePtyBytes(frame).toString('utf8'));
         return;
       }
       case 'resize': {
         const channel = channels.get(frame.channelId);
-        if (channel) {
-          channel.lastSize = { cols: frame.cols, rows: frame.rows };
-          channel.pty.resize(frame.cols, frame.rows);
-        }
+        if (!channel) return;
+        sendToRemoteWs(channel, JSON.stringify({ type: 'resize', cols: frame.cols, rows: frame.rows }));
         return;
       }
-      case 'client-msg':
-        handleClientMessage(frame);
+      case 'client-msg': {
+        const channel = channels.get(frame.channelId);
+        if (!channel) return;
+        sendToRemoteWs(channel, frame.data);
         return;
+      }
       case 'list-sessions':
         void handleListSessions(frame);
+        return;
+      case 'api-get':
+        void handleApiGet(frame);
         return;
       case 'close':
         closeChannel(frame.channelId);

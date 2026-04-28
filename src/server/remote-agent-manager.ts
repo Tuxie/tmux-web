@@ -31,7 +31,12 @@ interface PendingOpen {
 }
 
 interface PendingListSessions {
-  resolve: (sessions: Array<{ id: string; name: string; windows?: number }>) => void;
+  resolve: (sessions: Array<{ id: string; name: string; windows?: number; running?: boolean }>) => void;
+  reject: (err: unknown) => void;
+}
+
+interface PendingApiGet {
+  resolve: (response: { status: number; body: unknown }) => void;
   reject: (err: unknown) => void;
 }
 
@@ -100,6 +105,7 @@ export class RemoteHostAgent {
   private stderr = '';
   private readonly pendingOpens = new Map<string, PendingOpen>();
   private readonly pendingListSessions = new Map<string, PendingListSessions>();
+  private readonly pendingApiGets = new Map<string, PendingApiGet>();
   private readonly channels = new Map<string, RemoteChannel>();
   private readyResolve!: (agent: RemoteHostAgent) => void;
   private readyReject!: (err: unknown) => void;
@@ -153,10 +159,10 @@ export class RemoteHostAgent {
     return opened;
   }
 
-  listSessions(): Promise<Array<{ id: string; name: string; windows?: number }>> {
+  listSessions(): Promise<Array<{ id: string; name: string; windows?: number; running?: boolean }>> {
     this.onActivity(this);
     const requestId = crypto.randomUUID();
-    const listed = new Promise<Array<{ id: string; name: string; windows?: number }>>((resolve, reject) => {
+    const listed = new Promise<Array<{ id: string; name: string; windows?: number; running?: boolean }>>((resolve, reject) => {
       this.pendingListSessions.set(requestId, { resolve, reject });
     });
     this.writeFrame({ v: 1, type: 'list-sessions', requestId });
@@ -174,7 +180,18 @@ export class RemoteHostAgent {
       && !this.tornDown
       && this.pendingOpens.size === 0
       && this.pendingListSessions.size === 0
+      && this.pendingApiGets.size === 0
       && this.channels.size === 0;
+  }
+
+  apiGet(path: string): Promise<{ status: number; body: unknown }> {
+    this.onActivity(this);
+    const requestId = crypto.randomUUID();
+    const response = new Promise<{ status: number; body: unknown }>((resolve, reject) => {
+      this.pendingApiGets.set(requestId, { resolve, reject });
+    });
+    this.writeFrame({ v: 1, type: 'api-get', requestId, path });
+    return response;
   }
 
   private teardown(): void {
@@ -225,6 +242,23 @@ export class RemoteHostAgent {
         if (!pending) return;
         this.pendingListSessions.delete(frame.requestId);
         pending.reject(new Error(`remote sessions ${frame.requestId} error: ${frame.code}: ${frame.message}`));
+        this.checkIdle();
+        return;
+      }
+      case 'api-response': {
+        const pending = this.pendingApiGets.get(frame.requestId);
+        if (!pending) return;
+        this.pendingApiGets.delete(frame.requestId);
+        this.onActivity(this);
+        pending.resolve({ status: frame.status, body: frame.body });
+        this.checkIdle();
+        return;
+      }
+      case 'api-error': {
+        const pending = this.pendingApiGets.get(frame.requestId);
+        if (!pending) return;
+        this.pendingApiGets.delete(frame.requestId);
+        pending.reject(new Error(`remote api ${frame.requestId} error: ${frame.code}: ${frame.message}`));
         this.checkIdle();
         return;
       }
@@ -296,6 +330,10 @@ export class RemoteHostAgent {
       pending.reject(reason);
     }
     this.pendingListSessions.clear();
+    for (const pending of this.pendingApiGets.values()) {
+      pending.reject(reason);
+    }
+    this.pendingApiGets.clear();
     for (const channel of this.channels.values()) {
       channel.emit('frame', { v: 1, type: 'close', channelId: channel.channelId, reason: String(reason) });
       channel.markRemoteClosed();

@@ -133,6 +133,33 @@ describe('RemoteAgentManager', () => {
     await mgr.close();
   });
 
+  test('apiGet multiplexes API-style requests over the ready agent', async () => {
+    const proc = new FakeProc();
+    const mgr = new RemoteAgentManager({
+      spawn: () => proc as any,
+      idleTimeoutMs: 20,
+    });
+    const host = mgr.getHost('prod');
+    proc.emitFrame({ v: 1, type: 'hello-ok', agentVersion: 'test' });
+    const agent = await host;
+
+    const response = agent.apiGet('/api/session-settings');
+    const req = collectWrites(proc).find(f => f.type === 'api-get') as any;
+    expect(req.path).toBe('/api/session-settings');
+    expect(req.requestId).toBeString();
+    expect(collectWrites(proc).some(f => f.type === 'open')).toBe(false);
+
+    proc.emitFrame({
+      v: 1,
+      type: 'api-response',
+      requestId: req.requestId,
+      status: 200,
+      body: { version: 1, sessions: {} },
+    });
+    expect(await response).toEqual({ status: 200, body: { version: 1, sessions: {} } });
+    await mgr.close();
+  });
+
   test('evicts a host agent that exits before handshake so a later call retries', async () => {
     const procs: FakeProc[] = [];
     const mgr = new RemoteAgentManager({

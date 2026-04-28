@@ -6,8 +6,11 @@ export type StdioFrame =
   | { v: 1; type: 'hello-ok'; agentVersion: string }
   | { v: 1; type: 'host-error'; code: string; message: string }
   | { v: 1; type: 'shutdown' }
+  | { v: 1; type: 'api-get'; requestId: string; path: string }
+  | { v: 1; type: 'api-response'; requestId: string; status: number; body: unknown }
+  | { v: 1; type: 'api-error'; requestId: string; code: string; message: string }
   | { v: 1; type: 'list-sessions'; requestId: string }
-  | { v: 1; type: 'sessions'; requestId: string; sessions: Array<{ id: string; name: string; windows?: number }> }
+  | { v: 1; type: 'sessions'; requestId: string; sessions: Array<{ id: string; name: string; windows?: number; running?: boolean }> }
   | { v: 1; type: 'sessions-error'; requestId: string; code: string; message: string }
   | { v: 1; type: 'open'; channelId: string; session: string; cols: number; rows: number }
   | { v: 1; type: 'open-ok'; channelId: string; session: string }
@@ -127,9 +130,9 @@ function channelIdValue(frame: Record<string, unknown>): string | null {
   return stringValue(frame, 'channelId');
 }
 
-function sessionsValue(value: unknown): Array<{ id: string; name: string; windows?: number }> | null {
+function sessionsValue(value: unknown): Array<{ id: string; name: string; windows?: number; running?: boolean }> | null {
   if (!Array.isArray(value)) return null;
-  const out: Array<{ id: string; name: string; windows?: number }> = [];
+  const out: Array<{ id: string; name: string; windows?: number; running?: boolean }> = [];
   for (const entry of value) {
     if (!isRecord(entry)) return null;
     const id = stringValue(entry, 'id');
@@ -137,8 +140,10 @@ function sessionsValue(value: unknown): Array<{ id: string; name: string; window
     if (id === null || name === null) return null;
     const windows = entry.windows;
     if (windows !== undefined && (!Number.isInteger(windows) || windows < 0)) return null;
-    const session: { id: string; name: string; windows?: number } = { id, name };
+    if (entry.running !== undefined && typeof entry.running !== 'boolean') return null;
+    const session: { id: string; name: string; windows?: number; running?: boolean } = { id, name };
     if (typeof windows === 'number') session.windows = windows;
+    if (typeof entry.running === 'boolean') session.running = entry.running;
     out.push(session);
   }
   return out;
@@ -160,6 +165,25 @@ function canonicalizeFrame(frame: Record<string, unknown>): StdioFrame | null {
       const message = stringValue(frame, 'message');
       if (code === null || message === null) return null;
       return { v: STDIO_PROTOCOL_VERSION, type: 'host-error', code, message };
+    }
+    case 'api-get': {
+      const requestId = stringValue(frame, 'requestId');
+      const path = stringValue(frame, 'path');
+      if (requestId === null || path === null) return null;
+      return { v: STDIO_PROTOCOL_VERSION, type: 'api-get', requestId, path };
+    }
+    case 'api-response': {
+      const requestId = stringValue(frame, 'requestId');
+      const status = positiveIntegerValue(frame, 'status');
+      if (requestId === null || status === null || !hasOwn(frame, 'body')) return null;
+      return { v: STDIO_PROTOCOL_VERSION, type: 'api-response', requestId, status, body: frame.body };
+    }
+    case 'api-error': {
+      const requestId = stringValue(frame, 'requestId');
+      const code = stringValue(frame, 'code');
+      const message = stringValue(frame, 'message');
+      if (requestId === null || code === null || message === null) return null;
+      return { v: STDIO_PROTOCOL_VERSION, type: 'api-error', requestId, code, message };
     }
     case 'list-sessions': {
       const requestId = stringValue(frame, 'requestId');
