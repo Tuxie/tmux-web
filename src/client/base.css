@@ -551,6 +551,194 @@ body {
   color: var(--tw-text);
 }
 
+.tw-config-open-row {
+  width: calc(100% - 16px);
+  margin: 2px 8px;
+  border: 1px solid var(--tw-bevel-hi);
+  background: var(--tw-gadget-bg);
+  color: var(--tw-text);
+  font-family: inherit;
+  text-align: left;
+}
+
+.tw-config-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  font-family: var(--tw-ui-font);
+  font-size: var(--tw-ui-font-size);
+  color: var(--tw-text);
+}
+.tw-config-overlay[hidden] { display: none; }
+
+.tw-config-window {
+  position: relative;
+  width: 90vw;
+  height: 90vh;
+  display: grid;
+  grid-template-columns: minmax(150px, 18%) 1fr;
+  background: var(--tw-chrome-bg);
+  border: 1px solid var(--tw-bevel-hi);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.65);
+  overflow: hidden;
+}
+
+.tw-config-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  border: 1px solid var(--tw-bevel-hi);
+  background: var(--tw-gadget-bg);
+  color: var(--tw-text);
+  padding: 3px 8px;
+  font-family: inherit;
+}
+
+.tw-config-nav {
+  padding: 12px 8px;
+  border-right: 1px solid var(--tw-muted);
+  background: color-mix(in srgb, var(--tw-chrome-bg), black 8%);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tw-config-nav-item {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--tw-text-muted);
+  font-family: inherit;
+  text-align: left;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.tw-config-nav-item:hover,
+.tw-config-nav-item.selected {
+  background: var(--tw-gadget-hover);
+  color: var(--tw-text-strong);
+  border-color: var(--tw-bevel-hi);
+}
+
+.tw-config-main {
+  min-width: 0;
+  overflow: auto;
+  padding: 36px 16px 16px;
+}
+
+.tw-config-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tw-config-pane-servers {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(260px, 340px);
+  align-items: start;
+}
+
+.tw-config-server-list,
+.tw-config-server-form {
+  border: 1px solid var(--tw-muted);
+  background: color-mix(in srgb, var(--tw-chrome-bg), black 4%);
+}
+
+.tw-config-server-header,
+.tw-config-server-row {
+  display: grid;
+  grid-template-columns: 1.1fr 1.4fr 0.6fr 0.5fr minmax(110px, auto);
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--tw-muted), transparent 45%);
+}
+
+.tw-config-server-header {
+  color: var(--tw-text-muted);
+  background: color-mix(in srgb, var(--tw-chrome-bg), black 10%);
+}
+
+.tw-config-server-sort {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tw-config-server-row.selected {
+  background: var(--tw-gadget-active);
+  color: var(--tw-text-strong);
+}
+
+.tw-config-server-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tw-config-server-actions,
+.tw-config-form-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.tw-config-server-actions button,
+.tw-config-form-actions button {
+  border: 1px solid var(--tw-bevel-hi);
+  background: var(--tw-gadget-bg);
+  color: var(--tw-text);
+  font-family: inherit;
+  padding: 3px 7px;
+}
+
+.tw-config-server-form {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tw-config-field {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 8px;
+  align-items: center;
+  color: var(--tw-text-muted);
+}
+
+.tw-config-field input,
+.tw-config-field select {
+  min-width: 0;
+}
+
+.tw-config-form-actions {
+  padding-top: 4px;
+}
+
+@media (max-width: 760px) {
+  .tw-config-window {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+  .tw-config-nav {
+    flex-direction: row;
+    border-right: none;
+    border-bottom: 1px solid var(--tw-muted);
+  }
+  .tw-config-pane-servers {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ====================================================================
  * Default theme implementation.
  *

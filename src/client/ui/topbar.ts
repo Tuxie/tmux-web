@@ -5,6 +5,7 @@ import { applyTheme, listFonts, listThemes } from '../theme.js';
 import { fetchColours } from '../colours.js';
 import { Dropdown, showContextMenu, type DropdownItem } from './dropdown.js';
 import { showConfirmModal } from './confirm-modal.js';
+import { installConfigurationWindow } from './config-window.js';
 import {
   loadSessionSettings,
   saveSessionSettings,
@@ -499,6 +500,7 @@ export class Topbar {
   private setupMenu(): void {
     const menuWrap = el<HTMLElement>('menu-wrap');
     const menuBtn = el<HTMLButtonElement>('btn-menu');
+    const configBtn = el<HTMLButtonElement>('btn-config-window');
     menuBtn.setAttribute('aria-haspopup', 'true');
     menuBtn.setAttribute('aria-expanded', 'false');
     const dropdown = el<HTMLElement>('menu-dropdown');
@@ -550,6 +552,7 @@ export class Topbar {
     };
     menuBtn.addEventListener('click', toggleConfigMenu);
     menuBtn.addEventListener('contextmenu', toggleConfigMenu);
+    installConfigurationWindow(configBtn);
 
     // Close dropdown only when the user physically clicks outside the menu wrapper.
     // Use pointerdown (not click) so synthetic events fired during terminal redraws

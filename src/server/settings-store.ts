@@ -6,14 +6,30 @@ import { serialiseFileWrite } from './sessions-store.js';
 export interface ServerSettings {
   version: 1;
   knownServers: string[];
+  servers: RemoteServerConfig[];
 }
 
 export interface ServerSettingsPatch {
   knownServers?: string[];
+  servers?: RemoteServerConfig[];
+}
+
+export type RemoteServerProtocol = 'http' | 'https' | 'ssh';
+
+export interface RemoteServerConfig {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  protocol: RemoteServerProtocol;
+  username: string;
+  password?: string;
+  savePassword: boolean;
+  compression: boolean;
 }
 
 export function emptySettings(): ServerSettings {
-  return { version: 1, knownServers: [] };
+  return { version: 1, knownServers: [], servers: [] };
 }
 
 function sanitizeKnownServers(input: unknown): string[] {
@@ -30,6 +46,56 @@ function sanitizeKnownServers(input: unknown): string[] {
   return out;
 }
 
+function sanitizeText(input: unknown, max: number): string {
+  if (typeof input !== 'string') return '';
+  return input.trim().slice(0, max);
+}
+
+function sanitizeProtocol(input: unknown): RemoteServerProtocol | null {
+  return input === 'http' || input === 'https' || input === 'ssh' ? input : null;
+}
+
+function sanitizePort(input: unknown): number | null {
+  const value = typeof input === 'number' ? input : Number(input);
+  if (!Number.isInteger(value) || value < 1 || value > 65535) return null;
+  return value;
+}
+
+export function sanitizeRemoteServers(input: unknown): RemoteServerConfig[] {
+  if (!Array.isArray(input)) return [];
+  const out: RemoteServerConfig[] = [];
+  const seen = new Set<string>();
+  for (const value of input) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+    const obj = value as Record<string, unknown>;
+    const host = sanitizeText(obj.host, 255);
+    if (!isValidRemoteHostAlias(host)) continue;
+    const protocol = sanitizeProtocol(obj.protocol);
+    if (!protocol) continue;
+    const port = sanitizePort(obj.port);
+    if (port === null) continue;
+    const fallbackId = host;
+    const id = sanitizeText(obj.id, 128) || fallbackId;
+    if (!isValidRemoteHostAlias(id) || seen.has(id)) continue;
+    seen.add(id);
+    const savePassword = obj.savePassword === true;
+    const password = savePassword ? sanitizeText(obj.password, 4096) : '';
+    const server: RemoteServerConfig = {
+      id,
+      name: sanitizeText(obj.name, 120) || host,
+      host,
+      port,
+      protocol,
+      username: sanitizeText(obj.username, 120),
+      savePassword,
+      compression: obj.compression === true,
+    };
+    if (password) server.password = password;
+    out.push(server);
+  }
+  return out;
+}
+
 export function loadSettings(filePath: string): ServerSettings {
   try {
     const raw = fs.readFileSync(filePath, 'utf-8');
@@ -38,6 +104,7 @@ export function loadSettings(filePath: string): ServerSettings {
     return {
       version: 1,
       knownServers: sanitizeKnownServers((parsed as { knownServers?: unknown }).knownServers),
+      servers: sanitizeRemoteServers((parsed as { servers?: unknown }).servers),
     };
   } catch {
     return emptySettings();
@@ -52,7 +119,10 @@ export function mergeSettings(current: ServerSettings, patch: ServerSettingsPatc
     seen.add(host);
     knownServers.push(host);
   }
-  return { version: 1, knownServers };
+  const servers = patch.servers === undefined
+    ? sanitizeRemoteServers(current.servers)
+    : sanitizeRemoteServers(patch.servers);
+  return { version: 1, knownServers, servers };
 }
 
 export function saveSettings(filePath: string, settings: ServerSettings): void {

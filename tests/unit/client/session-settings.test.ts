@@ -10,11 +10,14 @@ import {
   sessionSettingsKey,
   setLastActiveSession,
   getKnownRemoteServers,
+  getRemoteServers,
   recordKnownRemoteServer,
+  saveRemoteServers,
   applyThemeDefaults,
   flushPersist,
   _resetPersistDebounce,
   _resetSessionStore,
+  type RemoteServerConfig,
 } from "../../../src/client/session-settings.ts";
 
 interface FakeFetchCall { url: string; init?: RequestInit }
@@ -25,7 +28,7 @@ function setupFakeFetch(
     getOk?: boolean;
     getThrow?: boolean;
     getReturnsNonObject?: boolean;
-    initialSettings?: { knownServers?: string[] };
+    initialSettings?: { knownServers?: string[]; servers?: RemoteServerConfig[] };
   } = {},
 ) {
   const calls: FakeFetchCall[] = [];
@@ -40,7 +43,14 @@ function setupFakeFetch(
       return { ok: true, json: async () => ({ version: 1, ...initialConfig }) } as any;
     }
     if (url === '/api/settings' && (!init || init.method === 'GET' || init.method === undefined)) {
-      return { ok: true, json: async () => ({ version: 1, knownServers: opts.initialSettings?.knownServers ?? [] }) } as any;
+      return {
+        ok: true,
+        json: async () => ({
+          version: 1,
+          knownServers: opts.initialSettings?.knownServers ?? [],
+          servers: opts.initialSettings?.servers ?? [],
+        }),
+      } as any;
     }
     // PUT
     return { ok: true, json: async () => ({}) } as any;
@@ -322,7 +332,7 @@ describe("session-settings", () => {
   });
 
   test("_resetSessionStore accepts initial state", () => {
-    _resetSessionStore({ sessions: { seeded: { ...DEFAULT_SESSION_SETTINGS } }, lastActive: "seeded", knownServers: ["dev"] });
+    _resetSessionStore({ sessions: { seeded: { ...DEFAULT_SESSION_SETTINGS } }, lastActive: "seeded", knownServers: ["dev"], servers: [] });
     expect(getStoredSessionNames()).toEqual(["seeded"]);
     expect(getKnownRemoteServers()).toEqual(["dev"]);
   });
@@ -331,6 +341,82 @@ describe("session-settings", () => {
     setupFakeFetch({ sessions: {} }, { initialSettings: { knownServers: ["dev", "prod"] } });
     await initSessionStore();
     expect(getKnownRemoteServers()).toEqual(["dev", "prod"]);
+  });
+
+  test("initSessionStore loads structured remote servers and exposes their hosts as known remotes", async () => {
+    setupFakeFetch({ sessions: {} }, {
+      initialSettings: {
+        knownServers: ["legacy"],
+        servers: [{
+          id: "dev",
+          name: "Dev",
+          host: "dev.example.com",
+          port: 22,
+          protocol: "ssh",
+          username: "per",
+          savePassword: false,
+          compression: true,
+        }],
+      },
+    });
+
+    await initSessionStore();
+
+    expect(getRemoteServers()).toEqual([{
+      id: "dev",
+      name: "Dev",
+      host: "dev.example.com",
+      port: 22,
+      protocol: "ssh",
+      username: "per",
+      savePassword: false,
+      compression: true,
+    }]);
+    expect(getKnownRemoteServers()).toEqual(["legacy", "dev.example.com"]);
+  });
+
+  test("saveRemoteServers replaces the structured server list through settings.json", async () => {
+    const calls = setupFakeFetch({ sessions: {} });
+    await initSessionStore();
+
+    saveRemoteServers([{
+      id: "prod",
+      name: "Production",
+      host: "prod.example.com",
+      port: 443,
+      protocol: "https",
+      username: "per",
+      password: "secret",
+      savePassword: true,
+      compression: false,
+    }]);
+
+    expect(getRemoteServers()).toEqual([{
+      id: "prod",
+      name: "Production",
+      host: "prod.example.com",
+      port: 443,
+      protocol: "https",
+      username: "per",
+      password: "secret",
+      savePassword: true,
+      compression: false,
+    }]);
+    const put = calls.find(c => c.url === "/api/settings" && c.init?.method === "PUT");
+    expect(put).toBeDefined();
+    expect(JSON.parse(put!.init!.body as string)).toEqual({
+      servers: [{
+        id: "prod",
+        name: "Production",
+        host: "prod.example.com",
+        port: 443,
+        protocol: "https",
+        username: "per",
+        password: "secret",
+        savePassword: true,
+        compression: false,
+      }],
+    });
   });
 
   test("recordKnownRemoteServer appends a valid host once and persists to settings.json", async () => {

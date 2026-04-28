@@ -31,7 +31,7 @@ import { sanitizeSession } from './pty.js';
 import { type TmuxControl } from './tmux-control.js';
 import { listSessionsViaTmux, listWindowsViaTmux } from './tmux-listings.js';
 import { isValidRemoteHostAlias } from './remote-route.js';
-import { applySettingsPatch, loadSettings, type ServerSettingsPatch } from './settings-store.js';
+import { applySettingsPatch, loadSettings, sanitizeRemoteServers, type ServerSettingsPatch } from './settings-store.js';
 import type { RemoteTmuxWebConnectionManager } from './remote-tmux-web.js';
 import pkg from '../../package.json' with { type: 'json' };
 
@@ -109,7 +109,7 @@ export type SessionPatchValidationResult =
   | { ok: false; reason: string };
 
 const ALLOWED_PATCH_TOP_KEYS = new Set(['lastActive', 'sessions']);
-const ALLOWED_SETTINGS_PATCH_TOP_KEYS = new Set(['knownServers']);
+const ALLOWED_SETTINGS_PATCH_TOP_KEYS = new Set(['knownServers', 'servers']);
 
 export function validateSessionPatch(value: unknown): SessionPatchValidationResult {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -168,6 +168,14 @@ function validateSettingsPatch(value: unknown): SettingsPatchValidationResult {
       if (typeof host !== 'string' || !isValidRemoteHostAlias(host)) {
         return { ok: false, reason: 'knownServers entries must be valid remote host aliases' };
       }
+    }
+  }
+  if ('servers' in obj && obj.servers !== undefined) {
+    if (!Array.isArray(obj.servers)) {
+      return { ok: false, reason: 'servers must be an array' };
+    }
+    if (sanitizeRemoteServers(obj.servers).length !== obj.servers.length) {
+      return { ok: false, reason: 'servers entries must be valid remote server configs' };
     }
   }
   return { ok: true, patch: obj as ServerSettingsPatch };

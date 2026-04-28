@@ -144,7 +144,7 @@ describe("/api/settings", () => {
     const handler = await makeHandler();
     const { status, body } = await call(handler, { method: "GET", url: "/api/settings" });
     expect(status).toBe(200);
-    expect(JSON.parse(body)).toEqual({ version: 1, knownServers: [] });
+    expect(JSON.parse(body)).toEqual({ version: 1, knownServers: [], servers: [] });
   });
 
   test("PUT persists valid known remote servers to settings.json", async () => {
@@ -157,7 +157,7 @@ describe("/api/settings", () => {
     expect(put.status).toBe(200);
 
     const get = await call(handler, { method: "GET", url: "/api/settings" });
-    expect(JSON.parse(get.body)).toEqual({ version: 1, knownServers: ["dev"] });
+    expect(JSON.parse(get.body)).toEqual({ version: 1, knownServers: ["dev"], servers: [] });
   });
 
   test("PUT rejects invalid known remote server aliases", async () => {

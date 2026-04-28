@@ -115,12 +115,64 @@ interface SessionsCache {
   lastActive?: string;
   sessions: Record<string, SessionSettings>;
   knownServers: string[];
+  servers: RemoteServerConfig[];
 }
 
-let cache: SessionsCache = { sessions: {}, knownServers: [] };
+export type RemoteServerProtocol = 'http' | 'https' | 'ssh';
+
+export interface RemoteServerConfig {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  protocol: RemoteServerProtocol;
+  username: string;
+  password?: string;
+  savePassword: boolean;
+  compression: boolean;
+}
+
+let cache: SessionsCache = { sessions: {}, knownServers: [], servers: [] };
 
 function isValidRemoteHostAlias(host: string): boolean {
   return host.length > 0 && host.length <= 255 && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(host);
+}
+
+function isRemoteServerProtocol(value: unknown): value is RemoteServerProtocol {
+  return value === 'http' || value === 'https' || value === 'ssh';
+}
+
+function sanitizeRemoteServers(input: unknown): RemoteServerConfig[] {
+  if (!Array.isArray(input)) return [];
+  const out: RemoteServerConfig[] = [];
+  const seen = new Set<string>();
+  for (const value of input) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+    const obj = value as Partial<RemoteServerConfig>;
+    const host = typeof obj.host === 'string' ? obj.host.trim() : '';
+    if (!isValidRemoteHostAlias(host)) continue;
+    const id = typeof obj.id === 'string' && isValidRemoteHostAlias(obj.id.trim()) ? obj.id.trim() : host;
+    if (seen.has(id)) continue;
+    if (!isRemoteServerProtocol(obj.protocol)) continue;
+    const port = Number(obj.port);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) continue;
+    seen.add(id);
+    const savePassword = obj.savePassword === true;
+    const password = savePassword && typeof obj.password === 'string' ? obj.password : '';
+    const server: RemoteServerConfig = {
+      id,
+      name: typeof obj.name === 'string' && obj.name.trim() ? obj.name.trim() : host,
+      host,
+      port,
+      protocol: obj.protocol,
+      username: typeof obj.username === 'string' ? obj.username : '',
+      savePassword,
+      compression: obj.compression === true,
+    };
+    if (password) server.password = password;
+    out.push(server);
+  }
+  return out;
 }
 
 export function sessionSettingsKey(name: string, remoteHost?: string | null): string {
@@ -149,6 +201,7 @@ export async function initSessionStore(): Promise<void> {
         lastActive: typeof cfg.lastActive === 'string' ? cfg.lastActive : undefined,
         sessions: cfg.sessions,
         knownServers: cache.knownServers,
+        servers: cache.servers,
       };
     }
     const settingsRes = await fetch('/api/settings');
@@ -158,6 +211,9 @@ export async function initSessionStore(): Promise<void> {
         cache.knownServers = settings.knownServers.filter((host: unknown): host is string => (
           typeof host === 'string' && isValidRemoteHostAlias(host)
         ));
+      }
+      if (settings && typeof settings === 'object') {
+        cache.servers = sanitizeRemoteServers((settings as { servers?: unknown }).servers);
       }
     }
   } catch (err) {
@@ -289,7 +345,27 @@ export function setLastActiveSession(name: string): void {
 }
 
 export function getKnownRemoteServers(): string[] {
-  return cache.knownServers.slice();
+  const hosts = [...cache.knownServers];
+  const seen = new Set(hosts);
+  for (const server of cache.servers) {
+    if (seen.has(server.host)) continue;
+    seen.add(server.host);
+    hosts.push(server.host);
+  }
+  return hosts;
+}
+
+export function getRemoteServers(): RemoteServerConfig[] {
+  return cache.servers.map(server => ({ ...server }));
+}
+
+export function saveRemoteServers(servers: RemoteServerConfig[]): void {
+  cache.servers = sanitizeRemoteServers(servers);
+  void fetch('/api/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ servers: cache.servers }),
+  }).catch(() => {});
 }
 
 export function recordKnownRemoteServer(host: string): void {
@@ -332,6 +408,7 @@ export function applyThemeDefaults(s: SessionSettings, td: ThemeDefaults): Sessi
 
 /** Test/internal: reset the in-memory cache. */
 export function _resetSessionStore(initial?: SessionsCache): void {
-  cache = initial ?? { sessions: {}, knownServers: [] };
+  cache = initial ?? { sessions: {}, knownServers: [], servers: [] };
   if (!cache.knownServers) cache.knownServers = [];
+  if (!cache.servers) cache.servers = [];
 }

@@ -21,6 +21,75 @@ describe('settings-store', () => {
     expect(loadSettings(file)).toEqual({
       version: 1,
       knownServers: ['dev', 'prod.example.com'],
+      servers: [],
+    });
+  });
+
+  test('loads structured remote servers and strips unsaved passwords', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tmux-web-settings-'));
+    const file = path.join(tmp, 'settings.json');
+    fs.writeFileSync(file, JSON.stringify({
+      version: 1,
+      servers: [
+        {
+          id: 'dev',
+          name: 'Dev Box',
+          host: 'dev.example.com',
+          port: 22,
+          protocol: 'ssh',
+          username: 'per',
+          password: 'secret',
+          savePassword: true,
+          compression: true,
+        },
+        {
+          id: 'nosave',
+          name: 'No Save',
+          host: 'nosave.example.com',
+          port: 443,
+          protocol: 'https',
+          username: 'per',
+          password: 'discard-me',
+          savePassword: false,
+          compression: false,
+        },
+        {
+          id: 'bad',
+          name: 'Bad',
+          host: '../host',
+          port: 22,
+          protocol: 'ssh',
+          username: 'per',
+        },
+      ],
+    }));
+
+    expect(loadSettings(file)).toEqual({
+      version: 1,
+      knownServers: [],
+      servers: [
+        {
+          id: 'dev',
+          name: 'Dev Box',
+          host: 'dev.example.com',
+          port: 22,
+          protocol: 'ssh',
+          username: 'per',
+          password: 'secret',
+          savePassword: true,
+          compression: true,
+        },
+        {
+          id: 'nosave',
+          name: 'No Save',
+          host: 'nosave.example.com',
+          port: 443,
+          protocol: 'https',
+          username: 'per',
+          savePassword: false,
+          compression: false,
+        },
+      ],
     });
   });
 
@@ -31,6 +100,52 @@ describe('settings-store', () => {
     )).toEqual({
       version: 1,
       knownServers: ['dev', 'prod'],
+      servers: [],
+    });
+  });
+
+  test('servers patch replaces structured server list', () => {
+    expect(mergeSettings(
+      {
+        version: 1,
+        knownServers: ['legacy'],
+        servers: [{
+          id: 'old',
+          name: 'Old',
+          host: 'old.example.com',
+          port: 22,
+          protocol: 'ssh',
+          username: '',
+          savePassword: false,
+          compression: false,
+        }],
+      },
+      {
+        servers: [{
+          id: 'new',
+          name: 'New',
+          host: 'new.example.com',
+          port: 4022,
+          protocol: 'http',
+          username: 'per',
+          password: 'do-not-save',
+          savePassword: false,
+          compression: true,
+        }],
+      },
+    )).toEqual({
+      version: 1,
+      knownServers: ['legacy'],
+      servers: [{
+        id: 'new',
+        name: 'New',
+        host: 'new.example.com',
+        port: 4022,
+        protocol: 'http',
+        username: 'per',
+        savePassword: false,
+        compression: true,
+      }],
     });
   });
 
@@ -40,11 +155,11 @@ describe('settings-store', () => {
 
     await applySettingsPatch(file, { knownServers: ['dev'] });
 
-    expect(loadSettings(file)).toEqual({ version: 1, knownServers: ['dev'] });
+    expect(loadSettings(file)).toEqual({ version: 1, knownServers: ['dev'], servers: [] });
     expect(fs.existsSync(file + '.part')).toBe(false);
   });
 
   test('emptySettings returns no known remote servers', () => {
-    expect(emptySettings()).toEqual({ version: 1, knownServers: [] });
+    expect(emptySettings()).toEqual({ version: 1, knownServers: [], servers: [] });
   });
 });
