@@ -1,9 +1,14 @@
 import { encodeFrame, encodePtyBytes, FrameDecoder, type StdioFrame } from './stdio-protocol.js';
 
+interface AgentReadable {
+  on(event: 'data', cb: (chunk: Buffer | Uint8Array) => void): unknown;
+  closed?: Promise<unknown>;
+}
+
 export interface AgentProc {
   stdin: { write(data: Buffer): unknown; flush?(): unknown; end(): unknown };
-  stdout: { on(event: 'data', cb: (chunk: Buffer | Uint8Array) => void): unknown };
-  stderr?: { on(event: 'data', cb: (chunk: Buffer | Uint8Array) => void): unknown };
+  stdout: AgentReadable;
+  stderr?: AgentReadable;
   exited: Promise<unknown>;
   kill(): unknown;
 }
@@ -114,8 +119,8 @@ export class RemoteHostAgent {
     proc.stdout.on('data', chunk => this.handleChunk(chunk));
     proc.stderr?.on('data', chunk => this.captureStderr(chunk));
     proc.exited.then(
-      () => this.handleExit(),
-      err => this.handleExit(err),
+      () => { void this.handleExit(); },
+      err => { void this.handleExit(err); },
     );
     this.writeFrame({ v: 1, type: 'hello' });
   }
@@ -257,7 +262,8 @@ export class RemoteHostAgent {
     this.channels.clear();
   }
 
-  private handleExit(err?: unknown): void {
+  private async handleExit(err?: unknown): Promise<void> {
+    await this.proc.stderr?.closed?.catch(() => {});
     this.tornDown = true;
     this.rejectAll(err ?? new Error(this.formatExitMessage()));
     this.onDone(this);
@@ -371,7 +377,7 @@ function adaptReadable(
 ): AgentProc['stdout'] {
   type DataCb = (chunk: Buffer) => void;
   const listeners: DataCb[] = [];
-  (async () => {
+  const closed = (async () => {
     const reader = stream.getReader();
     try {
       for (;;) {
@@ -385,5 +391,5 @@ function adaptReadable(
       onStreamError();
     }
   })();
-  return { on: (_event, cb) => { listeners.push(cb); } };
+  return { on: (_event, cb) => { listeners.push(cb); }, closed };
 }

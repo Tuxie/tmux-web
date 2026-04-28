@@ -11,6 +11,8 @@ class FakeProc extends EventEmitter {
   writes: Buffer[] = [];
   stdout = new EventEmitter();
   stderr = new EventEmitter();
+  stdoutClosed = Promise.resolve();
+  stderrClosed = Promise.resolve();
   flushes = 0;
   endCalls = 0;
   killCalls = 0;
@@ -112,6 +114,25 @@ describe('RemoteAgentManager', () => {
     proc.kill();
 
     await expect(first).rejects.toThrow(/tmux-web: command not found/);
+    await mgr.close();
+  });
+
+  test('includes ssh stderr that drains just after process exit', async () => {
+    const proc = new FakeProc();
+    let resolveStderrClosed!: () => void;
+    proc.stderrClosed = new Promise(resolve => { resolveStderrClosed = resolve; });
+    const mgr = new RemoteAgentManager({
+      spawn: () => proc as any,
+      idleTimeoutMs: 20,
+    });
+
+    const first = mgr.getHost('prod');
+    proc.kill();
+    await Promise.resolve();
+    proc.emitStderr('kex_exchange_identification: read: Connection reset by peer\n');
+    resolveStderrClosed();
+
+    await expect(first).rejects.toThrow(/Connection reset by peer/);
     await mgr.close();
   });
 
