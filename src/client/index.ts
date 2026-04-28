@@ -1,6 +1,6 @@
 import type { TerminalAdapter } from './adapters/types.js';
 import type { ClientConfig, SwitchSessionMessage } from '../shared/types.js';
-import { Connection, buildWsUrl } from './connection.js';
+import { Connection, buildWsUrl, sessionFromPath } from './connection.js';
 import { handleServerData } from './message-handler.js';
 import { Topbar } from './ui/topbar.js';
 import { installMouseHandler, buildWheelSgrSequences } from './ui/mouse.js';
@@ -97,7 +97,7 @@ async function main() {
 
   // Read from the URL every time we need it — the URL is rewritten in place
   // via history.replaceState when tmux switches sessions, so saves must follow.
-  const getSession = (): string => location.pathname.replace(/^\/+|\/+$/g, '') || 'main';
+  const getSession = (): string => sessionFromPath(location.pathname);
   const sessionName = getSession();
   const currentTheme = themes.find(t => t.name === DEFAULT_SESSION_SETTINGS.theme) ?? themes[0];
   const themeDefaults = currentTheme ? {
@@ -354,7 +354,7 @@ async function main() {
 
   connection = new Connection({
     getUrl: () => {
-      const currentSession = location.pathname.replace(/^\/+|\/+$/g, '') || 'main';
+      const currentSession = getSession();
       return buildWsUrl(currentSession, adapter.cols, adapter.rows, window.__TMUX_WEB_CONFIG.wsBasicAuth);
     },
     onMessage: handleMessage,

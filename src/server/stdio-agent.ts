@@ -159,6 +159,78 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
     sendChannelError(channel.id, 'unsupported-client-action', `unsupported client action: ${act.type}`);
   };
 
+  const isSafeTmuxIndex = (index: unknown): index is string => (
+    typeof index === 'string' && /^[0-9]+$/.test(index)
+  );
+
+  const isSafeTmuxName = (name: string): boolean => {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+    if (trimmed.startsWith('-')) return false;
+    if (trimmed.includes(':') || trimmed.includes('.')) return false;
+    return true;
+  };
+
+  const applyWindowAction = async (
+    channel: Channel,
+    act: Extract<WsAction, { type: 'window' }>,
+  ): Promise<void> => {
+    const session = channel.session;
+    const target = isSafeTmuxIndex(act.index) ? `${session}:${act.index}` : null;
+    let args: string[] | null = null;
+
+    switch (act.action) {
+      case 'select':
+        if (!target) {
+          sendChannelError(channel.id, 'window-action-failed', 'window select requires a numeric index');
+          return;
+        }
+        args = ['select-window', '-t', target];
+        break;
+      case 'new':
+        args = ['new-window', '-t', session];
+        if (typeof act.name === 'string') {
+          if (!isSafeTmuxName(act.name)) {
+            sendChannelError(channel.id, 'window-action-failed', 'unsafe window name');
+            return;
+          }
+          args.push('-n', act.name.trim());
+        }
+        break;
+      case 'rename':
+        if (!target || typeof act.name !== 'string') {
+          sendChannelError(channel.id, 'window-action-failed', 'window rename requires a numeric index and name');
+          return;
+        }
+        if (!isSafeTmuxName(act.name)) {
+          sendChannelError(channel.id, 'window-action-failed', 'unsafe window name');
+          return;
+        }
+        args = ['rename-window', '-t', target, '--', act.name.trim()];
+        break;
+      case 'close':
+        if (!target) {
+          sendChannelError(channel.id, 'window-action-failed', 'window close requires a numeric index');
+          return;
+        }
+        args = ['kill-window', '-t', target];
+        break;
+      default:
+        sendChannelError(channel.id, 'unsupported-client-action', `unsupported window action: ${act.action}`);
+        return;
+    }
+
+    try {
+      await opts.tmuxControl.run(args);
+    } catch (err) {
+      sendChannelError(
+        channel.id,
+        'window-action-failed',
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  };
+
   const tmuxClientForPty = async (channel: Channel): Promise<string | null> => {
     const out = await opts.tmuxControl.run([
       'list-clients',
@@ -256,8 +328,10 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
         case 'switch-session':
           void switchChannelSession(channel, act.name);
           return;
-        case 'colour-variant':
         case 'window':
+          void applyWindowAction(channel, act);
+          return;
+        case 'colour-variant':
         case 'session':
         case 'scrollbar':
         case 'clipboard-deny':

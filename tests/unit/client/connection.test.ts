@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll } from 'bun:test';
-import { Connection, buildWsUrl } from '../../../src/client/connection.ts';
+import { Connection, buildWsUrl, remotePathForSession, sessionFromPath } from '../../../src/client/connection.ts';
 
 const origWS = (globalThis as any).WebSocket;
 const origSetTimeout = globalThis.setTimeout;
@@ -351,5 +351,33 @@ describe('buildWsUrl', () => {
       pathname: '/r/prod/main',
     };
     expect(buildWsUrl('main', 80, 24)).toContain('tw_auth=token%2Fvalue');
+  });
+});
+
+describe('sessionFromPath', () => {
+  it('reads a local route session', () => {
+    expect(sessionFromPath('/main')).toBe('main');
+  });
+
+  it('reads only the session segment from a remote route', () => {
+    expect(sessionFromPath('/r/prod/main')).toBe('main');
+  });
+
+  it('preserves encoded remote route session names', () => {
+    expect(sessionFromPath('/r/prod/dev%20work')).toBe('dev%20work');
+  });
+
+  it('falls back to main for root', () => {
+    expect(sessionFromPath('/')).toBe('main');
+  });
+});
+
+describe('remotePathForSession', () => {
+  it('preserves the remote route prefix when switching sessions', () => {
+    expect(remotePathForSession('/r/prod/main', 'dev')).toBe('/r/prod/dev');
+  });
+
+  it('uses a local route for local pages', () => {
+    expect(remotePathForSession('/main', 'dev')).toBe('/dev');
   });
 });

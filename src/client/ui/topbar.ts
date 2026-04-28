@@ -57,6 +57,7 @@ import {
   requestDesktopToggleMaximize,
   requestDesktopWindowClose,
 } from '../desktop-host.js';
+import { remotePathForSession, sessionFromPath } from '../connection.js';
 
 const TITLEBAR_DRAG_RESTORE_THRESHOLD_PX = 4;
 
@@ -945,7 +946,7 @@ export class Topbar {
   }
 
   get currentSession(): string {
-    return location.pathname.replace(/^\/+|\/+$/g, '') || 'main';
+    return sessionFromPath(location.pathname);
   }
 
   /** Gate a UI-driven WS commit on the current connection state. When
@@ -1259,7 +1260,7 @@ export class Topbar {
 
   updateSession(session: string): void {
     const prevPath = location.pathname;
-    const newPath = '/' + session;
+    const newPath = remotePathForSession(prevPath, session);
     const switched = prevPath !== newPath;
     if (switched) {
       history.replaceState(null, '', newPath);

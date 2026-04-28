@@ -664,6 +664,47 @@ describe('stdio agent runtime', () => {
     agent.close();
   });
 
+  test('client-msg window select dispatches a remote tmux command without channel-error', async () => {
+    const io = new FakeIo();
+    const runs: string[][] = [];
+    const makePty: AgentPtyFactory = (opts) => ({
+      session: opts.session,
+      onData() {},
+      onExit() {},
+      write() {},
+      resize() {},
+      kill() {},
+    }) as any;
+    const tmuxControl: TmuxControl = {
+      ...createNullTmuxControl(),
+      async run(args) {
+        runs.push([...args]);
+        return '';
+      },
+    };
+
+    const agent = runStdioAgent({
+      input: io.input as any,
+      write: io.write,
+      makePty,
+      tmuxControl,
+      version: 'test',
+    });
+
+    io.emitFrame({ v: 1, type: 'open', channelId: 'c1', session: 'main', cols: 80, rows: 24 });
+    io.emitFrame({
+      v: 1,
+      type: 'client-msg',
+      channelId: 'c1',
+      data: JSON.stringify({ type: 'window', action: 'select', index: '1' }),
+    });
+    await flushAsyncWork();
+
+    expect(runs).toContainEqual(['select-window', '-t', 'main:1']);
+    expect(io.frames().filter(f => f.type === 'channel-error')).toEqual([]);
+    agent.close();
+  });
+
   test('client-msg unsupported routed actions emit channel-error', () => {
     const io = new FakeIo();
     const makePty: AgentPtyFactory = (opts) => ({
@@ -688,7 +729,7 @@ describe('stdio agent runtime', () => {
       v: 1,
       type: 'client-msg',
       channelId: 'c1',
-      data: JSON.stringify({ type: 'window', action: 'select', index: '1' }),
+      data: JSON.stringify({ type: 'scrollbar', action: 'line-up' }),
     });
 
     expect(io.frames()).toContainEqual({
@@ -696,7 +737,7 @@ describe('stdio agent runtime', () => {
       type: 'channel-error',
       channelId: 'c1',
       code: 'unsupported-client-action',
-      message: 'unsupported client action: window',
+      message: 'unsupported client action: scrollbar',
     });
     agent.close();
   });

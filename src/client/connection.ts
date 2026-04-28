@@ -92,16 +92,30 @@ export function buildWsUrl(session: string, cols: number, rows: number, wsBasicA
   params.set('cols', String(cols));
   params.set('rows', String(rows));
   params.set('session', session);
-  const remoteHost = extractRemoteHost(location.pathname ?? current.pathname);
+  const remoteHost = remoteHostFromPath(location.pathname ?? current.pathname);
   if (remoteHost) params.set('remoteHost', remoteHost);
   const twAuth = current.searchParams.get('tw_auth');
   if (twAuth !== null) params.set('tw_auth', twAuth);
   return `${protocol}//${auth}${location.host}/ws?${params.toString().replace(/\+/g, '%20')}`;
 }
 
-function extractRemoteHost(pathname: string): string | null {
+export function remoteHostFromPath(pathname: string): string | null {
   const parts = pathname.split('/');
   if (parts[1] !== 'r' || !parts[2] || !parts[3]) return null;
   const host = parts[2];
   return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(host) ? host : null;
+}
+
+export function sessionFromPath(pathname: string): string {
+  const parts = pathname.split('/');
+  if (remoteHostFromPath(pathname)) {
+    return parts.slice(3).join('/') || 'main';
+  }
+  return pathname.replace(/^\/+|\/+$/g, '') || 'main';
+}
+
+export function remotePathForSession(currentPathname: string, session: string): string {
+  const remoteHost = remoteHostFromPath(currentPathname);
+  if (remoteHost) return `/r/${remoteHost}/${session}`;
+  return `/${session}`;
 }

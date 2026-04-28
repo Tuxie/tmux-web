@@ -297,6 +297,14 @@ describe('Topbar.currentSession', () => {
     const t = await freshTopbarCtor();
     expect(t.currentSession).toBe('main');
   });
+
+  it('reads only the session segment from remote routes', async () => {
+    installGlobals();
+    (globalThis as any).location.pathname = '/r/prod/main';
+    makeDoc();
+    const t = await freshTopbarCtor();
+    expect(t.currentSession).toBe('main');
+  });
 });
 
 describe('Topbar.init + updateTitle / updateWindows / renderWinTabs', () => {
@@ -756,6 +764,18 @@ describe('Topbar.updateSession', () => {
     t.updateSession('other');
     expect((globalThis as any).__historyCalls).toEqual([
       { state: null, title: '', path: '/other' },
+    ]);
+  });
+
+  it('preserves remote route prefix when switching', async () => {
+    installGlobals();
+    (globalThis as any).location.pathname = '/r/prod/main';
+    makeDoc();
+    const t = await freshTopbarCtor();
+    await t.init();
+    t.updateSession('dev');
+    expect((globalThis as any).__historyCalls).toEqual([
+      { state: null, title: '', path: '/r/prod/dev' },
     ]);
   });
 

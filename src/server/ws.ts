@@ -463,7 +463,6 @@ async function handleRemoteOpen(
     state.remoteChannel = channel;
     state.remoteOpenPending = false;
     state.unsubscribeRemoteFrames = channel.on('frame', frame => handleRemoteFrame(ws, frame));
-    registerWsSession(ws, session, reg);
     state.unsubscribeDrops = onDropsChange(() => {
       if (ws.readyState !== WS_OPEN) return;
       ws.send(frameTTMessage({ dropsChanged: true }));

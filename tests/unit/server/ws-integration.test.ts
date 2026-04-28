@@ -2,6 +2,7 @@ import { describe, test, expect, afterEach } from 'bun:test';
 import { connect } from 'node:net';
 import { startTestServer, type Harness } from './_harness/spawn-server.ts';
 import type { StdioFrame } from '../../../src/server/stdio-protocol.ts';
+import { createNullTmuxControl, type TmuxControl, type TmuxNotification } from '../../../src/server/tmux-control.ts';
 
 let h: Harness | undefined;
 afterEach(async () => { if (h) { await h.close(); h = undefined; } });
@@ -92,6 +93,27 @@ function waitForClose(ws: WebSocket): Promise<void> {
   });
 }
 
+function waitForOptionalMessage(ws: WebSocket, timeoutMs = 80): Promise<string | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve(null);
+    }, timeoutMs);
+    const onMessage = (event: MessageEvent) => {
+      cleanup();
+      const data = event.data;
+      if (typeof data === 'string') resolve(data);
+      else if (data instanceof ArrayBuffer) resolve(Buffer.from(data).toString('utf8'));
+      else resolve(String(data));
+    };
+    const cleanup = () => {
+      clearTimeout(timer);
+      ws.removeEventListener('message', onMessage);
+    };
+    ws.addEventListener('message', onMessage);
+  });
+}
+
 type RemoteEvent =
   | { type: 'open'; host: string; session: string; cols: number; rows: number }
   | { type: 'pty'; data: string }
@@ -165,6 +187,32 @@ function createTrackingTmuxControl() {
       on: () => () => {},
       hasSession: () => false,
       close: async () => {},
+    },
+  };
+}
+
+function createNotifyingTmuxControl() {
+  const listeners = new Map<string, Array<(n: any) => void>>();
+  const control: TmuxControl = {
+    ...createNullTmuxControl(),
+    async run(args) {
+      if (args[0] === 'list-windows') return '0\tlocal\t1\n';
+      return '';
+    },
+    on(event, cb) {
+      const list = listeners.get(event) ?? [];
+      list.push(cb);
+      listeners.set(event, list);
+      return () => {
+        const current = listeners.get(event) ?? [];
+        listeners.set(event, current.filter(x => x !== cb));
+      };
+    },
+  };
+  return {
+    control,
+    emit<T extends TmuxNotification['type']>(event: T, payload: Extract<TmuxNotification, { type: T }>) {
+      for (const cb of listeners.get(event) ?? []) cb(payload);
     },
   };
 }
@@ -332,6 +380,29 @@ describe('ws upgrade success paths', () => {
 
     ws.close();
     await new Promise(r => setTimeout(r, 20));
+  });
+
+  test('remoteHost client is isolated from local tmux session broadcasts', async () => {
+    const remoteEvents: RemoteEvent[] = [];
+    const fake = createFakeRemoteManager(remoteEvents);
+    const notifier = createNotifyingTmuxControl();
+    h = await startTestServer({
+      remoteAgentManager: fake.manager,
+      testMode: false,
+      tmuxControl: notifier.control,
+    });
+
+    const ws = await open('/ws?remoteHost=prod&session=main&cols=80&rows=24');
+    await new Promise(r => setTimeout(r, 20));
+
+    const nextMessage = waitForOptionalMessage(ws);
+    notifier.emit('sessionsChanged', { type: 'sessionsChanged' });
+    notifier.emit('windowAdd', { type: 'windowAdd', window: '@1', session: 'main' });
+
+    expect(await nextMessage).toBe(null);
+    ws.close();
+    await new Promise(r => setTimeout(r, 20));
+    expect(remoteEvents).toContainEqual({ type: 'close', reason: 'websocket closed' });
   });
 });
 
