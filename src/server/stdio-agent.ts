@@ -159,6 +159,38 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
     sendChannelError(channel.id, 'unsupported-client-action', `unsupported client action: ${act.type}`);
   };
 
+  const tmuxClientForPty = async (channel: Channel): Promise<string | null> => {
+    const out = await opts.tmuxControl.run([
+      'list-clients',
+      '-F',
+      '#{client_pid}\t#{client_tty}\t#{client_name}',
+    ]);
+    const candidates: string[] = [];
+    for (const line of out.split('\n')) {
+      if (!line) continue;
+      const [pid, tty, name] = line.split('\t');
+      const candidate = name || tty || null;
+      if (candidate) candidates.push(candidate);
+      if (Number(pid) === channel.pty.pid) return candidate;
+    }
+    if (candidates.length === 1) return candidates[0]!;
+    return null;
+  };
+
+  const tmuxClientSession = async (client: string): Promise<string | null> => {
+    const out = await opts.tmuxControl.run([
+      'list-clients',
+      '-F',
+      '#{client_tty}\t#{client_name}\t#{client_session}',
+    ]);
+    for (const line of out.split('\n')) {
+      if (!line) continue;
+      const [tty, name, session] = line.split('\t');
+      if (client === tty || client === name) return session || null;
+    }
+    return null;
+  };
+
   const switchChannelSession = async (channel: Channel, newSessionRaw: string): Promise<void> => {
     const oldSession = channel.session;
     const newSession = sanitizeSession(newSessionRaw);
@@ -172,16 +204,45 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
       return;
     }
 
+    let newSessionAttached = false;
     try {
       await opts.tmuxControl.attachSession(newSession, channel.lastSize);
+      newSessionAttached = true;
       if (channels.get(channel.id) !== channel) {
         try { opts.tmuxControl.detachSession(newSession); } catch { /* best-effort */ }
         return;
       }
+
+      const client = await tmuxClientForPty(channel);
+      if (!client) throw new Error('PTY tmux client not found');
+      if (channels.get(channel.id) !== channel) {
+        try { opts.tmuxControl.detachSession(newSession); } catch { /* best-effort */ }
+        return;
+      }
+
+      await opts.tmuxControl.run(['switch-client', '-c', client, '-t', newSession]);
+      if (channels.get(channel.id) !== channel) {
+        try { opts.tmuxControl.detachSession(newSession); } catch { /* best-effort */ }
+        return;
+      }
+
+      const reportedSession = await tmuxClientSession(client);
+      if (reportedSession !== newSession) {
+        throw new Error(`PTY tmux client still on ${reportedSession ?? '<unknown>'}`);
+      }
+      if (channels.get(channel.id) !== channel) {
+        try { opts.tmuxControl.detachSession(newSession); } catch { /* best-effort */ }
+        return;
+      }
+
       opts.tmuxControl.detachSession(oldSession);
+      newSessionAttached = false;
       channel.session = newSession;
       send({ v: 1, type: 'server-msg', channelId: channel.id, data: { session: newSession } });
     } catch (err) {
+      if (newSessionAttached) {
+        try { opts.tmuxControl.detachSession(newSession); } catch { /* best-effort */ }
+      }
       sendChannelError(
         channel.id,
         'switch-session-failed',

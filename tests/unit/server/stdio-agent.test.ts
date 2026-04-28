@@ -26,8 +26,7 @@ function makeRecordingControl(): TmuxControl & { detached: string[] } {
 }
 
 async function flushAsyncWork(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
+  for (let i = 0; i < 10; i += 1) await Promise.resolve();
 }
 
 describe('stdio agent runtime', () => {
@@ -218,15 +217,45 @@ describe('stdio agent runtime', () => {
     const io = new FakeIo();
     const attached: Array<{ session: string; cols?: number; rows?: number }> = [];
     const detached: string[] = [];
+    const events: string[] = [];
+    const runCalls: string[][] = [];
+    const write = (buf: Buffer) => {
+      io.write(buf);
+      const [frame] = new FrameDecoder().push(buf);
+      if (
+        frame?.type === 'server-msg'
+        && typeof frame.data === 'object'
+        && frame.data !== null
+        && 'session' in frame.data
+        && frame.data.session === 'dev'
+      ) {
+        events.push('ack:dev');
+      }
+    };
     const tmuxControl: TmuxControl = {
       ...createNullTmuxControl(),
       attachSession: async (session: string, size?: { cols: number; rows: number }) => {
         attached.push({ session, ...size });
       },
       detachSession: (session: string) => { detached.push(session); },
+      run: async (args: readonly string[]) => {
+        runCalls.push([...args]);
+        if (args[0] === 'list-clients' && args.includes('#{client_pid}\t#{client_tty}\t#{client_name}')) {
+          return '4242\t/dev/pts/fake\tclient-1\n';
+        }
+        if (args[0] === 'switch-client') {
+          events.push(`switch:${args.join(' ')}`);
+          return '';
+        }
+        if (args[0] === 'list-clients' && args.includes('#{client_tty}\t#{client_name}\t#{client_session}')) {
+          return '/dev/pts/fake\tclient-1\tdev\n';
+        }
+        return '';
+      },
       hasSession: (session: string) => ['main', 'dev'].includes(session),
     };
     const makePty: AgentPtyFactory = (opts) => ({
+      pid: 4242,
       session: opts.session,
       onData() {},
       onExit() {},
@@ -237,7 +266,7 @@ describe('stdio agent runtime', () => {
 
     const agent = runStdioAgent({
       input: io.input as any,
-      write: io.write,
+      write,
       makePty,
       tmuxControl,
       version: 'test',
@@ -258,6 +287,14 @@ describe('stdio agent runtime', () => {
       { session: 'main', cols: 80, rows: 24 },
       { session: 'dev', cols: 100, rows: 40 },
     ]);
+    expect(runCalls).toContainEqual([
+      'switch-client',
+      '-c',
+      'client-1',
+      '-t',
+      'dev',
+    ]);
+    expect(events).toEqual(['switch:switch-client -c client-1 -t dev', 'ack:dev']);
     expect(detached).toEqual(['main']);
     expect(io.frames()).toContainEqual({
       v: 1,
@@ -266,6 +303,85 @@ describe('stdio agent runtime', () => {
       data: { session: 'dev' },
     });
     expect(io.frames().filter(f => f.type === 'channel-error')).toEqual([]);
+    agent.close();
+  });
+
+  test('client-msg switch-session failure after attach rolls back new ref without ack', async () => {
+    const io = new FakeIo();
+    const attached: Array<{ session: string; cols?: number; rows?: number }> = [];
+    const detached: string[] = [];
+    const runCalls: string[][] = [];
+    const tmuxControl: TmuxControl = {
+      ...createNullTmuxControl(),
+      attachSession: async (session: string, size?: { cols: number; rows: number }) => {
+        attached.push({ session, ...size });
+      },
+      detachSession: (session: string) => { detached.push(session); },
+      run: async (args: readonly string[]) => {
+        runCalls.push([...args]);
+        if (args[0] === 'list-clients' && args.includes('#{client_pid}\t#{client_tty}\t#{client_name}')) {
+          return '4242\t/dev/pts/fake\tclient-1\n';
+        }
+        if (args[0] === 'switch-client') {
+          throw new Error('switch-client failed');
+        }
+        return '';
+      },
+      hasSession: (session: string) => ['main', 'dev'].includes(session),
+    };
+    const makePty: AgentPtyFactory = (opts) => ({
+      pid: 4242,
+      session: opts.session,
+      onData() {},
+      onExit() {},
+      write() {},
+      resize() {},
+      kill() {},
+    }) as any;
+
+    const agent = runStdioAgent({
+      input: io.input as any,
+      write: io.write,
+      makePty,
+      tmuxControl,
+      version: 'test',
+    });
+
+    io.emitFrame({ v: 1, type: 'open', channelId: 'c1', session: 'main', cols: 80, rows: 24 });
+    await flushAsyncWork();
+    io.emitFrame({
+      v: 1,
+      type: 'client-msg',
+      channelId: 'c1',
+      data: JSON.stringify({ type: 'switch-session', name: 'dev' }),
+    });
+    await flushAsyncWork();
+
+    expect(runCalls).toContainEqual([
+      'switch-client',
+      '-c',
+      'client-1',
+      '-t',
+      'dev',
+    ]);
+    expect(attached).toEqual([
+      { session: 'main', cols: 80, rows: 24 },
+      { session: 'dev', cols: 80, rows: 24 },
+    ]);
+    expect(detached).toEqual(['dev']);
+    expect(io.frames()).toContainEqual({
+      v: 1,
+      type: 'channel-error',
+      channelId: 'c1',
+      code: 'switch-session-failed',
+      message: 'switch-client failed',
+    });
+    expect(io.frames()).not.toContainEqual({
+      v: 1,
+      type: 'server-msg',
+      channelId: 'c1',
+      data: { session: 'dev' },
+    });
     agent.close();
   });
 
@@ -279,9 +395,20 @@ describe('stdio agent runtime', () => {
         attached.push({ session, ...size });
       },
       detachSession: (session: string) => { detached.push(session); },
+      run: async (args: readonly string[]) => {
+        if (args[0] === 'list-clients' && args.includes('#{client_pid}\t#{client_tty}\t#{client_name}')) {
+          return '4242\t/dev/pts/fake\tclient-1\n';
+        }
+        if (args[0] === 'switch-client') return '';
+        if (args[0] === 'list-clients' && args.includes('#{client_tty}\t#{client_name}\t#{client_session}')) {
+          return '/dev/pts/fake\tclient-1\tdev\n';
+        }
+        return '';
+      },
       hasSession: (session: string) => ['main', 'dev'].includes(session),
     };
     const makePty: AgentPtyFactory = (opts) => ({
+      pid: 4242,
       session: opts.session,
       onData() {},
       onExit() {},
