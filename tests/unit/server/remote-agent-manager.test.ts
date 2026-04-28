@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
-import { RemoteAgentManager } from '../../../src/server/remote-agent-manager.js';
+import { buildSshAgentCommand, RemoteAgentManager } from '../../../src/server/remote-agent-manager.js';
 import { encodeFrame, FrameDecoder, type StdioFrame } from '../../../src/server/stdio-protocol.js';
 
 function delay(ms: number): Promise<void> {
@@ -46,6 +46,18 @@ function collectWrites(proc: FakeProc): StdioFrame[] {
 }
 
 describe('RemoteAgentManager', () => {
+  test('default ssh agent command accepts new host keys non-interactively', () => {
+    expect(buildSshAgentCommand('prod')).toEqual([
+      'ssh',
+      '-T',
+      '-o',
+      'StrictHostKeyChecking=accept-new',
+      'prod',
+      'tmux-web',
+      '--stdio-agent',
+    ]);
+  });
+
   test('starts one ssh process per host and handshakes once', async () => {
     const procs: FakeProc[] = [];
     const mgr = new RemoteAgentManager({

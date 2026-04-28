@@ -430,8 +430,20 @@ export class RemoteAgentManager {
   }
 }
 
+export function buildSshAgentCommand(host: string): string[] {
+  return [
+    'ssh',
+    '-T',
+    '-o',
+    'StrictHostKeyChecking=accept-new',
+    host,
+    'tmux-web',
+    '--stdio-agent',
+  ];
+}
+
 function spawnSshAgent(host: string): AgentProc {
-  const proc = Bun.spawn(['ssh', '-T', host, 'tmux-web', '--stdio-agent'], {
+  const proc = Bun.spawn(buildSshAgentCommand(host), {
     stdin: 'pipe',
     stdout: 'pipe',
     stderr: 'pipe',
