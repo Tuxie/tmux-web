@@ -705,7 +705,7 @@ describe('stdio agent runtime', () => {
     agent.close();
   });
 
-  test('client-msg unsupported routed actions emit channel-error', () => {
+  test('client-msg unsupported routed actions emit nonfatal server-msg errors', () => {
     const io = new FakeIo();
     const makePty: AgentPtyFactory = (opts) => ({
       session: opts.session,
@@ -734,11 +734,72 @@ describe('stdio agent runtime', () => {
 
     expect(io.frames()).toContainEqual({
       v: 1,
-      type: 'channel-error',
+      type: 'server-msg',
       channelId: 'c1',
-      code: 'unsupported-client-action',
-      message: 'unsupported client action: scrollbar',
+      data: {
+        error: true,
+        code: 'unsupported-client-action',
+        message: 'unsupported client action: scrollbar',
+      },
     });
+    expect(io.frames().filter(f => f.type === 'channel-error')).toEqual([]);
+    agent.close();
+  });
+
+  test('client-msg window failures emit nonfatal server-msg errors and keep channel live', async () => {
+    const io = new FakeIo();
+    const ptys: any[] = [];
+    const makePty: AgentPtyFactory = (opts) => {
+      const pty = {
+        session: opts.session,
+        writes: [] as string[],
+        onData() {},
+        onExit() {},
+        write(data: string) { this.writes.push(data); },
+        resize() {},
+        kill() {},
+      };
+      ptys.push(pty);
+      return pty as any;
+    };
+    const tmuxControl: TmuxControl = {
+      ...createNullTmuxControl(),
+      async run(args) {
+        if (args[0] === 'select-window') throw new Error('stale window');
+        return '';
+      },
+    };
+
+    const agent = runStdioAgent({
+      input: io.input as any,
+      write: io.write,
+      makePty,
+      tmuxControl,
+      version: 'test',
+    });
+
+    io.emitFrame({ v: 1, type: 'open', channelId: 'c1', session: 'main', cols: 80, rows: 24 });
+    io.emitFrame({
+      v: 1,
+      type: 'client-msg',
+      channelId: 'c1',
+      data: JSON.stringify({ type: 'window', action: 'select', index: '999' }),
+    });
+    await flushAsyncWork();
+    io.emitFrame({ v: 1, type: 'pty-in', channelId: 'c1', data: Buffer.from('still-live').toString('base64') });
+
+    expect(io.frames()).toContainEqual({
+      v: 1,
+      type: 'server-msg',
+      channelId: 'c1',
+      data: {
+        error: true,
+        code: 'window-action-failed',
+        message: 'stale window',
+      },
+    });
+    expect(io.frames().filter(f => f.type === 'channel-error')).toEqual([]);
+    expect(ptys[0]!.writes).toEqual(['still-live']);
     agent.close();
   });
 

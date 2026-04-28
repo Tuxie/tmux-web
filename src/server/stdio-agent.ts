@@ -155,8 +155,17 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
     send({ v: 1, type: 'channel-error', channelId, code, message });
   };
 
+  const sendClientActionError = (channelId: string, code: string, message: string): void => {
+    send({
+      v: 1,
+      type: 'server-msg',
+      channelId,
+      data: { error: true, code, message },
+    });
+  };
+
   const unsupportedClientAction = (channel: Channel, act: WsAction): void => {
-    sendChannelError(channel.id, 'unsupported-client-action', `unsupported client action: ${act.type}`);
+    sendClientActionError(channel.id, 'unsupported-client-action', `unsupported client action: ${act.type}`);
   };
 
   const isSafeTmuxIndex = (index: unknown): index is string => (
@@ -182,7 +191,7 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
     switch (act.action) {
       case 'select':
         if (!target) {
-          sendChannelError(channel.id, 'window-action-failed', 'window select requires a numeric index');
+          sendClientActionError(channel.id, 'window-action-failed', 'window select requires a numeric index');
           return;
         }
         args = ['select-window', '-t', target];
@@ -191,7 +200,7 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
         args = ['new-window', '-t', session];
         if (typeof act.name === 'string') {
           if (!isSafeTmuxName(act.name)) {
-            sendChannelError(channel.id, 'window-action-failed', 'unsafe window name');
+            sendClientActionError(channel.id, 'window-action-failed', 'unsafe window name');
             return;
           }
           args.push('-n', act.name.trim());
@@ -199,31 +208,31 @@ export function runStdioAgent(opts: StdioAgentOptions): { close: () => void } {
         break;
       case 'rename':
         if (!target || typeof act.name !== 'string') {
-          sendChannelError(channel.id, 'window-action-failed', 'window rename requires a numeric index and name');
+          sendClientActionError(channel.id, 'window-action-failed', 'window rename requires a numeric index and name');
           return;
         }
         if (!isSafeTmuxName(act.name)) {
-          sendChannelError(channel.id, 'window-action-failed', 'unsafe window name');
+          sendClientActionError(channel.id, 'window-action-failed', 'unsafe window name');
           return;
         }
         args = ['rename-window', '-t', target, '--', act.name.trim()];
         break;
       case 'close':
         if (!target) {
-          sendChannelError(channel.id, 'window-action-failed', 'window close requires a numeric index');
+          sendClientActionError(channel.id, 'window-action-failed', 'window close requires a numeric index');
           return;
         }
         args = ['kill-window', '-t', target];
         break;
       default:
-        sendChannelError(channel.id, 'unsupported-client-action', `unsupported window action: ${act.action}`);
+        sendClientActionError(channel.id, 'unsupported-client-action', `unsupported window action: ${act.action}`);
         return;
     }
 
     try {
       await opts.tmuxControl.run(args);
     } catch (err) {
-      sendChannelError(
+      sendClientActionError(
         channel.id,
         'window-action-failed',
         err instanceof Error ? err.message : String(err),
