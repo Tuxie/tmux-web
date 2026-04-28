@@ -37,6 +37,13 @@ rebuild_if_needed() {
   fi
 }
 
+for arg in "$@"; do
+  if [ "$arg" = "--stdio-agent" ]; then
+    rebuild_if_needed
+    exec bun src/server/index.ts "$@"
+  fi
+done
+
 start_server() {
   rebuild_if_needed
   bun src/server/index.ts "$@" &
