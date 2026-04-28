@@ -123,7 +123,7 @@ export class RemoteHostAgent {
     const channel = new RemoteChannel(
       channelId,
       frame => this.writeFrame(frame),
-      () => this.checkIdle(),
+      () => this.markChannelClosed(channelId),
     );
     const opened = new Promise<RemoteChannel>((resolve, reject) => {
       this.pendingOpens.set(channelId, { channel, resolve, reject });
@@ -196,9 +196,7 @@ export class RemoteHostAgent {
         const channel = this.channels.get(frame.channelId);
         if (channel) {
           channel.emit('frame', frame);
-          channel.markRemoteClosed();
-          this.channels.delete(frame.channelId);
-          this.checkIdle();
+          this.markChannelClosed(frame.channelId);
           return;
         }
         this.channels.get(frame.channelId)?.emit('frame', frame);
@@ -207,10 +205,8 @@ export class RemoteHostAgent {
       case 'close': {
         const channel = this.channels.get(frame.channelId);
         if (channel) {
-          channel.markRemoteClosed();
           channel.emit('frame', frame);
-          this.channels.delete(frame.channelId);
-          this.checkIdle();
+          this.markChannelClosed(frame.channelId);
         }
         return;
       }
@@ -261,6 +257,14 @@ export class RemoteHostAgent {
     if (this.isReadyAndIdle()) {
       this.onIdle(this);
     }
+  }
+
+  private markChannelClosed(channelId: string): void {
+    const channel = this.channels.get(channelId);
+    if (!channel) return;
+    channel.markRemoteClosed();
+    this.channels.delete(channelId);
+    this.checkIdle();
   }
 }
 

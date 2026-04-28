@@ -181,6 +181,54 @@ describe('RemoteAgentManager', () => {
     await mgr.close();
   });
 
+  test('kills an idle host agent after local channel close without remote echo', async () => {
+    const proc = new FakeProc();
+    const mgr = new RemoteAgentManager({
+      spawn: () => proc as any,
+      idleTimeoutMs: 10,
+    });
+
+    const ready = mgr.getHost('prod');
+    proc.emitFrame({ v: 1, type: 'hello-ok', agentVersion: 'test' });
+    const agent = await ready;
+    const opened = agent.openChannel({ session: 'main', cols: 80, rows: 24 });
+    const open = collectWrites(proc).find(f => f.type === 'open') as any;
+    proc.emitFrame({ v: 1, type: 'open-ok', channelId: open.channelId, session: 'main' });
+    const channel = await opened;
+
+    channel.close();
+    await delay(25);
+
+    expect(proc.killCalls).toBe(1);
+    expect(collectWrites(proc).some(f => f.type === 'shutdown')).toBe(true);
+    await mgr.close();
+  });
+
+  test('ignores remote close/error after local channel close and kills idle agent once', async () => {
+    const proc = new FakeProc();
+    const mgr = new RemoteAgentManager({
+      spawn: () => proc as any,
+      idleTimeoutMs: 10,
+    });
+
+    const ready = mgr.getHost('prod');
+    proc.emitFrame({ v: 1, type: 'hello-ok', agentVersion: 'test' });
+    const agent = await ready;
+    const opened = agent.openChannel({ session: 'main', cols: 80, rows: 24 });
+    const open = collectWrites(proc).find(f => f.type === 'open') as any;
+    proc.emitFrame({ v: 1, type: 'open-ok', channelId: open.channelId, session: 'main' });
+    const channel = await opened;
+
+    channel.close();
+    proc.emitFrame({ v: 1, type: 'close', channelId: open.channelId, reason: 'remote echo' });
+    proc.emitFrame({ v: 1, type: 'channel-error', channelId: open.channelId, code: 'late', message: 'late error' });
+    await delay(25);
+
+    expect(proc.killCalls).toBe(1);
+    await mgr.close();
+    expect(proc.killCalls).toBe(1);
+  });
+
   test('cancels pending idle shutdown when a new channel opens before timeout', async () => {
     const procs: FakeProc[] = [];
     const mgr = new RemoteAgentManager({
