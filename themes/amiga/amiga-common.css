@@ -615,6 +615,14 @@ body.topbar-pinned #terminal { top: 29px; }
   border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   box-sizing: border-box;
 }
+.tw-scrollbar.unavailable {
+  opacity: 1;
+}
+.tw-scrollbar.unavailable .tw-scrollbar-track,
+.tw-scrollbar.unavailable .tw-scrollbar-up,
+.tw-scrollbar.unavailable .tw-scrollbar-down {
+  display: none;
+}
 
 /* Track sits flush against the outer bevel and stops above the
  * three-button cluster. Cluster height = 3 * arrow-h + 4 px

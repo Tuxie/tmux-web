@@ -35,8 +35,8 @@ describe('Amiga theme CSS', () => {
     expect(sceneCss).toMatch(/\.tw-scrollbar-resize::after\s*\{[^}]*background:\s*hsl\(var\(--tw-theme-hue,\s*222\)\s*15%\s*calc\(42%\s*\*\s*1\.44\)\);/s);
   });
 
-  test('window tabs are separated so inactive tab bevels match standalone topbar buttons', () => {
-    expect(commonCss).toMatch(/#tb-windows #win-tabs\s*\{\s*display:\s*flex;\s*gap:\s*2px;\s*\}/);
+  test('window tabs are gapless in the shared Amiga topbar', () => {
+    expect(commonCss).toMatch(/#tb-windows #win-tabs\s*\{\s*display:\s*flex;\s*gap:\s*0;\s*\}/);
   });
 
   test('AmigaOS 3.1 window tabs cover the topbar bevel with a chrome surface', () => {
@@ -44,5 +44,10 @@ describe('Amiga theme CSS', () => {
     expect(commonCss).toMatch(/#topbar \.tw-win-tab:hover\s*\{\s*background:\s*var\(--tw-chrome\);\s*\}/);
     expect(sceneCss).toMatch(/#topbar \.tw-win-tab,[^}]*\{\s*background:\s*transparent;/s);
     expect(sceneCss).toMatch(/#topbar \.tw-win-tab:hover\s*\{\s*background:\s*rgba\(255,\s*255,\s*255,\s*0\.1\);\s*\}/);
+  });
+
+  test('unavailable scrollbar stays opaque and hides scroll controls', () => {
+    expect(commonCss).toMatch(/\.tw-scrollbar\.unavailable\s*\{\s*opacity:\s*1;\s*\}/);
+    expect(commonCss).toMatch(/\.tw-scrollbar\.unavailable \.tw-scrollbar-track,\s*\.tw-scrollbar\.unavailable \.tw-scrollbar-up,\s*\.tw-scrollbar\.unavailable \.tw-scrollbar-down\s*\{\s*display:\s*none;\s*\}/);
   });
 });
