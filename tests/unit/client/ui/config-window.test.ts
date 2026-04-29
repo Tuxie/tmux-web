@@ -283,14 +283,14 @@ describe('configuration window', () => {
     expect(fieldLabels(dialog).slice(0, 5)).toEqual([
       'Name:',
       'Protocol:',
-      'Port:',
       'Hostname:',
       'Username:',
+      'Password:',
     ]);
     const rows = formRows(dialog).slice(0, 4);
     expect(rows[0]).toBe('Name:');
     expect(rows[1].startsWith('Protocol:')).toBe(true);
-    expect(rows[1]).toContain('Port:');
+    expect(rows[1]).not.toContain('Port:');
     expect(rows[1]).toContain('Hostname:');
     expect(rows.slice(2)).toEqual([
       'Username:Password:Save password',
@@ -566,13 +566,12 @@ describe('configuration window', () => {
     expect(css).toContain('.tw-config-field-name > input { grid-column: 2 / 9; }');
     expect(css).toContain('.tw-config-field-protocol > span { grid-column: 1; }');
     expect(css).toContain('.tw-config-field-protocol > select { grid-column: 2; }');
-    expect(css).toContain('.tw-config-field-port > span { grid-column: 3; }');
-    expect(css).toContain('.tw-config-field-port > input { grid-column: 4; }');
-    expect(css).toContain('.tw-config-field-port > input[type="number"] {\n  -moz-appearance: textfield;\n  appearance: textfield;');
-    expect(css).toContain('.tw-config-field-port > input[type="number"]::-webkit-inner-spin-button');
-    expect(css).toContain('.tw-config-field-port > input[type="number"]::-webkit-outer-spin-button');
-    expect(css).toContain('.tw-config-field-host > span { grid-column: 5; }');
-    expect(css).toContain('.tw-config-field-host > input { grid-column: 6 / 9; }');
+    expect(css).toContain('.tw-config-port-input { grid-column: 3; }');
+    expect(css).toContain('.tw-config-port-input[type="number"] {\n  -moz-appearance: textfield;\n  appearance: textfield;');
+    expect(css).toContain('.tw-config-port-input[type="number"]::-webkit-inner-spin-button');
+    expect(css).toContain('.tw-config-port-input[type="number"]::-webkit-outer-spin-button');
+    expect(css).toContain('.tw-config-field-host > span { grid-column: 4; }');
+    expect(css).toContain('.tw-config-field-host > input { grid-column: 5 / 9; }');
     expect(css).toContain('.tw-config-field-username > span { grid-column: 1; }');
     expect(css).toContain('.tw-config-field-username > input { grid-column: 2 / 4; }');
     expect(css).toContain('.tw-config-field-password > span { grid-column: 4; }');

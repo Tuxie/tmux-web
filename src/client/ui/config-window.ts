@@ -271,6 +271,7 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
   const protocol = selected?.protocol ?? 'ssh';
   const protocolInput = protocolSelect(protocol);
   const portInput = textInput('port', String(selected?.port ?? defaultPort(protocol)), 'number');
+  portInput.className += ' tw-config-port-input';
   const nameInput = textInput('name', selected?.name ?? '');
   const hostInput = textInput('host', selected?.host ?? '');
   const usernameInput = textInput('username', selected?.username ?? '', 'text', isLocal || protocol === 'ssh' ? '(current user)' : '');
@@ -318,7 +319,7 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
     form.appendChild(formRow(
       'tw-config-form-row-connection',
       labelledInput('Protocol', protocolInput, 'tw-config-field-protocol'),
-      labelledInput('Port', portInput, 'tw-config-field-port'),
+      portInput,
       labelledInput('Hostname', hostInput, 'tw-config-field-host'),
     ));
     form.appendChild(formRow(
