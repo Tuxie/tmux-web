@@ -536,8 +536,16 @@ instead of forcing the custom-property path.
 TDD applies to code and logic changes only: test/verify behavior → verify
 fail → implement → verify pass. This includes bug fixes and behavior changes.
 
-CSS-only styling changes and documentation-only changes do not require TDD or
-new tests. Verify them with an appropriate lightweight check instead.
+CSS-only styling changes must not use TDD and must not add or update unit
+tests. Verify them with an appropriate lightweight check instead: inspect the
+CSS diff, run `git diff --check`, and use a browser/manual visual check when
+that is useful.
+
+Exception: unit tests are allowed only for specifically targeted calculations
+or behavior with tricky inheritance/cascade semantics. Before adding or
+updating such a test, explicitly state why the exception applies.
+
+Documentation-only changes do not require TDD or new tests.
 
 ### Bug reporting
 

@@ -35,12 +35,6 @@ describe('Amiga theme CSS', () => {
     expect(sceneCss).toMatch(/\.tw-scrollbar-resize::after\s*\{[^}]*background:\s*hsl\(var\(--tw-theme-hue,\s*222\)\s*15%\s*calc\(42%\s*\*\s*1\.44\)\);/s);
   });
 
-  test('Scene 2000 shares its blue menu gradient with the config window token', () => {
-    expect(commonCss).toMatch(/--tw-menu-bg:\s*var\(--tw-chrome-bg\);/);
-    expect(sceneCss).toMatch(/--tw-menu-bg:\s*linear-gradient\(to bottom,\s*color-mix\(in srgb,\s*var\(--tw-chrome\),\s*white calc\(6% \* var\(--tw-theme-contrast\)\)\),\s*color-mix\(in srgb,\s*var\(--tw-chrome\),\s*black calc\(6% \* var\(--tw-theme-contrast\)\)\)\);/s);
-    expect(sceneCss).toMatch(/\.tw-dropdown-trigger,\s*\.tw-dropdown-menu\s*\{[^}]*background:\s*var\(--tw-menu-bg\);/s);
-  });
-
   test('window tabs are gapless in the shared Amiga topbar', () => {
     expect(commonCss).toMatch(/#tb-windows #win-tabs\s*\{\s*display:\s*flex;\s*gap:\s*0;\s*\}/);
   });

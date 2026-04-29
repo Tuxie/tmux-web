@@ -1,5 +1,4 @@
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test';
-import fs from 'fs';
 import { setupDocument, stubFetch, type StubDoc, type StubElement } from '../_dom.js';
 import { _resetSessionStore } from '../../../../src/client/session-settings.ts';
 
@@ -532,68 +531,4 @@ describe('configuration window', () => {
     ]);
   });
 
-  it('places the server list to the left of the server editor', () => {
-    const css = fs.readFileSync('src/client/base.css', 'utf-8');
-    const match = /\.tw-config-pane-servers\s*\{(?<body>[^}]+)\}/.exec(css);
-    expect(match?.groups?.body).toContain('display: grid');
-    expect(match?.groups?.body).toContain('grid-template-columns');
-    expect(css).toContain('--tw-menu-bg: linear-gradient(to bottom,');
-    expect(css).toContain('--tw-menu-chrome: var(--tw-chrome-bg);');
-    expect(css).toMatch(/\.tw-config-window\s*\{[^}]*position:\s*relative;/s);
-    expect(css).toMatch(/\.tw-config-window\s*\{[^}]*font-size:\s*var\(--tw-ui-font-size\);/s);
-    expect(css).toMatch(/\.tw-config-window\s*\{[^}]*grid-template-columns:\s*8em 1fr;/s);
-    expect(css).toContain('--tw-config-label-min-width: 7em;');
-    expect(css).toContain('--tw-config-label-track: minmax(var(--tw-config-label-min-width), max-content);');
-    expect(css).toContain('--tw-config-control-track: minmax(0, 1fr);');
-    expect(css).toMatch(/\.tw-config-nav-item\s*\{[^}]*font-size:\s*inherit;/s);
-    expect(css).toContain('--tw-config-chrome: var(--tw-menu-chrome);');
-    expect(css).toContain('--tw-config-bg: var(--tw-menu-bg);');
-    expect(css).toContain('--tw-config-surface: linear-gradient(rgb(0 0 0 / 4%), rgb(0 0 0 / 4%)), var(--tw-config-bg);');
-    expect(css).toContain('background: var(--tw-config-bg);');
-    expect(css).toContain('background: var(--tw-config-surface);');
-    expect(css).not.toContain('background: color-mix(in srgb, var(--tw-chrome-bg), black 4%);');
-    expect(css).not.toContain('background: color-mix(in srgb, var(--tw-chrome-bg), black 8%);');
-    expect(css).toContain(':where(#menu-dropdown, .tw-config-window) .tb-btn');
-    expect(fs.readFileSync('themes/amiga/amiga-common.css', 'utf-8')).toContain(':where(.tw-dropdown-menu, .tw-config-window) input[type="checkbox"]');
-  });
-
-  it('uses an eight-section aligned grid for server connection and credential rows', () => {
-    const css = fs.readFileSync('src/client/base.css', 'utf-8');
-    expect(css).toContain('.tw-config-form-row-name {\n  grid-template-columns: var(--tw-config-label-track) repeat(7, var(--tw-config-control-track));');
-    expect(css).toContain('.tw-config-form-row-connection {\n  grid-template-columns:\n    var(--tw-config-label-track) var(--tw-config-control-track)');
-    expect(css).toContain('.tw-config-form-row-credentials {\n  grid-template-columns:\n    var(--tw-config-label-track) repeat(2, var(--tw-config-control-track))');
-    expect(css).toContain('.tw-config-field-name > span { grid-column: 1; }');
-    expect(css).toContain('.tw-config-field-name > input { grid-column: 2 / 9; }');
-    expect(css).toContain('.tw-config-field-protocol > span { grid-column: 1; }');
-    expect(css).toContain('.tw-config-field-protocol > select { grid-column: 2; }');
-    expect(css).toContain('.tw-config-port-input { grid-column: 3; }');
-    expect(css).toContain('.tw-config-port-input[type="number"] {\n  -moz-appearance: textfield;\n  appearance: textfield;');
-    expect(css).toContain('.tw-config-port-input[type="number"]::-webkit-inner-spin-button');
-    expect(css).toContain('.tw-config-port-input[type="number"]::-webkit-outer-spin-button');
-    expect(css).toContain('.tw-config-field-host > span { grid-column: 4; }');
-    expect(css).toContain('.tw-config-field-host > input { grid-column: 5 / 9; }');
-    expect(css).toContain('.tw-config-field-username > span { grid-column: 1; }');
-    expect(css).toContain('.tw-config-field-username > input { grid-column: 2 / 4; }');
-    expect(css).toContain('.tw-config-field-password > span { grid-column: 4; }');
-    expect(css).toContain('.tw-config-field-password > input { grid-column: 5 / 7; }');
-    expect(css).toContain('.tw-config-save-password { grid-column: 7 / 9; }');
-    expect(css).toContain('.tw-config-form-row-options {\n  grid-template-columns: var(--tw-config-label-track) repeat(7, var(--tw-config-control-track));');
-    expect(css).toMatch(/\.tw-config-row-label\s*\{[^}]*grid-column:\s*1;/s);
-    expect(css).toContain('.tw-config-form-row-options .tw-config-checkbox-field { grid-column: 2 / 4; }');
-    expect(css).toContain('.tw-config-form-row-local-options {\n  grid-template-columns:\n    var(--tw-config-label-track) repeat(2, var(--tw-config-control-track))');
-    expect(css).toContain('.tw-config-field-socket-name > span { grid-column: 1; }');
-    expect(css).toContain('.tw-config-field-socket-name > input { grid-column: 2 / 4; }');
-    expect(css).toContain('.tw-config-field-socket-path > span { grid-column: 4; }');
-    expect(css).toContain('.tw-config-field-socket-path > input { grid-column: 5 / 9; }');
-    expect(css).toContain('.tw-config-field-tmux-command > span { grid-column: 1; }');
-    expect(css).toContain('.tw-config-field-tmux-command > input { grid-column: 2 / 4; }');
-    expect(css).toContain('.tw-config-field-tmux-web-command > span { grid-column: 4; }');
-    expect(css).toContain('.tw-config-field-tmux-web-command > input { grid-column: 5 / 7; }');
-    expect(css).toMatch(/\.tw-config-field > span,\s*\.tw-config-row-label\s*\{[^}]*text-align:\s*right;/s);
-    expect(css).not.toMatch(/\.tw-config-field > span,\s*\.tw-config-row-label\s*\{[^}]*min-width:/s);
-    expect(css).toMatch(/\.tw-config-field > span,\s*\.tw-config-row-label\s*\{[^}]*white-space:\s*nowrap;/s);
-    expect(css).toMatch(/\.tw-config-field input,\s*\.tw-config-field select\s*\{[^}]*min-width:\s*0;[^}]*width:\s*100%;/s);
-    expect(css).toContain('.tw-menu-input-select::placeholder');
-    expect(css).toContain('font-style: italic;');
-  });
 });
