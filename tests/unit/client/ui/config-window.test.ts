@@ -537,6 +537,9 @@ describe('configuration window', () => {
     const match = /\.tw-config-pane-servers\s*\{(?<body>[^}]+)\}/.exec(css);
     expect(match?.groups?.body).toContain('display: grid');
     expect(match?.groups?.body).toContain('grid-template-columns');
+    expect(css).toContain('--tw-menu-bg: linear-gradient(to bottom,');
+    expect(css).toContain('.tw-config-window {\n  position: relative;');
+    expect(css).toContain('background: var(--tw-menu-bg);');
   });
 
   it('uses an eight-section aligned grid for server connection and credential rows', () => {

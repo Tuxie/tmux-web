@@ -21,6 +21,7 @@
   --tw-ui-font: 'Topaz8 Amiga1200', 'Iosevka Amiga', monospace;
   --tw-ui-font-size: 17px;
   --tw-chrome-bg: hsl(0 0% calc(var(--tw-theme-ltn) + 10%));
+  --tw-menu-bg: var(--tw-chrome-bg);
   --tw-gadget-bg: hsl(0 0% calc(var(--tw-theme-ltn) + 5%));
   --tw-text: #000;
   /* --tw-muted falls back to base.css's color-mix(--tw-text, transparent

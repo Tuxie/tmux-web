@@ -20,6 +20,9 @@ html, body { height: 100%; overflow: hidden; }
 
   /* === CHROME-BG (menu bg, panel bg — defaults to toolbar's dark end) === */
   --tw-chrome-bg: color-mix(in srgb, var(--tw-chrome), black 5%);
+  --tw-menu-bg: linear-gradient(to bottom,
+    color-mix(in srgb, var(--tw-chrome-bg), white calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome-bg), black calc(5% * var(--tw-theme-contrast))));
   --tw-menu-bevel-hi: rgba(255, 255, 255, var(--tw-depth));
   --tw-menu-bevel-lo: rgba(0, 0, 0, var(--tw-depth));
 
@@ -586,7 +589,7 @@ body {
   height: 90vh;
   display: grid;
   grid-template-columns: minmax(150px, 18%) 1fr;
-  background: var(--tw-chrome-bg);
+  background: var(--tw-menu-bg);
   border: 1px solid var(--tw-bevel-hi);
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.65);
   overflow: hidden;
@@ -975,9 +978,7 @@ body {
   z-index: 200;
   padding: 2px 0;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-  background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome-bg), white calc(5% * var(--tw-theme-contrast))),
-    color-mix(in srgb, var(--tw-chrome-bg), black calc(5% * var(--tw-theme-contrast))));
+  background: var(--tw-menu-bg);
   /* max-height / overflow-y live in base.css. */
 }
 .tw-dropdown-item {
