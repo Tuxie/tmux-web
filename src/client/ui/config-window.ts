@@ -268,6 +268,8 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
   const passwordInput = textInput('password', selected?.password ?? '', 'password', '(prompt)');
   const savePasswordInput = checkboxInput('savePassword', selected?.savePassword ?? false);
   const compressionInput = checkboxInput('compression', selected?.compression ?? false);
+  const tmuxCommandInput = textInput('tmuxCommand', selected?.tmuxCommand ?? 'tmux');
+  const tmuxWebCommandInput = textInput('tmuxWebCommand', selected?.tmuxWebCommand ?? 'tmux-web');
   const socketNameInput = textInput('socketName', selected?.socketName ?? '', 'text', '(default)');
   const socketPathInput = textInput('socketPath', selected?.socketPath ?? '', 'text', '(default)');
   nameInput.required = true;
@@ -283,6 +285,10 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
     form.appendChild(formRow(
       'tw-config-form-row-credentials',
       labelledInput('Username', usernameInput, 'tw-config-field-username'),
+    ));
+    form.appendChild(formRow(
+      'tw-config-form-row-command-options',
+      labelledInput('tmux', tmuxCommandInput, 'tw-config-field-tmux-command'),
     ));
     form.appendChild(formRow(
       'tw-config-form-row-local-options',
@@ -307,6 +313,18 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
       formRowLabel('Options'),
       checkboxField('Compression', compressionInput),
     ));
+    if (protocol === 'ssh') {
+      form.appendChild(formRow(
+        'tw-config-form-row-command-options',
+        labelledInput('tmux', tmuxCommandInput, 'tw-config-field-tmux-command'),
+        labelledInput('tmux-web', tmuxWebCommandInput, 'tw-config-field-tmux-web-command'),
+      ));
+      form.appendChild(formRow(
+        'tw-config-form-row-local-options',
+        labelledInput('Socket name', socketNameInput, 'tw-config-field-socket-name'),
+        labelledInput('Socket path', socketPathInput, 'tw-config-field-socket-path'),
+      ));
+    }
   }
   const error = document.createElement('div');
   error.className = 'tw-config-form-error';
@@ -359,11 +377,17 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
       compression: protocolValue === 'local' ? false : (formValue(form, 'compression') as HTMLInputElement).checked,
     };
     if (password) next.password = password;
-    if (protocolValue === 'local') {
+    if (protocolValue === 'local' || protocolValue === 'ssh') {
+      const tmuxCommand = formValue(form, 'tmuxCommand').value.trim();
       const socketName = formValue(form, 'socketName').value.trim();
       const socketPath = formValue(form, 'socketPath').value.trim();
+      next.tmuxCommand = tmuxCommand || 'tmux';
       if (socketName) next.socketName = socketName;
       if (socketPath) next.socketPath = socketPath;
+    }
+    if (protocolValue === 'ssh') {
+      const tmuxWebCommand = formValue(form, 'tmuxWebCommand').value.trim();
+      next.tmuxWebCommand = tmuxWebCommand || 'tmux-web';
     }
     const index = nextServers.findIndex(s => s.id === state.editingId);
     if (index >= 0) nextServers[index] = next;

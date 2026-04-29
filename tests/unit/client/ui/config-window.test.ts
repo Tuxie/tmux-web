@@ -324,6 +324,7 @@ describe('configuration window', () => {
 
     expect(inputByName(dialog, 'protocol').value).toBe('local');
     expect(inputByName(dialog, 'username').value).toBe('per');
+    expect(inputByName(dialog, 'tmuxCommand').value).toBe('tmux');
     expect(inputByName(dialog, 'socketName').placeholder).toBe('(default)');
     expect(inputByName(dialog, 'socketPath').placeholder).toBe('(default)');
     const localRows = formRows(dialog).slice(1, 3);
@@ -331,13 +332,16 @@ describe('configuration window', () => {
     expect(localRows[0]).not.toContain('Port:');
     expect(localRows[0]).not.toContain('Hostname:');
     expect(localRows[1]).toBe('Username:');
+    expect(formRows(dialog).find((row: string) => row.includes('tmux:'))).toBe('tmux:');
     expect(formRows(dialog).find((row: string) => row.includes('Socket name'))).toBe('Socket name:Socket path:');
     expect(maybeInputByName(dialog, 'port')).toBeNull();
     expect(maybeInputByName(dialog, 'host')).toBeNull();
     expect(maybeInputByName(dialog, 'password')).toBeNull();
     expect(maybeInputByName(dialog, 'savePassword')).toBeNull();
     expect(maybeInputByName(dialog, 'compression')).toBeNull();
+    expect(maybeInputByName(dialog, 'tmuxWebCommand')).toBeNull();
 
+    inputByName(dialog, 'tmuxCommand').value = '/opt/bin/tmux';
     inputByName(dialog, 'socketName').value = 'work';
     inputByName(dialog, 'socketPath').value = '/tmp/tmux-web.sock';
     buttons(dialog).find((b: any) => b.textContent === 'Save server')!.click();
@@ -352,8 +356,48 @@ describe('configuration window', () => {
       username: 'per',
       savePassword: false,
       compression: false,
+      tmuxCommand: '/opt/bin/tmux',
       socketName: 'work',
       socketPath: '/tmp/tmux-web.sock',
+    });
+  });
+
+  it('shows SSH tmux-web, tmux, and socket options with defaults and saves them', async () => {
+    const doc = makeDoc();
+    const calls = stubFetch(async () => ({ ok: true, json: async () => ({}) }) as any).calls;
+    const trigger = ext(doc.createElement('button'));
+    doc.body.appendChild(trigger);
+    const { installConfigurationWindow } = await import('../../../../src/client/ui/config-window.ts');
+    installConfigurationWindow(trigger as any);
+    trigger.click();
+
+    const dialog = queryOne(doc.body, '.tw-config-window');
+    const betaRow = queryAll(dialog, '.tw-config-server-row').find((row: any) => textOf(row).includes('Beta'))!;
+    betaRow.click();
+
+    expect(inputByName(dialog, 'protocol').value).toBe('ssh');
+    expect(inputByName(dialog, 'tmuxCommand').value).toBe('tmux');
+    expect(inputByName(dialog, 'tmuxWebCommand').value).toBe('tmux-web');
+    expect(inputByName(dialog, 'socketName').placeholder).toBe('(default)');
+    expect(inputByName(dialog, 'socketPath').placeholder).toBe('(default)');
+    expect(formRows(dialog)).toContain('tmux:tmux-web:');
+    expect(formRows(dialog)).toContain('Socket name:Socket path:');
+
+    inputByName(dialog, 'tmuxCommand').value = '/opt/bin/tmux';
+    inputByName(dialog, 'tmuxWebCommand').value = '~/bin/tmux-web-dev';
+    inputByName(dialog, 'socketName').value = 'devsock';
+    inputByName(dialog, 'socketPath').value = '/tmp/dev.sock';
+    buttons(dialog).find((b: any) => b.textContent === 'Save server')!.click();
+
+    const savedSsh = JSON.parse(calls.at(-1)!.init!.body as string)
+      .servers.find((server: any) => server.id === 'b');
+    expect(savedSsh).toMatchObject({
+      id: 'b',
+      protocol: 'ssh',
+      tmuxCommand: '/opt/bin/tmux',
+      tmuxWebCommand: '~/bin/tmux-web-dev',
+      socketName: 'devsock',
+      socketPath: '/tmp/dev.sock',
     });
   });
 
@@ -471,6 +515,10 @@ describe('configuration window', () => {
     expect(css).toContain('.tw-config-field-socket-name > input { grid-column: 2 / 4; }');
     expect(css).toContain('.tw-config-field-socket-path > span { grid-column: 4; }');
     expect(css).toContain('.tw-config-field-socket-path > input { grid-column: 5 / 9; }');
+    expect(css).toContain('.tw-config-field-tmux-command > span { grid-column: 1; }');
+    expect(css).toContain('.tw-config-field-tmux-command > input { grid-column: 2 / 4; }');
+    expect(css).toContain('.tw-config-field-tmux-web-command > span { grid-column: 4; }');
+    expect(css).toContain('.tw-config-field-tmux-web-command > input { grid-column: 5 / 7; }');
     expect(css).toContain('.tw-config-field > span,\n.tw-config-row-label {\n  text-align: right;');
     expect(css).toContain('.tw-menu-input-select::placeholder');
     expect(css).toContain('font-style: italic;');

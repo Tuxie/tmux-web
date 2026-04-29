@@ -26,6 +26,8 @@ export interface RemoteServerConfig {
   password?: string;
   savePassword: boolean;
   compression: boolean;
+  tmuxCommand?: string;
+  tmuxWebCommand?: string;
   socketName?: string;
   socketPath?: string;
 }
@@ -93,11 +95,17 @@ export function sanitizeRemoteServers(input: unknown): RemoteServerConfig[] {
       savePassword,
       compression: protocol === 'local' ? false : obj.compression === true,
     };
-    if (protocol === 'local') {
+    if (protocol === 'local' || protocol === 'ssh') {
+      const tmuxCommand = sanitizeText(obj.tmuxCommand, 4096);
       const socketName = sanitizeText(obj.socketName, 120);
       const socketPath = sanitizeText(obj.socketPath, 4096);
+      if (tmuxCommand) server.tmuxCommand = tmuxCommand;
       if (socketName) server.socketName = socketName;
       if (socketPath) server.socketPath = socketPath;
+    }
+    if (protocol === 'ssh') {
+      const tmuxWebCommand = sanitizeText(obj.tmuxWebCommand, 4096);
+      if (tmuxWebCommand) server.tmuxWebCommand = tmuxWebCommand;
     }
     if (password) server.password = password;
     out.push(server);

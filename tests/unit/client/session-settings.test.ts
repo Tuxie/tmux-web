@@ -357,6 +357,10 @@ describe("session-settings", () => {
           username: "per",
           savePassword: false,
           compression: true,
+          tmuxCommand: "/opt/tmux",
+          tmuxWebCommand: "~/bin/tmux-web",
+          socketName: "ssh-sock",
+          socketPath: "/tmp/ssh.sock",
         }],
       },
     });
@@ -372,6 +376,10 @@ describe("session-settings", () => {
       username: "per",
       savePassword: false,
       compression: true,
+      tmuxCommand: "/opt/tmux",
+      tmuxWebCommand: "~/bin/tmux-web",
+      socketName: "ssh-sock",
+      socketPath: "/tmp/ssh.sock",
     }]);
     expect(getKnownRemoteServers()).toEqual(["dev.example.com", "legacy"]);
   });
@@ -427,6 +435,7 @@ describe("session-settings", () => {
           username: "per",
           savePassword: false,
           compression: false,
+          tmuxCommand: "/opt/local-tmux",
           socketName: "work",
           socketPath: "/tmp/tmux-web.sock",
         }],
@@ -444,6 +453,7 @@ describe("session-settings", () => {
       username: "per",
       savePassword: false,
       compression: false,
+      tmuxCommand: "/opt/local-tmux",
       socketName: "work",
       socketPath: "/tmp/tmux-web.sock",
     }]);
