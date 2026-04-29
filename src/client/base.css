@@ -731,7 +731,7 @@ body {
 }
 
 .tw-config-form-row-name {
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
 }
 
 .tw-config-form-row-connection {
@@ -743,7 +743,7 @@ body {
 }
 
 .tw-config-form-row-options {
-  grid-template-columns: 76px max-content;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
 }
 
 .tw-config-form-row-command-options {
@@ -772,6 +772,7 @@ body {
 }
 
 .tw-config-field-protocol,
+.tw-config-field-name,
 .tw-config-field-port,
 .tw-config-field-host,
 .tw-config-field-username,
@@ -783,6 +784,8 @@ body {
   display: contents;
 }
 
+.tw-config-field-name > span { grid-column: 1; }
+.tw-config-field-name > input { grid-column: 2 / 9; }
 .tw-config-field-protocol > span { grid-column: 1; }
 .tw-config-field-protocol > select { grid-column: 2; }
 .tw-config-field-port > span { grid-column: 3; }
@@ -821,7 +824,8 @@ body {
 
 .tw-config-save-password { grid-column: 7 / 9; }
 
-.tw-config-row-label { color: var(--tw-text-muted); }
+.tw-config-row-label { grid-column: 1; color: var(--tw-text-muted); }
+.tw-config-form-row-options .tw-config-checkbox-field { grid-column: 2 / 4; }
 
 .tw-config-field input,
 .tw-config-field select {

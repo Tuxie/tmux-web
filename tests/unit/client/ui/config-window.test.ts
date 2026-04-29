@@ -557,6 +557,9 @@ describe('configuration window', () => {
   it('uses an eight-section aligned grid for server connection and credential rows', () => {
     const css = fs.readFileSync('src/client/base.css', 'utf-8');
     expect(css).toContain('grid-template-columns: repeat(8, minmax(0, 1fr));');
+    expect(css).toContain('.tw-config-form-row-name {\n  grid-template-columns: repeat(8, minmax(0, 1fr));');
+    expect(css).toContain('.tw-config-field-name > span { grid-column: 1; }');
+    expect(css).toContain('.tw-config-field-name > input { grid-column: 2 / 9; }');
     expect(css).toContain('.tw-config-field-protocol > span { grid-column: 1; }');
     expect(css).toContain('.tw-config-field-protocol > select { grid-column: 2; }');
     expect(css).toContain('.tw-config-field-port > span { grid-column: 3; }');
@@ -571,6 +574,9 @@ describe('configuration window', () => {
     expect(css).toContain('.tw-config-field-password > span { grid-column: 4; }');
     expect(css).toContain('.tw-config-field-password > input { grid-column: 5 / 7; }');
     expect(css).toContain('.tw-config-save-password { grid-column: 7 / 9; }');
+    expect(css).toContain('.tw-config-form-row-options {\n  grid-template-columns: repeat(8, minmax(0, 1fr));');
+    expect(css).toMatch(/\.tw-config-row-label\s*\{[^}]*grid-column:\s*1;/s);
+    expect(css).toContain('.tw-config-form-row-options .tw-config-checkbox-field { grid-column: 2 / 4; }');
     expect(css).toContain('.tw-config-form-row-local-options {\n  grid-template-columns: repeat(8, minmax(0, 1fr));');
     expect(css).toContain('.tw-config-field-socket-name > span { grid-column: 1; }');
     expect(css).toContain('.tw-config-field-socket-name > input { grid-column: 2 / 4; }');
