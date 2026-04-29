@@ -490,7 +490,7 @@ body {
 :where(.tw-menu-surface) .tw-button {
   background: var(--tw-gadget-bg);
   border-width: 2px;
-  height: 22px;
+  min-height: 22px;
 }
 /* Glyph-only buttons with Unicode arrows use sans-serif so ↺/↻ render
  * at a legible size instead of picking up the Topaz bitmap. */
@@ -499,11 +499,10 @@ body {
 #menu-dropdown #btn-drops-refresh {
   font-family: sans-serif;
   font-size: 24px;
-  padding: 0 6px;
 }
 /* Per-row trash uses a Nerd Font glyph (U+EA81) with a cosmetic
  * offset — the glyph has a hair of trailing whitespace baked in. */
-.tw-drops-revoke { font-size: 18px; padding: 0 7px 0 5px; }
+.tw-drops-revoke { font-size: 18px; }
 
 /* Session-delete button: mirror the tw-drops-revoke look (grey .tw-button
  * in a dropdown context) inside the session menu. The session menu is
@@ -512,7 +511,7 @@ body {
 #topbar .tw-dd-sessions-menu .tw-button {
   background: var(--tw-gadget-bg);
   border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
-  height: 22px;
+  min-height: 22px;
 }
 
 /* Plain HR: section header without the title. Same 1px muted line,

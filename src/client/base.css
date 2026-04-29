@@ -1050,7 +1050,6 @@ body {
 .tw-dd-session-delete {
   background: transparent;
   border: none;
-  padding: 0 2px;
   color: inherit;
   font-size: var(--tw-ui-font-size);
   opacity: 0.65;
