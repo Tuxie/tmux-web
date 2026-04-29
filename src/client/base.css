@@ -596,6 +596,8 @@ body {
   --tw-config-surface-dark: linear-gradient(rgb(0 0 0 / 10%), rgb(0 0 0 / 10%)), var(--tw-config-bg);
   --tw-config-surface-light: linear-gradient(rgb(255 255 255 / 8%), rgb(255 255 255 / 8%)), var(--tw-config-bg);
   --tw-config-label-min-width: 8em;
+  --tw-config-label-track: minmax(var(--tw-config-label-min-width), max-content);
+  --tw-config-control-track: minmax(0, 1fr);
   --tw-gadget-bg: color-mix(in hsl, var(--tw-config-chrome), black 12%);
   --tw-gadget-hover: color-mix(in hsl, var(--tw-config-chrome), white 8%);
   --tw-gadget-active: color-mix(in hsl, var(--tw-config-chrome), white 15%);
@@ -732,27 +734,36 @@ body {
 }
 
 .tw-config-form-row-name {
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: var(--tw-config-label-track) repeat(7, var(--tw-config-control-track));
 }
 
 .tw-config-form-row-connection {
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns:
+    var(--tw-config-label-track) var(--tw-config-control-track)
+    var(--tw-config-label-track) var(--tw-config-control-track)
+    var(--tw-config-label-track) repeat(3, var(--tw-config-control-track));
 }
 
 .tw-config-form-row-credentials {
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns:
+    var(--tw-config-label-track) repeat(2, var(--tw-config-control-track))
+    var(--tw-config-label-track) repeat(4, var(--tw-config-control-track));
 }
 
 .tw-config-form-row-options {
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: var(--tw-config-label-track) repeat(7, var(--tw-config-control-track));
 }
 
 .tw-config-form-row-command-options {
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns:
+    var(--tw-config-label-track) repeat(2, var(--tw-config-control-track))
+    var(--tw-config-label-track) repeat(4, var(--tw-config-control-track));
 }
 
 .tw-config-form-row-local-options {
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns:
+    var(--tw-config-label-track) repeat(2, var(--tw-config-control-track))
+    var(--tw-config-label-track) repeat(4, var(--tw-config-control-track));
 }
 
 .tw-config-field {
@@ -769,7 +780,6 @@ body {
 
 .tw-config-field > span,
 .tw-config-row-label {
-  min-width: var(--tw-config-label-min-width);
   text-align: right;
   white-space: nowrap;
 }
