@@ -780,6 +780,15 @@ body {
 .tw-config-field-protocol > select { grid-column: 2; }
 .tw-config-field-port > span { grid-column: 3; }
 .tw-config-field-port > input { grid-column: 4; }
+.tw-config-field-port > input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.tw-config-field-port > input[type="number"]::-webkit-inner-spin-button,
+.tw-config-field-port > input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 .tw-config-field-host > span { grid-column: 5; }
 .tw-config-field-host > input { grid-column: 6 / 9; }
 .tw-config-field-username > span { grid-column: 1; }

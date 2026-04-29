@@ -451,6 +451,9 @@ describe('configuration window', () => {
     expect(css).toContain('.tw-config-field-protocol > select { grid-column: 2; }');
     expect(css).toContain('.tw-config-field-port > span { grid-column: 3; }');
     expect(css).toContain('.tw-config-field-port > input { grid-column: 4; }');
+    expect(css).toContain('.tw-config-field-port > input[type="number"] {\n  -moz-appearance: textfield;\n  appearance: textfield;');
+    expect(css).toContain('.tw-config-field-port > input[type="number"]::-webkit-inner-spin-button');
+    expect(css).toContain('.tw-config-field-port > input[type="number"]::-webkit-outer-spin-button');
     expect(css).toContain('.tw-config-field-host > span { grid-column: 5; }');
     expect(css).toContain('.tw-config-field-host > input { grid-column: 6 / 9; }');
     expect(css).toContain('.tw-config-field-username > input { grid-column: 2 / 4; }');
