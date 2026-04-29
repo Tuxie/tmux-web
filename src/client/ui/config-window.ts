@@ -283,7 +283,6 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
     ));
     form.appendChild(formRow(
       'tw-config-form-row-local-options',
-      formRowLabel('Options'),
       labelledInput('Socket name', socketNameInput, 'tw-config-field-socket-name'),
       labelledInput('Socket path', socketPathInput, 'tw-config-field-socket-path'),
     ));

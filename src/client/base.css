@@ -745,7 +745,7 @@ body {
 }
 
 .tw-config-form-row-local-options {
-  grid-template-columns: 76px minmax(140px, 1fr) minmax(220px, 2fr);
+  grid-template-columns: minmax(140px, 1fr) minmax(220px, 2fr);
 }
 
 .tw-config-field {

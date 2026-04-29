@@ -326,6 +326,7 @@ describe('configuration window', () => {
     expect(inputByName(dialog, 'username').value).toBe('per');
     expect(inputByName(dialog, 'socketName').placeholder).toBe('(default)');
     expect(inputByName(dialog, 'socketPath').placeholder).toBe('(default)');
+    expect(formRows(dialog).find((row: string) => row.includes('Socket name'))).toBe('Socket name:Socket path:');
     expect(maybeInputByName(dialog, 'port')).toBeNull();
     expect(maybeInputByName(dialog, 'host')).toBeNull();
     expect(maybeInputByName(dialog, 'password')).toBeNull();
