@@ -309,9 +309,9 @@ label.tw-menu-row { color: var(--tw-text-muted); }
 .tw-input-text,
 .tw-input-select,
 .tw-input-number {
-  border-radius: 2px; padding: 1px 4px; font-family: inherit; font-size: var(--tw-ui-font-size);
+  border-radius: 2px; padding: 0.1em 0.5em; font-family: inherit; font-size: var(--tw-ui-font-size);
 }
-.tw-input-text { border-radius: 3px; padding: 2px 6px; outline: none; }
+.tw-input-text { border-radius: 3px; outline: none; }
 .tw-input-number { width: 46px; }
 .tw-menu-hr, .tw-dropdown-sep { border: none; height: 1px; background: var(--tw-muted); margin: 5px 8px 3px; }
 
