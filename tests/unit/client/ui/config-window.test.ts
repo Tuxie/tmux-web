@@ -542,6 +542,7 @@ describe('configuration window', () => {
     expect(css).toMatch(/\.tw-config-window\s*\{[^}]*position:\s*relative;/s);
     expect(css).toMatch(/\.tw-config-window\s*\{[^}]*font-size:\s*var\(--tw-ui-font-size\);/s);
     expect(css).toMatch(/\.tw-config-window\s*\{[^}]*grid-template-columns:\s*8em 1fr;/s);
+    expect(css).toContain('--tw-config-label-min-width: 8em;');
     expect(css).toMatch(/\.tw-config-nav-item\s*\{[^}]*font-size:\s*inherit;/s);
     expect(css).toContain('--tw-config-chrome: var(--tw-menu-chrome);');
     expect(css).toContain('--tw-config-bg: var(--tw-menu-bg);');
@@ -586,7 +587,8 @@ describe('configuration window', () => {
     expect(css).toContain('.tw-config-field-tmux-command > input { grid-column: 2 / 4; }');
     expect(css).toContain('.tw-config-field-tmux-web-command > span { grid-column: 4; }');
     expect(css).toContain('.tw-config-field-tmux-web-command > input { grid-column: 5 / 7; }');
-    expect(css).toContain('.tw-config-field > span,\n.tw-config-row-label {\n  text-align: right;');
+    expect(css).toMatch(/\.tw-config-field > span,\s*\.tw-config-row-label\s*\{[^}]*text-align:\s*right;/s);
+    expect(css).toMatch(/\.tw-config-field > span,\s*\.tw-config-row-label\s*\{[^}]*min-width:\s*var\(--tw-config-label-min-width\);/s);
     expect(css).toMatch(/\.tw-config-field > span,\s*\.tw-config-row-label\s*\{[^}]*white-space:\s*nowrap;/s);
     expect(css).toMatch(/\.tw-config-field input,\s*\.tw-config-field select\s*\{[^}]*min-width:\s*0;[^}]*width:\s*100%;/s);
     expect(css).toContain('.tw-menu-input-select::placeholder');
