@@ -14,7 +14,7 @@ export interface ServerSettingsPatch {
   servers?: RemoteServerConfig[];
 }
 
-export type RemoteServerProtocol = 'http' | 'https' | 'ssh';
+export type RemoteServerProtocol = 'http' | 'https' | 'ssh' | 'local';
 
 export interface RemoteServerConfig {
   id: string;
@@ -26,6 +26,8 @@ export interface RemoteServerConfig {
   password?: string;
   savePassword: boolean;
   compression: boolean;
+  socketName?: string;
+  socketPath?: string;
 }
 
 export function emptySettings(): ServerSettings {
@@ -52,12 +54,12 @@ function sanitizeText(input: unknown, max: number): string {
 }
 
 function sanitizeProtocol(input: unknown): RemoteServerProtocol | null {
-  return input === 'http' || input === 'https' || input === 'ssh' ? input : null;
+  return input === 'http' || input === 'https' || input === 'ssh' || input === 'local' ? input : null;
 }
 
 function sanitizePort(input: unknown): number | null {
   const value = typeof input === 'number' ? input : Number(input);
-  if (!Number.isInteger(value) || value < 1 || value > 65535) return null;
+  if (!Number.isInteger(value) || value < 0 || value > 65535) return null;
   return value;
 }
 
@@ -74,11 +76,12 @@ export function sanitizeRemoteServers(input: unknown): RemoteServerConfig[] {
     if (!protocol) continue;
     const port = sanitizePort(obj.port);
     if (port === null) continue;
+    if (protocol !== 'local' && port < 1) continue;
     const fallbackId = host;
     const id = sanitizeText(obj.id, 128) || fallbackId;
     if (!isValidRemoteHostAlias(id) || seen.has(id)) continue;
     seen.add(id);
-    const savePassword = obj.savePassword === true;
+    const savePassword = protocol === 'local' ? false : obj.savePassword === true;
     const password = savePassword ? sanitizeText(obj.password, 4096) : '';
     const server: RemoteServerConfig = {
       id,
@@ -88,8 +91,14 @@ export function sanitizeRemoteServers(input: unknown): RemoteServerConfig[] {
       protocol,
       username: sanitizeText(obj.username, 120),
       savePassword,
-      compression: obj.compression === true,
+      compression: protocol === 'local' ? false : obj.compression === true,
     };
+    if (protocol === 'local') {
+      const socketName = sanitizeText(obj.socketName, 120);
+      const socketPath = sanitizeText(obj.socketPath, 4096);
+      if (socketName) server.socketName = socketName;
+      if (socketPath) server.socketPath = socketPath;
+    }
     if (password) server.password = password;
     out.push(server);
   }

@@ -477,6 +477,7 @@ export async function createHttpHandler(opts: HttpHandlerOptions): Promise<HttpH
     };
     const clientConfig = {
       version: pkg.version,
+      localUsername: os.userInfo().username,
       ...(config.testMode ? { testMode: true } : {}),
       ...(wsBasicAuth ? { wsBasicAuth } : {}),
       ...(clientAuthToken ? { clientAuthToken } : {}),

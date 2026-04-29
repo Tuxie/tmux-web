@@ -54,7 +54,11 @@ function makeDoc(): StubDoc {
   (doc as any).querySelector = (selector: string) => queryOne(doc.body, selector);
   (doc as any).querySelectorAll = (selector: string) => queryAll(doc.body, selector);
   (globalThis as any).Event = class { type: string; constructor(type: string) { this.type = type; } };
-  (globalThis as any).window = { innerWidth: 1200, innerHeight: 900 };
+  (globalThis as any).window = {
+    innerWidth: 1200,
+    innerHeight: 900,
+    __TMUX_WEB_CONFIG: { version: 'test', localUsername: 'per' },
+  };
   return doc;
 }
 
@@ -93,6 +97,14 @@ function inputByName(root: any, name: string): any {
     if (!found && node.name === name) found = node;
   });
   if (!found) throw new Error(`missing input ${name}`);
+  return found;
+}
+
+function maybeInputByName(root: any, name: string): any | null {
+  let found: any = null;
+  walk(root, (node) => {
+    if (!found && node.name === name) found = node;
+  });
   return found;
 }
 
@@ -225,12 +237,13 @@ describe('configuration window', () => {
 
     rows = queryAll(dialog, '.tw-config-server-row');
     expect(rows.map((row: any) => textOf(row))).toEqual([
+      'Locallocal://per',
       'Betassh://per@beta.example.com',
       'Alphahttps://root@alpha.example.com',
       'Gammassh://gamma.example.com',
       'New Server',
     ]);
-    expect(classTokens(rows[2])).toContain('selected');
+    expect(classTokens(rows[3])).toContain('selected');
     expect(classTokens(rows.at(-1))).toContain('tw-config-server-new');
   });
 
@@ -284,6 +297,7 @@ describe('configuration window', () => {
       'Options:Compression',
     ]);
     expect(inputByName(dialog, 'port').value).toBe('22');
+    expect(inputByName(dialog, 'password').placeholder).toBe('(prompt)');
 
     inputByName(dialog, 'protocol').value = 'http';
     inputByName(dialog, 'protocol').dispatch('change', { target: inputByName(dialog, 'protocol') });
@@ -292,6 +306,49 @@ describe('configuration window', () => {
     inputByName(dialog, 'protocol').value = 'https';
     inputByName(dialog, 'protocol').dispatch('change', { target: inputByName(dialog, 'protocol') });
     expect(inputByName(dialog, 'port').value).toBe('443');
+  });
+
+  it('shows Local as a server with local-only options', async () => {
+    const doc = makeDoc();
+    const calls = stubFetch(async () => ({ ok: true, json: async () => ({}) }) as any).calls;
+    const trigger = ext(doc.createElement('button'));
+    doc.body.appendChild(trigger);
+    const { installConfigurationWindow } = await import('../../../../src/client/ui/config-window.ts');
+    installConfigurationWindow(trigger as any);
+    trigger.click();
+
+    const dialog = queryOne(doc.body, '.tw-config-window');
+    const localRow = queryAll(dialog, '.tw-config-server-row').find((row: any) => textOf(row).includes('Local'))!;
+    expect(textOf(localRow)).toContain('local://per');
+    localRow.click();
+
+    expect(inputByName(dialog, 'protocol').value).toBe('local');
+    expect(inputByName(dialog, 'username').value).toBe('per');
+    expect(inputByName(dialog, 'socketName').placeholder).toBe('(default)');
+    expect(inputByName(dialog, 'socketPath').placeholder).toBe('(default)');
+    expect(maybeInputByName(dialog, 'port')).toBeNull();
+    expect(maybeInputByName(dialog, 'host')).toBeNull();
+    expect(maybeInputByName(dialog, 'password')).toBeNull();
+    expect(maybeInputByName(dialog, 'savePassword')).toBeNull();
+    expect(maybeInputByName(dialog, 'compression')).toBeNull();
+
+    inputByName(dialog, 'socketName').value = 'work';
+    inputByName(dialog, 'socketPath').value = '/tmp/tmux-web.sock';
+    buttons(dialog).find((b: any) => b.textContent === 'Save server')!.click();
+    const savedLocal = JSON.parse(calls.at(-1)!.init!.body as string)
+      .servers.find((server: any) => server.protocol === 'local');
+    expect(savedLocal).toEqual({
+      id: 'local',
+      name: 'Local',
+      host: 'local',
+      port: 0,
+      protocol: 'local',
+      username: 'per',
+      savePassword: false,
+      compression: false,
+      socketName: 'work',
+      socketPath: '/tmp/tmux-web.sock',
+    });
   });
 
   it('persists server order changed by dragging list rows', async () => {
@@ -312,8 +369,9 @@ describe('configuration window', () => {
       effectAllowed: '',
       dropEffect: '',
     };
-    rows[0].dispatch('dragstart', { dataTransfer, preventDefault() {}, stopPropagation() {} });
-    rows[1].dispatch('drop', { dataTransfer, preventDefault() {}, stopPropagation() {} });
+    const remoteRows = rows.filter((row: any) => !textOf(row).includes('Local') && !textOf(row).includes('New Server'));
+    remoteRows[0].dispatch('dragstart', { dataTransfer, preventDefault() {}, stopPropagation() {} });
+    remoteRows[1].dispatch('drop', { dataTransfer, preventDefault() {}, stopPropagation() {} });
 
     const latest = JSON.parse(calls.at(-1)!.init!.body as string);
     expect(latest.servers.map((s: any) => s.name)).toEqual(['Alpha', 'Beta']);
@@ -370,6 +428,7 @@ describe('configuration window', () => {
 
     const urls = queryAll(doc.body, '.tw-config-server-host').map((node: any) => node.textContent);
     expect(urls).toEqual([
+      'local://per',
       'ssh://per@ssh.example.com',
       'http://alice@web.example.com',
       'https://root@secure.example.com',
@@ -398,5 +457,7 @@ describe('configuration window', () => {
     expect(css).toContain('.tw-config-field-password > input { grid-column: 5 / 7; }');
     expect(css).toContain('.tw-config-save-password { grid-column: 7 / 9; }');
     expect(css).toContain('.tw-config-field > span,\n.tw-config-row-label {\n  text-align: right;');
+    expect(css).toContain('.tw-menu-input-select::placeholder');
+    expect(css).toContain('font-style: italic;');
   });
 });

@@ -118,7 +118,7 @@ interface SessionsCache {
   servers: RemoteServerConfig[];
 }
 
-export type RemoteServerProtocol = 'http' | 'https' | 'ssh';
+export type RemoteServerProtocol = 'http' | 'https' | 'ssh' | 'local';
 
 export interface RemoteServerConfig {
   id: string;
@@ -130,6 +130,8 @@ export interface RemoteServerConfig {
   password?: string;
   savePassword: boolean;
   compression: boolean;
+  socketName?: string;
+  socketPath?: string;
 }
 
 export interface RemoteServerSection {
@@ -144,7 +146,7 @@ function isValidRemoteHostAlias(host: string): boolean {
 }
 
 function isRemoteServerProtocol(value: unknown): value is RemoteServerProtocol {
-  return value === 'http' || value === 'https' || value === 'ssh';
+  return value === 'http' || value === 'https' || value === 'ssh' || value === 'local';
 }
 
 function sanitizeRemoteServers(input: unknown): RemoteServerConfig[] {
@@ -160,7 +162,8 @@ function sanitizeRemoteServers(input: unknown): RemoteServerConfig[] {
     if (seen.has(id)) continue;
     if (!isRemoteServerProtocol(obj.protocol)) continue;
     const port = Number(obj.port);
-    if (!Number.isInteger(port) || port < 1 || port > 65535) continue;
+    if (!Number.isInteger(port) || port < 0 || port > 65535) continue;
+    if (obj.protocol !== 'local' && port < 1) continue;
     seen.add(id);
     const savePassword = obj.savePassword === true;
     const password = savePassword && typeof obj.password === 'string' ? obj.password : '';
@@ -171,9 +174,13 @@ function sanitizeRemoteServers(input: unknown): RemoteServerConfig[] {
       port,
       protocol: obj.protocol,
       username: typeof obj.username === 'string' ? obj.username : '',
-      savePassword,
-      compression: obj.compression === true,
+      savePassword: obj.protocol === 'local' ? false : savePassword,
+      compression: obj.protocol === 'local' ? false : obj.compression === true,
     };
+    if (obj.protocol === 'local') {
+      if (typeof obj.socketName === 'string' && obj.socketName.trim()) server.socketName = obj.socketName.trim();
+      if (typeof obj.socketPath === 'string' && obj.socketPath.trim()) server.socketPath = obj.socketPath.trim();
+    }
     if (password) server.password = password;
     out.push(server);
   }
@@ -357,6 +364,7 @@ export function getRemoteServerSections(): RemoteServerSection[] {
   const sections: RemoteServerSection[] = [];
   const seen = new Set<string>();
   for (const server of cache.servers) {
+    if (server.protocol === 'local') continue;
     if (seen.has(server.host)) continue;
     seen.add(server.host);
     sections.push({ host: server.host, label: server.name || server.host });

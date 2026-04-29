@@ -414,6 +414,42 @@ describe("session-settings", () => {
     ]);
   });
 
+  test("local server config is exposed but not treated as a remote section", async () => {
+    setupFakeFetch({ sessions: {} }, {
+      initialSettings: {
+        knownServers: ["legacy"],
+        servers: [{
+          id: "local",
+          name: "Local",
+          host: "local",
+          port: 0,
+          protocol: "local",
+          username: "per",
+          savePassword: false,
+          compression: false,
+          socketName: "work",
+          socketPath: "/tmp/tmux-web.sock",
+        }],
+      },
+    });
+
+    await initSessionStore();
+
+    expect(getRemoteServers()).toEqual([{
+      id: "local",
+      name: "Local",
+      host: "local",
+      port: 0,
+      protocol: "local",
+      username: "per",
+      savePassword: false,
+      compression: false,
+      socketName: "work",
+      socketPath: "/tmp/tmux-web.sock",
+    }]);
+    expect(getRemoteServerSections()).toEqual([{ host: "legacy", label: "legacy" }]);
+  });
+
   test("saveRemoteServers replaces the structured server list through settings.json", async () => {
     const calls = setupFakeFetch({ sessions: {} });
     await initSessionStore();

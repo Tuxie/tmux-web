@@ -14,10 +14,11 @@ interface ConfigWindowState {
 }
 
 function validProtocol(value: string): RemoteServerProtocol {
-  return value === 'http' || value === 'https' || value === 'ssh' ? value : 'ssh';
+  return value === 'http' || value === 'https' || value === 'ssh' || value === 'local' ? value : 'ssh';
 }
 
 function defaultPort(protocol: RemoteServerProtocol): number {
+  if (protocol === 'local') return 0;
   if (protocol === 'ssh') return 22;
   if (protocol === 'https') return 443;
   return 80;
@@ -26,8 +27,32 @@ function defaultPort(protocol: RemoteServerProtocol): number {
 function serverListUrl(server: RemoteServerConfig): string {
   const username = server.username.trim();
   const auth = username ? `${encodeURIComponent(username)}@` : '';
+  if (server.protocol === 'local') return `local://${username}`;
   const port = server.port === defaultPort(server.protocol) ? '' : `:${server.port}`;
   return `${server.protocol}://${auth}${server.host}${port}`;
+}
+
+function localUsername(): string {
+  return window.__TMUX_WEB_CONFIG?.localUsername ?? '';
+}
+
+function defaultLocalServer(): RemoteServerConfig {
+  return {
+    id: 'local',
+    name: 'Local',
+    host: 'local',
+    port: 0,
+    protocol: 'local',
+    username: localUsername(),
+    savePassword: false,
+    compression: false,
+  };
+}
+
+function visibleServers(): RemoteServerConfig[] {
+  const saved = getRemoteServers();
+  const local = saved.find(server => server.protocol === 'local') ?? defaultLocalServer();
+  return [local, ...saved.filter(server => server.protocol !== 'local')];
 }
 
 function makeServerId(host: string, existing: RemoteServerConfig[], editingId: string | null): string {
@@ -87,11 +112,12 @@ function formRowLabel(text: string): HTMLSpanElement {
   return label;
 }
 
-function textInput(name: string, value = '', type = 'text'): HTMLInputElement {
+function textInput(name: string, value = '', type = 'text', placeholder = ''): HTMLInputElement {
   const input = document.createElement('input');
   input.type = type;
   input.name = name;
   input.value = value;
+  input.placeholder = placeholder;
   input.className = 'tw-menu-input-select';
   return input;
 }
@@ -108,10 +134,10 @@ function protocolSelect(value: RemoteServerProtocol): HTMLSelectElement {
   const select = document.createElement('select');
   select.name = 'protocol';
   select.className = 'tw-menu-input-select';
-  for (const protocol of ['http', 'https', 'ssh'] as const) {
+  for (const protocol of ['local', 'ssh', 'http', 'https'] as const) {
     const opt = document.createElement('option');
     opt.value = protocol;
-    opt.textContent = protocol;
+    opt.textContent = protocol === 'local' ? 'Local' : protocol;
     select.appendChild(opt);
   }
   select.value = value;
@@ -152,8 +178,9 @@ function moveServerAfter(servers: RemoteServerConfig[], draggedId: string, targe
 }
 
 function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
-  const servers = getRemoteServers();
+  const servers = visibleServers();
   const selected = servers.find(s => s.id === state.editingId) ?? null;
+  const isLocal = selected?.protocol === 'local';
   const pane = document.createElement('div');
   pane.className = 'tw-config-pane tw-config-pane-servers';
 
@@ -168,8 +195,10 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
   for (const server of servers) {
     const row = document.createElement('div');
     row.className = 'tw-config-server-row' + (server.id === state.editingId ? ' selected' : '');
-    row.draggable = true;
-    row.setAttribute('draggable', 'true');
+    if (server.protocol !== 'local') {
+      row.draggable = true;
+      row.setAttribute('draggable', 'true');
+    }
     const name = document.createElement('span');
     name.className = 'tw-config-server-name';
     name.textContent = server.name;
@@ -184,6 +213,7 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
       renderServersPane(main, state);
     });
     row.addEventListener('dragstart', (ev) => {
+      if (server.protocol === 'local') return;
       ev.dataTransfer?.setData('text/plain', server.id);
       if (ev.dataTransfer) ev.dataTransfer.effectAllowed = 'move';
     });
@@ -224,36 +254,58 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
   const protocolInput = protocolSelect(protocol);
   const portInput = textInput('port', String(selected?.port ?? defaultPort(protocol)), 'number');
   protocolInput.addEventListener('change', () => {
+    if (validProtocol(protocolInput.value) === 'local' || protocol === 'local') {
+      state.editingId = validProtocol(protocolInput.value) === 'local' ? 'local' : null;
+      state.error = null;
+      renderServersPane(main, state);
+      return;
+    }
     portInput.value = String(defaultPort(validProtocol(protocolInput.value)));
   });
   const nameInput = textInput('name', selected?.name ?? '');
   const hostInput = textInput('host', selected?.host ?? '');
-  const usernameInput = textInput('username', selected?.username ?? '');
-  const passwordInput = textInput('password', selected?.password ?? '', 'password');
+  const usernameInput = textInput('username', selected?.username ?? (isLocal ? localUsername() : ''));
+  const passwordInput = textInput('password', selected?.password ?? '', 'password', '(prompt)');
   const savePasswordInput = checkboxInput('savePassword', selected?.savePassword ?? false);
   const compressionInput = checkboxInput('compression', selected?.compression ?? false);
+  const socketNameInput = textInput('socketName', selected?.socketName ?? '', 'text', '(default)');
+  const socketPathInput = textInput('socketPath', selected?.socketPath ?? '', 'text', '(default)');
   nameInput.required = true;
   form.appendChild(formRow(
     'tw-config-form-row-name',
     labelledInput('Name', nameInput, 'tw-config-field-name'),
   ));
-  form.appendChild(formRow(
-    'tw-config-form-row-connection',
-    labelledInput('Protocol', protocolInput, 'tw-config-field-protocol'),
-    labelledInput('Port', portInput, 'tw-config-field-port'),
-    labelledInput('Hostname', hostInput, 'tw-config-field-host'),
-  ));
-  form.appendChild(formRow(
-    'tw-config-form-row-credentials',
-    labelledInput('Username', usernameInput, 'tw-config-field-username'),
-    labelledInput('Password', passwordInput, 'tw-config-field-password'),
-    checkboxField('Save password', savePasswordInput, 'tw-config-save-password'),
-  ));
-  form.appendChild(formRow(
-    'tw-config-form-row-options',
-    formRowLabel('Options'),
-    checkboxField('Compression', compressionInput),
-  ));
+  if (isLocal) {
+    form.appendChild(formRow(
+      'tw-config-form-row-local',
+      labelledInput('Protocol', protocolInput, 'tw-config-field-protocol'),
+      labelledInput('Username', usernameInput, 'tw-config-field-local-username'),
+    ));
+    form.appendChild(formRow(
+      'tw-config-form-row-local-options',
+      formRowLabel('Options'),
+      labelledInput('Socket name', socketNameInput, 'tw-config-field-socket-name'),
+      labelledInput('Socket path', socketPathInput, 'tw-config-field-socket-path'),
+    ));
+  } else {
+    form.appendChild(formRow(
+      'tw-config-form-row-connection',
+      labelledInput('Protocol', protocolInput, 'tw-config-field-protocol'),
+      labelledInput('Port', portInput, 'tw-config-field-port'),
+      labelledInput('Hostname', hostInput, 'tw-config-field-host'),
+    ));
+    form.appendChild(formRow(
+      'tw-config-form-row-credentials',
+      labelledInput('Username', usernameInput, 'tw-config-field-username'),
+      labelledInput('Password', passwordInput, 'tw-config-field-password'),
+      checkboxField('Save password', savePasswordInput, 'tw-config-save-password'),
+    ));
+    form.appendChild(formRow(
+      'tw-config-form-row-options',
+      formRowLabel('Options'),
+      checkboxField('Compression', compressionInput),
+    ));
+  }
   const error = document.createElement('div');
   error.className = 'tw-config-form-error';
   error.setAttribute('role', 'alert');
@@ -263,7 +315,7 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
   const formActions = document.createElement('div');
   formActions.className = 'tw-config-form-actions';
   const removeBtn = button('Remove server');
-  removeBtn.disabled = !selected;
+  removeBtn.disabled = !selected || isLocal;
   removeBtn.addEventListener('click', () => {
     if (!state.editingId) return;
     saveRemoteServers(getRemoteServers().filter(s => s.id !== state.editingId));
@@ -275,7 +327,7 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
   saveBtn.addEventListener('click', () => {
     const nextServers = getRemoteServers();
     const protocolValue = validProtocol(formValue(form, 'protocol').value);
-    const host = formValue(form, 'host').value.trim();
+    const host = protocolValue === 'local' ? 'local' : formValue(form, 'host').value.trim();
     const serverName = formValue(form, 'name').value.trim();
     if (!serverName) {
       state.error = 'Server name is required.';
@@ -292,19 +344,25 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
       renderServersPane(main, state);
       return;
     }
-    const savePassword = (formValue(form, 'savePassword') as HTMLInputElement).checked;
-    const password = savePassword ? formValue(form, 'password').value : '';
+    const savePassword = protocolValue === 'local' ? false : (formValue(form, 'savePassword') as HTMLInputElement).checked;
+    const password = protocolValue === 'local' ? '' : savePassword ? formValue(form, 'password').value : '';
     const next: RemoteServerConfig = {
-      id: makeServerId(host, nextServers, state.editingId),
+      id: protocolValue === 'local' ? 'local' : makeServerId(host, nextServers, state.editingId),
       name: serverName,
       host,
-      port: Number.parseInt(formValue(form, 'port').value, 10) || defaultPort(protocolValue),
+      port: protocolValue === 'local' ? 0 : Number.parseInt(formValue(form, 'port').value, 10) || defaultPort(protocolValue),
       protocol: protocolValue,
       username: formValue(form, 'username').value.trim(),
       savePassword,
-      compression: (formValue(form, 'compression') as HTMLInputElement).checked,
+      compression: protocolValue === 'local' ? false : (formValue(form, 'compression') as HTMLInputElement).checked,
     };
     if (password) next.password = password;
+    if (protocolValue === 'local') {
+      const socketName = formValue(form, 'socketName').value.trim();
+      const socketPath = formValue(form, 'socketPath').value.trim();
+      if (socketName) next.socketName = socketName;
+      if (socketPath) next.socketPath = socketPath;
+    }
     const index = nextServers.findIndex(s => s.id === state.editingId);
     if (index >= 0) nextServers[index] = next;
     else nextServers.push(next);

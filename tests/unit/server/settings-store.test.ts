@@ -61,6 +61,18 @@ describe('settings-store', () => {
           protocol: 'ssh',
           username: 'per',
         },
+        {
+          id: 'local',
+          name: 'Local',
+          host: 'local',
+          port: 0,
+          protocol: 'local',
+          username: 'per',
+          savePassword: false,
+          compression: true,
+          socketName: 'work',
+          socketPath: '/tmp/tmux-web.sock',
+        },
       ],
     }));
 
@@ -88,6 +100,18 @@ describe('settings-store', () => {
           username: 'per',
           savePassword: false,
           compression: false,
+        },
+        {
+          id: 'local',
+          name: 'Local',
+          host: 'local',
+          port: 0,
+          protocol: 'local',
+          username: 'per',
+          savePassword: false,
+          compression: false,
+          socketName: 'work',
+          socketPath: '/tmp/tmux-web.sock',
         },
       ],
     });
