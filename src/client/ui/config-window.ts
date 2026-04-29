@@ -136,7 +136,7 @@ function textInput(name: string, value = '', type = 'text', placeholder = ''): H
   input.name = name;
   input.value = value;
   input.placeholder = placeholder;
-  input.className = 'tw-menu-input-select';
+  input.className = type === 'number' ? 'tw-menu-input-number' : 'tw-menu-input-select';
   return input;
 }
 
