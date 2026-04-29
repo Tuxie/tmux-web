@@ -333,7 +333,7 @@ label.tw-menu-row { color: var(--tw-text-muted); }
 .tw-dd-remote-placeholder {
   color: var(--tw-muted);
   font-style: italic;
-  padding-left: 26px;
+  text-align: center;
 }
 
 /* Menu footer: left and right side labels. */
