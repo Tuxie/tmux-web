@@ -1084,7 +1084,7 @@ body {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  width: 1em;
+  width: 12px;
 }
 .tw-remote-section-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .tw-remote-connect-toggle {
