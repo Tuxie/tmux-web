@@ -602,7 +602,7 @@ body {
   width: 90vw;
   height: 90vh;
   display: grid;
-  grid-template-columns: minmax(150px, 18%) 1fr;
+  grid-template-columns: 10em 1fr;
   background: var(--tw-config-bg);
   border: 1px solid var(--tw-bevel-hi);
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.65);
