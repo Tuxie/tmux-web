@@ -113,6 +113,23 @@ function formRowLabel(text: string): HTMLSpanElement {
   return label;
 }
 
+function insertBeforeChild(parent: HTMLElement, child: HTMLElement, before: HTMLElement): void {
+  const anyParent = parent as HTMLElement & { children: HTMLCollection; insertBefore?: (child: HTMLElement, before: HTMLElement) => HTMLElement };
+  if (typeof anyParent.insertBefore === 'function') {
+    anyParent.insertBefore(child, before);
+    return;
+  }
+  child.remove();
+  const children = Array.from(anyParent.children);
+  const index = children.indexOf(before);
+  if (index < 0) {
+    parent.appendChild(child);
+    return;
+  }
+  (child as HTMLElement & { parentNode: HTMLElement }).parentNode = parent;
+  (anyParent.children as unknown as HTMLElement[]).splice(index, 0, child);
+}
+
 function textInput(name: string, value = '', type = 'text', placeholder = ''): HTMLInputElement {
   const input = document.createElement('input');
   input.type = type;
@@ -254,15 +271,6 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
   const protocol = selected?.protocol ?? 'ssh';
   const protocolInput = protocolSelect(protocol);
   const portInput = textInput('port', String(selected?.port ?? defaultPort(protocol)), 'number');
-  protocolInput.addEventListener('change', () => {
-    if (validProtocol(protocolInput.value) === 'local' || protocol === 'local') {
-      state.editingId = validProtocol(protocolInput.value) === 'local' ? 'local' : null;
-      state.error = null;
-      renderServersPane(main, state);
-      return;
-    }
-    portInput.value = String(defaultPort(validProtocol(protocolInput.value)));
-  });
   const nameInput = textInput('name', selected?.name ?? '');
   const hostInput = textInput('host', selected?.host ?? '');
   const usernameInput = textInput('username', selected?.username ?? '', 'text', isLocal || protocol === 'ssh' ? '(current user)' : '');
@@ -273,6 +281,16 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
   const tmuxWebCommandInput = textInput('tmuxWebCommand', selected?.tmuxWebCommand ?? 'tmux-web');
   const socketNameInput = textInput('socketName', selected?.socketName ?? '', 'text', '(default)');
   const socketPathInput = textInput('socketPath', selected?.socketPath ?? '', 'text', '(default)');
+  const sshCommandOptionsRow = formRow(
+    'tw-config-form-row-command-options',
+    labelledInput('tmux', tmuxCommandInput, 'tw-config-field-tmux-command'),
+    labelledInput('tmux-web', tmuxWebCommandInput, 'tw-config-field-tmux-web-command'),
+  );
+  const sshSocketOptionsRow = formRow(
+    'tw-config-form-row-local-options',
+    labelledInput('Socket name', socketNameInput, 'tw-config-field-socket-name'),
+    labelledInput('Socket path', socketPathInput, 'tw-config-field-socket-path'),
+  );
   nameInput.required = true;
   form.appendChild(formRow(
     'tw-config-form-row-name',
@@ -315,16 +333,8 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
       checkboxField('Compression', compressionInput),
     ));
     if (protocol === 'ssh') {
-      form.appendChild(formRow(
-        'tw-config-form-row-command-options',
-        labelledInput('tmux', tmuxCommandInput, 'tw-config-field-tmux-command'),
-        labelledInput('tmux-web', tmuxWebCommandInput, 'tw-config-field-tmux-web-command'),
-      ));
-      form.appendChild(formRow(
-        'tw-config-form-row-local-options',
-        labelledInput('Socket name', socketNameInput, 'tw-config-field-socket-name'),
-        labelledInput('Socket path', socketPathInput, 'tw-config-field-socket-path'),
-      ));
+      form.appendChild(sshCommandOptionsRow);
+      form.appendChild(sshSocketOptionsRow);
     }
   }
   const error = document.createElement('div');
@@ -332,6 +342,24 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
   error.setAttribute('role', 'alert');
   error.textContent = state.error ?? '';
   form.appendChild(error);
+  protocolInput.addEventListener('change', () => {
+    const nextProtocol = validProtocol(protocolInput.value);
+    if (nextProtocol === 'local' || protocol === 'local') {
+      state.editingId = nextProtocol === 'local' ? 'local' : null;
+      state.error = null;
+      renderServersPane(main, state);
+      return;
+    }
+    portInput.value = String(defaultPort(nextProtocol));
+    if (nextProtocol === 'ssh') {
+      if (!sshCommandOptionsRow.parentNode) insertBeforeChild(form, sshCommandOptionsRow, error);
+      if (!sshSocketOptionsRow.parentNode) insertBeforeChild(form, sshSocketOptionsRow, error);
+    } else {
+      sshCommandOptionsRow.remove();
+      sshSocketOptionsRow.remove();
+    }
+    usernameInput.placeholder = nextProtocol === 'ssh' ? '(current user)' : '';
+  });
 
   const formActions = document.createElement('div');
   formActions.className = 'tw-config-form-actions';

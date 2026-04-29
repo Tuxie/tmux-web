@@ -405,6 +405,39 @@ describe('configuration window', () => {
     });
   });
 
+  it('removes SSH-only tmux and socket options when switching to HTTP or HTTPS', async () => {
+    const doc = makeDoc();
+    const trigger = ext(doc.createElement('button'));
+    doc.body.appendChild(trigger);
+    const { installConfigurationWindow } = await import('../../../../src/client/ui/config-window.ts');
+    installConfigurationWindow(trigger as any);
+    trigger.click();
+
+    const dialog = queryOne(doc.body, '.tw-config-window');
+    const betaRow = queryAll(dialog, '.tw-config-server-row').find((row: any) => textOf(row).includes('Beta'))!;
+    betaRow.click();
+    expect(maybeInputByName(dialog, 'tmuxCommand')).not.toBeNull();
+    expect(maybeInputByName(dialog, 'tmuxWebCommand')).not.toBeNull();
+    expect(maybeInputByName(dialog, 'socketName')).not.toBeNull();
+    expect(maybeInputByName(dialog, 'socketPath')).not.toBeNull();
+
+    inputByName(dialog, 'protocol').value = 'http';
+    inputByName(dialog, 'protocol').dispatch('change', { target: inputByName(dialog, 'protocol') });
+    expect(inputByName(dialog, 'port').value).toBe('80');
+    expect(maybeInputByName(dialog, 'tmuxCommand')).toBeNull();
+    expect(maybeInputByName(dialog, 'tmuxWebCommand')).toBeNull();
+    expect(maybeInputByName(dialog, 'socketName')).toBeNull();
+    expect(maybeInputByName(dialog, 'socketPath')).toBeNull();
+
+    inputByName(dialog, 'protocol').value = 'https';
+    inputByName(dialog, 'protocol').dispatch('change', { target: inputByName(dialog, 'protocol') });
+    expect(inputByName(dialog, 'port').value).toBe('443');
+    expect(maybeInputByName(dialog, 'tmuxCommand')).toBeNull();
+    expect(maybeInputByName(dialog, 'tmuxWebCommand')).toBeNull();
+    expect(maybeInputByName(dialog, 'socketName')).toBeNull();
+    expect(maybeInputByName(dialog, 'socketPath')).toBeNull();
+  });
+
   it('persists server order changed by dragging list rows', async () => {
     const doc = makeDoc();
     const calls = stubFetch(async () => ({ ok: true, json: async () => ({}) }) as any).calls;
