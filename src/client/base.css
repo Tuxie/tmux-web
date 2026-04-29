@@ -740,10 +740,6 @@ body {
   grid-template-columns: 76px max-content;
 }
 
-.tw-config-form-row-local {
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-}
-
 .tw-config-form-row-local-options {
   grid-template-columns: repeat(8, minmax(0, 1fr));
 }
@@ -770,7 +766,6 @@ body {
 .tw-config-field-host,
 .tw-config-field-username,
 .tw-config-field-password,
-.tw-config-field-local-username,
 .tw-config-field-socket-name,
 .tw-config-field-socket-path {
   display: contents;
@@ -795,8 +790,6 @@ body {
 .tw-config-field-username > input { grid-column: 2 / 4; }
 .tw-config-field-password > span { grid-column: 4; }
 .tw-config-field-password > input { grid-column: 5 / 7; }
-.tw-config-field-local-username > span { grid-column: 3; }
-.tw-config-field-local-username > input { grid-column: 4 / 7; }
 .tw-config-field-socket-name > span { grid-column: 1; }
 .tw-config-field-socket-name > input { grid-column: 2 / 4; }
 .tw-config-field-socket-path > span { grid-column: 4; }

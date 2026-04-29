@@ -326,6 +326,11 @@ describe('configuration window', () => {
     expect(inputByName(dialog, 'username').value).toBe('per');
     expect(inputByName(dialog, 'socketName').placeholder).toBe('(default)');
     expect(inputByName(dialog, 'socketPath').placeholder).toBe('(default)');
+    const localRows = formRows(dialog).slice(1, 3);
+    expect(localRows[0].startsWith('Protocol:')).toBe(true);
+    expect(localRows[0]).not.toContain('Port:');
+    expect(localRows[0]).not.toContain('Hostname:');
+    expect(localRows[1]).toBe('Username:');
     expect(formRows(dialog).find((row: string) => row.includes('Socket name'))).toBe('Socket name:Socket path:');
     expect(maybeInputByName(dialog, 'port')).toBeNull();
     expect(maybeInputByName(dialog, 'host')).toBeNull();
@@ -456,6 +461,7 @@ describe('configuration window', () => {
     expect(css).toContain('.tw-config-field-port > input[type="number"]::-webkit-outer-spin-button');
     expect(css).toContain('.tw-config-field-host > span { grid-column: 5; }');
     expect(css).toContain('.tw-config-field-host > input { grid-column: 6 / 9; }');
+    expect(css).toContain('.tw-config-field-username > span { grid-column: 1; }');
     expect(css).toContain('.tw-config-field-username > input { grid-column: 2 / 4; }');
     expect(css).toContain('.tw-config-field-password > span { grid-column: 4; }');
     expect(css).toContain('.tw-config-field-password > input { grid-column: 5 / 7; }');

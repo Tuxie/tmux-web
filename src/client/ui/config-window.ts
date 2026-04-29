@@ -277,9 +277,12 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
   ));
   if (isLocal) {
     form.appendChild(formRow(
-      'tw-config-form-row-local',
+      'tw-config-form-row-connection',
       labelledInput('Protocol', protocolInput, 'tw-config-field-protocol'),
-      labelledInput('Username', usernameInput, 'tw-config-field-local-username'),
+    ));
+    form.appendChild(formRow(
+      'tw-config-form-row-credentials',
+      labelledInput('Username', usernameInput, 'tw-config-field-username'),
     ));
     form.appendChild(formRow(
       'tw-config-form-row-local-options',
