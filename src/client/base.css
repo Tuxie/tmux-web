@@ -562,12 +562,14 @@ body {
 :where(.tw-menu-row:hover) { background: var(--tw-gadget-hover); }
 
 :where(.tw-menu-surface) .tw-button {
-  border: 1px solid var(--tw-bevel-hi);
+  border: 1px solid;
+  border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   background: var(--tw-gadget-bg);
   color: var(--tw-text);
   font-family: inherit;
   font-size: var(--tw-ui-font-size);
-  padding: 3px 7px;
+  padding: 1px;
+  text-align: center;
   cursor: pointer;
 }
 

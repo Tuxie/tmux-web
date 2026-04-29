@@ -489,6 +489,7 @@ body {
  * trash). Override the topbar blue with neutral grey. */
 :where(.tw-menu-surface) .tw-button {
   background: var(--tw-gadget-bg);
+  border-width: 2px;
   height: 22px;
 }
 /* Glyph-only buttons with Unicode arrows use sans-serif so ↺/↻ render
