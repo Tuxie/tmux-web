@@ -554,8 +554,8 @@ body {
   color: var(--tw-text);
 }
 :where(.tw-input-text) { border: 1px solid var(--tw-bevel-hi); }
-:where(.tw-input-select),
-:where(.tw-input-number) { border: 1px solid var(--tw-bevel-lo); }
+:where(.tw-input-number) { border: 1px solid var(--tw-bevel-hi); }
+:where(.tw-input-select) { border: 1px solid var(--tw-bevel-lo); }
 
 :where(.tw-dd-session-status.running) { background: var(--tw-status-active); }
 
