@@ -167,6 +167,7 @@ describe('configuration window', () => {
     expect(dialog).not.toBeNull();
     expect(dialog.hidden).toBe(false);
     expect(dialog.attrs.role).toBe('dialog');
+    expect(queryOne(dialog, '.tw-config-pane-title')?.textContent).toBe('Servers');
     expect(textOf(dialog)).toContain('General');
     expect(textOf(dialog)).toContain('Servers');
     expect(textOf(dialog)).toContain('Sessions');

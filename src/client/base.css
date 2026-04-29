@@ -664,12 +664,19 @@ body {
   gap: 12px;
 }
 
+.tw-config-pane-title {
+  font-size: 1.2em;
+  font-weight: bold;
+}
+
 .tw-config-pane-servers {
   display: grid;
   grid-template-columns: minmax(170px, 28%) minmax(0, 1fr);
   gap: 12px;
   align-items: start;
 }
+
+.tw-config-pane-servers .tw-config-pane-title { grid-column: 1 / -1; }
 
 .tw-config-server-sidebar {
   display: flex;

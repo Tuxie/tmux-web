@@ -201,6 +201,10 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
   const isLocal = selected?.protocol === 'local';
   const pane = document.createElement('div');
   pane.className = 'tw-config-pane tw-config-pane-servers';
+  const title = document.createElement('h2');
+  title.className = 'tw-config-pane-title';
+  title.textContent = 'Servers';
+  pane.appendChild(title);
 
   const sidebar = document.createElement('div');
   sidebar.className = 'tw-config-server-sidebar';
@@ -438,6 +442,7 @@ function renderPlaceholder(main: HTMLElement, title: string): void {
   const pane = document.createElement('div');
   pane.className = 'tw-config-pane';
   const h = document.createElement('h2');
+  h.className = 'tw-config-pane-title';
   h.textContent = title;
   pane.appendChild(h);
   main.replaceChildren(pane);
