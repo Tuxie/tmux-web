@@ -309,7 +309,7 @@ label.tw-menu-row { color: var(--tw-text-muted); }
 .tw-input-text,
 .tw-input-select,
 .tw-input-number {
-  border-radius: 2px; padding: 0.2em 0.5em; font-family: inherit; font-size: var(--tw-ui-font-size);
+  border-radius: 2px; padding: 0.2em 0.5em; font-family: inherit; font-size: var(--tw-ui-font-size); line-height: var(--tw-ui-line-height);
 }
 .tw-input-text { border-radius: 3px; outline: none; }
 .tw-input-number { width: 46px; }
