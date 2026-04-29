@@ -63,9 +63,9 @@ function labelledInput(
   return label;
 }
 
-function checkboxField(labelText: string, input: HTMLInputElement): HTMLLabelElement {
+function checkboxField(labelText: string, input: HTMLInputElement, className = ''): HTMLLabelElement {
   const label = document.createElement('label');
-  label.className = 'tw-config-checkbox-field';
+  label.className = `tw-config-checkbox-field${className ? ` ${className}` : ''}`;
   label.appendChild(input);
   const span = document.createElement('span');
   span.textContent = labelText;
@@ -247,7 +247,7 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
     'tw-config-form-row-credentials',
     labelledInput('Username', usernameInput, 'tw-config-field-username'),
     labelledInput('Password', passwordInput, 'tw-config-field-password'),
-    checkboxField('Save password', savePasswordInput),
+    checkboxField('Save password', savePasswordInput, 'tw-config-save-password'),
   ));
   form.appendChild(formRow(
     'tw-config-form-row-options',

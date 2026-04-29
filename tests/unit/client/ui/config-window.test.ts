@@ -383,4 +383,19 @@ describe('configuration window', () => {
     expect(match?.groups?.body).toContain('display: grid');
     expect(match?.groups?.body).toContain('grid-template-columns');
   });
+
+  it('uses an eight-section aligned grid for server connection and credential rows', () => {
+    const css = fs.readFileSync('src/client/base.css', 'utf-8');
+    expect(css).toContain('grid-template-columns: repeat(8, minmax(0, 1fr));');
+    expect(css).toContain('.tw-config-field-protocol > span { grid-column: 1; }');
+    expect(css).toContain('.tw-config-field-protocol > select { grid-column: 2; }');
+    expect(css).toContain('.tw-config-field-port > span { grid-column: 3; }');
+    expect(css).toContain('.tw-config-field-port > input { grid-column: 4; }');
+    expect(css).toContain('.tw-config-field-host > span { grid-column: 5; }');
+    expect(css).toContain('.tw-config-field-host > input { grid-column: 6 / 9; }');
+    expect(css).toContain('.tw-config-field-username > input { grid-column: 2 / 4; }');
+    expect(css).toContain('.tw-config-field-password > span { grid-column: 4; }');
+    expect(css).toContain('.tw-config-field-password > input { grid-column: 5 / 7; }');
+    expect(css).toContain('.tw-config-save-password { grid-column: 7 / 9; }');
+  });
 });

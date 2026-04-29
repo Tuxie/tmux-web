@@ -729,11 +729,11 @@ body {
 }
 
 .tw-config-form-row-connection {
-  grid-template-columns: minmax(90px, 0.7fr) minmax(76px, 0.45fr) minmax(220px, 1.85fr);
+  grid-template-columns: repeat(8, minmax(0, 1fr));
 }
 
 .tw-config-form-row-credentials {
-  grid-template-columns: minmax(130px, 1fr) minmax(130px, 1fr) max-content;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
 }
 
 .tw-config-form-row-options {
@@ -757,8 +757,19 @@ body {
 .tw-config-field-host,
 .tw-config-field-username,
 .tw-config-field-password {
-  grid-template-columns: max-content minmax(0, 1fr);
+  display: contents;
 }
+
+.tw-config-field-protocol > span { grid-column: 1; }
+.tw-config-field-protocol > select { grid-column: 2; }
+.tw-config-field-port > span { grid-column: 3; }
+.tw-config-field-port > input { grid-column: 4; }
+.tw-config-field-host > span { grid-column: 5; }
+.tw-config-field-host > input { grid-column: 6 / 9; }
+.tw-config-field-username > span { grid-column: 1; }
+.tw-config-field-username > input { grid-column: 2 / 4; }
+.tw-config-field-password > span { grid-column: 4; }
+.tw-config-field-password > input { grid-column: 5 / 7; }
 
 .tw-config-checkbox-field {
   display: inline-flex;
@@ -767,6 +778,8 @@ body {
   color: var(--tw-text-muted);
   white-space: nowrap;
 }
+
+.tw-config-save-password { grid-column: 7 / 9; }
 
 .tw-config-row-label {
   color: var(--tw-text-muted);
