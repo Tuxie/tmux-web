@@ -598,9 +598,6 @@ body {
   --tw-config-label-min-width: 7em;
   --tw-config-label-track: minmax(var(--tw-config-label-min-width), max-content);
   --tw-config-control-track: minmax(0, 1fr);
-  --tw-gadget-bg: color-mix(in hsl, var(--tw-config-chrome), black 12%);
-  --tw-gadget-hover: color-mix(in hsl, var(--tw-config-chrome), white 8%);
-  --tw-gadget-active: color-mix(in hsl, var(--tw-config-chrome), white 15%);
   position: relative;
   width: 90vw;
   height: 90vh;
