@@ -457,6 +457,11 @@ describe('configuration window', () => {
     expect(css).toContain('.tw-config-field-password > span { grid-column: 4; }');
     expect(css).toContain('.tw-config-field-password > input { grid-column: 5 / 7; }');
     expect(css).toContain('.tw-config-save-password { grid-column: 7 / 9; }');
+    expect(css).toContain('.tw-config-form-row-local-options {\n  grid-template-columns: repeat(8, minmax(0, 1fr));');
+    expect(css).toContain('.tw-config-field-socket-name > span { grid-column: 1; }');
+    expect(css).toContain('.tw-config-field-socket-name > input { grid-column: 2 / 4; }');
+    expect(css).toContain('.tw-config-field-socket-path > span { grid-column: 4; }');
+    expect(css).toContain('.tw-config-field-socket-path > input { grid-column: 5 / 9; }');
     expect(css).toContain('.tw-config-field > span,\n.tw-config-row-label {\n  text-align: right;');
     expect(css).toContain('.tw-menu-input-select::placeholder');
     expect(css).toContain('font-style: italic;');
