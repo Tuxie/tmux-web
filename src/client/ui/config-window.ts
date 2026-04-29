@@ -288,8 +288,8 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
   );
   const sshSocketOptionsRow = formRow(
     'tw-config-form-row-local-options',
-    labelledInput('Socket name', socketNameInput, 'tw-config-field-socket-name'),
-    labelledInput('Socket path', socketPathInput, 'tw-config-field-socket-path'),
+    labelledInput('tmux socket name', socketNameInput, 'tw-config-field-socket-name'),
+    labelledInput('tmux socket path', socketPathInput, 'tw-config-field-socket-path'),
   );
   nameInput.required = true;
   form.appendChild(formRow(
@@ -311,8 +311,8 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
     ));
     form.appendChild(formRow(
       'tw-config-form-row-local-options',
-      labelledInput('Socket name', socketNameInput, 'tw-config-field-socket-name'),
-      labelledInput('Socket path', socketPathInput, 'tw-config-field-socket-path'),
+      labelledInput('tmux socket name', socketNameInput, 'tw-config-field-socket-name'),
+      labelledInput('tmux socket path', socketPathInput, 'tw-config-field-socket-path'),
     ));
   } else {
     form.appendChild(formRow(
