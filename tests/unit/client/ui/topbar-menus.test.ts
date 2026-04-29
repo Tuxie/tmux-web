@@ -532,6 +532,45 @@ describe('sessions menu: running/stopped states and current marker', () => {
     ]);
   });
 
+  it('renders remote server sections in configured server order', async () => {
+    const t = await mountTopbar({ session: 'main' });
+    (t as any).cachedRemoteSessions = new Map([
+      ['z.example.com', []],
+      ['a.example.com', []],
+    ]);
+    _resetSessionStore({
+      sessions: {},
+      knownServers: [],
+      servers: [
+        {
+          id: 'z',
+          name: 'Zebra',
+          host: 'z.example.com',
+          port: 22,
+          protocol: 'ssh',
+          username: 'per',
+          savePassword: false,
+          compression: false,
+        },
+        {
+          id: 'a',
+          name: 'Alpha',
+          host: 'a.example.com',
+          port: 22,
+          protocol: 'ssh',
+          username: 'per',
+          savePassword: false,
+          compression: false,
+        },
+      ],
+    } as any);
+
+    const menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+
+    expect(remoteSections(menu).map(remoteSectionLabel)).toEqual(['Zebra', 'Alpha']);
+  });
+
   it('renders disconnected remote sections with a not-connected toggle and placeholder row', async () => {
     const t = await mountTopbar({ session: 'main' });
     (t as any).cachedSessions = [{ id: '1', name: 'local' }];

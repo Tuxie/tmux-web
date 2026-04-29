@@ -643,8 +643,10 @@ body {
 }
 
 .tw-config-pane-servers {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(170px, 28%) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
 }
 
 .tw-config-server-list,
@@ -655,10 +657,6 @@ body {
 
 .tw-config-server-header,
 .tw-config-server-row {
-  display: grid;
-  grid-template-columns: 1.1fr 1.4fr 0.6fr 0.5fr minmax(110px, auto);
-  gap: 8px;
-  align-items: center;
   padding: 6px 8px;
   border-bottom: 1px solid color-mix(in srgb, var(--tw-muted), transparent 45%);
 }
@@ -668,12 +666,10 @@ body {
   background: color-mix(in srgb, var(--tw-chrome-bg), black 10%);
 }
 
-.tw-config-server-sort {
-  border: none;
-  background: transparent;
-  color: inherit;
-  font-family: inherit;
-  text-align: left;
+.tw-config-server-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   cursor: pointer;
 }
 
@@ -682,20 +678,24 @@ body {
   color: var(--tw-text-strong);
 }
 
-.tw-config-server-row span {
+.tw-config-server-name,
+.tw-config-server-host {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.tw-config-server-actions,
+.tw-config-server-host {
+  color: var(--tw-text-muted);
+  font-size: 0.9em;
+}
+
 .tw-config-form-actions {
   display: flex;
   gap: 6px;
   justify-content: flex-end;
 }
 
-.tw-config-server-actions button,
 .tw-config-form-actions button {
   border: 1px solid var(--tw-bevel-hi);
   background: var(--tw-gadget-bg);
@@ -724,6 +724,12 @@ body {
   min-width: 0;
 }
 
+.tw-config-form-error {
+  min-height: 1.2em;
+  color: var(--tw-danger-fg, #ff8a8a);
+  font-style: italic;
+}
+
 .tw-config-form-actions {
   padding-top: 4px;
 }
@@ -739,8 +745,8 @@ body {
     border-bottom: 1px solid var(--tw-muted);
   }
   .tw-config-pane-servers {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr;
   }
 }
 

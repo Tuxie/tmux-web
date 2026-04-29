@@ -6,13 +6,11 @@ import {
 } from '../session-settings.js';
 
 type ConfigCategory = 'general' | 'servers' | 'sessions';
-type ServerSortKey = 'name' | 'host' | 'protocol' | 'port';
 
 interface ConfigWindowState {
   active: ConfigCategory;
-  sortKey: ServerSortKey | null;
-  sortDir: 1 | -1;
   editingId: string | null;
+  error: string | null;
 }
 
 function validProtocol(value: string): RemoteServerProtocol {
@@ -34,18 +32,6 @@ function makeServerId(host: string, existing: RemoteServerConfig[], editingId: s
     id = `${base}-${n++}`;
   }
   return id;
-}
-
-function sortedServers(servers: RemoteServerConfig[], key: ServerSortKey | null, dir: 1 | -1): RemoteServerConfig[] {
-  const out = servers.slice();
-  if (!key) return out;
-  out.sort((a, b) => {
-    const av = a[key];
-    const bv = b[key];
-    if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
-    return String(av).localeCompare(String(bv)) * dir;
-  });
-  return out;
 }
 
 function button(label: string, className?: string): HTMLButtonElement {
@@ -113,6 +99,23 @@ function formValue(form: HTMLFormElement, name: string): HTMLInputElement | HTML
   return input;
 }
 
+function isDuplicateServerName(name: string, servers: RemoteServerConfig[], editingId: string | null): boolean {
+  const key = name.trim().toLowerCase();
+  return servers.some(server => server.id !== editingId && server.name.trim().toLowerCase() === key);
+}
+
+function moveServerAfter(servers: RemoteServerConfig[], draggedId: string, targetId: string): RemoteServerConfig[] {
+  if (draggedId === targetId) return servers;
+  const dragged = servers.find(server => server.id === draggedId);
+  if (!dragged) return servers;
+  const withoutDragged = servers.filter(server => server.id !== draggedId);
+  const targetIndex = withoutDragged.findIndex(server => server.id === targetId);
+  if (targetIndex < 0) return servers;
+  const next = withoutDragged.slice();
+  next.splice(targetIndex + 1, 0, dragged);
+  return next;
+}
+
 function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
   const servers = getRemoteServers();
   const selected = servers.find(s => s.id === state.editingId) ?? null;
@@ -124,60 +127,55 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
 
   const header = document.createElement('div');
   header.className = 'tw-config-server-header';
-  for (const [key, label] of [
-    ['name', 'Name'],
-    ['host', 'Host'],
-    ['protocol', 'Protocol'],
-    ['port', 'Port'],
-  ] as Array<[ServerSortKey, string]>) {
-    const sortBtn = button(label, 'tw-config-server-sort');
-    sortBtn.addEventListener('click', () => {
-      if (state.sortKey === key) state.sortDir = state.sortDir === 1 ? -1 : 1;
-      else {
-        state.sortKey = key;
-        state.sortDir = 1;
-      }
-      renderServersPane(main, state);
-    });
-    header.appendChild(sortBtn);
-  }
-  const actionHead = document.createElement('span');
-  actionHead.textContent = '';
-  header.appendChild(actionHead);
+  header.textContent = 'Servers';
   list.appendChild(header);
 
-  for (const server of sortedServers(servers, state.sortKey, state.sortDir)) {
+  for (const server of servers) {
     const row = document.createElement('div');
     row.className = 'tw-config-server-row' + (server.id === state.editingId ? ' selected' : '');
-    row.appendChild(Object.assign(document.createElement('span'), { textContent: server.name }));
-    row.appendChild(Object.assign(document.createElement('span'), { textContent: server.host }));
-    row.appendChild(Object.assign(document.createElement('span'), { textContent: server.protocol }));
-    row.appendChild(Object.assign(document.createElement('span'), { textContent: String(server.port) }));
-
-    const actions = document.createElement('div');
-    actions.className = 'tw-config-server-actions';
-    const editBtn = button('Edit');
-    editBtn.addEventListener('click', () => {
+    row.draggable = true;
+    row.setAttribute('draggable', 'true');
+    const name = document.createElement('span');
+    name.className = 'tw-config-server-name';
+    name.textContent = server.name;
+    const host = document.createElement('span');
+    host.className = 'tw-config-server-host';
+    host.textContent = `${server.protocol}://${server.host}:${server.port}`;
+    row.appendChild(name);
+    row.appendChild(host);
+    row.addEventListener('click', () => {
       state.editingId = server.id;
+      state.error = null;
       renderServersPane(main, state);
     });
-    const removeBtn = button('Remove');
-    removeBtn.addEventListener('click', () => {
-      saveRemoteServers(getRemoteServers().filter(s => s.id !== server.id));
-      if (state.editingId === server.id) state.editingId = null;
+    row.addEventListener('dragstart', (ev) => {
+      ev.dataTransfer?.setData('text/plain', server.id);
+      if (ev.dataTransfer) ev.dataTransfer.effectAllowed = 'move';
+    });
+    row.addEventListener('dragover', (ev) => {
+      ev.preventDefault();
+      if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+    });
+    row.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      const draggedId = ev.dataTransfer?.getData('text/plain') ?? '';
+      const next = moveServerAfter(getRemoteServers(), draggedId, server.id);
+      saveRemoteServers(next);
+      state.editingId = draggedId || state.editingId;
+      state.error = null;
       renderServersPane(main, state);
     });
-    actions.appendChild(editBtn);
-    actions.appendChild(removeBtn);
-    row.appendChild(actions);
     list.appendChild(row);
   }
   pane.appendChild(list);
 
   const form = document.createElement('form');
   form.className = 'tw-config-server-form';
+  form.addEventListener('submit', ev => ev.preventDefault());
   const protocol = selected?.protocol ?? 'ssh';
-  form.appendChild(labelledInput('Name', textInput('name', selected?.name ?? '')));
+  const nameInput = textInput('name', selected?.name ?? '');
+  nameInput.required = true;
+  form.appendChild(labelledInput('Name', nameInput));
   form.appendChild(labelledInput('Hostname / IP', textInput('host', selected?.host ?? '')));
   form.appendChild(labelledInput('Port', textInput('port', String(selected?.port ?? defaultPort(protocol)), 'number')));
   form.appendChild(labelledInput('Protocol', protocolSelect(protocol)));
@@ -185,12 +183,27 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
   form.appendChild(labelledInput('Password', textInput('password', selected?.password ?? '', 'password')));
   form.appendChild(labelledInput('Save Password', checkboxInput('savePassword', selected?.savePassword ?? false)));
   form.appendChild(labelledInput('Compression', checkboxInput('compression', selected?.compression ?? false)));
+  const error = document.createElement('div');
+  error.className = 'tw-config-form-error';
+  error.setAttribute('role', 'alert');
+  error.textContent = state.error ?? '';
+  form.appendChild(error);
 
   const formActions = document.createElement('div');
   formActions.className = 'tw-config-form-actions';
   const addBtn = button('Add server');
   addBtn.addEventListener('click', () => {
     state.editingId = null;
+    state.error = null;
+    renderServersPane(main, state);
+  });
+  const removeBtn = button('Remove server');
+  removeBtn.disabled = !selected;
+  removeBtn.addEventListener('click', () => {
+    if (!state.editingId) return;
+    saveRemoteServers(getRemoteServers().filter(s => s.id !== state.editingId));
+    state.editingId = null;
+    state.error = null;
     renderServersPane(main, state);
   });
   const saveBtn = button('Save server');
@@ -198,12 +211,27 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
     const nextServers = getRemoteServers();
     const protocolValue = validProtocol(formValue(form, 'protocol').value);
     const host = formValue(form, 'host').value.trim();
-    if (!host) return;
+    const serverName = formValue(form, 'name').value.trim();
+    if (!serverName) {
+      state.error = 'Server name is required.';
+      renderServersPane(main, state);
+      return;
+    }
+    if (isDuplicateServerName(serverName, nextServers, state.editingId)) {
+      state.error = 'Server name must be unique.';
+      renderServersPane(main, state);
+      return;
+    }
+    if (!host) {
+      state.error = 'Hostname / IP is required.';
+      renderServersPane(main, state);
+      return;
+    }
     const savePassword = (formValue(form, 'savePassword') as HTMLInputElement).checked;
     const password = savePassword ? formValue(form, 'password').value : '';
     const next: RemoteServerConfig = {
       id: makeServerId(host, nextServers, state.editingId),
-      name: formValue(form, 'name').value.trim() || host,
+      name: serverName,
       host,
       port: Number.parseInt(formValue(form, 'port').value, 10) || defaultPort(protocolValue),
       protocol: protocolValue,
@@ -217,9 +245,11 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
     else nextServers.push(next);
     saveRemoteServers(nextServers);
     state.editingId = next.id;
+    state.error = null;
     renderServersPane(main, state);
   });
   formActions.appendChild(addBtn);
+  formActions.appendChild(removeBtn);
   formActions.appendChild(saveBtn);
   form.appendChild(formActions);
   pane.appendChild(form);

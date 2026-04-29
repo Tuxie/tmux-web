@@ -147,7 +147,7 @@ describe('configuration window', () => {
     expect(textOf(dialog)).toContain('Sessions');
   });
 
-  it('shows a sortable server list and persists added and removed servers', async () => {
+  it('shows a selectable server list beside the editor and persists added and removed servers', async () => {
     const doc = makeDoc();
     const calls = stubFetch(async () => ({ ok: true, json: async () => ({}) }) as any).calls;
     const trigger = ext(doc.createElement('button'));
@@ -160,11 +160,10 @@ describe('configuration window', () => {
     expect(textOf(dialog)).toContain('Beta');
     expect(textOf(dialog)).toContain('Alpha');
 
-    const nameHeader = buttons(dialog).find((b: any) => b.textContent === 'Name');
-    nameHeader.click();
-    const rowsAfterSort = queryAll(dialog, '.tw-config-server-row').map(textOf);
-    expect(rowsAfterSort[0]).toContain('Alpha');
-    expect(rowsAfterSort[1]).toContain('Beta');
+    const alphaRow = queryAll(dialog, '.tw-config-server-row').find((row: any) => textOf(row).includes('Alpha'))!;
+    alphaRow.click();
+    expect(inputByName(dialog, 'name').value).toBe('Alpha');
+    expect(inputByName(dialog, 'host').value).toBe('alpha.example.com');
 
     buttons(dialog).find((b: any) => b.textContent === 'Add server')!.click();
     inputByName(dialog, 'name').value = 'Gamma';
@@ -189,17 +188,65 @@ describe('configuration window', () => {
     });
 
     const gammaRow = queryAll(dialog, '.tw-config-server-row').find((row: any) => textOf(row).includes('Gamma'))!;
-    buttons(gammaRow).find((b: any) => b.textContent === 'Remove')!.click();
+    gammaRow.click();
+    buttons(dialog).find((b: any) => b.textContent === 'Remove server')!.click();
 
     const latest = JSON.parse(calls.at(-1)!.init!.body as string);
     expect(latest.servers.some((s: any) => s.host === 'gamma.example.com')).toBe(false);
   });
 
-  it('places the server editor below the server list', () => {
+  it('rejects empty and duplicate server names', async () => {
+    const doc = makeDoc();
+    const calls = stubFetch(async () => ({ ok: true, json: async () => ({}) }) as any).calls;
+    const trigger = ext(doc.createElement('button'));
+    doc.body.appendChild(trigger);
+    const { installConfigurationWindow } = await import('../../../../src/client/ui/config-window.ts');
+    installConfigurationWindow(trigger as any);
+    trigger.click();
+
+    const dialog = queryOne(doc.body, '.tw-config-window');
+    buttons(dialog).find((b: any) => b.textContent === 'Add server')!.click();
+    inputByName(dialog, 'name').value = '';
+    inputByName(dialog, 'host').value = 'gamma.example.com';
+    buttons(dialog).find((b: any) => b.textContent === 'Save server')!.click();
+    expect(calls.filter(c => c.init?.method === 'PUT')).toHaveLength(0);
+    expect(textOf(dialog)).toContain('Server name is required.');
+
+    inputByName(dialog, 'name').value = 'Alpha';
+    buttons(dialog).find((b: any) => b.textContent === 'Save server')!.click();
+    expect(calls.filter(c => c.init?.method === 'PUT')).toHaveLength(0);
+    expect(textOf(dialog)).toContain('Server name must be unique.');
+  });
+
+  it('persists server order changed by dragging list rows', async () => {
+    const doc = makeDoc();
+    const calls = stubFetch(async () => ({ ok: true, json: async () => ({}) }) as any).calls;
+    const trigger = ext(doc.createElement('button'));
+    doc.body.appendChild(trigger);
+    const { installConfigurationWindow } = await import('../../../../src/client/ui/config-window.ts');
+    installConfigurationWindow(trigger as any);
+    trigger.click();
+
+    const dialog = queryOne(doc.body, '.tw-config-window');
+    const rows = queryAll(dialog, '.tw-config-server-row');
+    const dataTransfer = {
+      value: '',
+      setData(_type: string, value: string) { this.value = value; },
+      getData() { return this.value; },
+      effectAllowed: '',
+      dropEffect: '',
+    };
+    rows[0].dispatch('dragstart', { dataTransfer, preventDefault() {}, stopPropagation() {} });
+    rows[1].dispatch('drop', { dataTransfer, preventDefault() {}, stopPropagation() {} });
+
+    const latest = JSON.parse(calls.at(-1)!.init!.body as string);
+    expect(latest.servers.map((s: any) => s.name)).toEqual(['Alpha', 'Beta']);
+  });
+
+  it('places the server list to the left of the server editor', () => {
     const css = fs.readFileSync('src/client/base.css', 'utf-8');
     const match = /\.tw-config-pane-servers\s*\{(?<body>[^}]+)\}/.exec(css);
-    expect(match?.groups?.body).toContain('display: flex');
-    expect(match?.groups?.body).toContain('flex-direction: column');
-    expect(match?.groups?.body).not.toContain('grid-template-columns');
+    expect(match?.groups?.body).toContain('display: grid');
+    expect(match?.groups?.body).toContain('grid-template-columns');
   });
 });
