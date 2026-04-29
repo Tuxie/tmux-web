@@ -100,6 +100,10 @@ function fieldLabels(root: any): string[] {
   return queryAll(root, '.tw-config-field').map((field: any) => field.children[0]?.textContent);
 }
 
+function formRows(root: any): string[] {
+  return queryAll(root, '.tw-config-form-row').map((row: any) => textOf(row));
+}
+
 function buttons(root: any): any[] {
   return queryAll(root, 'button');
 }
@@ -253,7 +257,7 @@ describe('configuration window', () => {
     expect(textOf(dialog)).toContain('Server name must be unique.');
   });
 
-  it('orders fields and updates port to the selected protocol default', async () => {
+  it('lays out server fields in grouped rows and updates port to the selected protocol default', async () => {
     const doc = makeDoc();
     const trigger = ext(doc.createElement('button'));
     doc.body.appendChild(trigger);
@@ -263,13 +267,21 @@ describe('configuration window', () => {
 
     const dialog = queryOne(doc.body, '.tw-config-window');
     queryAll(dialog, '.tw-config-server-row').find((row: any) => textOf(row).includes('New Server'))!.click();
-    expect(fieldLabels(dialog).slice(0, 6)).toEqual([
+    expect(fieldLabels(dialog).slice(0, 5)).toEqual([
       'Name',
-      'Hostname / IP',
       'Protocol',
       'Port',
+      'Hostname',
       'Username',
-      'Password',
+    ]);
+    const rows = formRows(dialog).slice(0, 4);
+    expect(rows[0]).toBe('Name');
+    expect(rows[1].startsWith('Protocol')).toBe(true);
+    expect(rows[1]).toContain('Port');
+    expect(rows[1]).toContain('Hostname');
+    expect(rows.slice(2)).toEqual([
+      'UsernamePasswordSave password',
+      'OptionsCompression',
     ]);
     expect(inputByName(dialog, 'port').value).toBe('22');
 

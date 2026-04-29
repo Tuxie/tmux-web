@@ -49,13 +49,41 @@ function button(label: string, className?: string): HTMLButtonElement {
   return btn;
 }
 
-function labelledInput(labelText: string, input: HTMLInputElement | HTMLSelectElement): HTMLLabelElement {
+function labelledInput(
+  labelText: string,
+  input: HTMLInputElement | HTMLSelectElement,
+  className = '',
+): HTMLLabelElement {
   const label = document.createElement('label');
-  label.className = 'tw-config-field';
+  label.className = `tw-config-field${className ? ` ${className}` : ''}`;
   const span = document.createElement('span');
   span.textContent = labelText;
   label.appendChild(span);
   label.appendChild(input);
+  return label;
+}
+
+function checkboxField(labelText: string, input: HTMLInputElement): HTMLLabelElement {
+  const label = document.createElement('label');
+  label.className = 'tw-config-checkbox-field';
+  label.appendChild(input);
+  const span = document.createElement('span');
+  span.textContent = labelText;
+  label.appendChild(span);
+  return label;
+}
+
+function formRow(className: string, ...children: HTMLElement[]): HTMLDivElement {
+  const row = document.createElement('div');
+  row.className = `tw-config-form-row ${className}`;
+  for (const child of children) row.appendChild(child);
+  return row;
+}
+
+function formRowLabel(text: string): HTMLSpanElement {
+  const label = document.createElement('span');
+  label.className = 'tw-config-row-label';
+  label.textContent = text;
   return label;
 }
 
@@ -199,15 +227,33 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
     portInput.value = String(defaultPort(validProtocol(protocolInput.value)));
   });
   const nameInput = textInput('name', selected?.name ?? '');
+  const hostInput = textInput('host', selected?.host ?? '');
+  const usernameInput = textInput('username', selected?.username ?? '');
+  const passwordInput = textInput('password', selected?.password ?? '', 'password');
+  const savePasswordInput = checkboxInput('savePassword', selected?.savePassword ?? false);
+  const compressionInput = checkboxInput('compression', selected?.compression ?? false);
   nameInput.required = true;
-  form.appendChild(labelledInput('Name', nameInput));
-  form.appendChild(labelledInput('Hostname / IP', textInput('host', selected?.host ?? '')));
-  form.appendChild(labelledInput('Protocol', protocolInput));
-  form.appendChild(labelledInput('Port', portInput));
-  form.appendChild(labelledInput('Username', textInput('username', selected?.username ?? '')));
-  form.appendChild(labelledInput('Password', textInput('password', selected?.password ?? '', 'password')));
-  form.appendChild(labelledInput('Save Password', checkboxInput('savePassword', selected?.savePassword ?? false)));
-  form.appendChild(labelledInput('Compression', checkboxInput('compression', selected?.compression ?? false)));
+  form.appendChild(formRow(
+    'tw-config-form-row-name',
+    labelledInput('Name', nameInput, 'tw-config-field-name'),
+  ));
+  form.appendChild(formRow(
+    'tw-config-form-row-connection',
+    labelledInput('Protocol', protocolInput, 'tw-config-field-protocol'),
+    labelledInput('Port', portInput, 'tw-config-field-port'),
+    labelledInput('Hostname', hostInput, 'tw-config-field-host'),
+  ));
+  form.appendChild(formRow(
+    'tw-config-form-row-credentials',
+    labelledInput('Username', usernameInput, 'tw-config-field-username'),
+    labelledInput('Password', passwordInput, 'tw-config-field-password'),
+    checkboxField('Save password', savePasswordInput),
+  ));
+  form.appendChild(formRow(
+    'tw-config-form-row-options',
+    formRowLabel('Options'),
+    checkboxField('Compression', compressionInput),
+  ));
   const error = document.createElement('div');
   error.className = 'tw-config-form-error';
   error.setAttribute('role', 'alert');
