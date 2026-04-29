@@ -174,18 +174,36 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
     });
     list.appendChild(row);
   }
+
+  const newRow = document.createElement('div');
+  newRow.className = 'tw-config-server-row tw-config-server-new' + (state.editingId === null ? ' selected' : '');
+  const newName = document.createElement('span');
+  newName.className = 'tw-config-server-name';
+  newName.textContent = 'New Server';
+  newRow.appendChild(newName);
+  newRow.addEventListener('click', () => {
+    state.editingId = null;
+    state.error = null;
+    renderServersPane(main, state);
+  });
+  list.appendChild(newRow);
   pane.appendChild(list);
 
   const form = document.createElement('form');
   form.className = 'tw-config-server-form';
   form.addEventListener('submit', ev => ev.preventDefault());
   const protocol = selected?.protocol ?? 'ssh';
+  const protocolInput = protocolSelect(protocol);
+  const portInput = textInput('port', String(selected?.port ?? defaultPort(protocol)), 'number');
+  protocolInput.addEventListener('change', () => {
+    portInput.value = String(defaultPort(validProtocol(protocolInput.value)));
+  });
   const nameInput = textInput('name', selected?.name ?? '');
   nameInput.required = true;
   form.appendChild(labelledInput('Name', nameInput));
   form.appendChild(labelledInput('Hostname / IP', textInput('host', selected?.host ?? '')));
-  form.appendChild(labelledInput('Port', textInput('port', String(selected?.port ?? defaultPort(protocol)), 'number')));
-  form.appendChild(labelledInput('Protocol', protocolSelect(protocol)));
+  form.appendChild(labelledInput('Protocol', protocolInput));
+  form.appendChild(labelledInput('Port', portInput));
   form.appendChild(labelledInput('Username', textInput('username', selected?.username ?? '')));
   form.appendChild(labelledInput('Password', textInput('password', selected?.password ?? '', 'password')));
   form.appendChild(labelledInput('Save Password', checkboxInput('savePassword', selected?.savePassword ?? false)));
@@ -198,12 +216,6 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
 
   const formActions = document.createElement('div');
   formActions.className = 'tw-config-form-actions';
-  const addBtn = button('Add server');
-  addBtn.addEventListener('click', () => {
-    state.editingId = null;
-    state.error = null;
-    renderServersPane(main, state);
-  });
   const removeBtn = button('Remove server');
   removeBtn.disabled = !selected;
   removeBtn.addEventListener('click', () => {
@@ -255,7 +267,6 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
     state.error = null;
     renderServersPane(main, state);
   });
-  formActions.appendChild(addBtn);
   formActions.appendChild(removeBtn);
   formActions.appendChild(saveBtn);
   form.appendChild(formActions);

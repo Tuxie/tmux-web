@@ -678,6 +678,13 @@ body {
   color: var(--tw-text-strong);
 }
 
+.tw-config-server-new {
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  text-align: center;
+}
+
 .tw-config-server-name,
 .tw-config-server-host {
   overflow: hidden;

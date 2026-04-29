@@ -96,6 +96,10 @@ function inputByName(root: any, name: string): any {
   return found;
 }
 
+function fieldLabels(root: any): string[] {
+  return queryAll(root, '.tw-config-field').map((field: any) => field.children[0]?.textContent);
+}
+
 function buttons(root: any): any[] {
   return queryAll(root, 'button');
 }
@@ -165,7 +169,9 @@ describe('configuration window', () => {
     expect(inputByName(dialog, 'name').value).toBe('Alpha');
     expect(inputByName(dialog, 'host').value).toBe('alpha.example.com');
 
-    buttons(dialog).find((b: any) => b.textContent === 'Add server')!.click();
+    const newServerRow = queryAll(dialog, '.tw-config-server-row').find((row: any) => textOf(row).includes('New Server'))!;
+    expect(newServerRow.getAttribute('draggable')).toBeNull();
+    newServerRow.click();
     inputByName(dialog, 'name').value = 'Gamma';
     inputByName(dialog, 'host').value = 'gamma.example.com';
     inputByName(dialog, 'port').value = '4022';
@@ -195,6 +201,35 @@ describe('configuration window', () => {
     expect(latest.servers.some((s: any) => s.host === 'gamma.example.com')).toBe(false);
   });
 
+  it('keeps New Server as the non-sortable last list item and selects the saved server', async () => {
+    const doc = makeDoc();
+    const trigger = ext(doc.createElement('button'));
+    doc.body.appendChild(trigger);
+    const { installConfigurationWindow } = await import('../../../../src/client/ui/config-window.ts');
+    installConfigurationWindow(trigger as any);
+    trigger.click();
+
+    const dialog = queryOne(doc.body, '.tw-config-window');
+    let rows = queryAll(dialog, '.tw-config-server-row');
+    expect(textOf(rows.at(-1))).toBe('New Server');
+    expect(rows.at(-1).getAttribute('draggable')).toBeNull();
+
+    rows.at(-1).click();
+    inputByName(dialog, 'name').value = 'Gamma';
+    inputByName(dialog, 'host').value = 'gamma.example.com';
+    buttons(dialog).find((b: any) => b.textContent === 'Save server')!.click();
+
+    rows = queryAll(dialog, '.tw-config-server-row');
+    expect(rows.map((row: any) => textOf(row))).toEqual([
+      'Betassh://per@beta.example.com',
+      'Alphahttps://root@alpha.example.com',
+      'Gammassh://gamma.example.com',
+      'New Server',
+    ]);
+    expect(classTokens(rows[2])).toContain('selected');
+    expect(classTokens(rows.at(-1))).toContain('tw-config-server-new');
+  });
+
   it('rejects empty and duplicate server names', async () => {
     const doc = makeDoc();
     const calls = stubFetch(async () => ({ ok: true, json: async () => ({}) }) as any).calls;
@@ -205,7 +240,7 @@ describe('configuration window', () => {
     trigger.click();
 
     const dialog = queryOne(doc.body, '.tw-config-window');
-    buttons(dialog).find((b: any) => b.textContent === 'Add server')!.click();
+    queryAll(dialog, '.tw-config-server-row').find((row: any) => textOf(row).includes('New Server'))!.click();
     inputByName(dialog, 'name').value = '';
     inputByName(dialog, 'host').value = 'gamma.example.com';
     buttons(dialog).find((b: any) => b.textContent === 'Save server')!.click();
@@ -216,6 +251,35 @@ describe('configuration window', () => {
     buttons(dialog).find((b: any) => b.textContent === 'Save server')!.click();
     expect(calls.filter(c => c.init?.method === 'PUT')).toHaveLength(0);
     expect(textOf(dialog)).toContain('Server name must be unique.');
+  });
+
+  it('orders fields and updates port to the selected protocol default', async () => {
+    const doc = makeDoc();
+    const trigger = ext(doc.createElement('button'));
+    doc.body.appendChild(trigger);
+    const { installConfigurationWindow } = await import('../../../../src/client/ui/config-window.ts');
+    installConfigurationWindow(trigger as any);
+    trigger.click();
+
+    const dialog = queryOne(doc.body, '.tw-config-window');
+    queryAll(dialog, '.tw-config-server-row').find((row: any) => textOf(row).includes('New Server'))!.click();
+    expect(fieldLabels(dialog).slice(0, 6)).toEqual([
+      'Name',
+      'Hostname / IP',
+      'Protocol',
+      'Port',
+      'Username',
+      'Password',
+    ]);
+    expect(inputByName(dialog, 'port').value).toBe('22');
+
+    inputByName(dialog, 'protocol').value = 'http';
+    inputByName(dialog, 'protocol').dispatch('change', { target: inputByName(dialog, 'protocol') });
+    expect(inputByName(dialog, 'port').value).toBe('80');
+
+    inputByName(dialog, 'protocol').value = 'https';
+    inputByName(dialog, 'protocol').dispatch('change', { target: inputByName(dialog, 'protocol') });
+    expect(inputByName(dialog, 'port').value).toBe('443');
   });
 
   it('persists server order changed by dragging list rows', async () => {
