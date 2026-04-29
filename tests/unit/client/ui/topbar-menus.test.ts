@@ -586,9 +586,9 @@ describe('sessions menu: running/stopped states and current marker', () => {
     const section = remoteSections(menu)[0];
     expect(remoteSectionLabel(section)).toBe('dev');
     const title = section.children.find((c: any) => typeof c.className === 'string' && c.className.includes('tw-remote-section-title'));
-    expect(title.children[0].className).toContain('tw-remote-collapse-toggle');
-    expect(title.children[1].className).toContain('tw-remote-section-label');
-    expect(title.children[2].className).toContain('tw-remote-connect-toggle');
+    expect(section.children[0].className).toContain('tw-remote-collapse-toggle');
+    expect(title.children[0].className).toContain('tw-remote-section-label');
+    expect(title.children[1].className).toContain('tw-remote-connect-toggle');
     expect(remoteCollapseToggle(section).attrs['aria-expanded']).toBe('true');
     const toggle = remoteToggle(section);
     expect(toggle.className).toContain('stopped');

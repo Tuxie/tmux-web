@@ -1053,7 +1053,10 @@ body {
   align-items: center;
   gap: 4px;
   min-width: 0;
+  order: 2;
 }
+.tw-remote-section::before { order: 1; }
+.tw-remote-section::after { order: 3; }
 .tw-remote-section :where(button) {
   appearance: none;
   border: none;
@@ -1065,8 +1068,13 @@ body {
 .tw-remote-collapse-toggle {
   background: transparent;
   color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font: inherit;
+  height: 1em;
   line-height: 1;
+  width: 1em;
 }
 .tw-remote-section-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .tw-remote-connect-toggle {

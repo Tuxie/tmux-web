@@ -435,7 +435,7 @@ export class Topbar {
           collapse.title = expanded ? `Collapse ${label}` : `Expand ${label}`;
           collapse.setAttribute('aria-label', collapse.title);
           collapse.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-          sectionTitle.appendChild(collapse);
+          section.appendChild(collapse);
           const sectionLabel = document.createElement('span');
           sectionLabel.className = 'tw-remote-section-label';
           sectionLabel.textContent = label;
