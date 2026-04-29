@@ -334,7 +334,7 @@ describe('configuration window', () => {
     expect(localRows[0]).not.toContain('Hostname:');
     expect(localRows[1]).toBe('Username:');
     expect(formRows(dialog).find((row: string) => row.includes('tmux:'))).toBe('tmux:');
-    expect(formRows(dialog).find((row: string) => row.includes('tmux socket name'))).toBe('tmux socket name:tmux socket path:');
+    expect(formRows(dialog).find((row: string) => row.includes('Socket name'))).toBe('Socket name:Socket path:');
     expect(maybeInputByName(dialog, 'port')).toBeNull();
     expect(maybeInputByName(dialog, 'host')).toBeNull();
     expect(maybeInputByName(dialog, 'password')).toBeNull();
@@ -384,7 +384,7 @@ describe('configuration window', () => {
     expect(inputByName(dialog, 'socketName').placeholder).toBe('(default)');
     expect(inputByName(dialog, 'socketPath').placeholder).toBe('(default)');
     expect(formRows(dialog)).toContain('tmux:tmux-web:');
-    expect(formRows(dialog)).toContain('tmux socket name:tmux socket path:');
+    expect(formRows(dialog)).toContain('Socket name:Socket path:');
 
     inputByName(dialog, 'tmuxCommand').value = '/opt/bin/tmux';
     inputByName(dialog, 'tmuxWebCommand').value = '~/bin/tmux-web-dev';
@@ -578,10 +578,10 @@ describe('configuration window', () => {
     expect(css).toMatch(/\.tw-config-row-label\s*\{[^}]*grid-column:\s*1;/s);
     expect(css).toContain('.tw-config-form-row-options .tw-config-checkbox-field { grid-column: 2 / 4; }');
     expect(css).toContain('.tw-config-form-row-local-options {\n  grid-template-columns: repeat(8, minmax(0, 1fr));');
-    expect(css).toContain('.tw-config-field-socket-name > span { grid-column: 1 / 3; }');
-    expect(css).toContain('.tw-config-field-socket-name > input { grid-column: 3 / 5; }');
-    expect(css).toContain('.tw-config-field-socket-path > span { grid-column: 5 / 7; }');
-    expect(css).toContain('.tw-config-field-socket-path > input { grid-column: 7 / 9; }');
+    expect(css).toContain('.tw-config-field-socket-name > span { grid-column: 1; }');
+    expect(css).toContain('.tw-config-field-socket-name > input { grid-column: 2 / 4; }');
+    expect(css).toContain('.tw-config-field-socket-path > span { grid-column: 4; }');
+    expect(css).toContain('.tw-config-field-socket-path > input { grid-column: 5 / 9; }');
     expect(css).toContain('.tw-config-field-tmux-command > span { grid-column: 1; }');
     expect(css).toContain('.tw-config-field-tmux-command > input { grid-column: 2 / 4; }');
     expect(css).toContain('.tw-config-field-tmux-web-command > span { grid-column: 4; }');

@@ -809,10 +809,10 @@ body {
 .tw-config-field-tmux-command > input { grid-column: 2 / 4; }
 .tw-config-field-tmux-web-command > span { grid-column: 4; }
 .tw-config-field-tmux-web-command > input { grid-column: 5 / 7; }
-.tw-config-field-socket-name > span { grid-column: 1 / 3; }
-.tw-config-field-socket-name > input { grid-column: 3 / 5; }
-.tw-config-field-socket-path > span { grid-column: 5 / 7; }
-.tw-config-field-socket-path > input { grid-column: 7 / 9; }
+.tw-config-field-socket-name > span { grid-column: 1; }
+.tw-config-field-socket-name > input { grid-column: 2 / 4; }
+.tw-config-field-socket-path > span { grid-column: 4; }
+.tw-config-field-socket-path > input { grid-column: 5 / 9; }
 
 .tw-config-checkbox-field {
   display: inline-flex;
