@@ -631,6 +631,7 @@ body {
   background: transparent;
   color: var(--tw-text-muted);
   font-family: inherit;
+  font-size: inherit;
   text-align: left;
   padding: 6px 8px;
   cursor: pointer;

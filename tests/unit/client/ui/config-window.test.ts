@@ -542,6 +542,7 @@ describe('configuration window', () => {
     expect(css).toMatch(/\.tw-config-window\s*\{[^}]*position:\s*relative;/s);
     expect(css).toMatch(/\.tw-config-window\s*\{[^}]*font-size:\s*var\(--tw-ui-font-size\);/s);
     expect(css).toMatch(/\.tw-config-window\s*\{[^}]*grid-template-columns:\s*8em 1fr;/s);
+    expect(css).toMatch(/\.tw-config-nav-item\s*\{[^}]*font-size:\s*inherit;/s);
     expect(css).toContain('--tw-config-chrome: var(--tw-menu-chrome);');
     expect(css).toContain('--tw-config-bg: var(--tw-menu-bg);');
     expect(css).toContain('--tw-config-surface: linear-gradient(rgb(0 0 0 / 4%), rgb(0 0 0 / 4%)), var(--tw-config-bg);');
