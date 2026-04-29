@@ -309,7 +309,7 @@ label.tw-menu-row { color: var(--tw-text-muted); }
 .tw-input-text,
 .tw-input-select,
 .tw-input-number {
-  border-radius: 2px; padding: 0.2em 0.5em; font-family: inherit; font-size: var(--tw-ui-font-size); line-height: var(--tw-ui-line-height);
+  border-radius: 2px; padding: 2px 0.5em; font-family: inherit; font-size: var(--tw-ui-font-size); line-height: var(--tw-ui-line-height);
 }
 .tw-input-text { border-radius: 3px; outline: none; }
 .tw-input-number { width: 46px; }
@@ -572,7 +572,7 @@ body {
   font-family: inherit;
   font-size: var(--tw-ui-font-size);
   line-height: var(--tw-ui-line-height);
-  padding: 0.2em 0.5em;
+  padding: 2px 0.5em;
   text-align: center;
   cursor: pointer;
 }
@@ -973,7 +973,7 @@ body {
   justify-content: space-between;
   gap: 6px;
   border-radius: 3px;
-  padding: 0.2em 0.5em;
+  padding: 2px 0.5em;
   font-family: inherit;
   font-size: var(--tw-ui-font-size);
   cursor: pointer;

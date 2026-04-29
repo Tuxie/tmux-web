@@ -344,7 +344,7 @@ body {
   border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   /* Match the shared input/button padding so custom select triggers
    * line up with the native controls beside them. */
-  padding: 0.2em 0.5em;
+  padding: 2px 0.5em;
   cursor: pointer;
   width: 100%;
   min-width: 0;
