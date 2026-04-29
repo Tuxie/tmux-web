@@ -1048,8 +1048,17 @@ body {
   transform: translateY(-50%);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4) inset;
 }
+.tw-remote-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
 .tw-remote-section-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .tw-remote-connect-toggle {
+  appearance: none;
+  background: transparent;
+  border: none;
   position: static;
   transform: none;
   flex: 0 0 auto;

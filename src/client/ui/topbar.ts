@@ -400,10 +400,12 @@ export class Topbar {
             .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
           const section = document.createElement('div');
           section.className = 'tw-menu-section';
+          const sectionTitle = document.createElement('span');
+          sectionTitle.className = 'tw-remote-section-title';
           const sectionLabel = document.createElement('span');
           sectionLabel.className = 'tw-remote-section-label';
           sectionLabel.textContent = label;
-          section.appendChild(sectionLabel);
+          sectionTitle.appendChild(sectionLabel);
           const toggle = document.createElement('button');
           toggle.type = 'button';
           toggle.className = 'tw-remote-connect-toggle tw-dd-session-status ' + (isConnected ? 'running' : 'stopped');
@@ -421,7 +423,8 @@ export class Topbar {
               this.rerenderSessionsMenu(menu, close);
             }
           });
-          section.appendChild(toggle);
+          sectionTitle.appendChild(toggle);
+          section.appendChild(sectionTitle);
           menu.appendChild(section);
           if (!isConnected) {
             const placeholder = document.createElement('div');

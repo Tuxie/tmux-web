@@ -201,12 +201,12 @@ function remoteSections(menu: any): any[] {
 }
 
 function remoteSectionLabel(section: any): string {
-  const label = section.children.find((c: any) => typeof c.className === 'string' && c.className.includes('tw-remote-section-label'));
+  const label = deepFind(section, 'tw-remote-section-label');
   return label?.textContent ?? section.textContent;
 }
 
 function remoteToggle(section: any): any {
-  return section.children.find((c: any) => typeof c.className === 'string' && c.className.includes('tw-remote-connect-toggle')) ?? null;
+  return deepFind(section, 'tw-remote-connect-toggle');
 }
 
 function remotePlaceholders(menu: any): any[] {
@@ -581,6 +581,9 @@ describe('sessions menu: running/stopped states and current marker', () => {
 
     const section = remoteSections(menu)[0];
     expect(remoteSectionLabel(section)).toBe('dev');
+    const title = section.children.find((c: any) => typeof c.className === 'string' && c.className.includes('tw-remote-section-title'));
+    expect(title.children[0].className).toContain('tw-remote-section-label');
+    expect(title.children[1].className).toContain('tw-remote-connect-toggle');
     const toggle = remoteToggle(section);
     expect(toggle.className).toContain('stopped');
     expect(toggle.attrs['aria-label']).toBe('Connect to dev');
