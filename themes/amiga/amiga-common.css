@@ -388,19 +388,7 @@ body {
   font: inherit;
 }
 .tw-dd-session-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tw-dd-session-status {
-  position: absolute; right: 8px; top: 50%;
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  transform: translateY(-50%);
-  box-shadow: 0 0 0 1px var(--tw-bevel-lo) inset;
-}
-.tw-remote-connect-toggle.tw-dd-session-status {
-  position: static;
-  right: auto;
-  top: auto;
-  transform: none;
-}
+.tw-dd-session-status { box-shadow: 0 0 0 1px var(--tw-bevel-lo) inset; }
 
 .tw-dd-input {
   flex: 1;
