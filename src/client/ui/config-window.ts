@@ -57,7 +57,7 @@ function labelledInput(
   const label = document.createElement('label');
   label.className = `tw-config-field${className ? ` ${className}` : ''}`;
   const span = document.createElement('span');
-  span.textContent = labelText;
+  span.textContent = `${labelText}:`;
   label.appendChild(span);
   label.appendChild(input);
   return label;
@@ -83,7 +83,7 @@ function formRow(className: string, ...children: HTMLElement[]): HTMLDivElement 
 function formRowLabel(text: string): HTMLSpanElement {
   const label = document.createElement('span');
   label.className = 'tw-config-row-label';
-  label.textContent = text;
+  label.textContent = `${text}:`;
   return label;
 }
 

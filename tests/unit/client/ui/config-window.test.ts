@@ -268,20 +268,20 @@ describe('configuration window', () => {
     const dialog = queryOne(doc.body, '.tw-config-window');
     queryAll(dialog, '.tw-config-server-row').find((row: any) => textOf(row).includes('New Server'))!.click();
     expect(fieldLabels(dialog).slice(0, 5)).toEqual([
-      'Name',
-      'Protocol',
-      'Port',
-      'Hostname',
-      'Username',
+      'Name:',
+      'Protocol:',
+      'Port:',
+      'Hostname:',
+      'Username:',
     ]);
     const rows = formRows(dialog).slice(0, 4);
-    expect(rows[0]).toBe('Name');
-    expect(rows[1].startsWith('Protocol')).toBe(true);
-    expect(rows[1]).toContain('Port');
-    expect(rows[1]).toContain('Hostname');
+    expect(rows[0]).toBe('Name:');
+    expect(rows[1].startsWith('Protocol:')).toBe(true);
+    expect(rows[1]).toContain('Port:');
+    expect(rows[1]).toContain('Hostname:');
     expect(rows.slice(2)).toEqual([
-      'UsernamePasswordSave password',
-      'OptionsCompression',
+      'Username:Password:Save password',
+      'Options:Compression',
     ]);
     expect(inputByName(dialog, 'port').value).toBe('22');
 
@@ -397,5 +397,6 @@ describe('configuration window', () => {
     expect(css).toContain('.tw-config-field-password > span { grid-column: 4; }');
     expect(css).toContain('.tw-config-field-password > input { grid-column: 5 / 7; }');
     expect(css).toContain('.tw-config-save-password { grid-column: 7 / 9; }');
+    expect(css).toContain('.tw-config-field > span,\n.tw-config-row-label {\n  text-align: right;');
   });
 });

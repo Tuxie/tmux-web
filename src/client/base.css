@@ -752,6 +752,11 @@ body {
   grid-template-columns: 76px 1fr;
 }
 
+.tw-config-field > span,
+.tw-config-row-label {
+  text-align: right;
+}
+
 .tw-config-field-protocol,
 .tw-config-field-port,
 .tw-config-field-host,
@@ -781,9 +786,7 @@ body {
 
 .tw-config-save-password { grid-column: 7 / 9; }
 
-.tw-config-row-label {
-  color: var(--tw-text-muted);
-}
+.tw-config-row-label { color: var(--tw-text-muted); }
 
 .tw-config-field input,
 .tw-config-field select {
