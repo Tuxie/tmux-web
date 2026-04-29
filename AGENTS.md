@@ -531,6 +531,16 @@ nothing and still get a usable slider. If your theme needs a different
 track height or thumb shape, override the structural rules directly
 instead of forcing the custom-property path.
 
+### CSS simplification review
+
+Before committing any change that affects CSS styling, layout, or class
+hierarchy, get a strict CSS simplification review. The reviewer should focus
+on keeping the cascade and class hierarchy lean, shared, and DRY: flag
+unintentional branching, duplicate styling paths, inconsistent selector
+ownership, theme drift, or overrides that should be removed instead of
+overridden again. If the reviewer flags anything, re-check the approach and
+prefer the simpler hierarchy before committing.
+
 ## Development methodology
 
 TDD applies to code and logic changes only: test/verify behavior → verify
