@@ -21,7 +21,7 @@
  *   .tw-dropdown-trigger        built-in trigger button
  *   .tw-dropdown-value          span holding the selected label
  *   .tw-dropdown-arrow          span holding the ▾ glyph
- *   .tw-dropdown-menu           the popup list
+ *   .tw-dropdown-menu           the popup list (+ .tw-menu-surface)
  *   .tw-dropdown-item           an item inside the popup (+ .selected)
  *   .tw-dropdown-sep            separator line between items
  *   .tw-dd-hidden-select        applied to the wrapped <select> in mode 1
@@ -76,7 +76,7 @@ function createTriggerShell(className: string | undefined): {
 
 function createMenu(className: string | undefined): HTMLDivElement {
   const menu = document.createElement('div');
-  menu.className = 'tw-dropdown-menu' + (className ? ' ' + className + '-menu' : '');
+  menu.className = 'tw-dropdown-menu tw-menu-surface' + (className ? ' ' + className + '-menu' : '');
   menu.setAttribute('role', 'listbox');
   menu.hidden = true;
   return menu;
@@ -179,7 +179,7 @@ export function showContextMenu(opts: ContextMenuOptions): void {
   // uses for `.tw-dd-sessions-menu` without a separate case for context
   // menus.
   const extra = opts.className ? ' ' + opts.className + '-menu' : '';
-  menu.className = 'tw-dropdown-menu tw-dd-context' + extra;
+  menu.className = 'tw-dropdown-menu tw-menu-surface tw-dd-context' + extra;
   menu.setAttribute('role', 'listbox');
   // top/left/minWidth are computed from the click coordinates — these
   // must remain as inline style assignments (dynamic values).

@@ -358,11 +358,13 @@ body {
   top: 100%;
   left: 0;
   min-width: 100%;
+  z-index: 200;
+  padding: 2px 0;
+}
+.tw-menu-surface {
   background: var(--tw-chrome-bg);
   border: 2px solid;
   border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
-  z-index: 200;
-  padding: 2px 0;
   /* max-height / overflow-y live in base.css. */
 }
 .tw-dropdown-item { padding: 2px 12px; cursor: pointer; white-space: nowrap; }
@@ -439,7 +441,7 @@ body {
 /* AmigaOS 3.1 GadTools-style checkbox. Raised sunken well when unchecked,
  * sunken bevel with a filled square when checked — mirrors the look of
  * the Workbench 3.1 installer's radio group. */
-:where(.tw-dropdown-menu, .tw-config-window) input[type="checkbox"] {
+:where(.tw-menu-surface) input[type="checkbox"] {
   -webkit-appearance: none;
   appearance: none;
   box-sizing: border-box;
@@ -461,7 +463,7 @@ body {
  * (U+221A) check mark appears in the box. The pseudo-element fills
  * the checkbox and uses flex-centering so the glyph itself (not just
  * its line box) sits at the centre regardless of font metrics. */
-:where(.tw-dropdown-menu, .tw-config-window) input[type="checkbox"]:checked::after {
+:where(.tw-menu-surface) input[type="checkbox"]:checked::after {
   content: '\221A';
   position: absolute;
   inset: 0;
@@ -496,7 +498,7 @@ body {
 
 /* In-menu buttons (reset colours/font, drops refresh/purge, per-row
  * trash). Override the topbar blue with neutral grey. */
-:where(#menu-dropdown, .tw-config-window) .tb-btn {
+:where(.tw-menu-surface) .tb-btn {
   background: var(--tw-gadget-bg);
   height: 22px;
 }

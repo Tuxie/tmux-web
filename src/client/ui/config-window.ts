@@ -469,7 +469,7 @@ export function installConfigurationWindow(trigger: HTMLElement): void {
   overlay.hidden = true;
 
   const dialog = document.createElement('div');
-  dialog.className = 'tw-config-window';
+  dialog.className = 'tw-config-window tw-menu-surface';
   dialog.setAttribute('role', 'dialog');
   dialog.setAttribute('aria-modal', 'true');
 

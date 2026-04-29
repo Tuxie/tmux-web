@@ -119,7 +119,7 @@ body {
  * highlights so the closed selector and its open menu share the same
  * surface treatment as the topbar. */
 .tw-dropdown-trigger,
-.tw-dropdown-menu {
+.tw-menu-surface {
   background: var(--tw-menu-bg);
   border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
 }
@@ -137,7 +137,7 @@ body {
 .tw-menu-input-select {
   border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-menu-bevel-hi);
 }
-:where(.tw-dropdown-menu, .tw-config-window) input[type="checkbox"] {
+:where(.tw-menu-surface) input[type="checkbox"] {
   border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
 }
 
@@ -167,7 +167,7 @@ body {
 .tw-scrollbar-up::before,
 .tw-scrollbar-down::before { background: var(--tw-muted); }
 .tw-scrollbar-resize::after { background: hsl(var(--tw-theme-hue, 222) 15% calc(42% * 1.44)); }
-:where(.tw-dropdown-menu, .tw-config-window) input[type="checkbox"]:checked::after { color: #fff; }
+:where(.tw-menu-surface) input[type="checkbox"]:checked::after { color: #fff; }
 
 /* Scrollbar gradients — replace amiga-common's flat chrome.
  *

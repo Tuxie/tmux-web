@@ -526,7 +526,7 @@ body {
 }
 :where(.tw-dropdown-trigger:hover) { background: var(--tw-gadget-hover); }
 
-:where(.tw-dropdown-menu) {
+:where(.tw-menu-surface) {
   background: var(--tw-chrome-bg);
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: var(--tw-text);
@@ -555,7 +555,7 @@ body {
 
 :where(.tw-menu-row:hover) { background: var(--tw-gadget-hover); }
 
-:where(#menu-dropdown, .tw-config-window) .tb-btn {
+:where(.tw-menu-surface) .tb-btn {
   border: 1px solid var(--tw-bevel-hi);
   background: var(--tw-gadget-bg);
   color: var(--tw-text);
