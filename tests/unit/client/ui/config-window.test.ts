@@ -542,7 +542,7 @@ describe('configuration window', () => {
     expect(css).toMatch(/\.tw-config-window\s*\{[^}]*position:\s*relative;/s);
     expect(css).toMatch(/\.tw-config-window\s*\{[^}]*font-size:\s*var\(--tw-ui-font-size\);/s);
     expect(css).toMatch(/\.tw-config-window\s*\{[^}]*grid-template-columns:\s*8em 1fr;/s);
-    expect(css).toContain('--tw-config-label-min-width: 8em;');
+    expect(css).toContain('--tw-config-label-min-width: 7em;');
     expect(css).toContain('--tw-config-label-track: minmax(var(--tw-config-label-min-width), max-content);');
     expect(css).toContain('--tw-config-control-track: minmax(0, 1fr);');
     expect(css).toMatch(/\.tw-config-nav-item\s*\{[^}]*font-size:\s*inherit;/s);
