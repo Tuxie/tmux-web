@@ -342,9 +342,9 @@ body {
   background: var(--tw-gadget-bg);
   border: 2px solid;
   border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
-  /* 1px top + 1px bottom padding (4px sides) gives the selector a
-   * little vertical breathing room above the bare line height. */
-  padding: 1px 4px;
+  /* Match the shared input/button padding so custom select triggers
+   * line up with the native controls beside them. */
+  padding: 0.2em 0.5em;
   cursor: pointer;
   width: 100%;
   min-width: 0;
