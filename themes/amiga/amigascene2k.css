@@ -10,6 +10,9 @@
 :root {
   --tw-ui-font: 'MicroKnight', 'Iosevka Amiga', monospace;
   --tw-gadget-bg: rgba(255, 255, 255, 0.12);
+  --tw-menu-bg: linear-gradient(to bottom,
+    color-mix(in srgb, var(--tw-chrome), white calc(6% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-chrome), black calc(6% * var(--tw-theme-contrast))));
   --tw-text: #fff;
   --tw-muted: rgba(255, 255, 255, 0.3);
   --tw-danger-border: hsl(var(--tw-theme-hue, 222) 36% 5%);
@@ -116,9 +119,7 @@ body {
  * surface treatment as the topbar. */
 .tw-dropdown-trigger,
 .tw-dropdown-menu {
-  background: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome), white calc(6% * var(--tw-theme-contrast))),
-    color-mix(in srgb, var(--tw-chrome), black calc(6% * var(--tw-theme-contrast))));
+  background: var(--tw-menu-bg);
   border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
 }
 .tw-dropdown-trigger:active,
