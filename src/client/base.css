@@ -769,6 +769,7 @@ body {
 .tw-config-field > span,
 .tw-config-row-label {
   text-align: right;
+  white-space: nowrap;
 }
 
 .tw-config-field-protocol,
@@ -830,6 +831,7 @@ body {
 .tw-config-field input,
 .tw-config-field select {
   min-width: 0;
+  width: 100%;
 }
 
 .tw-menu-input-select::placeholder {

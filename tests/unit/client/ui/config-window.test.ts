@@ -587,6 +587,8 @@ describe('configuration window', () => {
     expect(css).toContain('.tw-config-field-tmux-web-command > span { grid-column: 4; }');
     expect(css).toContain('.tw-config-field-tmux-web-command > input { grid-column: 5 / 7; }');
     expect(css).toContain('.tw-config-field > span,\n.tw-config-row-label {\n  text-align: right;');
+    expect(css).toMatch(/\.tw-config-field > span,\s*\.tw-config-row-label\s*\{[^}]*white-space:\s*nowrap;/s);
+    expect(css).toMatch(/\.tw-config-field input,\s*\.tw-config-field select\s*\{[^}]*min-width:\s*0;[^}]*width:\s*100%;/s);
     expect(css).toContain('.tw-menu-input-select::placeholder');
     expect(css).toContain('font-style: italic;');
   });
