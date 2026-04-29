@@ -395,6 +395,12 @@ body {
   transform: translateY(-50%);
   box-shadow: 0 0 0 1px var(--tw-bevel-lo) inset;
 }
+.tw-remote-connect-toggle.tw-dd-session-status {
+  position: static;
+  right: auto;
+  top: auto;
+  transform: none;
+}
 
 .tw-dd-input {
   flex: 1;
