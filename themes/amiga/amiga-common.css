@@ -21,6 +21,7 @@
   --tw-ui-font: 'Topaz8 Amiga1200', 'Iosevka Amiga', monospace;
   --tw-ui-font-size: 17px;
   --tw-chrome-bg: hsl(0 0% calc(var(--tw-theme-ltn) + 10%));
+  --tw-menu-chrome: var(--tw-chrome-bg);
   --tw-menu-bg: var(--tw-chrome-bg);
   --tw-gadget-bg: hsl(0 0% calc(var(--tw-theme-ltn) + 5%));
   --tw-text: #000;
@@ -438,7 +439,7 @@ body {
 /* AmigaOS 3.1 GadTools-style checkbox. Raised sunken well when unchecked,
  * sunken bevel with a filled square when checked — mirrors the look of
  * the Workbench 3.1 installer's radio group. */
-.tw-dropdown-menu input[type="checkbox"] {
+:where(.tw-dropdown-menu, .tw-config-window) input[type="checkbox"] {
   -webkit-appearance: none;
   appearance: none;
   box-sizing: border-box;
@@ -460,7 +461,7 @@ body {
  * (U+221A) check mark appears in the box. The pseudo-element fills
  * the checkbox and uses flex-centering so the glyph itself (not just
  * its line box) sits at the centre regardless of font metrics. */
-.tw-dropdown-menu input[type="checkbox"]:checked::after {
+:where(.tw-dropdown-menu, .tw-config-window) input[type="checkbox"]:checked::after {
   content: '\221A';
   position: absolute;
   inset: 0;
@@ -495,7 +496,7 @@ body {
 
 /* In-menu buttons (reset colours/font, drops refresh/purge, per-row
  * trash). Override the topbar blue with neutral grey. */
-#menu-dropdown .tb-btn {
+:where(#menu-dropdown, .tw-config-window) .tb-btn {
   background: var(--tw-gadget-bg);
   height: 22px;
 }

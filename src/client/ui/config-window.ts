@@ -472,7 +472,7 @@ export function installConfigurationWindow(trigger: HTMLElement): void {
   dialog.setAttribute('role', 'dialog');
   dialog.setAttribute('aria-modal', 'true');
 
-  const closeBtn = button('Close', 'tw-config-close');
+  const closeBtn = button('Close', 'tw-config-close tb-btn');
   closeBtn.addEventListener('click', () => { overlay.hidden = true; });
   dialog.appendChild(closeBtn);
 

@@ -10,6 +10,7 @@
 :root {
   --tw-ui-font: 'MicroKnight', 'Iosevka Amiga', monospace;
   --tw-gadget-bg: rgba(255, 255, 255, 0.12);
+  --tw-menu-chrome: var(--tw-chrome);
   --tw-menu-bg: linear-gradient(to bottom,
     color-mix(in srgb, var(--tw-chrome), white calc(6% * var(--tw-theme-contrast))),
     color-mix(in srgb, var(--tw-chrome), black calc(6% * var(--tw-theme-contrast))));
@@ -136,7 +137,7 @@ body {
 .tw-menu-input-select {
   border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-menu-bevel-hi);
 }
-.tw-dropdown-menu input[type="checkbox"] {
+:where(.tw-dropdown-menu, .tw-config-window) input[type="checkbox"] {
   border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
 }
 
@@ -166,7 +167,7 @@ body {
 .tw-scrollbar-up::before,
 .tw-scrollbar-down::before { background: var(--tw-muted); }
 .tw-scrollbar-resize::after { background: hsl(var(--tw-theme-hue, 222) 15% calc(42% * 1.44)); }
-.tw-dropdown-menu input[type="checkbox"]:checked::after { color: #fff; }
+:where(.tw-dropdown-menu, .tw-config-window) input[type="checkbox"]:checked::after { color: #fff; }
 
 /* Scrollbar gradients — replace amiga-common's flat chrome.
  *

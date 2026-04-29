@@ -20,9 +20,10 @@ html, body { height: 100%; overflow: hidden; }
 
   /* === CHROME-BG (menu bg, panel bg — defaults to toolbar's dark end) === */
   --tw-chrome-bg: color-mix(in srgb, var(--tw-chrome), black 5%);
+  --tw-menu-chrome: var(--tw-chrome-bg);
   --tw-menu-bg: linear-gradient(to bottom,
-    color-mix(in srgb, var(--tw-chrome-bg), white calc(5% * var(--tw-theme-contrast))),
-    color-mix(in srgb, var(--tw-chrome-bg), black calc(5% * var(--tw-theme-contrast))));
+    color-mix(in srgb, var(--tw-menu-chrome), white calc(5% * var(--tw-theme-contrast))),
+    color-mix(in srgb, var(--tw-menu-chrome), black calc(5% * var(--tw-theme-contrast))));
   --tw-menu-bevel-hi: rgba(255, 255, 255, var(--tw-depth));
   --tw-menu-bevel-lo: rgba(0, 0, 0, var(--tw-depth));
 
@@ -554,9 +555,14 @@ body {
 
 :where(.tw-menu-row:hover) { background: var(--tw-gadget-hover); }
 
-:where(#menu-dropdown .tb-btn) {
+:where(#menu-dropdown, .tw-config-window) .tb-btn {
+  border: 1px solid var(--tw-bevel-hi);
   background: var(--tw-gadget-bg);
   color: var(--tw-text);
+  font-family: inherit;
+  font-size: var(--tw-ui-font-size);
+  padding: 3px 7px;
+  cursor: pointer;
 }
 
 .tw-config-open-row {
@@ -584,12 +590,20 @@ body {
 .tw-config-overlay[hidden] { display: none; }
 
 .tw-config-window {
+  --tw-config-chrome: var(--tw-menu-chrome);
+  --tw-config-bg: var(--tw-menu-bg);
+  --tw-config-surface: linear-gradient(rgb(0 0 0 / 4%), rgb(0 0 0 / 4%)), var(--tw-config-bg);
+  --tw-config-surface-dark: linear-gradient(rgb(0 0 0 / 10%), rgb(0 0 0 / 10%)), var(--tw-config-bg);
+  --tw-config-surface-light: linear-gradient(rgb(255 255 255 / 8%), rgb(255 255 255 / 8%)), var(--tw-config-bg);
+  --tw-gadget-bg: color-mix(in hsl, var(--tw-config-chrome), black 12%);
+  --tw-gadget-hover: color-mix(in hsl, var(--tw-config-chrome), white 8%);
+  --tw-gadget-active: color-mix(in hsl, var(--tw-config-chrome), white 15%);
   position: relative;
   width: 90vw;
   height: 90vh;
   display: grid;
   grid-template-columns: minmax(150px, 18%) 1fr;
-  background: var(--tw-menu-bg);
+  background: var(--tw-config-bg);
   border: 1px solid var(--tw-bevel-hi);
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.65);
   overflow: hidden;
@@ -600,17 +614,12 @@ body {
   top: 8px;
   right: 8px;
   z-index: 1;
-  border: 1px solid var(--tw-bevel-hi);
-  background: var(--tw-gadget-bg);
-  color: var(--tw-text);
-  padding: 3px 8px;
-  font-family: inherit;
 }
 
 .tw-config-nav {
   padding: 12px 8px;
   border-right: 1px solid var(--tw-muted);
-  background: color-mix(in srgb, var(--tw-chrome-bg), black 8%);
+  background: var(--tw-config-surface-dark);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -655,7 +664,7 @@ body {
 .tw-config-server-list,
 .tw-config-server-form {
   border: 1px solid var(--tw-muted);
-  background: color-mix(in srgb, var(--tw-chrome-bg), black 4%);
+  background: var(--tw-config-surface);
 }
 
 .tw-config-server-header,
@@ -666,7 +675,7 @@ body {
 
 .tw-config-server-header {
   color: var(--tw-text-muted);
-  background: color-mix(in srgb, var(--tw-chrome-bg), black 10%);
+  background: var(--tw-config-surface-dark);
 }
 
 .tw-config-server-row {
@@ -704,14 +713,6 @@ body {
   display: flex;
   gap: 6px;
   justify-content: flex-end;
-}
-
-.tw-config-form-actions button {
-  border: 1px solid var(--tw-bevel-hi);
-  background: var(--tw-gadget-bg);
-  color: var(--tw-text);
-  font-family: inherit;
-  padding: 3px 7px;
 }
 
 .tw-config-server-form {

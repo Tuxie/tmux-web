@@ -538,8 +538,17 @@ describe('configuration window', () => {
     expect(match?.groups?.body).toContain('display: grid');
     expect(match?.groups?.body).toContain('grid-template-columns');
     expect(css).toContain('--tw-menu-bg: linear-gradient(to bottom,');
-    expect(css).toContain('.tw-config-window {\n  position: relative;');
-    expect(css).toContain('background: var(--tw-menu-bg);');
+    expect(css).toContain('--tw-menu-chrome: var(--tw-chrome-bg);');
+    expect(css).toMatch(/\.tw-config-window\s*\{[^}]*position:\s*relative;/s);
+    expect(css).toContain('--tw-config-chrome: var(--tw-menu-chrome);');
+    expect(css).toContain('--tw-config-bg: var(--tw-menu-bg);');
+    expect(css).toContain('--tw-config-surface: linear-gradient(rgb(0 0 0 / 4%), rgb(0 0 0 / 4%)), var(--tw-config-bg);');
+    expect(css).toContain('background: var(--tw-config-bg);');
+    expect(css).toContain('background: var(--tw-config-surface);');
+    expect(css).not.toContain('background: color-mix(in srgb, var(--tw-chrome-bg), black 4%);');
+    expect(css).not.toContain('background: color-mix(in srgb, var(--tw-chrome-bg), black 8%);');
+    expect(css).toContain(':where(#menu-dropdown, .tw-config-window) .tb-btn');
+    expect(fs.readFileSync('themes/amiga/amiga-common.css', 'utf-8')).toContain(':where(.tw-dropdown-menu, .tw-config-window) input[type="checkbox"]');
   });
 
   it('uses an eight-section aligned grid for server connection and credential rows', () => {
