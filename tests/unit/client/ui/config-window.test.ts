@@ -323,7 +323,8 @@ describe('configuration window', () => {
     localRow.click();
 
     expect(inputByName(dialog, 'protocol').value).toBe('local');
-    expect(inputByName(dialog, 'username').value).toBe('per');
+    expect(inputByName(dialog, 'username').value).toBe('');
+    expect(inputByName(dialog, 'username').placeholder).toBe('(current user)');
     expect(inputByName(dialog, 'tmuxCommand').value).toBe('tmux');
     expect(inputByName(dialog, 'socketName').placeholder).toBe('(default)');
     expect(inputByName(dialog, 'socketPath').placeholder).toBe('(default)');
@@ -353,7 +354,7 @@ describe('configuration window', () => {
       host: 'local',
       port: 0,
       protocol: 'local',
-      username: 'per',
+      username: '',
       savePassword: false,
       compression: false,
       tmuxCommand: '/opt/bin/tmux',
@@ -432,6 +433,15 @@ describe('configuration window', () => {
       sessions: {},
       knownServers: [],
       servers: [{
+        id: 'local',
+        name: 'Local',
+        host: 'local',
+        port: 0,
+        protocol: 'local',
+        username: '',
+        savePassword: false,
+        compression: false,
+      }, {
         id: 'ssh-default',
         name: 'SSH Default',
         host: 'ssh.example.com',
