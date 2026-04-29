@@ -243,6 +243,64 @@ describe('configuration window', () => {
     expect(latest.servers.map((s: any) => s.name)).toEqual(['Alpha', 'Beta']);
   });
 
+  it('formats server list URLs with username and omits default ports', async () => {
+    _resetSessionStore({
+      sessions: {},
+      knownServers: [],
+      servers: [{
+        id: 'ssh-default',
+        name: 'SSH Default',
+        host: 'ssh.example.com',
+        port: 22,
+        protocol: 'ssh',
+        username: 'per',
+        savePassword: false,
+        compression: false,
+      }, {
+        id: 'http-default',
+        name: 'HTTP Default',
+        host: 'web.example.com',
+        port: 80,
+        protocol: 'http',
+        username: 'alice',
+        savePassword: false,
+        compression: false,
+      }, {
+        id: 'https-default',
+        name: 'HTTPS Default',
+        host: 'secure.example.com',
+        port: 443,
+        protocol: 'https',
+        username: 'root',
+        savePassword: false,
+        compression: false,
+      }, {
+        id: 'ssh-custom',
+        name: 'SSH Custom',
+        host: 'custom.example.com',
+        port: 2200,
+        protocol: 'ssh',
+        username: 'deploy',
+        savePassword: false,
+        compression: true,
+      }],
+    });
+    const doc = makeDoc();
+    const trigger = ext(doc.createElement('button'));
+    doc.body.appendChild(trigger);
+    const { installConfigurationWindow } = await import('../../../../src/client/ui/config-window.ts');
+    installConfigurationWindow(trigger as any);
+    trigger.click();
+
+    const urls = queryAll(doc.body, '.tw-config-server-host').map((node: any) => node.textContent);
+    expect(urls).toEqual([
+      'ssh://per@ssh.example.com',
+      'http://alice@web.example.com',
+      'https://root@secure.example.com',
+      'ssh://deploy@custom.example.com:2200',
+    ]);
+  });
+
   it('places the server list to the left of the server editor', () => {
     const css = fs.readFileSync('src/client/base.css', 'utf-8');
     const match = /\.tw-config-pane-servers\s*\{(?<body>[^}]+)\}/.exec(css);

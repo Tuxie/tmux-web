@@ -23,6 +23,13 @@ function defaultPort(protocol: RemoteServerProtocol): number {
   return 80;
 }
 
+function serverListUrl(server: RemoteServerConfig): string {
+  const username = server.username.trim();
+  const auth = username ? `${encodeURIComponent(username)}@` : '';
+  const port = server.port === defaultPort(server.protocol) ? '' : `:${server.port}`;
+  return `${server.protocol}://${auth}${server.host}${port}`;
+}
+
 function makeServerId(host: string, existing: RemoteServerConfig[], editingId: string | null): string {
   const base = host.trim() || 'server';
   let id = editingId ?? base;
@@ -140,7 +147,7 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
     name.textContent = server.name;
     const host = document.createElement('span');
     host.className = 'tw-config-server-host';
-    host.textContent = `${server.protocol}://${server.host}:${server.port}`;
+    host.textContent = serverListUrl(server);
     row.appendChild(name);
     row.appendChild(host);
     row.addEventListener('click', () => {
