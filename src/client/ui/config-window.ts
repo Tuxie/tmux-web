@@ -202,6 +202,9 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
   const pane = document.createElement('div');
   pane.className = 'tw-config-pane tw-config-pane-servers';
 
+  const sidebar = document.createElement('div');
+  sidebar.className = 'tw-config-server-sidebar';
+
   const list = document.createElement('div');
   list.className = 'tw-config-server-list';
 
@@ -251,19 +254,15 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
     list.appendChild(row);
   }
 
-  const newRow = document.createElement('div');
-  newRow.className = 'tw-config-server-row tw-config-server-new' + (state.editingId === null ? ' selected' : '');
-  const newName = document.createElement('span');
-  newName.className = 'tw-config-server-name';
-  newName.textContent = 'New Server';
-  newRow.appendChild(newName);
-  newRow.addEventListener('click', () => {
+  const newServerBtn = button('New server', 'tw-button tw-config-server-new-button' + (state.editingId === null ? ' selected' : ''));
+  newServerBtn.addEventListener('click', () => {
     state.editingId = null;
     state.error = null;
     renderServersPane(main, state);
   });
-  list.appendChild(newRow);
-  pane.appendChild(list);
+  sidebar.appendChild(list);
+  sidebar.appendChild(newServerBtn);
+  pane.appendChild(sidebar);
 
   const form = document.createElement('form');
   form.className = 'tw-config-server-form';

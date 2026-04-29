@@ -671,6 +671,12 @@ body {
   align-items: start;
 }
 
+.tw-config-server-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .tw-config-server-list,
 .tw-config-server-form {
   border: 1px solid var(--tw-muted);
@@ -700,12 +706,8 @@ body {
   color: var(--tw-text-strong);
 }
 
-.tw-config-server-new {
-  align-items: center;
-  justify-content: center;
-  min-height: 42px;
-  text-align: center;
-}
+.tw-config-server-new-button { width: 100%; }
+.tw-config-server-new-button.selected { background: var(--tw-gadget-active); color: var(--tw-text-strong); }
 
 .tw-config-server-name,
 .tw-config-server-host {

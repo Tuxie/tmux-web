@@ -119,6 +119,12 @@ function buttons(root: any): any[] {
   return queryAll(root, 'button');
 }
 
+function newServerButton(root: any): any {
+  const btn = buttons(root).find((b: any) => b.textContent === 'New server');
+  if (!btn) throw new Error('missing New server button');
+  return btn;
+}
+
 beforeEach(() => {
   _resetSessionStore({
     sessions: {},
@@ -184,9 +190,10 @@ describe('configuration window', () => {
     expect(inputByName(dialog, 'name').value).toBe('Alpha');
     expect(inputByName(dialog, 'host').value).toBe('alpha.example.com');
 
-    const newServerRow = queryAll(dialog, '.tw-config-server-row').find((row: any) => textOf(row).includes('New Server'))!;
-    expect(newServerRow.getAttribute('draggable')).toBeNull();
-    newServerRow.click();
+    const newBtn = newServerButton(dialog);
+    expect(classTokens(newBtn)).toContain('tw-button');
+    expect(queryAll(dialog, '.tw-config-server-row').some((row: any) => textOf(row).includes('New server'))).toBe(false);
+    newBtn.click();
     inputByName(dialog, 'name').value = 'Gamma';
     inputByName(dialog, 'host').value = 'gamma.example.com';
     inputByName(dialog, 'port').value = '4022';
@@ -216,7 +223,7 @@ describe('configuration window', () => {
     expect(latest.servers.some((s: any) => s.host === 'gamma.example.com')).toBe(false);
   });
 
-  it('keeps New Server as the non-sortable last list item and selects the saved server', async () => {
+  it('renders New server as a button below the server list and selects the saved server', async () => {
     const doc = makeDoc();
     const trigger = ext(doc.createElement('button'));
     doc.body.appendChild(trigger);
@@ -226,10 +233,15 @@ describe('configuration window', () => {
 
     const dialog = queryOne(doc.body, '.tw-config-window');
     let rows = queryAll(dialog, '.tw-config-server-row');
-    expect(textOf(rows.at(-1))).toBe('New Server');
-    expect(rows.at(-1).getAttribute('draggable')).toBeNull();
+    expect(rows.map((row: any) => textOf(row))).toEqual([
+      'Locallocal://per',
+      'Betassh://per@beta.example.com',
+      'Alphahttps://root@alpha.example.com',
+    ]);
+    const newBtn = newServerButton(dialog);
+    expect(classTokens(newBtn)).toContain('tw-config-server-new-button');
 
-    rows.at(-1).click();
+    newBtn.click();
     inputByName(dialog, 'name').value = 'Gamma';
     inputByName(dialog, 'host').value = 'gamma.example.com';
     buttons(dialog).find((b: any) => b.textContent === 'Save server')!.click();
@@ -240,10 +252,9 @@ describe('configuration window', () => {
       'Betassh://per@beta.example.com',
       'Alphahttps://root@alpha.example.com',
       'Gammassh://per@gamma.example.com',
-      'New Server',
     ]);
     expect(classTokens(rows[3])).toContain('selected');
-    expect(classTokens(rows.at(-1))).toContain('tw-config-server-new');
+    expect(queryAll(dialog, '.tw-config-server-row').some((row: any) => textOf(row).includes('New server'))).toBe(false);
   });
 
   it('rejects empty and duplicate server names', async () => {
@@ -256,7 +267,7 @@ describe('configuration window', () => {
     trigger.click();
 
     const dialog = queryOne(doc.body, '.tw-config-window');
-    queryAll(dialog, '.tw-config-server-row').find((row: any) => textOf(row).includes('New Server'))!.click();
+    newServerButton(dialog).click();
     inputByName(dialog, 'name').value = '';
     inputByName(dialog, 'host').value = 'gamma.example.com';
     buttons(dialog).find((b: any) => b.textContent === 'Save server')!.click();
@@ -278,7 +289,7 @@ describe('configuration window', () => {
     trigger.click();
 
     const dialog = queryOne(doc.body, '.tw-config-window');
-    queryAll(dialog, '.tw-config-server-row').find((row: any) => textOf(row).includes('New Server'))!.click();
+    newServerButton(dialog).click();
     expect(fieldLabels(dialog).slice(0, 5)).toEqual([
       'Name:',
       'Protocol:',
@@ -455,7 +466,7 @@ describe('configuration window', () => {
       effectAllowed: '',
       dropEffect: '',
     };
-    const remoteRows = rows.filter((row: any) => !textOf(row).includes('Local') && !textOf(row).includes('New Server'));
+    const remoteRows = rows.filter((row: any) => !textOf(row).includes('Local'));
     remoteRows[0].dispatch('dragstart', { dataTransfer, preventDefault() {}, stopPropagation() {} });
     remoteRows[1].dispatch('drop', { dataTransfer, preventDefault() {}, stopPropagation() {} });
 
