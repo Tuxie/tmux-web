@@ -1078,12 +1078,12 @@ body {
   font: inherit;
   font-size: calc(var(--tw-ui-font-size) * 2.25);
   height: 1px;
-  left: 7px;
+  left: 6px;
   line-height: 1px;
   overflow: visible;
   position: absolute;
   top: 50%;
-  transform: translateY(calc(-50% + 1px));
+  transform: translateY(calc(-50% + 2px));
   width: 12px;
 }
 .tw-remote-section-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
