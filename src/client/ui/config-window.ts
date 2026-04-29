@@ -26,8 +26,9 @@ function defaultPort(protocol: RemoteServerProtocol): number {
 
 function serverListUrl(server: RemoteServerConfig): string {
   const username = server.username.trim();
-  const auth = username ? `${encodeURIComponent(username)}@` : '';
   if (server.protocol === 'local') return `local://${username || localUsername()}`;
+  const displayUsername = server.protocol === 'ssh' ? (username || localUsername()) : username;
+  const auth = displayUsername ? `${encodeURIComponent(displayUsername)}@` : '';
   const port = server.port === defaultPort(server.protocol) ? '' : `:${server.port}`;
   return `${server.protocol}://${auth}${server.host}${port}`;
 }
@@ -264,7 +265,7 @@ function renderServersPane(main: HTMLElement, state: ConfigWindowState): void {
   });
   const nameInput = textInput('name', selected?.name ?? '');
   const hostInput = textInput('host', selected?.host ?? '');
-  const usernameInput = textInput('username', selected?.username ?? '', 'text', isLocal ? '(current user)' : '');
+  const usernameInput = textInput('username', selected?.username ?? '', 'text', isLocal || protocol === 'ssh' ? '(current user)' : '');
   const passwordInput = textInput('password', selected?.password ?? '', 'password', '(prompt)');
   const savePasswordInput = checkboxInput('savePassword', selected?.savePassword ?? false);
   const compressionInput = checkboxInput('compression', selected?.compression ?? false);

@@ -130,7 +130,7 @@ beforeEach(() => {
       host: 'beta.example.com',
       port: 22,
       protocol: 'ssh',
-      username: 'per',
+      username: '',
       savePassword: false,
       compression: true,
     }, {
@@ -240,7 +240,7 @@ describe('configuration window', () => {
       'Locallocal://per',
       'Betassh://per@beta.example.com',
       'Alphahttps://root@alpha.example.com',
-      'Gammassh://gamma.example.com',
+      'Gammassh://per@gamma.example.com',
       'New Server',
     ]);
     expect(classTokens(rows[3])).toContain('selected');
@@ -377,6 +377,8 @@ describe('configuration window', () => {
     betaRow.click();
 
     expect(inputByName(dialog, 'protocol').value).toBe('ssh');
+    expect(inputByName(dialog, 'username').value).toBe('');
+    expect(inputByName(dialog, 'username').placeholder).toBe('(current user)');
     expect(inputByName(dialog, 'tmuxCommand').value).toBe('tmux');
     expect(inputByName(dialog, 'tmuxWebCommand').value).toBe('tmux-web');
     expect(inputByName(dialog, 'socketName').placeholder).toBe('(default)');
@@ -395,6 +397,7 @@ describe('configuration window', () => {
     expect(savedSsh).toMatchObject({
       id: 'b',
       protocol: 'ssh',
+      username: '',
       tmuxCommand: '/opt/bin/tmux',
       tmuxWebCommand: '~/bin/tmux-web-dev',
       socketName: 'devsock',
@@ -447,7 +450,7 @@ describe('configuration window', () => {
         host: 'ssh.example.com',
         port: 22,
         protocol: 'ssh',
-        username: 'per',
+        username: '',
         savePassword: false,
         compression: false,
       }, {
