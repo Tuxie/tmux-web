@@ -1064,7 +1064,11 @@ body {
   flex: 0 0 auto;
   padding: 0;
 }
-.tw-remote-section { cursor: pointer; }
+.tw-remote-section {
+  cursor: pointer;
+  padding-left: 26px;
+  position: relative;
+}
 .tw-remote-collapse-toggle {
   background: transparent;
   color: inherit;
@@ -1074,8 +1078,12 @@ body {
   font: inherit;
   font-size: calc(var(--tw-ui-font-size) * 2.25);
   height: 1px;
+  left: 10px;
   line-height: 1px;
   overflow: visible;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
   width: 1em;
 }
 .tw-remote-section-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
