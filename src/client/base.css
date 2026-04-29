@@ -1057,7 +1057,6 @@ body {
 .tw-remote-section-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .tw-remote-connect-toggle {
   appearance: none;
-  background: transparent;
   border: none;
   position: static;
   transform: none;
