@@ -1072,7 +1072,7 @@ body {
   align-items: center;
   justify-content: center;
   font: inherit;
-  font-size: var(--tw-ui-font-size);
+  font-size: calc(var(--tw-ui-font-size) * 3);
   height: 1em;
   line-height: 1;
   width: 1em;
