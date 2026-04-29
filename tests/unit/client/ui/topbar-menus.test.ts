@@ -209,6 +209,10 @@ function remoteToggle(section: any): any {
   return deepFind(section, 'tw-remote-connect-toggle');
 }
 
+function remoteCollapseToggle(section: any): any {
+  return deepFind(section, 'tw-remote-collapse-toggle');
+}
+
 function remotePlaceholders(menu: any): any[] {
   return menu.children.filter((c: any) => typeof c.className === 'string' && c.className.includes('tw-dd-remote-placeholder'));
 }
@@ -582,8 +586,10 @@ describe('sessions menu: running/stopped states and current marker', () => {
     const section = remoteSections(menu)[0];
     expect(remoteSectionLabel(section)).toBe('dev');
     const title = section.children.find((c: any) => typeof c.className === 'string' && c.className.includes('tw-remote-section-title'));
-    expect(title.children[0].className).toContain('tw-remote-section-label');
-    expect(title.children[1].className).toContain('tw-remote-connect-toggle');
+    expect(title.children[0].className).toContain('tw-remote-collapse-toggle');
+    expect(title.children[1].className).toContain('tw-remote-section-label');
+    expect(title.children[2].className).toContain('tw-remote-connect-toggle');
+    expect(remoteCollapseToggle(section).attrs['aria-expanded']).toBe('true');
     const toggle = remoteToggle(section);
     expect(toggle.className).toContain('stopped');
     expect(toggle.attrs['aria-label']).toBe('Connect to dev');
@@ -643,6 +649,62 @@ describe('sessions menu: running/stopped states and current marker', () => {
     expect(rowByName(sessionRows(menu), 'remote-a')).toBeNull();
     expect(remotePlaceholders(menu)).toHaveLength(1);
     expect(remoteToggle(remoteSections(menu)[0]).attrs['aria-label']).toBe('Connect to dev');
+  });
+
+  it('clicking a connected remote section header collapses and persists the section without disconnecting', async () => {
+    const t = await mountTopbar({ session: 'main' });
+    (t as any).cachedRemoteSessions = new Map([
+      ['dev', [{ id: '2', name: 'remote-a', windows: 1 }]],
+    ]);
+    _resetSessionStore({ sessions: {}, knownServers: ['dev'] } as any);
+
+    const menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+    const section = remoteSections(menu)[0];
+    expect(rowByName(sessionRows(menu), 'remote-a')).not.toBeNull();
+
+    section.click();
+
+    expect((t as any).cachedRemoteSessions.has('dev')).toBe(true);
+    expect(rowByName(sessionRows(menu), 'remote-a')).toBeNull();
+    expect(remoteCollapseToggle(remoteSections(menu)[0]).attrs['aria-expanded']).toBe('false');
+    expect((globalThis as any).localStorage.getItem('tmux-web:remote-section-expanded:dev')).toBe('0');
+  });
+
+  it('keeps remote sections collapsed from browser storage until expanded again', async () => {
+    const t = await mountTopbar({ session: 'main' });
+    (globalThis as any).localStorage.setItem('tmux-web:remote-section-expanded:dev', '0');
+    (t as any).cachedRemoteSessions = new Map([
+      ['dev', [{ id: '2', name: 'remote-a', windows: 1 }]],
+    ]);
+    _resetSessionStore({ sessions: {}, knownServers: ['dev'] } as any);
+
+    const menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+    expect(rowByName(sessionRows(menu), 'remote-a')).toBeNull();
+    expect(remoteCollapseToggle(remoteSections(menu)[0]).attrs['aria-expanded']).toBe('false');
+
+    remoteSections(menu)[0].click();
+
+    expect(rowByName(sessionRows(menu), 'remote-a')).not.toBeNull();
+    expect((globalThis as any).localStorage.getItem('tmux-web:remote-section-expanded:dev')).toBe('1');
+  });
+
+  it('clicking a connected remote badge disconnects without changing collapsed state', async () => {
+    const t = await mountTopbar({ session: 'main' });
+    (t as any).cachedRemoteSessions = new Map([
+      ['dev', [{ id: '2', name: 'remote-a', windows: 1 }]],
+    ]);
+    _resetSessionStore({ sessions: {}, knownServers: ['dev'] } as any);
+
+    const menu = (globalThis.document as any).createElement('div');
+    (t as any).renderSessionsMenu(menu, () => {});
+    remoteToggle(remoteSections(menu)[0]).click();
+
+    expect(rowByName(sessionRows(menu), 'remote-a')).toBeNull();
+    expect(remotePlaceholders(menu)).toHaveLength(1);
+    expect((globalThis as any).localStorage.getItem('tmux-web:remote-section-expanded:dev')).toBeNull();
+    expect(remoteCollapseToggle(remoteSections(menu)[0]).attrs['aria-expanded']).toBe('true');
   });
 
   it('marks the remote current row without marking a same-named local session', async () => {

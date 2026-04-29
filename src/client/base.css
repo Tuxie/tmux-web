@@ -1054,15 +1054,24 @@ body {
   gap: 4px;
   min-width: 0;
 }
-.tw-remote-section-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.tw-remote-connect-toggle {
+.tw-remote-section :where(button) {
   appearance: none;
   border: none;
-  position: static;
-  transform: none;
+  cursor: pointer;
   flex: 0 0 auto;
   padding: 0;
-  cursor: pointer;
+}
+.tw-remote-section { cursor: pointer; }
+.tw-remote-collapse-toggle {
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+}
+.tw-remote-section-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tw-remote-connect-toggle {
+  position: static;
+  transform: none;
 }
 .tw-dd-session-delete {
   background: transparent;

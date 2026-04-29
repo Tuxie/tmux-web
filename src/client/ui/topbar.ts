@@ -63,6 +63,7 @@ import {
 import { remoteHostFromPath, remotePathForSession, sessionFromPath } from '../connection.js';
 
 const TITLEBAR_DRAG_RESTORE_THRESHOLD_PX = 4;
+const REMOTE_SECTION_EXPANDED_KEY_PREFIX = 'tmux-web:remote-section-expanded:';
 
 /** Typed `getElementById` that throws on a missing id, replacing the
  *  20+ `document.getElementById('…') as HTMLInputElement` casts that
@@ -77,6 +78,26 @@ function el<T extends HTMLElement>(id: string): T {
     throw new Error(`tmux-web: missing required element #${id}`);
   }
   return node as T;
+}
+
+function remoteSectionExpandedKey(host: string): string {
+  return REMOTE_SECTION_EXPANDED_KEY_PREFIX + encodeURIComponent(host);
+}
+
+function isRemoteSectionExpanded(host: string): boolean {
+  try {
+    return localStorage.getItem(remoteSectionExpandedKey(host)) !== '0';
+  } catch {
+    return true;
+  }
+}
+
+function setRemoteSectionExpanded(host: string, expanded: boolean): void {
+  try {
+    localStorage.setItem(remoteSectionExpandedKey(host), expanded ? '1' : '0');
+  } catch {
+    // Browser-only preference; ignore storage failures.
+  }
 }
 
 /** Map a `{type:'window', action:…}` action verb to a human-readable
@@ -395,13 +416,26 @@ export class Topbar {
 
         for (const { host, label } of getRemoteServerSections()) {
           const isConnected = this.cachedRemoteSessions.has(host);
+          const expanded = isRemoteSectionExpanded(host);
           const sessions = (this.cachedRemoteSessions.get(host) ?? [])
             .slice()
             .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
           const section = document.createElement('div');
-          section.className = 'tw-menu-section';
+          section.className = 'tw-menu-section tw-remote-section';
+          section.addEventListener('click', () => {
+            setRemoteSectionExpanded(host, !isRemoteSectionExpanded(host));
+            this.rerenderSessionsMenu(menu, close);
+          });
           const sectionTitle = document.createElement('span');
           sectionTitle.className = 'tw-remote-section-title';
+          const collapse = document.createElement('button');
+          collapse.type = 'button';
+          collapse.className = 'tw-remote-collapse-toggle';
+          collapse.textContent = expanded ? '\u25BE' : '\u25B8';
+          collapse.title = expanded ? `Collapse ${label}` : `Expand ${label}`;
+          collapse.setAttribute('aria-label', collapse.title);
+          collapse.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+          sectionTitle.appendChild(collapse);
           const sectionLabel = document.createElement('span');
           sectionLabel.className = 'tw-remote-section-label';
           sectionLabel.textContent = label;
@@ -426,6 +460,7 @@ export class Topbar {
           sectionTitle.appendChild(toggle);
           section.appendChild(sectionTitle);
           menu.appendChild(section);
+          if (!expanded) continue;
           if (!isConnected) {
             const placeholder = document.createElement('div');
             placeholder.className = 'tw-dropdown-item tw-dd-remote-placeholder';
