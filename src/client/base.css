@@ -566,8 +566,12 @@ body {
   border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   background: var(--tw-gadget-bg);
   color: var(--tw-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-family: inherit;
   font-size: var(--tw-ui-font-size);
+  line-height: var(--tw-ui-line-height);
   padding: 0.2em 0.5em;
   text-align: center;
   cursor: pointer;
