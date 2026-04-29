@@ -207,7 +207,10 @@ export class Topbar {
         ]);
         if (running) this.cachedSessions = running;
         if (!includeRemote) return;
-        const hosts = getRemoteServerSections().map(section => section.host);
+        const currentRemoteHost = remoteHostFromPath(location.pathname);
+        const hosts = getRemoteServerSections()
+          .map(section => section.host)
+          .filter(host => this.cachedRemoteSessions.has(host) || host === currentRemoteHost);
         const remoteResults = await Promise.all(hosts.map(async (host) => {
           try {
             const res = await fetch('/api/remote-sessions?host=' + encodeURIComponent(host));
@@ -229,6 +232,23 @@ export class Topbar {
     currentFlight = { promise: p, includeRemote };
     this.refreshInFlight = currentFlight;
     return p;
+  }
+
+  private async refreshRemoteSessions(host: string): Promise<boolean> {
+    try {
+      const res = await fetch('/api/remote-sessions?host=' + encodeURIComponent(host));
+      if (!res.ok) return false;
+      const sessions = await res.json() as Array<{ id: string; name: string; windows?: number; running?: boolean }>;
+      this.cachedRemoteSessions.set(host, sessions);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private rerenderSessionsMenu(menu: HTMLElement, close: () => void): void {
+    menu.innerHTML = '';
+    this.renderSessionsMenu(menu, close);
   }
 
   private buildMenuInputRow(opts: {
@@ -374,13 +394,51 @@ export class Topbar {
         }
 
         for (const { host, label } of getRemoteServerSections()) {
+          const isConnected = this.cachedRemoteSessions.has(host);
           const sessions = (this.cachedRemoteSessions.get(host) ?? [])
             .slice()
             .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
           const section = document.createElement('div');
           section.className = 'tw-menu-section';
-          section.textContent = label;
+          const sectionLabel = document.createElement('span');
+          sectionLabel.className = 'tw-remote-section-label';
+          sectionLabel.textContent = label;
+          section.appendChild(sectionLabel);
+          const toggle = document.createElement('button');
+          toggle.type = 'button';
+          toggle.className = 'tw-remote-connect-toggle tw-dd-session-status ' + (isConnected ? 'running' : 'stopped');
+          toggle.title = isConnected ? `Disconnect from ${label}` : `Connect to ${label}`;
+          toggle.setAttribute('aria-label', toggle.title);
+          toggle.addEventListener('click', async (ev) => {
+            ev.stopPropagation();
+            ev.preventDefault();
+            if (this.cachedRemoteSessions.has(host)) {
+              this.cachedRemoteSessions.delete(host);
+              this.rerenderSessionsMenu(menu, close);
+              return;
+            }
+            if (await this.refreshRemoteSessions(host)) {
+              this.rerenderSessionsMenu(menu, close);
+            }
+          });
+          section.appendChild(toggle);
           menu.appendChild(section);
+          if (!isConnected) {
+            const placeholder = document.createElement('div');
+            placeholder.className = 'tw-dropdown-item tw-dd-remote-placeholder';
+            placeholder.textContent = '(not connected)';
+            placeholder.setAttribute('role', 'option');
+            placeholder.setAttribute('tabindex', '-1');
+            placeholder.addEventListener('click', async (ev) => {
+              ev.stopPropagation();
+              ev.preventDefault();
+              if (await this.refreshRemoteSessions(host)) {
+                this.rerenderSessionsMenu(menu, close);
+              }
+            });
+            menu.appendChild(placeholder);
+            continue;
+          }
           for (const s of sessions) {
             const isRunning = s.running !== false;
             this.appendSessionRow(menu, close, {

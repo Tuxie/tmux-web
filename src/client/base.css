@@ -330,6 +330,11 @@ label.tw-menu-row { color: var(--tw-text-muted); }
   flex: 1;
   border-top: 1px solid currentColor;
 }
+.tw-dd-remote-placeholder {
+  color: var(--tw-muted);
+  font-style: italic;
+  padding-left: 26px;
+}
 
 /* Menu footer: left and right side labels. */
 #menu-footer { justify-content: space-between; color: var(--tw-muted); font-size: var(--tw-ui-font-size); }
@@ -900,6 +905,14 @@ body {
   border-radius: 50%;
   transform: translateY(-50%);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4) inset;
+}
+.tw-remote-section-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tw-remote-connect-toggle {
+  position: static;
+  transform: none;
+  flex: 0 0 auto;
+  padding: 0;
+  cursor: pointer;
 }
 .tw-dd-session-delete {
   background: transparent;
