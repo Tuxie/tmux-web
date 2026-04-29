@@ -70,7 +70,7 @@ function makeServerId(host: string, existing: RemoteServerConfig[], editingId: s
 function button(label: string, className?: string): HTMLButtonElement {
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = className ?? 'tb-btn';
+  btn.className = className ?? 'tw-button';
   btn.textContent = label;
   return btn;
 }
@@ -136,7 +136,7 @@ function textInput(name: string, value = '', type = 'text', placeholder = ''): H
   input.name = name;
   input.value = value;
   input.placeholder = placeholder;
-  input.className = type === 'number' ? 'tw-menu-input-number' : 'tw-dd-input';
+  input.className = type === 'number' ? 'tw-input-number' : 'tw-input-text';
   return input;
 }
 
@@ -151,7 +151,7 @@ function checkboxInput(name: string, checked: boolean): HTMLInputElement {
 function protocolSelect(value: RemoteServerProtocol): HTMLSelectElement {
   const select = document.createElement('select');
   select.name = 'protocol';
-  select.className = 'tw-menu-input-select';
+  select.className = 'tw-input-select';
   for (const protocol of ['local', 'ssh', 'http', 'https'] as const) {
     const opt = document.createElement('option');
     opt.value = protocol;
@@ -473,7 +473,7 @@ export function installConfigurationWindow(trigger: HTMLElement): void {
   dialog.setAttribute('role', 'dialog');
   dialog.setAttribute('aria-modal', 'true');
 
-  const closeBtn = button('Close', 'tw-config-close tb-btn');
+  const closeBtn = button('Close', 'tw-config-close tw-button');
   closeBtn.addEventListener('click', () => { overlay.hidden = true; });
   dialog.appendChild(closeBtn);
 

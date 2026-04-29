@@ -54,8 +54,8 @@
             <div class="tw-drops-header">
               <span class="tw-menu-label">Dropped files</span>
               <span id="drops-count">0</span>
-              <button class="tb-btn" id="btn-drops-refresh" title="Refresh list">↻</button>
-              <button class="tb-btn" id="btn-drops-purge" title="Delete all drops for this session">Purge</button>
+              <button class="tw-button" id="btn-drops-refresh" title="Refresh list">↻</button>
+              <button class="tw-button" id="btn-drops-purge" title="Delete all drops for this session">Purge</button>
             </div>
             <div id="drops-list"></div>
           </div>
@@ -65,110 +65,110 @@
             <label><input type="checkbox" id="chk-scrollbar-autohide"> Autohide scrollbar</label>
           </div>
           <label class="tw-menu-row"><input type="checkbox" id="chk-fullscreen"> Fullscreen</label>
-          <button class="tw-menu-row tw-config-open-row" id="btn-config-window" type="button">Configuration...</button>
+          <button class="tw-menu-row tw-button tw-config-open-row" id="btn-config-window" type="button">Configuration...</button>
 
           <div class="tw-menu-section">GUI</div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-theme">Theme</label>
-            <select id="inp-theme" class="tw-menu-input-select"></select>
+            <select id="inp-theme" class="tw-input-select"></select>
           </div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-theme-hue">Hue</label>
             <input type="range" id="sld-theme-hue" min="0" max="360" step="1" aria-label="Hue">
-            <input type="number" id="inp-theme-hue" min="0" max="360" step="1" class="tw-menu-input-number">
+            <input type="number" id="inp-theme-hue" min="0" max="360" step="1" class="tw-input-number">
           </div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-theme-sat">Saturation</label>
             <input type="range" id="sld-theme-sat" min="0" max="100" step="1" aria-label="Saturation">
-            <input type="number" id="inp-theme-sat" min="0" max="100" step="1" class="tw-menu-input-number">
+            <input type="number" id="inp-theme-sat" min="0" max="100" step="1" class="tw-input-number">
           </div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-theme-ltn">Brightness</label>
             <input type="range" id="sld-theme-ltn" min="0" max="100" step="1" aria-label="Brightness">
-            <input type="number" id="inp-theme-ltn" min="0" max="100" step="1" class="tw-menu-input-number">
+            <input type="number" id="inp-theme-ltn" min="0" max="100" step="1" class="tw-input-number">
           </div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-theme-contrast">Contrast</label>
             <input type="range" id="sld-theme-contrast" min="-100" max="100" step="1" aria-label="Contrast">
-            <input type="number" id="inp-theme-contrast" min="-100" max="100" step="1" class="tw-menu-input-number">
+            <input type="number" id="inp-theme-contrast" min="-100" max="100" step="1" class="tw-input-number">
           </div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-depth">Bevel</label>
             <input type="range" id="sld-depth" min="0" max="100" step="1" aria-label="Bevel">
-            <input type="number" id="inp-depth" min="0" max="100" step="1" class="tw-menu-input-number">
+            <input type="number" id="inp-depth" min="0" max="100" step="1" class="tw-input-number">
           </div>
           <div class="tw-menu-section">Background</div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-opacity">Opacity</label>
             <input type="range" id="sld-opacity" min="0" max="100" step="1" aria-label="Background opacity">
-            <input type="number" id="inp-opacity" min="0" max="100" step="1" class="tw-menu-input-number">
+            <input type="number" id="inp-opacity" min="0" max="100" step="1" class="tw-input-number">
           </div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-background-hue">Hue</label>
             <input type="range" id="sld-background-hue" min="0" max="360" step="1" aria-label="Background hue">
-            <input type="number" id="inp-background-hue" min="0" max="360" step="1" class="tw-menu-input-number">
+            <input type="number" id="inp-background-hue" min="0" max="360" step="1" class="tw-input-number">
           </div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-background-saturation">Saturation</label>
             <input type="range" id="sld-background-saturation" min="-100" max="100" step="1" aria-label="Background saturation">
-            <input type="number" id="inp-background-saturation" min="-100" max="100" step="1" class="tw-menu-input-number">
+            <input type="number" id="inp-background-saturation" min="-100" max="100" step="1" class="tw-input-number">
           </div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-background-brightest">Top</label>
             <input type="range" id="sld-background-brightest" min="0" max="100" step="1" aria-label="Background top">
-            <input type="number" id="inp-background-brightest" min="0" max="100" step="1" class="tw-menu-input-number">
+            <input type="number" id="inp-background-brightest" min="0" max="100" step="1" class="tw-input-number">
           </div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-background-darkest">Bottom</label>
             <input type="range" id="sld-background-darkest" min="0" max="100" step="1" aria-label="Background bottom">
-            <input type="number" id="inp-background-darkest" min="0" max="100" step="1" class="tw-menu-input-number">
+            <input type="number" id="inp-background-darkest" min="0" max="100" step="1" class="tw-input-number">
           </div>
           <div class="tw-menu-section">Terminal</div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-colours">Scheme</label>
-            <select id="inp-colours" class="tw-menu-input-select"></select>
-            <button class="tb-btn" id="btn-reset-colours" title="Reset colours to theme default">↺</button>
+            <select id="inp-colours" class="tw-input-select"></select>
+            <button class="tw-button" id="btn-reset-colours" title="Reset colours to theme default">↺</button>
           </div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-tui-bg-opacity">BG Opacity</label>
             <input type="range" id="sld-tui-bg-opacity" min="0" max="100" step="1" aria-label="BG opacity">
-            <input type="number" id="inp-tui-bg-opacity" min="0" max="100" step="1" class="tw-menu-input-number">
+            <input type="number" id="inp-tui-bg-opacity" min="0" max="100" step="1" class="tw-input-number">
           </div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-tui-fg-opacity">FG Opacity</label>
             <input type="range" id="sld-tui-fg-opacity" min="0" max="100" step="1" aria-label="FG opacity">
-            <input type="number" id="inp-tui-fg-opacity" min="0" max="100" step="1" class="tw-menu-input-number">
+            <input type="number" id="inp-tui-fg-opacity" min="0" max="100" step="1" class="tw-input-number">
           </div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-fg-contrast-strength">Contrast</label>
             <input type="range" id="sld-fg-contrast-strength" min="-100" max="100" step="1" aria-label="FG contrast">
-            <input type="number" id="inp-fg-contrast-strength" min="-100" max="100" step="1" class="tw-menu-input-number">
+            <input type="number" id="inp-fg-contrast-strength" min="-100" max="100" step="1" class="tw-input-number">
           </div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-fg-contrast-bias">Bias</label>
             <input type="range" id="sld-fg-contrast-bias" min="-100" max="100" step="1" aria-label="FG contrast bias">
-            <input type="number" id="inp-fg-contrast-bias" min="-100" max="100" step="1" class="tw-menu-input-number">
+            <input type="number" id="inp-fg-contrast-bias" min="-100" max="100" step="1" class="tw-input-number">
           </div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-tui-saturation">Saturation</label>
             <input type="range" id="sld-tui-saturation" min="-100" max="100" step="1" aria-label="Terminal saturation">
-            <input type="number" id="inp-tui-saturation" min="-100" max="100" step="1" class="tw-menu-input-number">
+            <input type="number" id="inp-tui-saturation" min="-100" max="100" step="1" class="tw-input-number">
           </div>
           <div class="tw-menu-section">Text</div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-font-bundled">Font</label>
-            <select id="inp-font-bundled" class="tw-menu-input-select"></select>
-            <button class="tb-btn" id="btn-reset-font" title="Reset font to theme default">↺</button>
+            <select id="inp-font-bundled" class="tw-input-select"></select>
+            <button class="tw-button" id="btn-reset-font" title="Reset font to theme default">↺</button>
           </div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-fontsize">Size</label>
             <input type="range" id="sld-fontsize" min="8" max="30" step="0.5" aria-label="Font size">
-            <input type="number" id="inp-fontsize" min="8" max="30" step="0.5" class="tw-menu-input-number">
+            <input type="number" id="inp-fontsize" min="8" max="30" step="0.5" class="tw-input-number">
           </div>
           <div class="tw-menu-row tw-menu-row-static">
             <label class="tw-menu-label" for="inp-spacing">Line Spacing</label>
             <input type="range" id="sld-spacing" min="0.5" max="2" step="0.05" aria-label="Line spacing">
-            <input type="number" id="inp-spacing" min="0.5" max="2" step="0.05" class="tw-menu-input-number">
+            <input type="number" id="inp-spacing" min="0.5" max="2" step="0.05" class="tw-input-number">
           </div>
           <hr class="tw-menu-hr">
           <div id="menu-footer" class="tw-menu-row tw-menu-row-static"><span id="menu-footer-left"></span><span id="menu-footer-right"></span></div>

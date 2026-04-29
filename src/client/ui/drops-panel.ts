@@ -60,7 +60,7 @@ export function installDropsPanel(opts: DropsPanelOpts): { refresh: () => Promis
 
       const revoke = document.createElement('button');
       revoke.type = 'button';
-      revoke.className = 'tb-btn tw-drops-revoke';
+      revoke.className = 'tw-button tw-drops-revoke';
       // Nerd Font nf-cod-trash (U+EA81). Comes from IosevkaTerm Compact
       // (Default theme) or via the Iosevka Amiga fallback that backs every
       // Amiga theme font.

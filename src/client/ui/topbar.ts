@@ -274,7 +274,7 @@ export class Topbar {
 
     const input = document.createElement('input');
     input.type = 'text';
-    input.className = 'tw-dd-input';
+    input.className = 'tw-input-text tw-dd-input';
     if (opts.placeholder) input.placeholder = opts.placeholder;
     if (opts.defaultValue) input.value = opts.defaultValue;
     const submit = (): void => {
@@ -319,9 +319,9 @@ export class Topbar {
           if (opts.allowDelete) {
             const del = document.createElement('button');
             del.type = 'button';
-            // `tb-btn tw-drops-revoke` mirror the drops-section trashcan — themes
+            // `tw-button tw-drops-revoke` mirrors the drops-section trashcan — themes
             // that style those classes (e.g. Amiga) pick up the same look.
-            del.className = 'tb-btn tw-drops-revoke tw-dd-session-delete';
+            del.className = 'tw-button tw-drops-revoke tw-dd-session-delete';
             del.title = `Delete session "${s.name}".`;
             del.textContent = '\uEA81';
             del.addEventListener('click', async (ev) => {

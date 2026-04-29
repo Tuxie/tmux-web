@@ -201,9 +201,9 @@ input[type="range"]::-moz-range-thumb {
   border: none;
   background: var(--tw-text);
 }
-.tw-menu-input-number { -moz-appearance: textfield; appearance: textfield; }
-.tw-menu-input-number::-webkit-inner-spin-button,
-.tw-menu-input-number::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.tw-input-number { -moz-appearance: textfield; appearance: textfield; }
+.tw-input-number::-webkit-inner-spin-button,
+.tw-input-number::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 
 /* --------------------------------------------------------------------
  * Menu-scoped slider structure (shared by every theme).
@@ -286,7 +286,7 @@ input[type="range"]::-moz-range-thumb {
 #menu-wrap { position: relative; }
 
 /* Stretch selects / sliders / custom-dropdown elements inside a menu row. */
-#menu-dropdown .tw-menu-input-select,
+#menu-dropdown .tw-input-select,
 #menu-dropdown .tw-dropdown,
 #menu-dropdown input[type="range"] { flex: 1; }
 
@@ -306,11 +306,13 @@ input[type="range"]::-moz-range-thumb {
 label.tw-menu-row { color: var(--tw-text-muted); }
 .tw-menu-label { color: var(--tw-text-muted); min-width: 100px; }
 .tw-menu-label-clickable { cursor: pointer; }
-.tw-menu-input-select, .tw-menu-input-number {
-  background: var(--tw-gadget-bg); border: 1px solid var(--tw-bevel-lo); color: var(--tw-text);
+.tw-input-text,
+.tw-input-select,
+.tw-input-number {
   border-radius: 2px; padding: 1px 4px; font-family: inherit; font-size: var(--tw-ui-font-size);
 }
-.tw-menu-input-number { width: 46px; }
+.tw-input-text { border-radius: 3px; padding: 2px 6px; outline: none; }
+.tw-input-number { width: 46px; }
 .tw-menu-hr, .tw-dropdown-sep { border: none; height: 1px; background: var(--tw-muted); margin: 5px 8px 3px; }
 
 /* Labelled section divider: rule — label — rule, in the same colour
@@ -545,17 +547,21 @@ body {
 :where(.tw-dd-session-item.current) { background: var(--tw-gadget-active); color: var(--tw-text-strong); }
 
 
-:where(.tw-dd-input) {
+:where(.tw-input-text),
+:where(.tw-input-select),
+:where(.tw-input-number) {
   background: var(--tw-gadget-bg);
-  border: 1px solid var(--tw-bevel-hi);
   color: var(--tw-text);
 }
+:where(.tw-input-text) { border: 1px solid var(--tw-bevel-hi); }
+:where(.tw-input-select),
+:where(.tw-input-number) { border: 1px solid var(--tw-bevel-lo); }
 
 :where(.tw-dd-session-status.running) { background: var(--tw-status-active); }
 
 :where(.tw-menu-row:hover) { background: var(--tw-gadget-hover); }
 
-:where(.tw-menu-surface) .tb-btn {
+:where(.tw-menu-surface) .tw-button {
   border: 1px solid var(--tw-bevel-hi);
   background: var(--tw-gadget-bg);
   color: var(--tw-text);
@@ -568,10 +574,6 @@ body {
 .tw-config-open-row {
   width: calc(100% - 16px);
   margin: 2px 8px;
-  border: 1px solid var(--tw-bevel-hi);
-  background: var(--tw-gadget-bg);
-  color: var(--tw-text);
-  font-family: inherit;
   text-align: left;
 }
 
@@ -832,8 +834,8 @@ body {
   width: 100%;
 }
 
-.tw-menu-input-select::placeholder,
-.tw-dd-input::placeholder {
+.tw-input-text::placeholder,
+.tw-input-select::placeholder {
   color: var(--tw-text-muted);
   font-style: italic;
 }
@@ -1052,17 +1054,9 @@ body {
  * otherwise resolve to the viewport width. Let the content size it. */
 .tw-dropdown-menu.tw-dd-context { min-width: auto; }
 .tw-dd-input {
-  border-radius: 3px;
-  padding: 2px 6px;
-  font-family: inherit;
-  font-size: var(--tw-ui-font-size);
   outline: none;
   flex: 1;
   min-width: 140px;
-}
-.tw-config-field .tw-dd-input {
-  min-width: 0;
-  width: 100%;
 }
 /* Shared label width so input fields align across rows in a menu. */
 /* Window-tab context menu is a single-row editor; keep it compact. */

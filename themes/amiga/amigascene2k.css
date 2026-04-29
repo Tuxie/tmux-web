@@ -130,11 +130,11 @@ body {
 .tw-dropdown-sep { border-top-color: var(--tw-menu-bevel-hi); }
 
 /* Form gadgets in the menu use the menu-bevel-hi tone too. */
-.tw-dd-input,
-.tw-menu-input-number {
+.tw-input-text,
+.tw-input-number {
   border-color: var(--tw-bevel-lo) var(--tw-menu-bevel-hi) var(--tw-menu-bevel-hi) var(--tw-bevel-lo);
 }
-.tw-menu-input-select {
+.tw-input-select {
   border-color: var(--tw-menu-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-menu-bevel-hi);
 }
 :where(.tw-menu-surface) input[type="checkbox"] {

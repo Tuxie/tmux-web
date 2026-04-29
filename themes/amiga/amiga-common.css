@@ -396,21 +396,9 @@ body {
   box-shadow: 0 0 0 1px var(--tw-bevel-lo) inset;
 }
 
-/* Text input used in some context-menu dropdowns — sunken bevel.
- * `caret-shape: block` switches the I-beam caret to a Workbench-style
- * full-cell block. Spec is CSS Basic UI 4; currently honoured by Safari
- * 16.4+. Chromium and Firefox still draw the line caret — they ignore
- * the property until they ship support. */
 .tw-dd-input {
-  background: var(--tw-gadget-bg);
-  border: 2px solid;
-  border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-hi) var(--tw-bevel-lo);
-  border-radius: 0;
-  padding: 1px 4px;
-  outline: none;
   flex: 1;
   min-width: 160px;
-  caret-shape: block;
 }
 .tw-dd-context-win .tw-menu-label { min-width: auto; padding-right: 6px; }
 .tw-dd-context-win .tw-dd-input { min-width: 130px; }
@@ -476,8 +464,8 @@ body {
   color: var(--tw-bevel-lo);
 }
 
-/* Selects and number inputs — Amiga sunken bevel. */
-.tw-menu-input-select {
+/* Form controls — shared material, scoped by semantic control class. */
+.tw-input-select {
   background: var(--tw-gadget-bg);
   border: 2px solid;
   border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
@@ -486,19 +474,20 @@ body {
   margin: 0 2px;
   outline: none;
 }
-.tw-menu-input-number {
+.tw-input-text,
+.tw-input-number {
   background: var(--tw-gadget-bg);
   border: 2px solid;
   border-color: var(--tw-bevel-lo) var(--tw-bevel-hi) var(--tw-bevel-hi) var(--tw-bevel-lo);
   border-radius: 0;
   padding: 1px 4px;
-  width: 46px;
   caret-shape: block;
 }
+.tw-input-number { width: 46px; }
 
 /* In-menu buttons (reset colours/font, drops refresh/purge, per-row
  * trash). Override the topbar blue with neutral grey. */
-:where(.tw-menu-surface) .tb-btn {
+:where(.tw-menu-surface) .tw-button {
   background: var(--tw-gadget-bg);
   height: 22px;
 }
@@ -515,11 +504,11 @@ body {
  * offset — the glyph has a hair of trailing whitespace baked in. */
 .tw-drops-revoke { font-size: 18px; padding: 0 7px 0 5px; }
 
-/* Session-delete button: mirror the tw-drops-revoke look (grey .tb-btn
+/* Session-delete button: mirror the tw-drops-revoke look (grey .tw-button
  * in a dropdown context) inside the session menu. The session menu is
- * inserted as a child of #topbar, so the `#topbar .tb-btn` blue rule
- * otherwise wins — scope this one to the same id to outrank it. */
-#topbar .tw-dd-sessions-menu .tb-btn {
+ * inserted as a child of #topbar, so scope this to the same id as the
+ * topbar rules that otherwise compete for the nested button. */
+#topbar .tw-dd-sessions-menu .tw-button {
   background: var(--tw-gadget-bg);
   border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   height: 22px;

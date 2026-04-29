@@ -216,7 +216,7 @@ export function showContextMenu(opts: ContextMenuOptions): void {
 
     inputEl = document.createElement('input');
     inputEl.type = 'text';
-    inputEl.className = 'tw-dd-input';
+    inputEl.className = 'tw-input-text tw-dd-input';
     if (inputConfig.placeholder) inputEl.placeholder = inputConfig.placeholder;
     if (inputConfig.defaultValue) inputEl.value = inputConfig.defaultValue;
     inputEl.addEventListener('keydown', (ev) => {
