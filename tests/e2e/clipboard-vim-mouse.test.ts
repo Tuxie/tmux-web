@@ -109,14 +109,6 @@ test(
         `vim -u NONE -c 'set mouse=' -c 'set nomodified' -c 'set shortmess+=I' ${testFilePath}`,
       ]);
 
-      // Ensure tmux handles mouse events (so Playwright drag → copy-mode).
-      isolatedTmux.tmux(['set', '-g', 'mouse', 'on']);
-      // External clipboard so OSC 52 goes to outer terminal (tmux-web
-      // intercepts it in protocol.ts and pushes to the browser).
-      isolatedTmux.tmux(['set', '-s', 'set-clipboard', 'external']);
-      // Ms terminfo capability so tmux knows the terminal handles OSC 52.
-      isolatedTmux.tmux(['set', '-as', 'terminal-overrides', ',*:SetClipboard=on']);
-
       // Give vim a moment to paint its screen.
       await new Promise((r) => setTimeout(r, 800));
 

@@ -28,21 +28,35 @@ function shellSingleQuote(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
-export function createIsolatedTmux(prefix: string, sessions: string[] = []): IsolatedTmux {
+const e2eDefaultTmuxConf = path.resolve(helpersDir, '../tmux.conf');
+
+export function createIsolatedTmux(
+  prefix: string,
+  sessions: string[] = [],
+  _opts?: { tmuxConf?: string },
+): IsolatedTmux {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}-`));
   const socketPath = path.join(root, 'sock');
   const wrapperPath = path.join(root, 'tmux');
-  const tmux = (args: string[]) =>
-    execFileSync('tmux', ['-S', socketPath, ...args], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    });
+
+  const confPath = _opts?.tmuxConf ?? e2eDefaultTmuxConf;
+  const confArgs = fs.existsSync(confPath) ? ['-f', confPath] : [];
 
   fs.writeFileSync(
     wrapperPath,
-    `#!/usr/bin/env bash\nexec tmux -S ${shellSingleQuote(socketPath)} "$@"\n`,
+    `#!/usr/bin/env bash\nexec tmux -S '${shellSingleQuote(socketPath)}'${confArgs.length ? ` -f '${shellSingleQuote(confPath)}'` : ''} "$@"\n`,
     { mode: 0o755 },
   );
+
+  const tmux = (args: string[]) => {
+    // new-session creates the server — seed -f so the shared config is
+    // loaded before the first server option is read.
+    const f = args[0] === 'new-session' ? confArgs : [];
+    return execFileSync('tmux', ['-S', socketPath, ...f, ...args], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+  };
 
   for (const session of sessions) {
     tmux(['new-session', '-d', '-s', session, 'cat']);

@@ -70,9 +70,6 @@ test('Neovim keyboard yank lands in browser clipboard', async ({ page }, ti) => 
   let srv: Awaited<ReturnType<typeof startServer>> | undefined;
   try {
     iso.tmux(['new-session', '-d', '-s', 'yank', `nvim --clean -c 'set clipboard=unnamedplus' -c 'set mouse='`]);
-    iso.tmux(['set', '-g', 'mouse', 'on']);
-    iso.tmux(['set', '-s', 'set-clipboard', 'external']);
-    iso.tmux(['set', '-as', 'terminal-overrides', ',*:SetClipboard=on']);
     await new Promise(r => setTimeout(r, 1200));
 
     srv = await startServer('bun', [
@@ -122,9 +119,6 @@ test('tmux-web delivers browser clipboard content into Neovim pane', async ({ pa
   let srv: Awaited<ReturnType<typeof startServer>> | undefined;
   try {
     iso.tmux(['new-session', '-d', '-s', 'paste', `nvim --clean -c 'set clipboard=unnamedplus' -c 'set mouse='`]);
-    iso.tmux(['set', '-g', 'mouse', 'on']);
-    iso.tmux(['set', '-s', 'set-clipboard', 'external']);
-    iso.tmux(['set', '-as', 'terminal-overrides', ',*:SetClipboard=on']);
     await new Promise(r => setTimeout(r, 1200));
 
     srv = await startServer('bun', [
