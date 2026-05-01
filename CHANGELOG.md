@@ -2,6 +2,97 @@
 
 ## Unreleased
 
+### Added
+
+- **Remote tmux-web sessions over SSH stdio agents.** tmux-web can now
+  serve `/r/<ssh-config-host>/<session>` routes by starting
+  `ssh -T <host> tmux-web --stdio-agent`, proxying terminal I/O,
+  session and window actions, settings, and remote state through the
+  local server without storing SSH credentials.
+- **Remote server configuration UI.** The settings window now includes
+  a Servers section for local, SSH, and stdio remote definitions, with
+  compact shared controls, protocol-specific fields, and session-menu
+  grouping by configured host.
+- **Remote session menu controls.** Remote sessions are grouped under
+  collapsible host headers, show connected/stopped state, can restart a
+  stopped current session, and keep remote settings separate from local
+  sessions.
+- **Clipboard integration documentation and coverage.** README guidance
+  now documents Neovim tmux clipboard setup, and the test suite covers
+  Vim OSC 52, Neovim yank/paste, Vim mouse copy-mode, tmux copy-mode,
+  and Emacs OSC 52 clipboard paths.
+- **A new code-analysis report for 2026-04-28.** The report records
+  follow-up clusters for async cleanup, polling/sleep tests, ARIA,
+  CSS housekeeping, CI artifact verification, security hardening, doc
+  drift, and correctness gaps.
+
+### Fixed
+
+- **tmux copy-mode no longer creates duplicate paste buffers.** When
+  tmux copy-mode already created the newest tmux buffer, tmux-web now
+  skips the server-side OSC 52 mirror instead of adding a second
+  identical `choose-buffer` entry.
+- **OSC 52 clipboard mirroring handles app-driven copies correctly.**
+  Browser clipboard writes are still mirrored into tmux buffers when an
+  app emits OSC 52 directly, while OSC 52 read replies remain bounded
+  and routed to the session that requested them.
+- **Emacs OSC 52 clipboard copying works under tmux-web's default
+  `set-clipboard external` configuration.**
+- **Terminal identity replies are filtered from the visible terminal
+  buffer.** Echoed xterm identity responses no longer leak into the
+  session display.
+- **Remote route session and window handling is consistent.** Remote
+  websocket sessions now route client actions through the remote
+  channel, preserve session/window updates, and keep local rows out of
+  remote session lists.
+- **Remote stdio channels are more resilient.** Failed agents are torn
+  down, stderr is surfaced and drained, idle tracking is cleaned up on
+  local close, action errors do not kill the channel, and lifecycle
+  cleanup is hardened.
+- **tmux config defaults are enforced where required.** The generated
+  tmux configuration now keeps non-overridable options after user
+  config sourcing so required terminal features, clipboard behavior,
+  title handling, mouse support, and sizing policy stay intact.
+- **TERM compatibility improved for tmux builds that default to
+  `screen`.** The default terminal configuration now explicitly targets
+  `tmux-256color` plus terminal feature overrides.
+- **Scrollbar autohide in alternate-screen mode stays fully hidden.**
+  When autohide is enabled and an alternate-screen app is active, the
+  scrollbar remains unavailable instead of partially showing controls.
+- **The `tmux-web-dev` wrapper no longer leaks watcher processes.**
+  Symlink resolution, foreground stdio-agent handling, and unit
+  coverage were tightened around the dev wrapper.
+
+### Changed
+
+- **Ctrl+S is no longer bound by default.** tmux-web no longer steals
+  the standard terminal flow-control shortcut.
+- **Theme defaults are explicit.** Default and Amiga Scene 2000 now
+  declare foreground contrast, bias, saturation, and opacity defaults
+  so theme switching resets those sliders predictably.
+- **Configuration controls share one visual hierarchy.** Settings and
+  server-configuration inputs, buttons, labels, rows, and menu surfaces
+  now reuse shared styling and spacing rules.
+- **Remote session headings were visually tightened.** Connected badges,
+  collapse controls, and Amiga-specific header alignment now share the
+  same status styling and gutter alignment.
+- **CSS-only changes are documented as non-TDD work.** Project
+  instructions now explicitly forbid tests for pure CSS changes and
+  require a CSS simplification review for styling, layout, and class
+  hierarchy changes.
+
+### Internal
+
+- **Real-tmux e2e tests now use the bundled tmux configuration.**
+  Isolated tmux tests exercise the same project defaults as production
+  instead of a drift-prone test-only config.
+- **The stdio protocol and remote-agent stack gained shape validation,
+  frame canonicalization, lifecycle tests, and transport-boundary unit
+  coverage.**
+- **Clipboard and OSC 52 regression coverage was expanded across unit
+  and Playwright tests, including duplicate-buffer prevention for tmux
+  copy-mode.**
+
 ## 1.10.4 — 2026-04-28
 
 ### Fixed
