@@ -11,6 +11,7 @@ const bundledThemesFixtureDir = path.resolve(helpersDir, '../fixtures/themes-bun
 export interface IsolatedTmux {
   socketPath: string;
   wrapperPath: string;
+  tmuxConfPath: string;
   tmux(args: string[]): string;
   cleanup(): void;
 }
@@ -30,6 +31,25 @@ function shellSingleQuote(s: string): string {
 
 const e2eDefaultTmuxConf = path.resolve(helpersDir, '../../tmux.conf');
 
+/** Create a copy of the production tmux.conf with all `source-file` lines
+ *  removed, so test-runner user overrides don't leak into the isolated
+ *  server.  Also switches `set-clipboard` from `external` to `on` because
+ *  Emacs' `send-string-to-terminal` only triggers tmux OSC-52 capture
+ *  under `on` mode.  Returns the path to the sanitised temp file. */
+function sanitisedTmuxConf(originalPath: string, destDir: string): string | null {
+  if (!fs.existsSync(originalPath)) return null;
+  const raw = fs.readFileSync(originalPath, 'utf-8');
+  const stripped = raw.split('\n')
+    .filter(line => !line.trimStart().startsWith('source-file'))
+    .map(line => line === 'set -s set-clipboard external'
+      ? 'set -s set-clipboard on'
+      : line)
+    .join('\n');
+  const dest = path.join(destDir, 'tmux.conf');
+  fs.writeFileSync(dest, stripped);
+  return dest;
+}
+
 export function createIsolatedTmux(
   prefix: string,
   sessions: string[] = [],
@@ -39,33 +59,47 @@ export function createIsolatedTmux(
   const socketPath = path.join(root, 'sock');
   const wrapperPath = path.join(root, 'tmux');
 
-  const confPath = _opts?.tmuxConf ?? e2eDefaultTmuxConf;
+  const originalConf = _opts?.tmuxConf ?? e2eDefaultTmuxConf;
+  const confPath = sanitisedTmuxConf(originalConf, root) ?? originalConf;
   const confArgs = fs.existsSync(confPath) ? ['-f', confPath] : [];
 
   fs.writeFileSync(
     wrapperPath,
-    `#!/usr/bin/env bash\nexec tmux -S '${shellSingleQuote(socketPath)}'${confArgs.length ? ` -f '${shellSingleQuote(confPath)}'` : ''} "$@"\n`,
+    `#!/usr/bin/env bash\nexec tmux -S '${shellSingleQuote(socketPath)}' "$@"\n`,
     { mode: 0o755 },
   );
 
   const tmux = (args: string[]) => {
-    // new-session creates the server — seed -f so the shared config is
-    // loaded before the first server option is read.
-    const f = args[0] === 'new-session' ? confArgs : [];
-    return execFileSync('tmux', ['-S', socketPath, ...f, ...args], {
+    // The config is loaded once via the wrapper script (-f baked in) or
+    // the seeding new-session above.  Don't re-load it on subsequent
+    // new-session calls — it would overwrite any server-option set calls
+    // the test made between sessions.
+    return execFileSync('tmux', ['-S', socketPath, ...args], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
     });
   };
 
-  for (const session of sessions) {
-    tmux(['new-session', '-d', '-s', session, 'cat']);
+  if (sessions.length === 0) {
+    // Seed session so the server starts before callers issue set commands.
+    // sleep infinity, not cat — cat sees /dev/null in a detached pane.
+    // Explicit -f here because tmux() no longer adds it (avoids overriding
+    // server options set between sessions).
+    tmux([...confArgs, 'new-session', '-d', '-s', '_tw_e2e_place', 'sleep', 'infinity']);
+  } else {
+    for (const session of sessions) {
+      tmux([...confArgs, 'new-session', '-d', '-s', session, 'cat']);
+    }
   }
 
   return {
     socketPath,
     wrapperPath,
     tmux,
+    /** Path to the sanitised tmux.conf so startServer can pass it as
+     *  `--tmux-conf` and prevent production config from overriding
+     *  server options (e.g. set-clipboard) during PTY attach. */
+    tmuxConfPath: confPath,
     cleanup: () => {
       try {
         tmux(['kill-server']);

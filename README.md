@@ -142,6 +142,22 @@ augroup END
 
 On macOS replace `base64 -w0` with `base64 -b 0` (or use `openssl base64`).
 
+### Neovim
+
+Neovim ≥ 0.10 has built-in OSC 52 clipboard support in TUI mode. Add to `~/.config/nvim/init.lua`:
+
+```lua
+vim.opt.clipboard = 'unnamedplus'
+```
+
+Or to `~/.config/nvim/init.vim`:
+
+```vim
+set clipboard=unnamedplus
+```
+
+No plugins or custom autocmds needed — Neovim detects the `Ms` terminfo capability that tmux-web provides and emits/receives OSC 52 sequences natively for both yank and paste.
+
 ## Security
 
 tmux-web exposes an interactive shell over the network. Treat it accordingly.
