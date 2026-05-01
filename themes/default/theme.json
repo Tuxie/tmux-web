@@ -33,6 +33,11 @@
       "defaultThemeSat": 15,
       "defaultThemeLtn": 15,
       "defaultThemeContrast": 0,
+      "defaultFgContrastStrength": 0,
+      "defaultFgContrastBias": 0,
+      "defaultTuiSaturation": 0,
+      "defaultTuiBgOpacity": 100,
+      "defaultTuiFgOpacity": 100,
       "defaultDepth": 20,
       "defaultScrollbarAutohide": true
     }
