@@ -28,7 +28,7 @@ function shellSingleQuote(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
-const e2eDefaultTmuxConf = path.resolve(helpersDir, '../tmux.conf');
+const e2eDefaultTmuxConf = path.resolve(helpersDir, '../../tmux.conf');
 
 export function createIsolatedTmux(
   prefix: string,
