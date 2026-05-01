@@ -84,6 +84,10 @@ test('copy-mode text reaches browser clipboard, tmux buffer, and vim paste', asy
     // ---- Verify tmux paste buffer holds the same text ----
     const bufText = iso.tmux(['show-buffer']).replace(/\n$/, '');
     expect(bufText).toBe('COPY_PASTE_VIM');
+    const matchingBuffers = iso.tmux(['list-buffers', '-F', '#{buffer_sample}'])
+      .split('\n')
+      .filter(sample => sample === 'COPY_PASTE_VIM');
+    expect(matchingBuffers).toHaveLength(1);
 
     // ---- Start vim and paste buffer content ----
     iso.tmux(['send-keys', '-t', 'copyvim:1', 'v', 'i', 'm', ' ', '-', 'u', ' ', 'N', 'O', 'N', 'E', ' ', '-', 'c', ' ', '\'', 's', 'e', 't', ' ', 'm', 'o', 'u', 's', 'e', '=', '\'', 'Enter']);

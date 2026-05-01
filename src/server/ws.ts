@@ -1211,8 +1211,16 @@ async function mirrorClipboardToTmuxBuffer(base64: string, opts: WsServerOptions
     return;
   }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tmux-web-clipboard-'));
+  const existingFile = path.join(dir, 'existing-buffer');
   const file = path.join(dir, 'buffer');
   try {
+    try {
+      await execFileAsync(opts.config.tmuxBin, ['save-buffer', existingFile]);
+      if (fs.readFileSync(existingFile).equals(bytes)) return;
+    } catch {
+      // No existing tmux buffer, or it could not be read. Mirroring can
+      // still proceed; this path is opportunistic.
+    }
     fs.writeFileSync(file, bytes, { mode: 0o600 });
     await execFileAsync(opts.config.tmuxBin, ['load-buffer', file]);
   } catch {
