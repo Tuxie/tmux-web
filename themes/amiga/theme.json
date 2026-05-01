@@ -44,6 +44,9 @@
       "defaultDepth": 22,
       "defaultBackgroundHue": 183,
       "defaultBackgroundSaturation": 0,
+      "defaultFgContrastStrength": 0,
+      "defaultFgContrastBias": 0,
+      "defaultTuiSaturation": 50,
       "defaultBackgroundBrightest": 10,
       "defaultBackgroundDarkest": 5
     }
