@@ -146,7 +146,7 @@ body.topbar-pinned .tw-scrollbar { top: var(--tw-scrollbar-topbar-offset); }
 }
 .tw-scrollbar-thumb:hover { background: var(--tw-scrollbar-thumb-hover); }
 .tw-scrollbar.dragging .tw-scrollbar-thumb { background: var(--tw-scrollbar-thumb-active); }
-.tw-scrollbar.unavailable { opacity: 0.4; }
+.tw-scrollbar.unavailable:not(.tw-scrollbar-autohide) { opacity: 0.4; }
 /* The arrow / resize cluster only appears in themes that opt in
  * (e.g. AmigaOS 3.1). Default theme leaves the bar as a flat track. */
 .tw-scrollbar-up,

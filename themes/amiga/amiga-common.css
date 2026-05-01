@@ -602,12 +602,12 @@ body.topbar-pinned #terminal { top: 29px; }
   border-color: var(--tw-bevel-hi) var(--tw-bevel-lo) var(--tw-bevel-lo) var(--tw-bevel-hi);
   box-sizing: border-box;
 }
-.tw-scrollbar.unavailable {
+.tw-scrollbar.unavailable:not(.tw-scrollbar-autohide) {
   opacity: 1;
 }
-.tw-scrollbar.unavailable .tw-scrollbar-track,
-.tw-scrollbar.unavailable .tw-scrollbar-up,
-.tw-scrollbar.unavailable .tw-scrollbar-down {
+.tw-scrollbar.unavailable:not(.tw-scrollbar-autohide) .tw-scrollbar-track,
+.tw-scrollbar.unavailable:not(.tw-scrollbar-autohide) .tw-scrollbar-up,
+.tw-scrollbar.unavailable:not(.tw-scrollbar-autohide) .tw-scrollbar-down {
   display: none;
 }
 

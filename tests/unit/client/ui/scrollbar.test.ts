@@ -258,11 +258,32 @@ describe('createScrollbarController', () => {
     });
     (globalThis as any).window = { innerWidth: 200 };
 
+    controller.updateState(state());
     controller.setAutohide(true);
     (globalThis.document as any).dispatch('mousemove', { clientX: 180 });
     expect(root.classList.contains('visible')).toBe(true);
 
     controller.setAutohide(false);
+    expect(root.classList.contains('visible')).toBe(false);
+  });
+
+  test('autohide does not reveal on mousemove when unavailable or in alternate screen', () => {
+    const root = el('div');
+    const controller = createScrollbarController({
+      root: root as any,
+      send: () => {},
+      passThroughWheel: () => false,
+      requestFit: () => {},
+    });
+    (globalThis as any).window = { innerWidth: 200 };
+    controller.setAutohide(true);
+
+    controller.updateState(state({ alternateOn: true }));
+    (globalThis.document as any).dispatch('mousemove', { clientX: 180 });
+    expect(root.classList.contains('visible')).toBe(false);
+
+    controller.updateState(state({ unavailable: true }));
+    (globalThis.document as any).dispatch('mousemove', { clientX: 180 });
     expect(root.classList.contains('visible')).toBe(false);
   });
 

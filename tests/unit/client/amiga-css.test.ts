@@ -46,9 +46,9 @@ describe('Amiga theme CSS', () => {
     expect(sceneCss).toMatch(/#topbar \.tw-win-tab:hover\s*\{\s*background:\s*rgba\(255,\s*255,\s*255,\s*0\.1\);\s*\}/);
   });
 
-  test('unavailable scrollbar stays opaque and hides scroll controls', () => {
-    expect(commonCss).toMatch(/\.tw-scrollbar\.unavailable\s*\{\s*opacity:\s*1;\s*\}/);
-    expect(commonCss).toMatch(/\.tw-scrollbar\.unavailable \.tw-scrollbar-track,\s*\.tw-scrollbar\.unavailable \.tw-scrollbar-up,\s*\.tw-scrollbar\.unavailable \.tw-scrollbar-down\s*\{\s*display:\s*none;\s*\}/);
+  test('unavailable scrollbar stays opaque and hides scroll controls (pinned only)', () => {
+    expect(commonCss).toMatch(/\.tw-scrollbar\.unavailable:not\(\.tw-scrollbar-autohide\)\s*\{\s*opacity:\s*1;\s*\}/);
+    expect(commonCss).toMatch(/\.tw-scrollbar\.unavailable:not\(\.tw-scrollbar-autohide\) \.tw-scrollbar-track,\s*\.tw-scrollbar\.unavailable:not\(\.tw-scrollbar-autohide\) \.tw-scrollbar-up,\s*\.tw-scrollbar\.unavailable:not\(\.tw-scrollbar-autohide\) \.tw-scrollbar-down\s*\{\s*display:\s*none;\s*\}/);
   });
 
   test('shared Amiga resize gadget is one pixel narrower on each side', () => {

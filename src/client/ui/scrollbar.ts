@@ -275,6 +275,7 @@ export function createScrollbarController(opts: {
     }
 
     if (!autohide) return;
+    if (state.unavailable || state.alternateOn) return;
     const width = viewportWidth();
     if (width > 0 && ev.clientX >= width - AUTOHIDE_REVEAL_PX) reveal();
   }
