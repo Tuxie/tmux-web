@@ -114,6 +114,34 @@ source-file -q ~/.config/tmux-web/tmux-web.conf
 
 Each path is silent if missing. General `tmux.conf` paths are sourced first so a single user config works everywhere; the `tmux-web*` paths come last so you can override anything specifically for the web frontend. Your existing tmux configuration keeps working; tmux-web simply ensures the required options are set first. You can also specify an alternative config to source using `--tmux-conf <path>`, which replaces the default `source-file` commands. To use a specific tmux executable, pass `--tmux <path>`.
 
+## Vim clipboard integration
+
+tmux-web's `set -s set-clipboard external` (set in the default `tmux.conf`) forwards OSC 52 clipboard sequences from pane applications to the browser. To make Vim's `y` / `"+y` / `"*y` land in the browser clipboard (and `"+p` read from it), add this to your `~/.vimrc`:
+
+```vim
+" Minimal OSC 52 clipboard — requires tmux with set-clipboard set
+set clipboard=
+
+function! s:Osc52Yank() abort
+  let l:b64 = substitute(system('base64 -w0', @0), '\n\+$', '', '')
+  if empty(l:b64) | return | endif
+  let l:osc52 = "\e]52;c;" . l:b64 . "\x07"
+  call writefile([l:osc52], '/dev/tty', 'b')
+endfunction
+
+augroup Osc52YankGroup
+  autocmd!
+  autocmd TextYankPost * call s:Osc52Yank()
+augroup END
+```
+
+- `TextYankPost` fires after any yank (`y`, `yy`, `"+y`, etc.) — the yanked text is in the `@0` register.
+- `system('base64 -w0', @0)` runs base64 with the yanked text on stdin, returning a single-line base64 string.
+- `writefile(…, '/dev/tty', 'b')` writes the raw `\e]52;c;<base64>\x07` OSC 52 sequence to the controlling terminal, which tmux intercepts and forwards to tmux-web.
+- The `clipboard=` line prevents Vim's built-in `+`/`*` register logic from interfering.
+
+On macOS replace `base64 -w0` with `base64 -b 0` (or use `openssl base64`).
+
 ## Security
 
 tmux-web exposes an interactive shell over the network. Treat it accordingly.
