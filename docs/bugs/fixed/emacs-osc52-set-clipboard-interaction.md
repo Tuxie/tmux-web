@@ -61,3 +61,24 @@ test through tmux-web's PTY doesn't, suggests the Bun PTY layer or
 the server's PTY read path might not pass the sequence through when
 `external` was ever active in the server's lifetime — even after
 switching back to `on`.
+
+## Resolution
+
+Fixed in the e2e fixture. The root cause was not Bun PTY or tmux's
+OSC 52 path:
+
+- The TypeScript template literal used `"\e"` and `"\a"` for the
+  Emacs Lisp copy command. JavaScript treated those as ordinary
+  escaped characters, so the generated `init.el` printed visible
+  `e]52;...a` text instead of an ESC/BEL-delimited OSC 52 frame.
+- Emacs also started on the startup screen, so the intended
+  `EMACS_COPY` payload was not in the editable scratch buffer.
+- The e2e server now receives the sanitized isolated tmux config via
+  `--tmux-conf`, matching the helper's intended `set-clipboard on`
+  setup.
+
+The focused Playwright spec now passes:
+
+```bash
+bun x playwright test tests/e2e/clipboard-emacs.test.ts
+```

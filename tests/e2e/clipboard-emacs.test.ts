@@ -3,8 +3,8 @@
  *
  * Emacs doesn't load xterm.el for tmux-256color automatically.
  * A tiny init.el registers two commands:
- *   C-c y  — copy region to browser clipboard (OSC 52 write)
- *   C-c p  — request paste from browser clipboard (OSC 52 read)
+ *   C-x o  — copy region to browser clipboard (OSC 52 write)
+ *   C-x p  — request paste from browser clipboard (OSC 52 read)
  */
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import {
@@ -45,14 +45,18 @@ async function termReady(page: Page) {
 // ---------------------------------------------------------------------------
 
 const EMACS_INIT = `
+(setq inhibit-startup-screen t)
 (setq select-enable-clipboard t)
 
 ;; Emacs in -nw mode under tmux-256color does not load xterm.el
 ;; automatically, so we force it and register the setSelection capability.
 (unless (display-graphic-p)
-  (require 'xterm)
-  (add-to-list 'xterm-extra-capabilities 'setSelection)
-  (terminal-init-xterm))
+  (condition-case nil
+      (progn
+        (require 'xterm)
+        (add-to-list 'xterm-extra-capabilities 'setSelection)
+        (terminal-init-xterm))
+    (error nil)))
 
 ;; --- OSC 52 copy (write) ---
 (defun osc52-copy ()
@@ -60,10 +64,10 @@ const EMACS_INIT = `
   (let ((text (buffer-substring-no-properties
                (region-beginning) (region-end))))
     (send-string-to-terminal
-     (concat "\e]52;c;"
+     (concat "\\e]52;c;"
              (base64-encode-string
               (encode-coding-string text 'utf-8 t))
-             "\a"))))
+             "\\a"))))
 
 ;; --- OSC 52 request paste (read) ---
 (defun osc52-request-paste ()
@@ -78,7 +82,7 @@ const EMACS_INIT = `
 // Test 1 — Emacs copy → browser clipboard
 // ---------------------------------------------------------------------------
 
-test('Emacs C-c y copies region to browser clipboard', async ({ page }, ti) => {
+test('Emacs C-x o copies region to browser clipboard', async ({ page }, ti) => {
   const p = port(ti);
   const iso = createIsolatedTmux('tw-emacs-copy');
   let srv: Awaited<ReturnType<typeof startServer>> | undefined;
@@ -96,6 +100,7 @@ test('Emacs C-c y copies region to browser clipboard', async ({ page }, ti) => {
     srv = await startServer('bun', [
       'src/server/index.ts', '--listen', `127.0.0.1:${p}`,
       '--no-auth', '--no-tls', '--tmux', iso.wrapperPath,
+      '--tmux-conf', iso.tmuxConfPath,
     ]);
 
     // buildPtyCommand loads production.conf (external) on attach.
@@ -167,6 +172,7 @@ test('browser clipboard delivered to Emacs pane via OSC 52 reply', async ({ page
     srv = await startServer('bun', [
       'src/server/index.ts', '--listen', `127.0.0.1:${p}`,
       '--no-auth', '--no-tls', '--tmux', iso.wrapperPath,
+      '--tmux-conf', iso.tmuxConfPath,
     ]);
 
     iso.tmux(['set', '-s', 'set-clipboard', 'on']);
