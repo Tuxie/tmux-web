@@ -64,21 +64,28 @@ switching back to `on`.
 
 ## Resolution
 
-Fixed in the e2e fixture. The root cause was not Bun PTY or tmux's
-OSC 52 path:
+Fixed by making the clipboard tests match the bundled tmux-web
+configuration instead of rewriting it per test.
 
-- The TypeScript template literal used `"\e"` and `"\a"` for the
-  Emacs Lisp copy command. JavaScript treated those as ordinary
-  escaped characters, so the generated `init.el` printed visible
-  `e]52;...a` text instead of an ESC/BEL-delimited OSC 52 frame.
-- Emacs also started on the startup screen, so the intended
-  `EMACS_COPY` payload was not in the editable scratch buffer.
-- The e2e server now receives the sanitized isolated tmux config via
-  `--tmux-conf`, matching the helper's intended `set-clipboard on`
-  setup.
+- The e2e helper no longer rewrites `set-clipboard external` to `on`.
+  Clipboard e2e tests now pass the sanitized bundled `tmux.conf` to
+  the server and assert `show-options -s -g set-clipboard` is
+  `external`.
+- Emacs copy uses tmux DCS passthrough OSC 52
+  (`ESC Ptmux; ESC ESC ]52;... BEL ESC \`) so `external` remains a
+  valid default: tmux passes the sequence to tmux-web, tmux-web writes
+  the browser clipboard, and the server mirrors the content into the
+  tmux paste buffer.
+- Browser/OS clipboard-to-editor paste is covered by Neovim using an
+  isolated test `init.lua` whose `+` register reads from the tmux
+  paste buffer. tmux-web mirrors the browser clipboard into that buffer
+  on connection/focus.
+- The redundant/brittle Emacs paste fixture was removed; the Neovim
+  paste test is the representative editor `p` path for browser/OS
+  clipboard input.
 
-The focused Playwright spec now passes:
+The focused clipboard specs now pass in parallel:
 
 ```bash
-bun x playwright test tests/e2e/clipboard-emacs.test.ts
+bun x playwright test tests/e2e/clipboard-nvim-keyboard.test.ts tests/e2e/clipboard-tmux-copy-mode.test.ts tests/e2e/clipboard-vim-mouse.test.ts tests/e2e/clipboard-emacs.test.ts
 ```

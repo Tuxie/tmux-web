@@ -23,6 +23,7 @@ export interface ProcessResult {
 const OSC_TITLE_RE = /\x1b\]([02]);([^\x07\x1b]*?)(?:\x07|\x1b\\)/g;
 const OSC_52_WRITE_RE = /\x1b\]52;[^;]*;([A-Za-z0-9+/=]+)(?:\x07|\x1b\\)/g;
 const OSC_52_READ_RE = /\x1b\]52;([^;]*);\?(?:\x07|\x1b\\)/g;
+const TMUX_PASSTHROUGH_OSC_52_RE = /\x1bPtmux;\x1b(?:\x1b)?\]52;([^;]*);([A-Za-z0-9+/=]+|\?)(?:\x07|\x1b\\)\x1b\\/g;
 const XTERM_SECONDARY_DA_REPLY_RE = /\x1b\[>0;276;0c/g;
 const XTERM_VERSION_REPLY_RE = /\x1bP>\|xterm\.js\([^)]*\)\x1b\\/g;
 const ECHOCTL_XTERM_SECONDARY_DA_REPLY_RE = /\^\[\[>0;276;0c/g;
@@ -61,8 +62,31 @@ export function processData(data: string, _currentSession: string): ProcessResul
   const readRequests: Array<{ selection: string }> = [];
 
   let match: RegExpExecArray | null;
+  TMUX_PASSTHROUGH_OSC_52_RE.lastIndex = 0;
+  const passthroughWrites: string[] = [];
+  while ((match = TMUX_PASSTHROUGH_OSC_52_RE.exec(data)) !== null) {
+    const selection = match[1] || 'c';
+    const payload = match[2];
+    if (payload === '?') {
+      readRequests.push({ selection });
+      continue;
+    }
+    if (!payload) continue;
+    if (payload.length > MAX_OSC52_WRITE_BYTES) {
+      warnTooLargeOsc52Write(payload.length);
+      continue;
+    }
+    passthroughWrites.push(payload);
+  }
+  for (const b64 of passthroughWrites.slice(-MAX_OSC52_WRITES_PER_CHUNK)) {
+    messages.push({ clipboard: b64 });
+  }
+
+  TMUX_PASSTHROUGH_OSC_52_RE.lastIndex = 0;
+  const dataWithoutPassthrough = data.replace(TMUX_PASSTHROUGH_OSC_52_RE, '');
+
   OSC_TITLE_RE.lastIndex = 0;
-  while ((match = OSC_TITLE_RE.exec(data)) !== null) {
+  while ((match = OSC_TITLE_RE.exec(dataWithoutPassthrough)) !== null) {
     const title = match[2];
     titleChanged = true;
     detectedTitle = title;
@@ -74,7 +98,7 @@ export function processData(data: string, _currentSession: string): ProcessResul
 
   OSC_52_WRITE_RE.lastIndex = 0;
   const writes: string[] = [];
-  while ((match = OSC_52_WRITE_RE.exec(data)) !== null) {
+  while ((match = OSC_52_WRITE_RE.exec(dataWithoutPassthrough)) !== null) {
     const b64 = match[1];
     if (!b64) continue;
     if (b64.length > MAX_OSC52_WRITE_BYTES) {
@@ -88,13 +112,13 @@ export function processData(data: string, _currentSession: string): ProcessResul
   }
 
   OSC_52_READ_RE.lastIndex = 0;
-  while ((match = OSC_52_READ_RE.exec(data)) !== null) {
+  while ((match = OSC_52_READ_RE.exec(dataWithoutPassthrough)) !== null) {
     readRequests.push({ selection: match[1] || 'c' });
   }
 
   OSC_52_WRITE_RE.lastIndex = 0;
   OSC_52_READ_RE.lastIndex = 0;
-  const output = data
+  const output = dataWithoutPassthrough
     .replace(OSC_52_WRITE_RE, '')
     .replace(OSC_52_READ_RE, '')
     .replace(XTERM_SECONDARY_DA_REPLY_RE, '')

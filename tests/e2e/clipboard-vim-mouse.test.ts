@@ -30,7 +30,7 @@ test.skip(!hasTmux(), 'tmux not available');
 // Per-worker ports so parallel runs don't collide
 // ---------------------------------------------------------------------------
 
-const PORT_BASE = 4130;
+const PORT_BASE = 41300;
 const PORT_RANGE_SIZE = 1000;
 
 function workerPort(testInfo: TestInfo): number {
@@ -39,7 +39,7 @@ function workerPort(testInfo: TestInfo): number {
       `clipboard-vim-mouse port range supports ${PORT_RANGE_SIZE} workers, got ${testInfo.parallelIndex}`,
     );
   }
-  return PORT_BASE + testInfo.parallelIndex;
+  return PORT_BASE + testInfo.parallelIndex * 10;
 }
 
 // ---------------------------------------------------------------------------
@@ -122,6 +122,8 @@ test(
         '--no-tls',
         '--tmux',
         isolatedTmux.wrapperPath,
+        '--tmux-conf',
+        isolatedTmux.tmuxConfPath,
       ]);
 
       // ---- 3. Browser: clipboard spy + connect ----
@@ -143,6 +145,8 @@ test(
       await page.goto(`http://127.0.0.1:${port}/vimclip`);
       await waitForTerminal(page);
       await waitForTerminalText(page, TEST_TEXT);
+      expect(isolatedTmux.tmux(['show-options', '-s', '-g', 'set-clipboard']).trim())
+        .toBe('set-clipboard external');
 
       // Give xterm.js a moment to settle (WebGL atlas, font raster etc.)
       await page.waitForTimeout(500);

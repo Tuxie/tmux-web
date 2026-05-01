@@ -1,4 +1,7 @@
 import type { Server as BunServer, ServerWebSocket, WebSocketHandler } from 'bun';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import type { ScrollbarState, ServerConfig, ServerMessage, SessionInfo, WindowInfo } from '../shared/types.js';
 import { processData, frameTTMessage } from './protocol.js';
 import { isValidRemoteHostAlias } from './remote-route.js';
@@ -356,6 +359,9 @@ function handleOpen(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsR
     const result = processData(data, state.lastSession);
     for (const msg of result.messages) {
       ws.send(frameTTMessage(msg));
+      if (typeof msg.clipboard === 'string') {
+        void mirrorClipboardToTmuxBuffer(msg.clipboard, opts);
+      }
     }
     for (const req of result.readRequests) {
       void handleReadRequest(ws, req.selection, opts);
@@ -639,7 +645,8 @@ function isRemoteClientMessageType(type: unknown): boolean {
     || type === 'session'
     || type === 'scrollbar'
     || type === 'clipboard-decision'
-    || type === 'clipboard-read-reply';
+    || type === 'clipboard-read-reply'
+    || type === 'clipboard-mirror';
 }
 
 function handleClose(ws: ServerWebSocket<WsData>, opts: WsServerOptions, reg: WsRegistry): void {
@@ -1192,6 +1199,27 @@ function dispatchAction(ws: ServerWebSocket<WsData>, act: WsAction, opts: WsServ
       return;
     case 'clipboard-request-content': requestClipboardFromClient(ws, act.reqId); return;
     case 'clipboard-reply': void replyToRead(ws, act.session, act.selection, act.base64, opts); return;
+    case 'clipboard-mirror': void mirrorClipboardToTmuxBuffer(act.base64, opts); return;
+  }
+}
+
+async function mirrorClipboardToTmuxBuffer(base64: string, opts: WsServerOptions): Promise<void> {
+  let bytes: Buffer;
+  try {
+    bytes = Buffer.from(base64, 'base64');
+  } catch {
+    return;
+  }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tmux-web-clipboard-'));
+  const file = path.join(dir, 'buffer');
+  try {
+    fs.writeFileSync(file, bytes, { mode: 0o600 });
+    await execFileAsync(opts.config.tmuxBin, ['load-buffer', file]);
+  } catch {
+    // Clipboard mirroring is opportunistic; browser clipboard writes and
+    // PTY delivery should not fail because a tmux buffer update failed.
+  } finally {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best-effort */ }
   }
 }
 

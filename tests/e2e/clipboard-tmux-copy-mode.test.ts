@@ -2,7 +2,8 @@
  * End-to-end: tmux copy-mode keyboard shortcuts → browser clipboard,
  * and tmux paste-buffer → vim.
  *
- * Uses the shared tests/tmux.conf (set-clipboard external, mouse on,
+ * Uses the bundled tmux.conf via the isolated e2e wrapper (set-clipboard
+ * must match the project default, mouse on,
  * mode-keys vi).
  */
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
@@ -11,76 +12,34 @@ import {
 } from './helpers.js';
 
 test.skip(!hasTmux(), 'tmux not available');
+test.setTimeout(30_000);
 
-const PORT_BASE = 4144;
+const PORT_BASE = 41440;
 
-function port(ti: TestInfo) { return PORT_BASE + ti.parallelIndex; }
+function port(ti: TestInfo, offset = 0) { return PORT_BASE + ti.parallelIndex * 10 + offset; }
 
 async function termReady(page: Page) {
   await page.waitForFunction(() => !!(window as any).__adapter?.term, { timeout: 12000 });
   await expect(page.locator('#terminal .xterm')).toBeVisible({ timeout: 12000 });
 }
 
-// ---------------------------------------------------------------------------
-// Test 1 — tmux copy-mode copy → browser clipboard
-// ---------------------------------------------------------------------------
-
-test('tmux copy-mode keyboard copy lands in browser clipboard', async ({ page }, ti) => {
-  const p = port(ti);
-  const iso = createIsolatedTmux('tw-copy-mode-clip');
-  let srv: Awaited<ReturnType<typeof startServer>> | undefined;
-
-  try {
-    // Shell that prints a known word
-    iso.tmux(['new-session', '-d', '-s', 'copytest', 'echo COPY_MODE_WORD && exec cat']);
-    await new Promise(r => setTimeout(r, 800));
-
-    srv = await startServer('bun', [
-      'src/server/index.ts', '--listen', `127.0.0.1:${p}`,
-      '--no-auth', '--no-tls', '--tmux', iso.wrapperPath,
-    ]);
-
-    await page.addInitScript(() => {
-      (window as any).__cw = [] as string[];
-      Object.defineProperty(navigator, 'clipboard', {
-        value: { writeText: (t: string) => { (window as any).__cw.push(t); return Promise.resolve(); } },
-        configurable: true, writable: true,
-      });
-    });
-
-    await page.goto(`http://127.0.0.1:${p}/copytest`);
-    await termReady(page);
-    await page.waitForTimeout(800);
-
-    // ---- tmux copy-mode: enter, navigate, select, copy ----
-    iso.tmux(['copy-mode', '-t', 'copytest:1']);
-    // g = top of history (copy-mode-vi). Text is on the first line.
-    iso.tmux(['send-keys', '-t', 'copytest:1', 'g']);
-    // v = begin-selection, e = next-word-end (copy-mode-vi bindings from tmux.conf)
-    iso.tmux(['send-keys', '-t', 'copytest:1', 'v', 'e']);
-    // y = copy-selection-and-cancel (exits copy mode, stores in paste buffer)
-    iso.tmux(['send-keys', '-t', 'copytest:1', 'y']);
-
-    // Wait for OSC 52 → tmux → tmux-web → browser
-    await page.waitForFunction(
-      (exp: string) => ((window as any).__cw as string[]).some((w: string) => w.trim() === exp),
-      'COPY_MODE_WORD', { timeout: 5000 },
-    );
-
-    const writes = await page.evaluate(() => (window as any).__cw);
-    expect(writes.some((w: string) => w.trim() === 'COPY_MODE_WORD')).toBe(true);
-  } finally {
-    if (srv) killServer(srv);
-    iso.cleanup();
-  }
-});
+async function termContains(page: Page, needle: string, timeout = 8000): Promise<void> {
+  await page.waitForFunction((expected: string) => {
+    const t = (window as any).__adapter?.term;
+    if (!t) return false;
+    for (let i = 0; i < t.rows; i++) {
+      if (t.buffer.active.getLine(i)?.translateToString(true)?.includes(expected)) return true;
+    }
+    return false;
+  }, needle, { timeout });
+}
 
 // ---------------------------------------------------------------------------
-// Test 2 — copy-mode text → tmux buffer → paste into vim
+// Test — copy-mode text → browser clipboard + tmux buffer → paste into vim
 // ---------------------------------------------------------------------------
 
-test('copy-mode text matches what vim displays after paste', async ({ page }, ti) => {
-  const p = port(ti) + 1;
+test('copy-mode text reaches browser clipboard, tmux buffer, and vim paste', async ({ page }, ti) => {
+  const p = port(ti, 1);
   const iso = createIsolatedTmux('tw-copy-mode-vim');
   let srv: Awaited<ReturnType<typeof startServer>> | undefined;
 
@@ -91,6 +50,7 @@ test('copy-mode text matches what vim displays after paste', async ({ page }, ti
     srv = await startServer('bun', [
       'src/server/index.ts', '--listen', `127.0.0.1:${p}`,
       '--no-auth', '--no-tls', '--tmux', iso.wrapperPath,
+      '--tmux-conf', iso.tmuxConfPath,
     ]);
 
     await page.addInitScript(() => {
@@ -103,7 +63,9 @@ test('copy-mode text matches what vim displays after paste', async ({ page }, ti
 
     await page.goto(`http://127.0.0.1:${p}/copyvim`);
     await termReady(page);
-    await page.waitForTimeout(800);
+    await termContains(page, 'COPY_PASTE_VIM');
+    expect(iso.tmux(['show-options', '-s', '-g', 'set-clipboard']).trim())
+      .toBe('set-clipboard external');
 
     // Copy in tmux copy-mode
     iso.tmux(['copy-mode', '-t', 'copyvim:1']);

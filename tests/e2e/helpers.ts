@@ -33,17 +33,12 @@ const e2eDefaultTmuxConf = path.resolve(helpersDir, '../../tmux.conf');
 
 /** Create a copy of the production tmux.conf with all `source-file` lines
  *  removed, so test-runner user overrides don't leak into the isolated
- *  server.  Also switches `set-clipboard` from `external` to `on` because
- *  Emacs' `send-string-to-terminal` only triggers tmux OSC-52 capture
- *  under `on` mode.  Returns the path to the sanitised temp file. */
+ *  server. Returns the path to the sanitised temp file. */
 function sanitisedTmuxConf(originalPath: string, destDir: string): string | null {
   if (!fs.existsSync(originalPath)) return null;
   const raw = fs.readFileSync(originalPath, 'utf-8');
   const stripped = raw.split('\n')
     .filter(line => !line.trimStart().startsWith('source-file'))
-    .map(line => line === 'set -s set-clipboard external'
-      ? 'set -s set-clipboard on'
-      : line)
     .join('\n');
   const dest = path.join(destDir, 'tmux.conf');
   fs.writeFileSync(dest, stripped);

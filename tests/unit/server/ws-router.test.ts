@@ -151,6 +151,11 @@ describe('routeClientMessage', () => {
       .toEqual([]);
   });
 
+  test('clipboard-mirror forwards bounded base64 payload to dispatcher', () => {
+    expect(routeClientMessage('{"type":"clipboard-mirror","base64":"aGk="}', state()))
+      .toEqual([{ type: 'clipboard-mirror', base64: 'aGk=' }]);
+  });
+
   test('OSC 52 read reply is delivered to the snapshotted session even after currentSession rotates mid-flight', () => {
     // Cluster 04, finding F2 (docs/code-analysis/2026-04-26):
     // an OSC title emitted between the read-request being recorded and

@@ -321,6 +321,22 @@ async function main() {
     connection.send(JSON.stringify({ type: 'clipboard-read-reply', reqId, base64 }));
   }
 
+  let lastMirroredClipboard = '';
+  async function mirrorClipboardToTmux(): Promise<void> {
+    let text = '';
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      return;
+    }
+    if (text === lastMirroredClipboard) return;
+    lastMirroredClipboard = text;
+    const bytes = new TextEncoder().encode(text);
+    let binary = '';
+    for (const b of bytes) binary += String.fromCharCode(b);
+    connection.send(JSON.stringify({ type: 'clipboard-mirror', base64: btoa(binary) }));
+  }
+
   async function handleClipboardPrompt(reqId: string, exePath: string | null, commandName: string | null): Promise<void> {
     const decision = await showClipboardPrompt({ exePath, commandName });
     connection.send(JSON.stringify({
@@ -372,6 +388,7 @@ async function main() {
       wsErrorToasted = false;
       connection.sendResize(adapter.cols, adapter.rows);
       colourControls.sendVariant(settings.colours);
+      void mirrorClipboardToTmux();
     },
     onClose: () => {
       adapter.write('\r\n\x1b[33mDisconnected. Reconnecting...\x1b[0m\r\n');
@@ -384,6 +401,9 @@ async function main() {
       }
     },
   });
+
+  window.addEventListener('focus', () => { void mirrorClipboardToTmux(); });
+  document.addEventListener('visibilitychange', () => { void mirrorClipboardToTmux(); });
   const scrollbarRoot = document.getElementById('tmux-scrollbar')!;
   scrollbar = createScrollbarController({
     root: scrollbarRoot,

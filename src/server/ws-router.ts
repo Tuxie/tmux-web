@@ -42,7 +42,8 @@ export type WsAction =
   | { type: 'clipboard-deny'; reqId: string; selection: string; session: string }
   | { type: 'clipboard-grant-persist'; reqId: string; exePath: string; allow: boolean; expiresAt: string | null; pinHash: boolean; session: string }
   | { type: 'clipboard-request-content'; reqId: string }
-  | { type: 'clipboard-reply'; selection: string; base64: string; session: string };
+  | { type: 'clipboard-reply'; selection: string; base64: string; session: string }
+  | { type: 'clipboard-mirror'; base64: string };
 
 /** Maximum *decoded* OSC 52 read-reply payload, in bytes. The cap is
  *  enforced on the base64 string the client sends; we convert via the
@@ -154,6 +155,14 @@ export function routeClientMessage(raw: string, state: RouterState): WsAction[] 
       clipped = '';
     }
     return [{ type: 'clipboard-reply', selection: pending.selection, base64: clipped, session: sess }];
+  }
+  if (parsed?.type === 'clipboard-mirror') {
+    const base64 = typeof parsed.base64 === 'string' ? parsed.base64 : '';
+    if (base64.length > MAX_BASE64) {
+      warnTooLargeOsc52Read(base64.length);
+      return [];
+    }
+    return [{ type: 'clipboard-mirror', base64 }];
   }
   return [{ type: 'pty-write', data: raw }];
 }

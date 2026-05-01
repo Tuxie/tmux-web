@@ -32,6 +32,18 @@ describe("processData — OSC 52 read detection", () => {
     const { readRequests } = processData("\x1b]52;;?\x07", "main");
     expect(readRequests).toEqual([{ selection: "c" }]);
   });
+
+  test("tmux DCS passthrough read is detected and fully stripped", () => {
+    const { output, readRequests } = processData("a\x1bPtmux;\x1b]52;c;?\x07\x1b\\b", "main");
+    expect(output).toBe("ab");
+    expect(readRequests).toEqual([{ selection: "c" }]);
+  });
+
+  test("tmux DCS passthrough read with doubled ESC is detected and fully stripped", () => {
+    const { output, readRequests } = processData("a\x1bPtmux;\x1b\x1b]52;c;?\x07\x1b\\b", "main");
+    expect(output).toBe("ab");
+    expect(readRequests).toEqual([{ selection: "c" }]);
+  });
 });
 
 describe("buildOsc52Response", () => {
@@ -98,6 +110,13 @@ describe("OSC 52 write interceptor — adversarial inputs", () => {
     // Only the small payload should be forwarded
     expect(clipMessages).toHaveLength(1);
     expect(clipMessages[0]!.clipboard).toBe(small);
+  });
+
+  test("tmux DCS passthrough write is forwarded once and fully stripped", () => {
+    const small = "aGk=";
+    const { output, messages } = processData(`x\x1bPtmux;\x1b]52;c;${small}\x07\x1b\\y`, "main");
+    expect(output).toBe("xy");
+    expect(messages.filter(m => "clipboard" in m).map(m => m.clipboard)).toEqual([small]);
   });
 
   test("caps OSC 52 write frames per chunk (keeps last N)", () => {
