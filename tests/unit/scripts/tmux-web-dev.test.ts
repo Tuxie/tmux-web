@@ -98,4 +98,92 @@ exit 17
       fs.rmSync(root, { recursive: true, force: true });
     }
   });
+
+  test('git watcher does not leak inotifywait after a commit-triggered restart', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-dev-wrapper-'));
+    const { bin, fakeBin } = makeRepoFixture(root);
+
+    const triggerFile = path.join(root, 'commit-triggered');
+    const inotifyPidFile = path.join(root, 'inotify-pid.txt');
+    const bunInvocationsFile = path.join(root, 'bun-invocations.txt');
+
+    fs.writeFileSync(path.join(fakeBin, 'git'), `#!/usr/bin/env bash
+if [ "$1" = "rev-parse" ] && [ "$2" = "HEAD" ]; then
+  if [ -f ${JSON.stringify(triggerFile)} ]; then
+    echo new-head
+  else
+    echo old-head
+  fi
+  exit 0
+fi
+exit 1
+`, { mode: 0o755 });
+
+    fs.writeFileSync(path.join(fakeBin, 'bun'), `#!/usr/bin/env bash
+printf '%s\\n' "$*" >> ${JSON.stringify(bunInvocationsFile)}
+trap 'exit 0' TERM INT
+while true; do sleep 1; done
+`, { mode: 0o755 });
+
+    fs.writeFileSync(path.join(fakeBin, 'inotifywait'), `#!/usr/bin/env bash
+echo "$$" > ${JSON.stringify(inotifyPidFile)}
+while [ ! -f ${JSON.stringify(triggerFile)} ]; do sleep 0.05; done
+echo "./.git/ CLOSE_WRITE HEAD"
+case " $* " in
+  *" -qmr "*) while true; do sleep 1; done ;;
+esac
+`, { mode: 0o755 });
+
+    const proc = Bun.spawn({
+      cmd: [path.join(bin, 'tmux-web'), '--test'],
+      env: {
+        ...process.env,
+        PATH: `${fakeBin}:${process.env.PATH ?? ''}`,
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+
+    try {
+      await waitUntil(() => fs.existsSync(inotifyPidFile), 1000);
+      fs.writeFileSync(triggerFile, '');
+      await waitUntil(() => {
+        if (!fs.existsSync(bunInvocationsFile)) return false;
+        return fs.readFileSync(bunInvocationsFile, 'utf8').trim().split('\n').length >= 2;
+      }, 1000);
+
+      const inotifyPid = Number(fs.readFileSync(inotifyPidFile, 'utf8').trim());
+      expect(isProcessAlive(inotifyPid)).toBeFalse();
+    } finally {
+      proc.kill();
+      await proc.exited.catch(() => {});
+      if (fs.existsSync(inotifyPidFile)) {
+        const inotifyPid = Number(fs.readFileSync(inotifyPidFile, 'utf8').trim());
+        try {
+          process.kill(inotifyPid, 'TERM');
+        } catch {
+          // Already exited, which is the expected path for the fixed wrapper.
+        }
+      }
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
+
+async function waitUntil(predicate: () => boolean, timeoutMs: number): Promise<void> {
+  const started = performance.now();
+  while (performance.now() - started < timeoutMs) {
+    if (predicate()) return;
+    await Bun.sleep(20);
+  }
+  throw new Error('condition was not met before timeout');
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}

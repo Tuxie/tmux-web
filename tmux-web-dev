@@ -55,10 +55,11 @@ wait_for_head_change() {
   last_head=$(git rev-parse HEAD || echo HEAD)
 
   if command -v inotifywait >/dev/null 2>&1; then
-    while IFS= read -r _; do
+    while true; do
+      inotifywait -qq -e close_write,moved_to .git/ >/dev/null 2>&1 || continue
       new_head=$(git rev-parse HEAD 2>/dev/null) || continue
       [ "$new_head" != "$last_head" ] && return 0
-    done < <(inotifywait -qmr -e close_write,moved_to .git/ 2>/dev/null)
+    done
   else
     while sleep 2; do
       new_head=$(git rev-parse HEAD 2>/dev/null) || continue
