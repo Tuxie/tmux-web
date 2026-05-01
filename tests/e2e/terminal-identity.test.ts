@@ -132,6 +132,7 @@ async function expectProbeReplyFromRealTmux(
       '--listen', `127.0.0.1:${REAL_TMUX_PORTS[kind]}`,
       '--no-auth', '--no-tls',
       '--tmux', isolatedTmux.wrapperPath,
+      '--tmux-conf', isolatedTmux.tmuxConfPath,
     ]);
 
     await page.goto(`http://127.0.0.1:${REAL_TMUX_PORTS[kind]}/main`);

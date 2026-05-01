@@ -66,6 +66,7 @@ test('wheel over terminal scrolls tmux copy-mode and updates scroll position', a
       '--listen', `127.0.0.1:${port}`,
       '--no-auth', '--no-tls',
       '--tmux', isolatedTmux.wrapperPath,
+      '--tmux-conf', isolatedTmux.tmuxConfPath,
     ]);
 
     await page.goto(`http://127.0.0.1:${port}/scroll`);
@@ -125,6 +126,7 @@ test('alternate screen marks tmux scrollbar unavailable', async ({ page }, testI
       '--listen', `127.0.0.1:${port}`,
       '--no-auth', '--no-tls',
       '--tmux', isolatedTmux.wrapperPath,
+      '--tmux-conf', isolatedTmux.tmuxConfPath,
     ]);
 
     await page.goto(`http://127.0.0.1:${port}/alt`);

@@ -2,6 +2,7 @@ import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // ---------------------------------------------------------------------------
 // Prerequisite checks
@@ -47,16 +48,18 @@ const VIMRC = [
 ].join('\n');
 
 // ---------------------------------------------------------------------------
-// Test tmux.conf — keep the paste buffer so `show-buffer` can verify
+// Bundled tmux.conf, with only user source-file commands stripped
 // ---------------------------------------------------------------------------
 
-const TMUX_CONF = [
-  'set -s set-clipboard on',
-  "set -as terminal-overrides ',*:SetClipboard=on'",
-  'set -g allow-passthrough on',
-  'set -s extended-keys on',
-  '',
-].join('\n');
+const testDir = path.dirname(fileURLToPath(import.meta.url));
+const bundledTmuxConfPath = path.resolve(testDir, '../../../tmux.conf');
+
+function bundledTmuxConfWithoutUserSources(): string {
+  return fs.readFileSync(bundledTmuxConfPath, 'utf8')
+    .split('\n')
+    .filter(line => !line.trimStart().startsWith('source-file'))
+    .join('\n');
+}
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -75,11 +78,16 @@ function tmux(socketPath: string, args: string[]): string {
   return proc.stdout?.toString() ?? '';
 }
 
+function showBufferOrEmpty(socketPath: string): string {
+  try { return tmux(socketPath, ['show-buffer']).replace(/\n$/, ''); }
+  catch { return ''; }
+}
+
 // ---------------------------------------------------------------------------
 // The test
 // ---------------------------------------------------------------------------
 
-describe('vim OSC 52 → tmux paste buffer', () => {
+describe('vim OSC 52 under bundled tmux.conf', () => {
   const skip = !(hasTmux() && hasVim());
 
   let root: string;
@@ -91,8 +99,7 @@ describe('vim OSC 52 → tmux paste buffer', () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-osc52-vim-'));
     socket = path.join(root, 'sock');
 
-    // Write config files
-    fs.writeFileSync(path.join(root, 'tmux.conf'), TMUX_CONF);
+    fs.writeFileSync(path.join(root, 'tmux.conf'), bundledTmuxConfWithoutUserSources());
     vimrcPath = path.join(root, 'vimrc');
     fs.writeFileSync(vimrcPath, VIMRC);
 
@@ -118,7 +125,7 @@ describe('vim OSC 52 → tmux paste buffer', () => {
   });
 
   test.skipIf(skip)(
-    'visual-select yank (v y) lands in tmux paste buffer',
+    'visual-select yank (v y) leaves tmux paste buffer untouched under set-clipboard external',
     async () => {
       // Start vim with our test-only config
       tmux(socket, ['send-keys', '-t', 'test', `vim -u ${vimrcPath}`, 'Enter']);
@@ -132,9 +139,9 @@ describe('vim OSC 52 → tmux paste buffer', () => {
       tmux(socket, ['send-keys', '-t', 'test', '0', 'v', '$', 'y']);
       await Bun.sleep(400);
 
-      // Verify: tmux paste buffer must contain "hello"
-      const buffer = tmux(socket, ['show-buffer']).replace(/\n$/, '');
-      expect(buffer).toBe('hello');
+      expect(tmux(socket, ['show-options', '-s', '-g', 'set-clipboard']).trim())
+        .toBe('set-clipboard external');
+      expect(showBufferOrEmpty(socket)).toBe('');
 
       // Quit vim → Escape : q ! Enter
       tmux(socket, ['send-keys', '-t', 'test', 'Escape', ':', 'q', '!', 'Enter']);
@@ -143,7 +150,7 @@ describe('vim OSC 52 → tmux paste buffer', () => {
   );
 
   test.skipIf(skip)(
-    'explicit clipboard register (+) yank also lands in tmux paste buffer',
+    'explicit clipboard register (+) yank also leaves tmux paste buffer untouched',
     async () => {
       tmux(socket, ['send-keys', '-t', 'test', `vim -u ${vimrcPath}`, 'Enter']);
       await Bun.sleep(600);
@@ -156,8 +163,9 @@ describe('vim OSC 52 → tmux paste buffer', () => {
       tmux(socket, ['send-keys', '-t', 'test', '"', '+', 'y', 'y']);
       await Bun.sleep(400);
 
-      const buffer = tmux(socket, ['show-buffer']).replace(/\n$/, '');
-      expect(buffer).toBe('world');
+      expect(tmux(socket, ['show-options', '-s', '-g', 'set-clipboard']).trim())
+        .toBe('set-clipboard external');
+      expect(showBufferOrEmpty(socket)).toBe('');
 
       tmux(socket, ['send-keys', '-t', 'test', 'Escape', ':', 'q', '!', 'Enter']);
       await Bun.sleep(300);

@@ -11,6 +11,7 @@ test('rename-session emits \\x00TT:session push to attached WS', async ({ page }
     '--listen', '127.0.0.1:4117',
     '--no-auth', '--no-tls',
     '--tmux', isolatedTmux.wrapperPath,
+    '--tmux-conf', isolatedTmux.tmuxConfPath,
   ]);
   try {
     const events: string[] = [];

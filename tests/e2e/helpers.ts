@@ -122,6 +122,16 @@ function assertE2eTmuxIsolation(cmd: string, args: string[]): void {
   throw new Error('non-test-mode e2e servers must pass --tmux with an isolated tmux -S wrapper');
 }
 
+function assertE2eTmuxConfIsolation(cmd: string, args: string[]): void {
+  if (cmd !== 'bun') return;
+  if (!args.includes('src/server/index.ts')) return;
+  if (args.includes('--test')) return;
+  if (args.some((arg) => arg.startsWith('--test='))) return;
+  if (args.includes('--tmux-conf')) return;
+  if (args.some((arg) => arg.startsWith('--tmux-conf='))) return;
+  throw new Error('non-test-mode e2e servers must pass --tmux-conf from createIsolatedTmux()');
+}
+
 /**
  * Start a server process and resolve when it reports "listening".
  * Uses detached:true so killServer() can reap the entire process group
@@ -134,6 +144,7 @@ function assertE2eTmuxIsolation(cmd: string, args: string[]): void {
 export function startServer(cmd: string, args: string[], timeoutMs = 60_000): Promise<ChildProcess> {
   return new Promise((resolve, reject) => {
     assertE2eTmuxIsolation(cmd, args);
+    assertE2eTmuxConfIsolation(cmd, args);
     const storeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-e2e-store-'));
     const dropsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-e2e-drops-'));
     const env = {

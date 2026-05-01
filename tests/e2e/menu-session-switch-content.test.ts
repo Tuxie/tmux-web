@@ -78,6 +78,7 @@ test('menu-driven session switches update the actual xterm buffer before the nex
       '--listen', `127.0.0.1:${PORT}`,
       '--no-auth', '--no-tls',
       '--tmux', isolatedTmux.wrapperPath,
+      '--tmux-conf', isolatedTmux.tmuxConfPath,
     ]);
 
     await page.goto(`http://127.0.0.1:${PORT}/main`);

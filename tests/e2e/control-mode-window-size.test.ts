@@ -11,6 +11,7 @@ test('attached control client does not shrink session below display size', async
     '--listen', '127.0.0.1:4118',
     '--no-auth', '--no-tls',
     '--tmux', isolatedTmux.wrapperPath,
+    '--tmux-conf', isolatedTmux.tmuxConfPath,
   ]);
   try {
     await page.setViewportSize({ width: 2400, height: 1200 });
