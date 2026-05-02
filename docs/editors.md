@@ -1,126 +1,57 @@
 # Editor integration
 
-tmux-web's default `tmux.conf` sets `set -s set-clipboard external`, so tmux forwards OSC 52 clipboard sequences from pane applications to the browser. Some editors need explicit configuration so their normal editor commands use that tmux/OSC 52 path.
+tmux-web's default `tmux.conf` sets `set -s set-clipboard on`, so tmux accepts OSC 52 clipboard writes from pane applications into its own paste buffer and also forwards them to the browser. The browser clipboard is mirrored back into the tmux paste buffer on connect and focus. Editors still differ in how their normal paste commands read that buffer; the notes below call out where `"+p`, `p`, or `C-y` works and where `tmux paste-buffer` remains the compatible path.
 
 Mouse settings matter too. tmux-web forwards mouse events to fullscreen alternative-screen TUIs, so when an editor enables mouse support, clicks, drags, and wheel events are handled by the editor instead of being treated as tmux copy-mode selection.
 
 ## Vim
 
-Standard Vim needs an explicit clipboard provider. Use Vim 9.2 or newer built with `+clipboard_provider`, then add this to your `~/.vimrc`:
+Standard Vim 9.2 or newer can use its bundled OSC 52 provider. Add this to your `~/.vimrc`:
 
 ```vim
-" tmux-web clipboard provider for standard Vim.
-" Requires Vim with +clipboard_provider and tmux with set-clipboard external.
+" Use Vim's bundled OSC 52 provider.
 set clipboard=unnamedplus
 set mouse=a
-
-let g:tmux_web_clipboard_cache = ''
-
-function! TmuxWebClipboardAvailable() abort
-  return v:true
-endfunction
-
-function! TmuxWebClipboardCopy(reg, type, lines) abort
-  let l:text = join(a:lines, "\n")
-  if a:type ==# 'V'
-    let l:text .= "\n"
-  endif
-  let g:tmux_web_clipboard_cache = l:text
-  if exists('$TMUX') && executable('tmux')
-    call system(['tmux', 'load-buffer', '-w', '-'], l:text)
-  endif
-endfunction
-
-function! TmuxWebClipboardPaste(reg) abort
-  if exists('$TMUX') && executable('tmux')
-    let l:text = system(['tmux', 'save-buffer', '-'])
-    if !v:shell_error
-      return ['v', split(l:text, "\n", 1)]
-    endif
-  endif
-  return ['v', split(g:tmux_web_clipboard_cache, "\n", 1)]
-endfunction
-
-let v:clipproviders['tmux-web'] = {
-      \ 'available': function('TmuxWebClipboardAvailable'),
-      \ 'copy': {
-      \   '+': function('TmuxWebClipboardCopy'),
-      \   '*': function('TmuxWebClipboardCopy'),
-      \ },
-      \ 'paste': {
-      \   '+': function('TmuxWebClipboardPaste'),
-      \   '*': function('TmuxWebClipboardPaste'),
-      \ },
-      \ }
-set clipmethod^=tmux-web
+let g:osc52_force_avail = 1
+let g:osc52_disable_paste = 1
+packadd osc52
+set clipmethod=osc52
 ```
 
 - `set clipboard=unnamedplus` makes plain `y` and `p` use the `+` register.
 - `set mouse=a` lets Vim handle clicks, drags, and wheel events in all modes.
-- `clipmethod^=tmux-web` tells Vim to use the custom provider for `+` and `*`.
-- Inside tmux, copy uses `tmux load-buffer -w -` so tmux also emits the OSC 52 clipboard write that tmux-web mirrors to the browser/OS clipboard.
-- Inside tmux, paste uses `tmux save-buffer -` so `p`, `"+p`, and `"*p` read the current tmux buffer.
-- Outside tmux, the small in-process cache keeps normal same-Vim `y` then `p` behavior working instead of breaking direct Vim users.
+- `packadd osc52` loads Vim's bundled OSC 52 provider.
+- `clipmethod=osc52` tells Vim to use that provider for `+` and `*`.
+- `g:osc52_disable_paste` keeps Vim from issuing OSC 52 read requests; use tmux paste-buffer for tmux-buffer paste in Vim unless you choose to install a custom Vim clipboard provider.
+- Same-Vim `"+y` then `"+p` works from Vim's own register state. Pasting a tmux buffer copied elsewhere with `"+p` is a known failure with this minimal config.
 
 ## Emacs
 
-Terminal Emacs also needs explicit clipboard plumbing. Add this to your Emacs init file:
+Terminal Emacs needs its xterm clipboard capability enabled. Add this to your Emacs init file:
 
 ```elisp
-;; tmux-web clipboard provider for terminal Emacs.
-;; Uses tmux buffers inside tmux and keeps same-Emacs kill/yank working outside tmux.
+;; Use Emacs' terminal clipboard integration.
 (setq select-enable-clipboard t)
-(setq tmux-web-clipboard-cache "")
-
-(defun tmux-web-copy (text)
-  (setq tmux-web-clipboard-cache text)
-  (when (and (getenv "TMUX") (executable-find "tmux"))
-    (let ((process-connection-type nil))
-      (with-temp-buffer
-        (insert text)
-        (call-process-region (point-min) (point-max)
-                             "tmux" nil nil nil
-                             "load-buffer" "-w" "-")))))
-
-(defun tmux-web-paste ()
-  (if (and (getenv "TMUX") (executable-find "tmux"))
-      (with-temp-buffer
-        (let ((status (call-process "tmux" nil t nil "save-buffer" "-")))
-          (if (eq status 0)
-              (buffer-string)
-            tmux-web-clipboard-cache)))
-    tmux-web-clipboard-cache))
-
-(setq interprogram-cut-function #'tmux-web-copy)
-(setq interprogram-paste-function #'tmux-web-paste)
+(require 'term/xterm)
+(add-to-list 'xterm-extra-capabilities 'setSelection)
+(terminal-init-xterm)
 ```
 
-- `kill-ring-save` / `M-w` calls `interprogram-cut-function`, which loads the tmux buffer with `tmux load-buffer -w -`; tmux then emits the OSC 52 clipboard write that tmux-web mirrors to the browser/OS clipboard.
-- `yank` / `C-y` calls `interprogram-paste-function`, which reads the current tmux buffer with `tmux save-buffer -`.
-- Outside tmux, the in-process cache keeps normal same-Emacs kill/yank behavior working instead of breaking direct Emacs users.
+- The e2e matrix keeps Emacs tmux-buffer copy and `C-y` round trips as known failures with this minimal config. They require a custom `interprogram-cut-function` / `interprogram-paste-function` bridge, which tmux-web does not recommend as the default path here.
 
 ## Helix
 
-Helix needs a custom clipboard provider if you want plain `y` and `p` to use the tmux-web/tmux clipboard path consistently. Add this to `~/.config/helix/config.toml`:
+Helix detects tmux's clipboard provider. Add this to `~/.config/helix/config.toml` if you want plain `y` and `p` to use the system clipboard register:
 
 ```toml
 [editor]
 default-yank-register = "+"
 mouse = true
-
-[editor.clipboard-provider.custom]
-yank = { command = "sh", args = ["-c", 'cache=${XDG_CACHE_HOME:-$HOME/.cache}/tmux-web-helix-clipboard; if [ -n "$TMUX" ] && tmux save-buffer - 2>/dev/null; then :; else cat "$cache" 2>/dev/null || true; fi'] }
-paste = { command = "sh", args = ["-c", 'cache=${XDG_CACHE_HOME:-$HOME/.cache}/tmux-web-helix-clipboard; mkdir -p "${cache%/*}"; cat > "$cache"; if [ -n "$TMUX" ]; then tmux load-buffer -w "$cache" >/dev/null 2>&1 || true; fi'] }
-primary-yank = { command = "sh", args = ["-c", 'cache=${XDG_CACHE_HOME:-$HOME/.cache}/tmux-web-helix-clipboard; if [ -n "$TMUX" ] && tmux save-buffer - 2>/dev/null; then :; else cat "$cache" 2>/dev/null || true; fi'] }
-primary-paste = { command = "sh", args = ["-c", 'cache=${XDG_CACHE_HOME:-$HOME/.cache}/tmux-web-helix-clipboard; mkdir -p "${cache%/*}"; cat > "$cache"; if [ -n "$TMUX" ]; then tmux load-buffer -w "$cache" >/dev/null 2>&1 || true; fi'] }
 ```
 
 - `default-yank-register = "+"` makes plain `y` and `p` use Helix's clipboard register instead of the internal yank register.
 - `mouse = true` lets Helix handle clicks, drags, and wheel events.
-- In Helix custom providers, `paste` receives text from editor yanks, while `yank` prints text back for editor pastes.
-- Inside tmux, copy uses `tmux load-buffer -w` so tmux emits the OSC 52 clipboard write that tmux-web mirrors to the browser/OS clipboard.
-- Inside tmux, paste uses `tmux save-buffer -` so `p` reads the current tmux buffer.
-- Outside tmux, the cache file keeps normal same-Helix `y` then `p` behavior working instead of breaking direct Helix users.
+- Outside tmux, Helix still needs a platform clipboard provider for the same config to support system-clipboard paste.
 
 ## Kakoune
 
@@ -138,18 +69,28 @@ set-option global terminal_enable_mouse true
 Neovim 0.10 or newer has built-in OSC 52 clipboard support in TUI mode. Add this to `~/.config/nvim/init.lua`:
 
 ```lua
+if vim.env.TMUX then
+  vim.g.clipboard = {
+    name = 'tmux',
+    copy = {
+      ['+'] = { 'tmux', 'load-buffer', '-w', '-' },
+      ['*'] = { 'tmux', 'load-buffer', '-w', '-' },
+    },
+    paste = {
+      ['+'] = { 'tmux', 'save-buffer', '-' },
+      ['*'] = { 'tmux', 'save-buffer', '-' },
+    },
+    cache_enabled = 0,
+  }
+  vim.g.termfeatures = { osc52 = false }
+end
 vim.opt.clipboard = 'unnamedplus'
 vim.opt.mouse = 'a'
 ```
 
-Or to `~/.config/nvim/init.vim`:
-
-```vim
-set clipboard=unnamedplus
-set mouse=a
-```
-
 - `clipboard=unnamedplus` makes plain `y` and `p` use the `+` register.
 - `mouse=a` lets Neovim handle clicks, drags, and wheel events in all modes.
+- The `vim.g.clipboard` command table uses Neovim's clipboard provider API without custom functions.
+- `vim.g.termfeatures = { osc52 = false }` keeps Neovim's separate terminal OSC 52 path from bypassing tmux's paste buffer.
 
-No plugins or custom autocmds needed. Neovim detects the `Ms` terminfo capability that tmux-web provides and emits/receives OSC 52 sequences natively for both yank and paste.
+No plugins or custom autocmds needed.

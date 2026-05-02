@@ -129,7 +129,7 @@ describe('vim OSC 52 under bundled tmux.conf', () => {
   });
 
   test.skipIf(skip)(
-    'visual-select yank (v y) leaves tmux paste buffer untouched under set-clipboard external',
+    'visual-select yank (v y) populates tmux paste buffer under set-clipboard on',
     async () => {
       // Start vim with our test-only config
       tmux(socket, ['send-keys', '-t', 'test', `vim -u ${vimrcPath}`, 'Enter']);
@@ -144,8 +144,8 @@ describe('vim OSC 52 under bundled tmux.conf', () => {
       await Bun.sleep(400);
 
       expect(tmux(socket, ['show-options', '-s', '-g', 'set-clipboard']).trim())
-        .toBe('set-clipboard external');
-      expect(showBufferOrEmpty(socket)).toBe('');
+        .toBe('set-clipboard on');
+      expect(showBufferOrEmpty(socket)).toBe('hello');
 
       // Quit vim → Escape : q ! Enter
       tmux(socket, ['send-keys', '-t', 'test', 'Escape', ':', 'q', '!', 'Enter']);
@@ -154,7 +154,7 @@ describe('vim OSC 52 under bundled tmux.conf', () => {
   );
 
   test.skipIf(skip)(
-    'explicit clipboard register (+) yank also leaves tmux paste buffer untouched',
+    'explicit clipboard register (+) yank also populates tmux paste buffer',
     async () => {
       tmux(socket, ['send-keys', '-t', 'test', `vim -u ${vimrcPath}`, 'Enter']);
       await Bun.sleep(600);
@@ -168,8 +168,8 @@ describe('vim OSC 52 under bundled tmux.conf', () => {
       await Bun.sleep(400);
 
       expect(tmux(socket, ['show-options', '-s', '-g', 'set-clipboard']).trim())
-        .toBe('set-clipboard external');
-      expect(showBufferOrEmpty(socket)).toBe('');
+        .toBe('set-clipboard on');
+      expect(showBufferOrEmpty(socket)).toBe('world');
 
       tmux(socket, ['send-keys', '-t', 'test', 'Escape', ':', 'q', '!', 'Enter']);
       await Bun.sleep(300);

@@ -62,130 +62,44 @@ function shellSingleQuote(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
-const NVIM_INIT = `vim.opt.clipboard = 'unnamedplus'
+const NVIM_INIT = `if vim.env.TMUX then
+  vim.g.clipboard = {
+    name = 'tmux',
+    copy = {
+      ['+'] = { 'tmux', 'load-buffer', '-w', '-' },
+      ['*'] = { 'tmux', 'load-buffer', '-w', '-' },
+    },
+    paste = {
+      ['+'] = { 'tmux', 'save-buffer', '-' },
+      ['*'] = { 'tmux', 'save-buffer', '-' },
+    },
+    cache_enabled = 0,
+  }
+  vim.g.termfeatures = { osc52 = false }
+end
+vim.opt.clipboard = 'unnamedplus'
 vim.opt.mouse = 'a'
-
-local cache = ''
-
-local function copy_to_tmux(lines, regtype)
-  local text = table.concat(lines, '\\n')
-  if regtype == 'V' then
-    text = text .. '\\n'
-  end
-  cache = text
-  if vim.env.TMUX and vim.fn.executable('tmux') == 1 then
-    vim.fn.system({ 'tmux', 'load-buffer', '-w', '-' }, text)
-  end
-end
-
-local function paste_from_tmux()
-  local text = cache
-  if vim.env.TMUX and vim.fn.executable('tmux') == 1 then
-    local tmux_text = vim.fn.system({ 'tmux', 'save-buffer', '-' })
-    if vim.v.shell_error == 0 then
-      text = tmux_text
-    end
-  end
-  return { vim.split(text:gsub('\\n$', ''), '\\n', { plain = true }), 'v' }
-end
-
-vim.g.clipboard = {
-  name = 'tmux-web',
-  copy = {
-    ['+'] = copy_to_tmux,
-    ['*'] = copy_to_tmux,
-  },
-  paste = {
-    ['+'] = paste_from_tmux,
-    ['*'] = paste_from_tmux,
-  },
-  cache_enabled = 0,
-}
 `;
 
-const VIM_INIT = `" tmux-web clipboard provider for standard Vim.
-" Requires Vim with +clipboard_provider and tmux with set-clipboard external.
+const VIM_INIT = `" Use Vim's bundled OSC 52 provider.
 set clipboard=unnamedplus
 set mouse=a
-
-let g:tmux_web_clipboard_cache = ''
-
-function! TmuxWebClipboardAvailable() abort
-  return v:true
-endfunction
-
-function! TmuxWebClipboardCopy(reg, type, lines) abort
-  let l:text = join(a:lines, "\\n")
-  if a:type ==# 'V'
-    let l:text .= "\\n"
-  endif
-  let g:tmux_web_clipboard_cache = l:text
-  if exists('$TMUX') && executable('tmux')
-    call system(['tmux', 'load-buffer', '-w', '-'], l:text)
-  endif
-endfunction
-
-function! TmuxWebClipboardPaste(reg) abort
-  if exists('$TMUX') && executable('tmux')
-    let l:text = system(['tmux', 'save-buffer', '-'])
-    if !v:shell_error
-      return ['v', split(l:text, "\\n", 1)]
-    endif
-  endif
-  return ['v', split(g:tmux_web_clipboard_cache, "\\n", 1)]
-endfunction
-
-let v:clipproviders['tmux-web'] = {
-      \\ 'available': function('TmuxWebClipboardAvailable'),
-      \\ 'copy': {
-      \\   '+': function('TmuxWebClipboardCopy'),
-      \\   '*': function('TmuxWebClipboardCopy'),
-      \\ },
-      \\ 'paste': {
-      \\   '+': function('TmuxWebClipboardPaste'),
-      \\   '*': function('TmuxWebClipboardPaste'),
-      \\ },
-      \\ }
-set clipmethod^=tmux-web
+let g:osc52_force_avail = 1
+let g:osc52_disable_paste = 1
+packadd osc52
+set clipmethod=osc52
 `;
 
-const EMACS_INIT = `;; tmux-web clipboard provider for terminal Emacs.
-;; Uses tmux buffers inside tmux and keeps same-Emacs kill/yank working outside tmux.
+const EMACS_INIT = `;; Use Emacs' terminal clipboard integration.
 (setq select-enable-clipboard t)
-(setq tmux-web-clipboard-cache "")
-
-(defun tmux-web-copy (text)
-  (setq tmux-web-clipboard-cache text)
-  (when (and (getenv "TMUX") (executable-find "tmux"))
-    (let ((process-connection-type nil))
-      (with-temp-buffer
-        (insert text)
-        (call-process-region (point-min) (point-max)
-                             "tmux" nil nil nil
-                             "load-buffer" "-w" "-")))))
-
-(defun tmux-web-paste ()
-  (if (and (getenv "TMUX") (executable-find "tmux"))
-      (with-temp-buffer
-        (let ((status (call-process "tmux" nil t nil "save-buffer" "-")))
-          (if (eq status 0)
-              (buffer-string)
-            tmux-web-clipboard-cache)))
-    tmux-web-clipboard-cache))
-
-(setq interprogram-cut-function #'tmux-web-copy)
-(setq interprogram-paste-function #'tmux-web-paste)
+(require 'term/xterm)
+(add-to-list 'xterm-extra-capabilities 'setSelection)
+(terminal-init-xterm)
 `;
 
 const HELIX_CONFIG = `[editor]
 default-yank-register = "+"
 mouse = true
-
-[editor.clipboard-provider.custom]
-yank = { command = "sh", args = ["-c", 'cache=\${XDG_CACHE_HOME:-$HOME/.cache}/tmux-web-helix-clipboard; if [ -n "$TMUX" ] && tmux save-buffer - 2>/dev/null; then :; else cat "$cache" 2>/dev/null || true; fi'] }
-paste = { command = "sh", args = ["-c", 'cache=\${XDG_CACHE_HOME:-$HOME/.cache}/tmux-web-helix-clipboard; mkdir -p "\${cache%/*}"; cat > "$cache"; if [ -n "$TMUX" ]; then tmux load-buffer -w "$cache" >/dev/null 2>&1 || true; fi'] }
-primary-yank = { command = "sh", args = ["-c", 'cache=\${XDG_CACHE_HOME:-$HOME/.cache}/tmux-web-helix-clipboard; if [ -n "$TMUX" ] && tmux save-buffer - 2>/dev/null; then :; else cat "$cache" 2>/dev/null || true; fi'] }
-primary-paste = { command = "sh", args = ["-c", 'cache=\${XDG_CACHE_HOME:-$HOME/.cache}/tmux-web-helix-clipboard; mkdir -p "\${cache%/*}"; cat > "$cache"; if [ -n "$TMUX" ]; then tmux load-buffer -w "$cache" >/dev/null 2>&1 || true; fi'] }
 `;
 
 const KAKOUNE_CONFIG = `set-option global terminal_enable_mouse true
@@ -203,7 +117,9 @@ interface Editor {
   initContent: string;
   copyAction: string;
   normalPasteAction: string;
-  sameEditorNormalPasteExpectedFailure?: string;
+  editorCopyExpectedFailure?: string;
+  outsideNormalPasteExpectedFailure?: string;
+  normalPasteExpectedFailure?: string;
   isAvailable?: () => boolean;
   launchCommand(initPath: string): string;
   outsideCopyPaste(initPath: string, outputPath: string, text: string): void | Promise<void>;
@@ -231,8 +147,8 @@ const EDITORS: Editor[] = [
     initContent: NVIM_INIT,
     copyAction: 'visual select and "+y',
     normalPasteAction: '"+p',
-    sameEditorNormalPasteExpectedFailure: 'Neovim same-editor + register paste should duplicate the just-yanked text but currently does not.',
-    launchCommand: (initPath) => `nvim --clean --cmd ${shellSingleQuote(`luafile ${initPath}`)}`,
+    outsideNormalPasteExpectedFailure: 'Neovim has no OS clipboard provider in the headless outside-tmux test environment.',
+    launchCommand: (initPath) => `nvim --clean -u ${shellSingleQuote(initPath)}`,
     outsideCopyPaste: runNvimOutsideTmuxCopyPaste,
     insertLine: vimLikeInsertLine,
     visualYankLine: vimLikeVisualYankLine,
@@ -251,7 +167,8 @@ const EDITORS: Editor[] = [
     initContent: VIM_INIT,
     copyAction: 'visual select and "+y',
     normalPasteAction: '"+p',
-    sameEditorNormalPasteExpectedFailure: 'Vim same-editor + register paste should duplicate the just-yanked text but currently does not.',
+    outsideNormalPasteExpectedFailure: 'Vim uses copy-only OSC 52 in this fixture; outside tmux there is no tmux buffer to paste from.',
+    normalPasteExpectedFailure: 'Vim has no built-in tmux-buffer paste provider; its bundled OSC 52 provider is copy-only here to avoid bypassing tmux with OSC 52 reads.',
     isAvailable: vimClipboardProviderAvailable,
     launchCommand: (initPath) => `vim --clean -Nu ${shellSingleQuote(initPath)} -n`,
     outsideCopyPaste: runVimOutsideTmuxCopyPaste,
@@ -272,6 +189,9 @@ const EDITORS: Editor[] = [
     initContent: EMACS_INIT,
     copyAction: 'mark line and M-w',
     normalPasteAction: 'C-y',
+    editorCopyExpectedFailure: 'Emacs built-in terminal clipboard setup does not populate tmux paste buffers without custom interprogram clipboard functions.',
+    outsideNormalPasteExpectedFailure: 'Emacs terminal clipboard setup is tmux/terminal-specific and is not available in batch outside-tmux mode.',
+    normalPasteExpectedFailure: 'Emacs built-in terminal clipboard setup does not read tmux paste buffers without custom interprogram clipboard functions.',
     launchCommand: (initPath) => `emacs -nw -q --no-splash -l ${shellSingleQuote(initPath)}`,
     outsideCopyPaste: runEmacsOutsideTmuxCopyPaste,
     insertLine: emacsInsertLine,
@@ -291,6 +211,7 @@ const EDITORS: Editor[] = [
     initContent: HELIX_CONFIG,
     copyAction: 'select line with x and yank with y',
     normalPasteAction: 'p',
+    outsideNormalPasteExpectedFailure: 'Helix has no system clipboard provider in the headless outside-tmux test environment.',
     launchCommand: (initPath) => {
       const dir = path.dirname(initPath);
       return `cd ${shellSingleQuote(dir)} && XDG_CACHE_HOME=${shellSingleQuote(dir)} hx --config ${shellSingleQuote(initPath)} --log ${shellSingleQuote(path.join(dir, 'helix.log'))}`;
@@ -371,8 +292,8 @@ function runNvimOutsideTmuxCopyPaste(initPath: string, outputPath: string, text:
   execFileSync('nvim', [
     '--headless',
     '--clean',
-    '--cmd',
-    `luafile ${initPath}`,
+    '-u',
+    initPath,
     '--cmd',
     `lua ${script}`,
   ], {
@@ -627,7 +548,7 @@ async function connectTmuxWeb(
   await waitForTmuxWebPtyClient(iso, session);
   await waitForPaneSettled();
   expect(iso.tmux(['show-options', '-s', '-g', 'set-clipboard']).trim())
-    .toBe('set-clipboard external');
+    .toBe('set-clipboard on');
   return server;
 }
 
@@ -743,6 +664,8 @@ async function vimLikeVisualYankLine(iso: IsolatedTmux, target: string): Promise
 }
 
 async function vimLikeNormalPaste(iso: IsolatedTmux, target: string): Promise<void> {
+  sendKeys(iso, target, ['Escape', 'G', '$']);
+  await waitForPaneSettled();
   sendLiteral(iso, target, '"+p');
   await waitForPaneSettled();
 }
@@ -923,10 +846,24 @@ function countOccurrences(text: string, needle: string): number {
   return text.split(needle).length - 1;
 }
 
-function markSameEditorNormalPasteExpectedFailure(editor: Editor): void {
+function markNormalPasteExpectedFailure(editor: Editor): void {
   test.fail(
-    !!editor.sameEditorNormalPasteExpectedFailure,
-    editor.sameEditorNormalPasteExpectedFailure ?? '',
+    !!editor.normalPasteExpectedFailure,
+    editor.normalPasteExpectedFailure ?? '',
+  );
+}
+
+function markEditorCopyExpectedFailure(editor: Editor): void {
+  test.fail(
+    !!editor.editorCopyExpectedFailure,
+    editor.editorCopyExpectedFailure ?? '',
+  );
+}
+
+function markOutsideNormalPasteExpectedFailure(editor: Editor): void {
+  test.fail(
+    !!editor.outsideNormalPasteExpectedFailure,
+    editor.outsideNormalPasteExpectedFailure ?? '',
   );
 }
 
@@ -948,11 +885,13 @@ async function copyFromEditor(
   iso: IsolatedTmux,
   target: string,
   text: string,
+  beforeClipboardOperation?: () => void,
 ): Promise<void> {
   const command = iso.tmux(['display-message', '-p', '-t', target, '#{pane_current_command}']).trim();
   const editor = EDITORS.find(candidate => candidate.commandName === command);
   if (!editor) throw new Error(`Unknown editor command ${command}`);
   await editor.insertLine(iso, target, text);
+  beforeClipboardOperation?.();
   await editor.visualYankLine(iso, target);
   await expect.poll(() => showBufferOrEmpty(iso).trim(), { timeout: 5_000 }).toBe(text);
 }
@@ -1014,6 +953,7 @@ for (const editor of EDITORS) {
         await waitForPaneSettled();
         server = await connectTmuxWeb(page, iso, testInfo, 'main', editorPortOffset, editorText('OS_TO_EDITOR_P'));
         await mirrorOsClipboardToTmuxBuffer(page, iso, editorText('OS_TO_EDITOR_P'));
+        markNormalPasteExpectedFailure(editor);
         await editor.normalPaste(iso, 'main');
         await expectEditorBufferContains(iso, 'main', out, editorText('OS_TO_EDITOR_P'));
       } finally {
@@ -1053,7 +993,7 @@ for (const editor of EDITORS) {
         startEditorSession(iso, editor, 'main', init.path);
         await waitForPaneSettled();
         server = await connectTmuxWeb(page, iso, testInfo, 'main', editorPortOffset + 4);
-        await copyFromEditor(iso, 'main', editorText('COPY_TO_OS'));
+        await copyFromEditor(iso, 'main', editorText('COPY_TO_OS'), () => markEditorCopyExpectedFailure(editor));
         await expectOsClipboard(page, editorText('COPY_TO_OS'));
       } finally {
         if (server) killServer(server);
@@ -1063,11 +1003,11 @@ for (const editor of EDITORS) {
     });
 
     test(`outside tmux: copy in ${editor.label} with ${editor.copyAction}, paste in same ${editor.label} with ${editor.normalPasteAction}`, async () => {
-      markSameEditorNormalPasteExpectedFailure(editor);
       const init = writeEditorInit(editor);
       const out = path.join(init.dir, `outside-${editor.kind}.txt`);
       const text = editorText('OUTSIDE_TMUX_COPY');
       try {
+        markOutsideNormalPasteExpectedFailure(editor);
         await editor.outsideCopyPaste(init.path, out, text);
         await expect.poll(() => {
           try {
@@ -1094,6 +1034,7 @@ for (const editor of EDITORS) {
           server = await maybeConnect(mode, page, iso, testInfo, 'source', modeOffset);
           await copyCurrentPaneLineWithTmuxCopyMode(iso, 'source:1', editorText('TMUX_COPY_TO_EDITOR'));
           await launchEditorInExistingSession(iso, editor, 'source', init.path);
+          markNormalPasteExpectedFailure(editor);
           await editor.normalPaste(iso, 'source');
           await expectEditorBufferContains(iso, 'source', out, editorText('TMUX_COPY_TO_EDITOR'));
         } finally {
@@ -1114,6 +1055,7 @@ for (const editor of EDITORS) {
           await waitForPaneSettled();
           server = await maybeConnect(mode, page, iso, testInfo, 'source', modeOffset + 3);
           await copyCurrentPaneLineWithTmuxCopyMode(iso, 'source:1', editorText('TMUX_COPY_OTHER_EDITOR'));
+          markNormalPasteExpectedFailure(editor);
           await editor.normalPaste(iso, 'target');
           await expectEditorBufferContains(iso, 'target', out, editorText('TMUX_COPY_OTHER_EDITOR'));
         } finally {
@@ -1124,7 +1066,6 @@ for (const editor of EDITORS) {
       });
 
       test(`${mode}: copy in ${editor.label} with ${editor.copyAction}, paste in same ${editor.label} with ${editor.normalPasteAction}`, async ({ page }, testInfo) => {
-        markSameEditorNormalPasteExpectedFailure(editor);
         const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-${editor.kind}-same`);
         const init = writeEditorInit(editor);
         let server: Awaited<ReturnType<typeof startServer>> | undefined;
@@ -1133,7 +1074,7 @@ for (const editor of EDITORS) {
           startEditorSession(iso, editor, 'main', init.path);
           await waitForPaneSettled();
           server = await maybeConnect(mode, page, iso, testInfo, 'main', modeOffset + 4);
-          await copyFromEditor(iso, 'main', editorText('COPY_SAME_P'));
+          await copyFromEditor(iso, 'main', editorText('COPY_SAME_P'), () => markEditorCopyExpectedFailure(editor));
           await editor.normalPaste(iso, 'main');
           await expectEditorBufferContains(iso, 'main', out, editorText('COPY_SAME_P'), 2);
         } finally {
@@ -1152,7 +1093,7 @@ for (const editor of EDITORS) {
           startEditorSession(iso, editor, 'main', init.path);
           await waitForPaneSettled();
           server = await maybeConnect(mode, page, iso, testInfo, 'main', modeOffset + 5);
-          await copyFromEditor(iso, 'main', editorText('COPY_SAME_TMUX'));
+          await copyFromEditor(iso, 'main', editorText('COPY_SAME_TMUX'), () => markEditorCopyExpectedFailure(editor));
           await editor.pasteTmuxBuffer(iso, 'main');
           await expectEditorBufferContains(iso, 'main', out, editorText('COPY_SAME_TMUX'), 2);
         } finally {
@@ -1172,9 +1113,10 @@ for (const editor of EDITORS) {
           await waitForPaneSettled();
           await launchEditorInExistingSession(iso, editor, 'main', init.path);
           server = await maybeConnect(mode, page, iso, testInfo, 'main', modeOffset + 6);
-          await copyFromEditor(iso, 'main', editorText('COPY_RELAUNCH_P'));
+          await copyFromEditor(iso, 'main', editorText('COPY_RELAUNCH_P'), () => markEditorCopyExpectedFailure(editor));
           await editor.quit(iso, 'main');
           await launchEditorInExistingSession(iso, editor, 'main', init.path);
+          markNormalPasteExpectedFailure(editor);
           await editor.normalPaste(iso, 'main');
           await expectEditorBufferContains(iso, 'main', out, editorText('COPY_RELAUNCH_P'));
         } finally {
@@ -1193,7 +1135,7 @@ for (const editor of EDITORS) {
           startCatSession(iso, 'target');
           await waitForPaneSettled();
           server = await maybeConnect(mode, page, iso, testInfo, 'source', modeOffset + 7);
-          await copyFromEditor(iso, 'source', editorText('COPY_OTHER_TMUX'));
+          await copyFromEditor(iso, 'source', editorText('COPY_OTHER_TMUX'), () => markEditorCopyExpectedFailure(editor));
           await pasteTmuxBufferIntoCatAndExpect(iso, 'target', editorText('COPY_OTHER_TMUX'));
         } finally {
           if (server) killServer(server);
@@ -1212,7 +1154,7 @@ for (const editor of EDITORS) {
           startEditorSession(iso, editor, 'target', init.path);
           await waitForPaneSettled();
           server = await maybeConnect(mode, page, iso, testInfo, 'source', modeOffset + 8);
-          await copyFromEditor(iso, 'source', editorText('COPY_OTHER_EDITOR'));
+          await copyFromEditor(iso, 'source', editorText('COPY_OTHER_EDITOR'), () => markEditorCopyExpectedFailure(editor));
           await editor.pasteTmuxBuffer(iso, 'target');
           await expectEditorBufferContains(iso, 'target', out, editorText('COPY_OTHER_EDITOR'));
         } finally {
