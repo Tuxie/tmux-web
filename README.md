@@ -174,6 +174,43 @@ set clipmethod^=tmux-web
 - Inside tmux, paste uses `tmux save-buffer -` so `p`, `"+p`, and `"*p` read the current tmux buffer.
 - Outside tmux, the small in-process cache keeps normal same-Vim `y` then `p` behavior working instead of breaking direct Vim users.
 
+### Emacs
+
+Terminal Emacs also needs explicit clipboard plumbing. Add this to your Emacs init file:
+
+```elisp
+;; tmux-web clipboard provider for terminal Emacs.
+;; Uses tmux buffers inside tmux and keeps same-Emacs kill/yank working outside tmux.
+(setq select-enable-clipboard t)
+(setq tmux-web-clipboard-cache "")
+
+(defun tmux-web-copy (text)
+  (setq tmux-web-clipboard-cache text)
+  (when (and (getenv "TMUX") (executable-find "tmux"))
+    (let ((process-connection-type nil))
+      (with-temp-buffer
+        (insert text)
+        (call-process-region (point-min) (point-max)
+                             "tmux" nil nil nil
+                             "load-buffer" "-w" "-")))))
+
+(defun tmux-web-paste ()
+  (if (and (getenv "TMUX") (executable-find "tmux"))
+      (with-temp-buffer
+        (let ((status (call-process "tmux" nil t nil "save-buffer" "-")))
+          (if (eq status 0)
+              (buffer-string)
+            tmux-web-clipboard-cache)))
+    tmux-web-clipboard-cache))
+
+(setq interprogram-cut-function #'tmux-web-copy)
+(setq interprogram-paste-function #'tmux-web-paste)
+```
+
+- `kill-ring-save` / `M-w` calls `interprogram-cut-function`, which loads the tmux buffer with `tmux load-buffer -w -`; tmux then emits the OSC 52 clipboard write that tmux-web mirrors to the browser/OS clipboard.
+- `yank` / `C-y` calls `interprogram-paste-function`, which reads the current tmux buffer with `tmux save-buffer -`.
+- Outside tmux, the in-process cache keeps normal same-Emacs kill/yank behavior working instead of breaking direct Emacs users.
+
 ### Neovim
 
 Neovim ≥ 0.10 has built-in OSC 52 clipboard support in TUI mode. Add to `~/.config/nvim/init.lua`:
