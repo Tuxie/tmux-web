@@ -2,7 +2,6 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
-import { spawn, type ChildProcess } from 'child_process';
 
 export interface DropStorage {
   /** Absolute path of the root dir shared by all sessions. */
@@ -192,20 +191,23 @@ export function _resetInotifyProbe(): void {
 
 /** Active auto-unlink watchers keyed by the drop's subdir so purge and
  *  server-exit can kill them. */
-type WatcherProcess = Pick<ChildProcess, 'on' | 'kill'>;
+interface WatcherProcess {
+  exited: Promise<unknown>;
+  kill(signal?: string): unknown;
+}
 interface ActiveWatcher {
   child: WatcherProcess;
   settled: Promise<void>;
 }
 type WatcherSpawn = (filePath: string) => WatcherProcess;
-let watcherSpawn: WatcherSpawn = (filePath) => spawn('inotifywait', [
-  '-q', '-e', 'close_write,close_nowrite', filePath,
-], { stdio: ['ignore', 'ignore', 'ignore'] });
+let watcherSpawn: WatcherSpawn = (filePath) => Bun.spawn([
+  'inotifywait', '-q', '-e', 'close_write,close_nowrite', filePath,
+], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' });
 
 export function _setAutoUnlinkSpawnForTest(spawnFn: WatcherSpawn | undefined): void {
-  watcherSpawn = spawnFn ?? ((filePath) => spawn('inotifywait', [
-    '-q', '-e', 'close_write,close_nowrite', filePath,
-  ], { stdio: ['ignore', 'ignore', 'ignore'] }));
+  watcherSpawn = spawnFn ?? ((filePath) => Bun.spawn([
+    'inotifywait', '-q', '-e', 'close_write,close_nowrite', filePath,
+  ], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' }));
 }
 
 const activeWatchers = new Map<string, ActiveWatcher>();
@@ -268,8 +270,7 @@ function armAutoUnlink(dropDir: string, filePath: string): void {
       }
       resolveSettled();
     };
-    child.on('exit', finish);
-    child.on('error', () => {
+    void child.exited.then(finish, () => {
       if (activeWatchers.get(dropDir)?.child === child) activeWatchers.delete(dropDir);
       resolveSettled();
     });

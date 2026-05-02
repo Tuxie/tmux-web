@@ -1,4 +1,3 @@
-import { execFileSync } from 'child_process';
 import { mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync, renameSync, existsSync, statSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -17,12 +16,17 @@ function generateRaw(): TlsCert {
   const certPath = join(tmp, 'cert.pem');
 
   try {
-    execFileSync('openssl', [
+    const result = Bun.spawnSync([
+      'openssl',
       'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
       '-keyout', keyPath, '-out', certPath,
       '-days', '365', '-subj', '/CN=localhost',
       '-addext', 'subjectAltName=DNS:localhost,IP:127.0.0.1',
-    ], { stdio: 'pipe' });
+    ], { stdout: 'pipe', stderr: 'pipe' });
+    if (!result.success) {
+      const stderr = result.stderr.toString().trim();
+      throw new Error(stderr || `openssl exited with status ${result.exitCode}`);
+    }
 
     return {
       cert: readFileSync(certPath, 'utf-8'),

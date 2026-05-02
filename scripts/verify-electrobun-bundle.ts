@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 const buildRoot = path.resolve(process.argv[2] ?? 'build');
 const environment = process.argv[3] ?? 'dev';
@@ -43,13 +42,16 @@ const expectedEntrypoint = path.join(resourcesApp, 'bun', 'index.js');
 const misplacedMacTmuxWeb = platform === 'macos' ? path.join(resourcesApp, 'tmux-web') : null;
 
 function tarZstEntries(archive: string): string[] {
-  const result = spawnSync('tar', ['--zstd', '-tf', archive], {
-    encoding: 'utf8',
+  const result = Bun.spawnSync(['tar', '--zstd', '-tf', archive], {
+    stdout: 'pipe',
+    stderr: 'pipe',
   });
-  if (result.status !== 0) {
-    throw new Error(`failed to list ${archive}: ${result.stderr || result.stdout}`);
+  const stdout = result.stdout.toString();
+  const stderr = result.stderr.toString();
+  if (!result.success) {
+    throw new Error(`failed to list ${archive}: ${stderr || stdout}`);
   }
-  return result.stdout.split('\n').filter(Boolean);
+  return stdout.split('\n').filter(Boolean);
 }
 
 function verifyCompressedPayload(): boolean {

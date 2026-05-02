@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -24,11 +23,14 @@ function writeFile(file: string, contents = ''): void {
 }
 
 function makeTarZst(sourceDir: string, destination: string, entry: string): void {
-  const result = spawnSync('tar', ['--zstd', '-cf', destination, '-C', sourceDir, entry], {
-    encoding: 'utf8',
+  const result = Bun.spawnSync(['tar', '--zstd', '-cf', destination, '-C', sourceDir, entry], {
+    stdout: 'pipe',
+    stderr: 'pipe',
   });
-  if (result.status !== 0) {
-    throw new Error(result.stderr || result.stdout);
+  const stdout = result.stdout.toString();
+  const stderr = result.stderr.toString();
+  if (!result.success) {
+    throw new Error(stderr || stdout);
   }
 }
 
@@ -48,17 +50,18 @@ describe('verify-electrobun-bundle', () => {
     fs.writeFileSync(path.join(resources, 'metadata.json'), JSON.stringify({ hash }));
     makeTarZst(payloadRoot, path.join(resources, `${hash}.tar.zst`), 'tmux-term.app');
 
-    const result = spawnSync('bun', ['scripts/verify-electrobun-bundle.ts', buildRoot, 'stable'], {
+    const result = Bun.spawnSync(['bun', 'scripts/verify-electrobun-bundle.ts', buildRoot, 'stable'], {
       cwd: process.cwd(),
       env: {
         ...process.env,
         ELECTROBUN_OS: 'macos',
         ELECTROBUN_ARCH: 'arm64',
       },
-      encoding: 'utf8',
+      stdout: 'pipe',
+      stderr: 'pipe',
     });
 
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain('Verified tmux-term compressed payload contains tmux-web');
+    expect(result.success).toBe(true);
+    expect(result.stdout.toString()).toContain('Verified tmux-term compressed payload contains tmux-web');
   });
 });

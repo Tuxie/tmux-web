@@ -25,7 +25,7 @@
  * `bun test tests/post-compile/`.
  */
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { Subprocess } from 'bun';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
@@ -43,7 +43,7 @@ const HOST = '127.0.0.1';
 const BASE = `http://${HOST}:${PORT}`;
 const WS_BASE = `ws://${HOST}:${PORT}`;
 
-let server: ChildProcess | undefined;
+let server: Subprocess<'ignore', 'inherit', 'inherit'> | undefined;
 
 async function waitForServer(timeoutMs: number): Promise<void> {
   const start = Date.now();
@@ -61,16 +61,15 @@ async function waitForServer(timeoutMs: number): Promise<void> {
 
 beforeAll(async () => {
   if (!HAVE_BINARY) return;
-  server = spawn(
-    BINARY,
-    ['--test', '--listen', `${HOST}:${PORT}`, '--no-auth', '--no-tls'],
-    { stdio: ['ignore', 'inherit', 'inherit'] },
+  server = Bun.spawn(
+    [BINARY, '--test', '--listen', `${HOST}:${PORT}`, '--no-auth', '--no-tls'],
+    { stdin: 'ignore', stdout: 'inherit', stderr: 'inherit' },
   );
   await waitForServer(15_000);
 });
 
 afterAll(async () => {
-  if (server && !server.killed) {
+  if (server) {
     try {
       server.kill('SIGTERM');
     } catch {

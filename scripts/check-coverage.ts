@@ -6,7 +6,6 @@
  *  Excluded files (bootstrap / generated / IO-shell wrappers) are
  *  reported but not counted toward the gate. */
 
-import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
 const EXCLUDES = new Set<string>([
@@ -157,7 +156,15 @@ for (const f of files) {
  *  test ever imports surface as failures instead of dropping silently off
  *  the gate's radar. Without this, adding a new module without a test was
  *  a 95-percent-clean run (cluster 20 F3). */
-const trackedSources = execSync('git ls-files src/', { encoding: 'utf8' })
+const trackedSourcesResult = Bun.spawnSync(['git', 'ls-files', 'src/'], {
+  stdout: 'pipe',
+  stderr: 'pipe',
+});
+if (!trackedSourcesResult.success) {
+  console.error(trackedSourcesResult.stderr.toString().trim() || 'check-coverage: git ls-files failed');
+  process.exit(2);
+}
+const trackedSources = trackedSourcesResult.stdout.toString()
   .split('\n')
   .filter((p) => p.endsWith('.ts') && !p.endsWith('.d.ts'));
 for (const p of trackedSources) {

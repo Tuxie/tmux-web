@@ -164,20 +164,11 @@ describe("cleanupAll", () => {
     let killed = false;
     let resolveExit!: () => void;
     const exitPromise = new Promise<void>(resolve => { resolveExit = resolve; });
-    const listeners = new Map<string, Array<() => void>>();
     _setAutoUnlinkSpawnForTest(() => ({
-      on: (event: string, cb: () => void) => {
-        const arr = listeners.get(event) ?? [];
-        arr.push(cb);
-        listeners.set(event, arr);
-        return undefined;
-      },
+      exited: exitPromise,
       kill: () => {
         killed = true;
-        queueMicrotask(() => {
-          for (const cb of listeners.get("exit") ?? []) cb();
-          resolveExit();
-        });
+        queueMicrotask(resolveExit);
         return true;
       },
     }));

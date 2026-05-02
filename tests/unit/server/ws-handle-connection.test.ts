@@ -1,5 +1,4 @@
 import { describe, test, expect, afterEach } from 'bun:test';
-import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
 import { startTestServer, type Harness } from './_harness/spawn-server.ts';
@@ -219,7 +218,7 @@ describe('ws handleConnection — OSC 52 read flow', () => {
     // runner (~100 MB) so the BLAKE3 walk completes in a few ms; the file
     // size doesn't matter for the test invariant (the hash must complete so
     // the prompt-emission guard observes ws.readyState !== OPEN).
-    const child = spawn('/bin/sleep', ['30'], { stdio: 'ignore', detached: false });
+    const child = Bun.spawn(['/bin/sleep', '30'], { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' });
     if (!child.pid) throw new Error('spawn(/bin/sleep) did not yield a pid');
     const childPid = child.pid;
     try {
