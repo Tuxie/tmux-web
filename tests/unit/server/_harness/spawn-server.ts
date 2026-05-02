@@ -5,6 +5,7 @@ import { createHttpHandler } from '../../../../src/server/http.ts';
 import { createWsHandlers, type WsData } from '../../../../src/server/ws.ts';
 import { createNullTmuxControl, type TmuxControl } from '../../../../src/server/tmux-control.ts';
 import { execFileAsync } from '../../../../src/server/exec.ts';
+import { resolveListenPort } from '../../../../src/server/listen-port.ts';
 import type { DropStorage } from '../../../../src/server/file-drop.ts';
 import type { ServerConfig } from '../../../../src/shared/types.ts';
 
@@ -110,9 +111,10 @@ export async function startTestServer(opts: HarnessOpts = {}): Promise<Harness> 
     remoteAgentManager: opts.remoteAgentManager,
   });
 
+  const listenPort = await resolveListenPort('127.0.0.1', 0);
   const server = Bun.serve<WsData, never>({
     hostname: '127.0.0.1',
-    port: 0,
+    port: listenPort,
     fetch(req, srv) {
       const url = new URL(req.url);
       if (url.pathname.startsWith('/ws') || req.headers.get('upgrade')?.toLowerCase() === 'websocket') {

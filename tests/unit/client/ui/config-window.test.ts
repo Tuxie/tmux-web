@@ -173,6 +173,21 @@ describe('configuration window', () => {
     expect(textOf(dialog)).toContain('Sessions');
   });
 
+  it('switches non-server categories to placeholder panes', async () => {
+    const doc = makeDoc();
+    const trigger = ext(doc.createElement('button'));
+    doc.body.appendChild(trigger);
+    const { installConfigurationWindow } = await import('../../../../src/client/ui/config-window.ts');
+    installConfigurationWindow(trigger as any);
+    trigger.click();
+
+    const dialog = queryOne(doc.body, '.tw-config-window');
+    buttons(dialog).find((b: any) => b.textContent === 'General')!.click();
+    expect(queryOne(dialog, '.tw-config-pane-title')?.textContent).toBe('General');
+    buttons(dialog).find((b: any) => b.textContent === 'Sessions')!.click();
+    expect(queryOne(dialog, '.tw-config-pane-title')?.textContent).toBe('Sessions');
+  });
+
   it('shows a selectable server list beside the editor and persists added and removed servers', async () => {
     const doc = makeDoc();
     const calls = stubFetch(async () => ({ ok: true, json: async () => ({}) }) as any).calls;
@@ -279,6 +294,25 @@ describe('configuration window', () => {
     buttons(dialog).find((b: any) => b.textContent === 'Save server')!.click();
     expect(calls.filter(c => c.init?.method === 'PUT')).toHaveLength(0);
     expect(textOf(dialog)).toContain('Server name must be unique.');
+  });
+
+  it('rejects new remote servers without a host', async () => {
+    const doc = makeDoc();
+    const calls = stubFetch(async () => ({ ok: true, json: async () => ({}) }) as any).calls;
+    const trigger = ext(doc.createElement('button'));
+    doc.body.appendChild(trigger);
+    const { installConfigurationWindow } = await import('../../../../src/client/ui/config-window.ts');
+    installConfigurationWindow(trigger as any);
+    trigger.click();
+
+    const dialog = queryOne(doc.body, '.tw-config-window');
+    newServerButton(dialog).click();
+    inputByName(dialog, 'name').value = 'Gamma';
+    inputByName(dialog, 'host').value = '';
+    buttons(dialog).find((b: any) => b.textContent === 'Save server')!.click();
+
+    expect(calls.filter(c => c.init?.method === 'PUT')).toHaveLength(0);
+    expect(textOf(dialog)).toContain('Hostname / IP is required.');
   });
 
   it('lays out server fields in grouped rows and updates port to the selected protocol default', async () => {
@@ -447,6 +481,14 @@ describe('configuration window', () => {
     expect(maybeInputByName(dialog, 'tmuxWebCommand')).toBeNull();
     expect(maybeInputByName(dialog, 'socketName')).toBeNull();
     expect(maybeInputByName(dialog, 'socketPath')).toBeNull();
+
+    inputByName(dialog, 'protocol').value = 'ssh';
+    inputByName(dialog, 'protocol').dispatch('change', { target: inputByName(dialog, 'protocol') });
+    expect(inputByName(dialog, 'port').value).toBe('22');
+    expect(maybeInputByName(dialog, 'tmuxCommand')).not.toBeNull();
+    expect(maybeInputByName(dialog, 'tmuxWebCommand')).not.toBeNull();
+    expect(maybeInputByName(dialog, 'socketName')).not.toBeNull();
+    expect(maybeInputByName(dialog, 'socketPath')).not.toBeNull();
   });
 
   it('persists server order changed by dragging list rows', async () => {

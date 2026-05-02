@@ -139,7 +139,7 @@ function sessionsValue(value: unknown): Array<{ id: string; name: string; window
     const name = stringValue(entry, 'name');
     if (id === null || name === null) return null;
     const windows = entry.windows;
-    if (windows !== undefined && (!Number.isInteger(windows) || windows < 0)) return null;
+    if (windows !== undefined && (typeof windows !== 'number' || !Number.isInteger(windows) || windows < 0)) return null;
     if (entry.running !== undefined && typeof entry.running !== 'boolean') return null;
     const session: { id: string; name: string; windows?: number; running?: boolean } = { id, name };
     if (typeof windows === 'number') session.windows = windows;

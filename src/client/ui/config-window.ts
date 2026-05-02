@@ -467,7 +467,7 @@ function renderWindow(nav: HTMLElement, main: HTMLElement, state: ConfigWindowSt
 }
 
 export function installConfigurationWindow(trigger: HTMLElement): void {
-  const state: ConfigWindowState = { active: 'servers', sortKey: null, sortDir: 1, editingId: null };
+  const state: ConfigWindowState = { active: 'servers', editingId: null, error: null };
   const overlay = document.createElement('div');
   overlay.className = 'tw-config-overlay';
   overlay.hidden = true;

@@ -14,6 +14,7 @@ import { embeddedAssets } from './assets-embedded.js';
 import { eventInputFromNodeReadable, runStdioAgent } from './stdio-agent.js';
 import { RemoteAgentManager } from './remote-agent-manager.js';
 import { RemoteTmuxWebManager, parseRemoteHttpBaseUrls } from './remote-tmux-web.js';
+import { resolveListenPort } from './listen-port.js';
 import pkg from '../../package.json' with { type: 'json' };
 import type { DropStorage } from './file-drop.js';
 
@@ -710,9 +711,10 @@ Options:
     });
   }
 
+  const listenPort = await resolveListenPort(host, port);
   const server = Bun.serve<WsData, never>({
     hostname: host,
-    port,
+    port: listenPort,
     tls: tlsOpts,
     fetch(req, srv) {
       const url = new URL(req.url);

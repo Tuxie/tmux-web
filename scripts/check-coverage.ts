@@ -32,6 +32,7 @@ const EXCLUDES = new Set<string>([
   // explicitly so the missing-from-lcov gate (cluster 20 F3) doesn't
   // flag them as untested.
   'src/client/adapters/types.ts',
+  'src/server/terminal-transport.ts',
   'src/shared/types.ts',
 ]);
 
@@ -80,6 +81,15 @@ const PER_FILE_FUNC_OVERRIDES: Record<string, number> = {
   // failure-mode branches (multiple modals racing) are tracked at
   // docs/ideas/coverage-thresholds-followup.md.
   'src/client/ui/clipboard-prompt.ts': 85,
+  // The stdio agent is a transport glue layer around a private loopback
+  // HTTP/WebSocket server. Unit tests cover the protocol contract, default
+  // server bring-up, and failure framing; the remaining functions are mostly
+  // malformed-frame and shutdown catch branches that are exercised by e2e.
+  'src/server/stdio-agent.ts': 80,
+  // The default SSH spawn adapter is covered with a mocked Bun subprocess,
+  // but Bun lcov still reports one adapter closure below the global function
+  // floor. Keep the file in-scope; do not exclude it.
+  'src/server/remote-agent-manager.ts': 89,
 };
 const PER_FILE_LINE_OVERRIDES: Record<string, number> = {
   'src/server/ws.ts': 91,
@@ -95,6 +105,8 @@ const PER_FILE_LINE_OVERRIDES: Record<string, number> = {
   // bench-compare and clipboard-prompt entries below.
   'scripts/bench-compare.ts': 80,
   'src/client/ui/clipboard-prompt.ts': 80,
+  // See PER_FILE_FUNC_OVERRIDES above for the stdio-agent rationale.
+  'src/server/stdio-agent.ts': 84,
 };
 
 interface FileCov { path: string; lines: { found: number; hit: number }; funcs: { found: number; hit: number } }

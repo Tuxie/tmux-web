@@ -8,6 +8,7 @@ import { createWsHandlers, type WsData } from './ws.js';
 import { cleanupAll as cleanupDrops, defaultDropStorage, type DropStorage } from './file-drop.js';
 import { RemoteAgentManager } from './remote-agent-manager.js';
 import { RemoteTmuxWebManager, parseRemoteHttpBaseUrls } from './remote-tmux-web.js';
+import { resolveListenPort } from './listen-port.js';
 import {
   decodePtyBytes,
   encodeFrame,
@@ -133,9 +134,10 @@ async function startLoopbackServer(opts: StdioAgentOptions): Promise<AgentServer
     remoteAgentManager,
   });
 
+  const listenPort = await resolveListenPort('127.0.0.1', 0);
   const server = Bun.serve<WsData, never>({
     hostname: '127.0.0.1',
-    port: 0,
+    port: listenPort,
     fetch(req, srv) {
       const url = new URL(req.url);
       if (url.pathname.startsWith('/ws') || req.headers.get('upgrade')?.toLowerCase() === 'websocket') {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
-import { buildSshAgentCommand, RemoteAgentManager } from '../../../src/server/remote-agent-manager.js';
+import { buildSshAgentCommand, RemoteAgentManager, RemoteChannel } from '../../../src/server/remote-agent-manager.js';
 import { encodeFrame, FrameDecoder, type StdioFrame } from '../../../src/server/stdio-protocol.js';
 
 function delay(ms: number): Promise<void> {
@@ -46,6 +46,29 @@ function collectWrites(proc: FakeProc): StdioFrame[] {
 }
 
 describe('RemoteAgentManager', () => {
+  test('RemoteChannel supports unsubscribe and ignores writes after close', () => {
+    const writes: StdioFrame[] = [];
+    let localCloses = 0;
+    const channel = new RemoteChannel('c1', frame => writes.push(frame), () => { localCloses += 1; });
+    const frames: StdioFrame[] = [];
+    const off = channel.on('frame', frame => frames.push(frame));
+
+    channel.emit('frame', { v: 1, type: 'pty-out', channelId: 'c1', data: Buffer.from('x').toString('base64') });
+    off();
+    channel.emit('frame', { v: 1, type: 'close', channelId: 'c1', reason: 'late' });
+    channel.sendPty('a');
+    channel.resize(100, 30);
+    channel.sendClientMessage('{"type":"window","action":"new"}');
+    channel.close('done');
+    channel.close('again');
+    channel.sendPty('b');
+    channel.markRemoteClosed();
+
+    expect(frames).toHaveLength(1);
+    expect(writes.map(frame => frame.type)).toEqual(['pty-in', 'resize', 'client-msg', 'close']);
+    expect(localCloses).toBe(1);
+  });
+
   test('default ssh agent command accepts new host keys non-interactively', () => {
     expect(buildSshAgentCommand('prod')).toEqual([
       'ssh',
@@ -56,6 +79,41 @@ describe('RemoteAgentManager', () => {
       'tmux-web',
       '--stdio-agent',
     ]);
+  });
+
+  test('default spawn path adapts Bun subprocess streams', async () => {
+    const originalSpawn = Bun.spawn;
+    const writes: Buffer[] = [];
+    let stdout!: ReadableStreamDefaultController<Uint8Array>;
+    let stderr!: ReadableStreamDefaultController<Uint8Array>;
+    let killed = 0;
+    (Bun as any).spawn = (cmd: string[]) => {
+      expect(cmd).toEqual(buildSshAgentCommand('prod'));
+      return {
+        stdin: {
+          write: (data: Buffer) => { writes.push(Buffer.from(data)); },
+          flush: () => {},
+          end: () => {},
+        },
+        stdout: new ReadableStream<Uint8Array>({ start(controller) { stdout = controller; } }),
+        stderr: new ReadableStream<Uint8Array>({ start(controller) { stderr = controller; } }),
+        exited: new Promise(() => {}),
+        kill: () => { killed += 1; },
+      };
+    };
+    try {
+      const mgr = new RemoteAgentManager({ idleTimeoutMs: 1000 });
+      const ready = mgr.getHost('prod');
+      stdout.enqueue(encodeFrame({ v: 1, type: 'hello-ok', agentVersion: 'test' }));
+      await ready;
+      stderr.error(new Error('closed'));
+      await Promise.resolve();
+      expect(killed).toBe(1);
+      expect(new FrameDecoder().push(writes[0]!)).toEqual([{ v: 1, type: 'hello' }]);
+      await mgr.close();
+    } finally {
+      (Bun as any).spawn = originalSpawn;
+    }
   });
 
   test('starts one ssh process per host and handshakes once', async () => {

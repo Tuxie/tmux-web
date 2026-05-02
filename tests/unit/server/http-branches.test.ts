@@ -668,6 +668,51 @@ describe('http branches — direct handler (fake req/res)', () => {
     expect(res.status).toBe(400);
   });
 
+  test('session-settings PUT rejects clipboard grants in patches', async () => {
+    const h2 = await mkHandler();
+    const r = await callRaw(h2, 'PUT', '/api/session-settings', {
+      body: Buffer.from(JSON.stringify({
+        sessions: { main: { clipboard: { '/bin/sh': { read: true } } } },
+      })),
+    });
+    expect(r.status).toBe(400);
+    expect(r.body).toContain('clipboard entries are not writable');
+  });
+
+  test('/api/settings validates malformed and oversized PUT bodies', async () => {
+    const h2 = await mkHandler();
+    expect((await callRaw(h2, 'PUT', '/api/settings', {
+      headers: { 'content-length': String(2 * 1024 * 1024) },
+      body: Buffer.alloc(0),
+    })).status).toBe(413);
+    expect((await callRaw(h2, 'PUT', '/api/settings', {
+      body: Buffer.from('not-json'),
+    })).status).toBe(400);
+    expect((await callRaw(h2, 'PUT', '/api/settings', {
+      body: Buffer.from(JSON.stringify(null)),
+    })).status).toBe(400);
+    expect((await callRaw(h2, 'PUT', '/api/settings', {
+      body: Buffer.from(JSON.stringify({ typo: true })),
+    })).status).toBe(400);
+    expect((await callRaw(h2, 'PUT', '/api/settings', {
+      body: Buffer.from(JSON.stringify({ knownServers: 'prod' })),
+    })).status).toBe(400);
+    expect((await callRaw(h2, 'PUT', '/api/settings', {
+      body: Buffer.from(JSON.stringify({ servers: 'prod' })),
+    })).status).toBe(400);
+    expect((await callRaw(h2, 'PUT', '/api/settings', {
+      body: Buffer.from(JSON.stringify({ servers: [{ id: '-bad', name: 'Bad' }] })),
+    })).status).toBe(400);
+    expect((await callRaw(h2, 'POST', '/api/settings')).status).toBe(405);
+  });
+
+  test('/api/remote-sessions returns empty without a remote manager', async () => {
+    const h2 = await mkHandler();
+    const r = await callRaw(h2, 'GET', '/api/remote-sessions?host=prod');
+    expect(r.status).toBe(200);
+    expect(JSON.parse(r.body)).toEqual([]);
+  });
+
   test('drop POST with req stream error → 400', async () => {
     const h2 = await mkHandler();
     const body = new ReadableStream<Uint8Array>({

@@ -9,8 +9,12 @@ import { fileURLToPath } from 'node:url';
 // ---------------------------------------------------------------------------
 
 function cmdOk(bin: string, arg: string): boolean {
-  const proc = Bun.spawnSync([bin, arg], { stdout: 'ignore', stderr: 'ignore' });
-  return proc.exitCode === 0;
+  try {
+    const proc = Bun.spawnSync([bin, arg], { stdout: 'ignore', stderr: 'ignore' });
+    return proc.exitCode === 0;
+  } catch {
+    return false;
+  }
 }
 
 function hasTmux(): boolean {

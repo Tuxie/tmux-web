@@ -94,6 +94,44 @@ describe('remote tmux-web transports', () => {
     expect(frames).toContainEqual({ v: 1, type: 'close', channelId: channel.channelId, reason: 'done' });
   });
 
+  test('direct HTTP transport emits channel errors, supports unsubscribe, and ignores sends after close', async () => {
+    const sockets: FakeWebSocket[] = [];
+    const conn = new DirectHttpRemoteTmuxWebConnection({
+      baseUrl: 'http://remote.example:4022',
+      fetch: (() => { throw new Error('no fetch'); }) as any,
+      webSocketFactory: () => {
+        const ws = new FakeWebSocket();
+        sockets.push(ws);
+        return ws as any;
+      },
+    });
+
+    const opened = conn.openChannel({ session: 'main', cols: 80, rows: 24 });
+    sockets[0]!.emit('open');
+    const channel = await opened;
+    const frames: StdioFrame[] = [];
+    const off = channel.on('frame', frame => frames.push(frame));
+
+    sockets[0]!.emit('error');
+    off();
+    sockets[0]!.emit('error');
+    channel.close('done');
+    channel.sendPty('x');
+    channel.resize(100, 30);
+    channel.sendClientMessage('{"type":"window","action":"new"}');
+    sockets[0]!.emit('close', { reason: 'late' });
+
+    expect(frames).toEqual([{
+      v: 1,
+      type: 'channel-error',
+      channelId: channel.channelId!,
+      code: 'remote-websocket-error',
+      message: 'remote websocket error',
+    }]);
+    expect(sockets[0]!.closed).toEqual([{ code: 1000, reason: 'done' }]);
+    expect(sockets[0]!.sent).toEqual([]);
+  });
+
   test('manager chooses direct HTTP for configured aliases and stdio otherwise', async () => {
     const stdioHosts: string[] = [];
     const manager = new RemoteTmuxWebManager({

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.11.0 — 2026-05-02
+
 ### Added
 
 - **Remote tmux-web sessions over SSH stdio agents.** tmux-web can now
@@ -17,10 +19,10 @@
   collapsible host headers, show connected/stopped state, can restart a
   stopped current session, and keep remote settings separate from local
   sessions.
-- **Clipboard integration documentation and coverage.** README guidance
-  now documents Neovim tmux clipboard setup, and the test suite covers
-  Vim OSC 52, Neovim yank/paste, Vim mouse copy-mode, tmux copy-mode,
-  and Emacs OSC 52 clipboard paths.
+- **Clipboard integration documentation and coverage.** Editor setup
+  guidance now covers Vim, Neovim, Emacs, Helix, and Kakoune in
+  `docs/editors.md`, and the shared clipboard matrix covers editor,
+  tmux, browser, OS clipboard, mouse selection, and direct-tmux paths.
 - **A new code-analysis report for 2026-04-28.** The report records
   follow-up clusters for async cleanup, polling/sleep tests, ARIA,
   CSS housekeeping, CI artifact verification, security hardening, doc
@@ -76,6 +78,9 @@
 - **Remote session headings were visually tightened.** Connected badges,
   collapse controls, and Amiga-specific header alignment now share the
   same status styling and gutter alignment.
+- **The configuration window menu entry is marked as WIP.** The settings
+  menu now labels the entry as `Configuration (WIP)` while the feature
+  continues to evolve.
 - **CSS-only changes are documented as non-TDD work.** Project
   instructions now explicitly forbid tests for pure CSS changes and
   require a CSS simplification review for styling, layout, and class
@@ -91,7 +96,13 @@
   coverage.**
 - **Clipboard and OSC 52 regression coverage was expanded across unit
   and Playwright tests, including duplicate-buffer prevention for tmux
-  copy-mode.**
+  copy-mode, editor-specific skip handling, and Kakoune matrix rows.**
+- **E2E coverage was deduplicated around the shared matrix.** Redundant
+  menu, font, and editor-specific clipboard coverage was folded back
+  into common helpers and the clipboard matrix.
+- **Bun process APIs replaced remaining Bun-runtime child-process
+  callsites.** Server-side and tooling code now use `Bun.spawn` /
+  `Bun.spawnSync` where applicable.
 
 ## 1.10.4 — 2026-04-28
 

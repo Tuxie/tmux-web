@@ -1,4 +1,3 @@
-import { EventEmitter } from 'node:events';
 import { encodePtyBytes, type StdioFrame } from './stdio-protocol.js';
 import type { OpenChannelOptions } from './remote-agent-manager.js';
 import { isValidRemoteHostAlias } from './remote-route.js';
@@ -30,26 +29,26 @@ interface DirectHttpRemoteTmuxWebConnectionOptions {
   webSocketFactory?: (url: string) => WebSocket;
 }
 
-class DirectHttpRemoteTmuxWebChannel extends EventEmitter implements RemoteTmuxWebChannel {
+class DirectHttpRemoteTmuxWebChannel implements RemoteTmuxWebChannel {
   readonly channelId: string;
+  private readonly frameListeners: FrameListener[] = [];
   private closed = false;
 
   constructor(
     private readonly ws: WebSocket,
   ) {
-    super();
     this.channelId = crypto.randomUUID();
     ws.addEventListener('message', event => {
       if (this.closed) return;
       const data = typeof event.data === 'string'
         ? Buffer.from(event.data, 'utf8')
         : Buffer.from(event.data as ArrayBuffer);
-      this.emit('frame', encodePtyBytes(this.channelId, data, 'pty-out'));
+      this.emitFrame(encodePtyBytes(this.channelId, data, 'pty-out'));
     });
     ws.addEventListener('close', event => {
       if (this.closed) return;
       this.closed = true;
-      this.emit('frame', {
+      this.emitFrame({
         v: 1,
         type: 'close',
         channelId: this.channelId,
@@ -58,7 +57,7 @@ class DirectHttpRemoteTmuxWebChannel extends EventEmitter implements RemoteTmuxW
     });
     ws.addEventListener('error', () => {
       if (this.closed) return;
-      this.emit('frame', {
+      this.emitFrame({
         v: 1,
         type: 'channel-error',
         channelId: this.channelId,
@@ -68,9 +67,16 @@ class DirectHttpRemoteTmuxWebChannel extends EventEmitter implements RemoteTmuxW
     });
   }
 
-  override on(event: 'frame', cb: FrameListener): () => void {
-    super.on(event, cb);
-    return () => { this.off(event, cb); };
+  on(_event: 'frame', cb: FrameListener): () => void {
+    this.frameListeners.push(cb);
+    return () => {
+      const idx = this.frameListeners.indexOf(cb);
+      if (idx !== -1) this.frameListeners.splice(idx, 1);
+    };
+  }
+
+  private emitFrame(frame: StdioFrame): void {
+    for (const cb of [...this.frameListeners]) cb(frame);
   }
 
   sendPty(data: string): void {

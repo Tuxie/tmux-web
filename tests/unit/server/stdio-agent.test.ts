@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { buildStdioAgentLaunchOptions, parseConfig } from '../../../src/server/index.js';
-import { runStdioAgent } from '../../../src/server/stdio-agent.js';
+import { eventInputFromNodeReadable, runStdioAgent } from '../../../src/server/stdio-agent.js';
 import { decodePtyBytes, encodeFrame, FrameDecoder, type StdioFrame } from '../../../src/server/stdio-protocol.js';
 import { createNullTmuxControl } from '../../../src/server/tmux-control.js';
 
@@ -50,6 +53,21 @@ async function flushAsyncWork(): Promise<void> {
 }
 
 describe('stdio agent runtime', () => {
+  test('eventInputFromNodeReadable adapts data, end, and error events', () => {
+    const input = new EventEmitter();
+    const adapted = eventInputFromNodeReadable(input as any);
+    const events: unknown[] = [];
+    adapted.on('data', chunk => events.push(Buffer.isBuffer(chunk)));
+    adapted.on('end', () => events.push('end'));
+    adapted.on('error', err => events.push((err as Error).message));
+
+    input.emit('data', Uint8Array.from([1, 2, 3]));
+    input.emit('end');
+    input.emit('error', new Error('boom'));
+
+    expect(events).toEqual([true, 'end', 'boom']);
+  });
+
   test('handshakes without starting the loopback server', async () => {
     const io = new FakeIo();
     let serverStarts = 0;
@@ -195,6 +213,48 @@ describe('stdio agent runtime', () => {
       requestId: 'req-1',
       status: 200,
       body: { version: 1, sessions: {} },
+    });
+    agent.close();
+  });
+
+  test('default loopback server services API requests and closes cleanly', async () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'tw-stdio-'));
+    writeFileSync(join(tmp, 'sessions.json'), JSON.stringify({ version: 1, sessions: {} }));
+    mkdirSync(join(tmp, 'src/client'), { recursive: true });
+    writeFileSync(join(tmp, 'src/client/index.html'), '<html></html>');
+    const io = new FakeIo();
+    const agent = runStdioAgent({
+      input: io.input as any,
+      write: io.write,
+      tmuxControl: createNullTmuxControl(),
+      version: 'test',
+      tmuxBin: process.platform === 'darwin' ? '/usr/bin/true' : '/bin/true',
+      sessionsStorePath: join(tmp, 'sessions.json'),
+      settingsStorePath: join(tmp, 'settings.json'),
+      projectRoot: tmp,
+      distDir: tmp,
+      themesUserDir: tmp,
+      themesBundledDir: tmp,
+      dropStorage: {
+        root: join(tmp, 'drops'),
+        maxFilesPerSession: 2,
+        ttlMs: 60_000,
+        autoUnlinkOnClose: false,
+        maxRootBytes: 1024 * 1024,
+      },
+    });
+
+    io.emitFrame({ v: 1, type: 'api-get', requestId: 'req-loopback', path: '/api/sessions' });
+    for (let i = 0; i < 50 && !io.frames().some(frame => frame.type === 'api-response'); i += 1) {
+      await new Promise(resolve => setTimeout(resolve, 5));
+    }
+
+    expect(io.frames()).toContainEqual({
+      v: 1,
+      type: 'api-response',
+      requestId: 'req-loopback',
+      status: 200,
+      body: [],
     });
     agent.close();
   });

@@ -193,7 +193,7 @@ export function _resetInotifyProbe(): void {
  *  server-exit can kill them. */
 interface WatcherProcess {
   exited: Promise<unknown>;
-  kill(signal?: string): unknown;
+  kill(signal?: number | NodeJS.Signals): unknown;
 }
 interface ActiveWatcher {
   child: WatcherProcess;
