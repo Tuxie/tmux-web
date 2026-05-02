@@ -62,30 +62,14 @@ function shellSingleQuote(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
-const NVIM_INIT = `
-vim.g.clipboard = {
-  name = 'tmux-web-e2e',
-  copy = {
-    ['+'] = { 'tmux', 'load-buffer', '-w', '-' },
-    ['*'] = { 'tmux', 'load-buffer', '-w', '-' },
-  },
-  paste = {
-    ['+'] = { 'tmux', 'save-buffer', '-' },
-    ['*'] = { 'tmux', 'save-buffer', '-' },
-  },
-}
-vim.o.clipboard = 'unnamedplus'
-vim.o.mouse = 'a'
-vim.o.swapfile = false
-vim.o.shortmess = vim.o.shortmess .. 'I'
+const NVIM_INIT = `vim.opt.clipboard = 'unnamedplus'
+vim.opt.mouse = 'a'
 `;
 
-const VIM_INIT = `
-set nocompatible
+const VIM_INIT = `" tmux-web clipboard provider for standard Vim.
+" Requires Vim with +clipboard_provider and tmux with set-clipboard external.
 set clipboard=unnamedplus
 set mouse=a
-set noswapfile
-set shortmess+=I
 
 let g:tmux_web_clipboard_cache = ''
 
@@ -128,10 +112,8 @@ let v:clipproviders['tmux-web'] = {
 set clipmethod^=tmux-web
 `;
 
-const EMACS_INIT = `
-(setq inhibit-startup-screen t)
-(setq make-backup-files nil)
-(setq auto-save-default nil)
+const EMACS_INIT = `;; tmux-web clipboard provider for terminal Emacs.
+;; Uses tmux buffers inside tmux and keeps same-Emacs kill/yank working outside tmux.
 (setq select-enable-clipboard t)
 (setq tmux-web-clipboard-cache "")
 
@@ -158,22 +140,21 @@ const EMACS_INIT = `
 (setq interprogram-paste-function #'tmux-web-paste)
 `;
 
-const HELIX_CONFIG = `
-[editor]
+const HELIX_CONFIG = `[editor]
 default-yank-register = "+"
 mouse = true
-path-completion = false
 
 [editor.clipboard-provider.custom]
-yank = { command = "sh", args = ["-c", "if [ -n \\"$TMUX\\" ] && tmux save-buffer - 2>/dev/null; then :; else cat '__CACHE__' 2>/dev/null || true; fi"] }
-paste = { command = "sh", args = ["-c", "cat > '__CACHE__'; if [ -n \\"$TMUX\\" ]; then tmux load-buffer -w '__CACHE__' >/dev/null 2>&1 || true; fi"] }
-primary-yank = { command = "sh", args = ["-c", "if [ -n \\"$TMUX\\" ] && tmux save-buffer - 2>/dev/null; then :; else cat '__CACHE__' 2>/dev/null || true; fi"] }
-primary-paste = { command = "sh", args = ["-c", "cat > '__CACHE__'; if [ -n \\"$TMUX\\" ]; then tmux load-buffer -w '__CACHE__' >/dev/null 2>&1 || true; fi"] }
+yank = { command = "sh", args = ["-c", 'cache=\${XDG_CACHE_HOME:-$HOME/.cache}/tmux-web-helix-clipboard; if [ -n "$TMUX" ] && tmux save-buffer - 2>/dev/null; then :; else cat "$cache" 2>/dev/null || true; fi'] }
+paste = { command = "sh", args = ["-c", 'cache=\${XDG_CACHE_HOME:-$HOME/.cache}/tmux-web-helix-clipboard; mkdir -p "\${cache%/*}"; cat > "$cache"; if [ -n "$TMUX" ]; then tmux load-buffer -w "$cache" >/dev/null 2>&1 || true; fi'] }
+primary-yank = { command = "sh", args = ["-c", 'cache=\${XDG_CACHE_HOME:-$HOME/.cache}/tmux-web-helix-clipboard; if [ -n "$TMUX" ] && tmux save-buffer - 2>/dev/null; then :; else cat "$cache" 2>/dev/null || true; fi'] }
+primary-paste = { command = "sh", args = ["-c", 'cache=\${XDG_CACHE_HOME:-$HOME/.cache}/tmux-web-helix-clipboard; mkdir -p "\${cache%/*}"; cat > "$cache"; if [ -n "$TMUX" ]; then tmux load-buffer -w "$cache" >/dev/null 2>&1 || true; fi'] }
 `;
 
-const KAKOUNE_CONFIG = `
-set-option global terminal_enable_mouse true
+const KAKOUNE_CONFIG = `set-option global terminal_enable_mouse true
 `;
+
+const HELIX_CACHE_FILENAME = 'tmux-web-helix-clipboard';
 
 interface Editor {
   kind: 'nvim' | 'vim' | 'emacs' | 'helix' | 'kakoune';
@@ -262,7 +243,7 @@ const EDITORS: Editor[] = [
     initContent: HELIX_CONFIG,
     launchCommand: (initPath) => {
       const dir = path.dirname(initPath);
-      return `cd ${shellSingleQuote(dir)} && hx --config ${shellSingleQuote(initPath)} --log ${shellSingleQuote(path.join(dir, 'helix.log'))}`;
+      return `cd ${shellSingleQuote(dir)} && XDG_CACHE_HOME=${shellSingleQuote(dir)} hx --config ${shellSingleQuote(initPath)} --log ${shellSingleQuote(path.join(dir, 'helix.log'))}`;
     },
     outsideCopyPaste: runHelixOutsideTmuxCopyPaste,
     insertLine: helixInsertLine,
@@ -307,7 +288,7 @@ const EDITOR_PORT_OFFSETS: Record<Editor['kind'], number> = {
 function writeEditorInit(editor: Editor): EditorInit {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), editor.initPrefix));
   const initPath = path.join(dir, editor.initFilename);
-  fs.writeFileSync(initPath, editor.initContent.replaceAll('__CACHE__', path.join(dir, 'clipboard.txt')));
+  fs.writeFileSync(initPath, editor.initContent);
   if (editor.kind === 'kakoune') fs.writeFileSync(path.join(dir, 'buffer.txt'), '');
   return { dir, path: initPath };
 }
@@ -378,14 +359,15 @@ function runEmacsOutsideTmuxCopyPaste(initPath: string, outputPath: string, text
 
 async function runHelixOutsideTmuxCopyPaste(initPath: string, outputPath: string, text: string): Promise<void> {
   const runDir = path.dirname(outputPath);
-  const cachePath = path.join(path.dirname(initPath), 'clipboard.txt');
+  const cacheDir = path.dirname(initPath);
+  const cachePath = path.join(cacheDir, HELIX_CACHE_FILENAME);
   const inputPath = path.join(runDir, 'outside-helix-input.txt');
   fs.writeFileSync(inputPath, '');
-  const command = `cd ${shellSingleQuote(runDir)} && hx --config ${shellSingleQuote(initPath)} --log ${shellSingleQuote(path.join(runDir, 'helix.log'))} ${shellSingleQuote(path.basename(inputPath))}`;
+  const command = `cd ${shellSingleQuote(runDir)} && XDG_CACHE_HOME=${shellSingleQuote(cacheDir)} hx --config ${shellSingleQuote(initPath)} --log ${shellSingleQuote(path.join(runDir, 'helix.log'))} ${shellSingleQuote(path.basename(inputPath))}`;
   const proc = spawn('script', ['-qfec', command, '/dev/null'], {
     stdio: ['pipe', 'pipe', 'ignore'],
     detached: true,
-    env: { ...process.env, TMUX: '' },
+    env: { ...process.env, TMUX: '', XDG_CACHE_HOME: cacheDir },
   });
   installTerminalQueryResponses(proc);
   try {
