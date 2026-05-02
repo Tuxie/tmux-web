@@ -59,7 +59,7 @@ exit 0
       });
 
       expect(result.exitCode).toBe(0);
-      expect(fs.readFileSync(cwdFile, 'utf8').trim()).toBe(repo);
+      expect(fs.readFileSync(cwdFile, 'utf8').trim()).toBe(fs.realpathSync(repo));
       expect(fs.readFileSync(argsFile, 'utf8').trim()).toBe('src/server/index.ts --help');
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
