@@ -20,7 +20,8 @@ Several e2e suites start their own dedicated server on a fixed port alongside th
 | 6120  | tests/e2e/terminal-identity.test.ts       | real-tmux Secondary DA reply |
 | 6121  | tests/e2e/terminal-identity.test.ts       | real-tmux XTVERSION reply |
 | 6122-7121 | tests/e2e/clipboard-matrix.test.ts    | real-tmux/Emacs/Helix/Vim/Neovim/browser clipboard matrix; per-worker range |
-| 7122+ | new tests                                  | pick the next unused port here |
+| 7122  | tests/e2e/mouse-alt-screen.test.ts         | real-tmux alt-screen SGR mouse pass-through |
+| 7123+ | new tests                                  | pick the next unused port here |
 
 If you add a new e2e test that spawns its own server, append a row and use the next free port.
 

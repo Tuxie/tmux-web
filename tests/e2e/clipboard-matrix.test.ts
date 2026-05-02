@@ -54,7 +54,7 @@ vim.g.clipboard = {
   },
 }
 vim.o.clipboard = 'unnamedplus'
-vim.o.mouse = ''
+vim.o.mouse = 'a'
 vim.o.swapfile = false
 vim.o.shortmess = vim.o.shortmess .. 'I'
 `;
@@ -62,7 +62,7 @@ vim.o.shortmess = vim.o.shortmess .. 'I'
 const VIM_INIT = `
 set nocompatible
 set clipboard=unnamedplus
-set mouse=
+set mouse=a
 set noswapfile
 set shortmess+=I
 
@@ -140,7 +140,7 @@ const EMACS_INIT = `
 const HELIX_CONFIG = `
 [editor]
 default-yank-register = "+"
-mouse = false
+mouse = true
 path-completion = false
 
 [editor.clipboard-provider.custom]
@@ -866,63 +866,6 @@ for (const editor of EDITORS) {
         server = await connectTmuxWeb(page, iso, testInfo, 'main', editorPortOffset + 4);
         await copyFromEditor(iso, 'main', editorText('COPY_TO_OS'));
         await expectOsClipboard(page, editorText('COPY_TO_OS'));
-      } finally {
-        if (server) killServer(server);
-        iso.cleanup();
-        fs.rmSync(init.dir, { recursive: true, force: true });
-      }
-    });
-
-    test(`via tmux-web: mouse-select text in ${editor.label}, paste in OS`, async ({ page }, testInfo) => {
-      const iso = createIsolatedTmux(`tw-clip-mouse-${editor.kind}-os`);
-      const init = writeEditorInit(editor);
-      let server: Awaited<ReturnType<typeof startServer>> | undefined;
-      try {
-        startEditorSession(iso, editor, 'main', init.path);
-        await waitForPaneSettled();
-        server = await connectTmuxWeb(page, iso, testInfo, 'main', editorPortOffset + 6);
-        await editor.insertLine(iso, 'main', editorText('MOUSE_COPY_TO_OS'));
-        await mouseCopyTerminalText(page, iso, editorText('MOUSE_COPY_TO_OS'));
-        await expectOsClipboard(page, editorText('MOUSE_COPY_TO_OS'));
-      } finally {
-        if (server) killServer(server);
-        iso.cleanup();
-        fs.rmSync(init.dir, { recursive: true, force: true });
-      }
-    });
-
-    test(`via tmux-web: mouse-select text in ${editor.label}, paste in tmux`, async ({ page }, testInfo) => {
-      const iso = createIsolatedTmux(`tw-clip-mouse-${editor.kind}-tmux`);
-      const init = writeEditorInit(editor);
-      let server: Awaited<ReturnType<typeof startServer>> | undefined;
-      try {
-        startEditorSession(iso, editor, 'source', init.path);
-        startCatSession(iso, 'target');
-        await waitForPaneSettled();
-        server = await connectTmuxWeb(page, iso, testInfo, 'source', editorPortOffset + 8);
-        await editor.insertLine(iso, 'source', editorText('MOUSE_COPY_TO_TMUX'));
-        await mouseCopyTerminalText(page, iso, editorText('MOUSE_COPY_TO_TMUX'));
-        await pasteTmuxBufferIntoCatAndExpect(iso, 'target', editorText('MOUSE_COPY_TO_TMUX'));
-      } finally {
-        if (server) killServer(server);
-        iso.cleanup();
-        fs.rmSync(init.dir, { recursive: true, force: true });
-      }
-    });
-
-    test(`via tmux-web: mouse-select text in ${editor.label}, paste in ${editor.label} with p`, async ({ page }, testInfo) => {
-      const iso = createIsolatedTmux(`tw-clip-mouse-${editor.kind}-editor`);
-      const init = writeEditorInit(editor);
-      let server: Awaited<ReturnType<typeof startServer>> | undefined;
-      const out = path.join(init.dir, 'out.txt');
-      try {
-        startEditorSession(iso, editor, 'main', init.path);
-        await waitForPaneSettled();
-        server = await connectTmuxWeb(page, iso, testInfo, 'main', editorPortOffset + 9);
-        await editor.insertLine(iso, 'main', editorText('MOUSE_COPY_TO_EDITOR'));
-        await mouseCopyTerminalText(page, iso, editorText('MOUSE_COPY_TO_EDITOR'));
-        await editor.normalPaste(iso, 'main');
-        await expectEditorBufferContains(iso, 'main', out, editorText('MOUSE_COPY_TO_EDITOR'));
       } finally {
         if (server) killServer(server);
         iso.cleanup();
