@@ -111,21 +111,34 @@ export async function startTestServer(opts: HarnessOpts = {}): Promise<Harness> 
     remoteAgentManager: opts.remoteAgentManager,
   });
 
-  const listenPort = await resolveListenPort('127.0.0.1', 0);
-  const server = Bun.serve<WsData, never>({
-    hostname: '127.0.0.1',
-    port: listenPort,
-    fetch(req, srv) {
-      const url = new URL(req.url);
-      if (url.pathname.startsWith('/ws') || req.headers.get('upgrade')?.toLowerCase() === 'websocket') {
-        const rejected = ws.upgrade(req, srv);
-        if (rejected) return rejected;
-        return undefined;
-      }
-      return handler(req, srv);
-    },
-    websocket: ws.websocket,
-  });
+  const fetch: Parameters<typeof Bun.serve<WsData, never>>[0]['fetch'] = (req, srv) => {
+    const url = new URL(req.url);
+    if (url.pathname.startsWith('/ws') || req.headers.get('upgrade')?.toLowerCase() === 'websocket') {
+      const rejected = ws.upgrade(req, srv);
+      if (rejected) return rejected;
+      return undefined;
+    }
+    return handler(req, srv);
+  };
+
+  let server: ReturnType<typeof Bun.serve<WsData, never>> | undefined;
+  let lastListenError: unknown;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const listenPort = await resolveListenPort('127.0.0.1', 0);
+    try {
+      server = Bun.serve<WsData, never>({
+        hostname: '127.0.0.1',
+        port: listenPort,
+        fetch,
+        websocket: ws.websocket,
+      });
+      break;
+    } catch (error) {
+      if ((error as { code?: string }).code !== 'EADDRINUSE') throw error;
+      lastListenError = error;
+    }
+  }
+  if (!server) throw lastListenError ?? new Error('failed to bind test server');
 
   config.port = server.port;
   const url = `http://127.0.0.1:${server.port}`;
