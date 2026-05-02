@@ -27,6 +27,12 @@ function commandInPath(command: string): boolean {
   return !result.error || result.error.code !== 'ENOENT';
 }
 
+function vimClipboardProviderAvailable(): boolean {
+  const result = spawnSync('vim', ['--version'], { encoding: 'utf8' });
+  if (result.error) return result.error.code !== 'ENOENT';
+  return result.stdout.includes('+clipboard_provider');
+}
+
 function kakouneAvailable(): boolean {
   if (!commandInPath('kak')) return false;
 
@@ -219,6 +225,7 @@ const EDITORS: Editor[] = [
     initPrefix: 'tw-clip-matrix-vim-',
     initFilename: 'init.vim',
     initContent: VIM_INIT,
+    isAvailable: vimClipboardProviderAvailable,
     launchCommand: (initPath) => `vim --clean -Nu ${shellSingleQuote(initPath)} -n`,
     outsideCopyPaste: runVimOutsideTmuxCopyPaste,
     insertLine: vimLikeInsertLine,
