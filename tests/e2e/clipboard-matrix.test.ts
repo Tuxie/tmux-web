@@ -90,11 +90,31 @@ packadd osc52
 set clipmethod=osc52
 `;
 
-const EMACS_INIT = `;; Use Emacs' terminal clipboard integration.
+const EMACS_INIT = `;; Use tmux's paste buffer as Emacs' terminal clipboard.
 (setq select-enable-clipboard t)
-(require 'term/xterm)
-(add-to-list 'xterm-extra-capabilities 'setSelection)
-(terminal-init-xterm)
+
+(defun tmux-clipboard-available ()
+  (and (getenv "TMUX") (executable-find "tmux")))
+
+(defun copy-to-tmux (text)
+  (when (tmux-clipboard-available)
+    (with-temp-buffer
+      (insert text)
+      (let ((coding-system-for-write 'utf-8-unix))
+        (zerop (call-process-region
+                (point-min) (point-max)
+                "tmux" nil nil nil
+                "load-buffer" "-w" "-"))))))
+
+(defun paste-from-tmux ()
+  (when (tmux-clipboard-available)
+    (with-temp-buffer
+      (let ((coding-system-for-read 'utf-8-unix))
+        (when (zerop (call-process "tmux" nil t nil "save-buffer" "-"))
+          (buffer-string))))))
+
+(setq interprogram-cut-function #'copy-to-tmux
+      interprogram-paste-function #'paste-from-tmux)
 `;
 
 const HELIX_CONFIG = `[editor]
@@ -189,9 +209,6 @@ const EDITORS: Editor[] = [
     initContent: EMACS_INIT,
     copyAction: 'mark line and M-w',
     normalPasteAction: 'C-y',
-    editorCopyExpectedFailure: 'Emacs built-in terminal clipboard setup does not populate tmux paste buffers without custom interprogram clipboard functions.',
-    outsideNormalPasteExpectedFailure: 'Emacs terminal clipboard setup is tmux/terminal-specific and is not available in batch outside-tmux mode.',
-    normalPasteExpectedFailure: 'Emacs built-in terminal clipboard setup does not read tmux paste buffers without custom interprogram clipboard functions.',
     launchCommand: (initPath) => `emacs -nw -q --no-splash -l ${shellSingleQuote(initPath)}`,
     outsideCopyPaste: runEmacsOutsideTmuxCopyPaste,
     insertLine: emacsInsertLine,

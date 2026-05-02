@@ -27,17 +27,39 @@ set clipmethod=osc52
 
 ## Emacs
 
-Terminal Emacs needs its xterm clipboard capability enabled. Add this to your Emacs init file:
+Terminal Emacs needs a small `interprogram-cut-function` / `interprogram-paste-function` bridge so `M-w` writes tmux's paste buffer and `C-y` can read it back. Add this to your Emacs init file:
 
 ```elisp
-;; Use Emacs' terminal clipboard integration.
+;; Use tmux's paste buffer as Emacs' terminal clipboard.
 (setq select-enable-clipboard t)
-(require 'term/xterm)
-(add-to-list 'xterm-extra-capabilities 'setSelection)
-(terminal-init-xterm)
+
+(defun tmux-clipboard-available ()
+  (and (getenv "TMUX") (executable-find "tmux")))
+
+(defun copy-to-tmux (text)
+  (when (tmux-clipboard-available)
+    (with-temp-buffer
+      (insert text)
+      (let ((coding-system-for-write 'utf-8-unix))
+        (zerop (call-process-region
+                (point-min) (point-max)
+                "tmux" nil nil nil
+                "load-buffer" "-w" "-"))))))
+
+(defun paste-from-tmux ()
+  (when (tmux-clipboard-available)
+    (with-temp-buffer
+      (let ((coding-system-for-read 'utf-8-unix))
+        (when (zerop (call-process "tmux" nil t nil "save-buffer" "-"))
+          (buffer-string))))))
+
+(setq interprogram-cut-function #'copy-to-tmux
+      interprogram-paste-function #'paste-from-tmux)
 ```
 
-- The e2e matrix keeps Emacs tmux-buffer copy and `C-y` round trips as known failures with this minimal config. They require a custom `interprogram-cut-function` / `interprogram-paste-function` bridge, which tmux-web does not recommend as the default path here.
+- `M-w` / `kill-ring-save` sends the selected text to `tmux load-buffer -w -`, so tmux stores it in its paste buffer and can forward it through OSC 52.
+- `C-y` / `yank` can read the current tmux buffer with `tmux save-buffer -`, which makes tmux copy-mode, relaunched Emacs, and cross-session paste workflows use the same source of truth.
+- Outside tmux the bridge returns nil and Emacs falls back to its normal kill ring.
 
 ## Helix
 
