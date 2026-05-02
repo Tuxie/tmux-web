@@ -1,5 +1,5 @@
 /**
- * End-to-end clipboard matrix for tmux-web, real tmux, Emacs/Helix/Vim/Neovim
+ * End-to-end clipboard matrix for tmux-web, real tmux, Emacs/Helix/Kakoune/Vim/Neovim
  * `clipboard=unnamedplus`, and the browser/OS clipboard bridge.
  *
  * All rows use createIsolatedTmux(), which loads the project tmux.conf with
@@ -25,6 +25,25 @@ test.setTimeout(60_000);
 function commandInPath(command: string): boolean {
   const result = spawnSync(command, ['--version'], { stdio: 'ignore' });
   return !result.error || result.error.code !== 'ENOENT';
+}
+
+function kakouneAvailable(): boolean {
+  if (!commandInPath('kak')) return false;
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-clip-matrix-kak-probe-'));
+  try {
+    const inputPath = path.join(dir, 'probe.txt');
+    fs.writeFileSync(inputPath, '');
+    const command = `cd ${shellSingleQuote(dir)} && XDG_RUNTIME_DIR=${shellSingleQuote(dir)} kak -n -e quit ${shellSingleQuote(inputPath)}`;
+    const result = spawnSync('script', ['-qfec', command, '/dev/null'], {
+      env: { ...process.env, TMUX: '' },
+      stdio: 'ignore',
+      timeout: 3_000,
+    });
+    return result.status === 0;
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 const PORT_BASE = 6122;
@@ -146,14 +165,19 @@ primary-yank = { command = "sh", args = ["-c", "if [ -n \\"$TMUX\\" ] && tmux sa
 primary-paste = { command = "sh", args = ["-c", "cat > '__CACHE__'; if [ -n \\"$TMUX\\" ]; then tmux load-buffer -w '__CACHE__' >/dev/null 2>&1 || true; fi"] }
 `;
 
+const KAKOUNE_CONFIG = `
+set-option global terminal_enable_mouse true
+`;
+
 interface Editor {
-  kind: 'nvim' | 'vim' | 'emacs' | 'helix';
+  kind: 'nvim' | 'vim' | 'emacs' | 'helix' | 'kakoune';
   label: string;
   command: string;
   commandName: string;
   initPrefix: string;
   initFilename: string;
   initContent: string;
+  isAvailable?: () => boolean;
   launchCommand(initPath: string): string;
   outsideCopyPaste(initPath: string, outputPath: string, text: string): void | Promise<void>;
   insertLine(iso: IsolatedTmux, target: string, text: string): Promise<void>;
@@ -241,12 +265,43 @@ const EDITORS: Editor[] = [
     writeBuffer: helixWriteBuffer,
     quit: helixQuit,
   },
+  {
+    kind: 'kakoune',
+    label: 'kakoune',
+    command: 'kak',
+    commandName: 'kak',
+    initPrefix: 'tw-clip-matrix-kak-',
+    initFilename: 'kakrc',
+    initContent: KAKOUNE_CONFIG,
+    isAvailable: kakouneAvailable,
+    launchCommand: (initPath) => {
+      const dir = path.dirname(initPath);
+      const inputPath = path.join(dir, 'buffer.txt');
+      return `cd ${shellSingleQuote(dir)} && XDG_RUNTIME_DIR=${shellSingleQuote(dir)} kak -n -e ${shellSingleQuote(`source ${initPath}`)} ${shellSingleQuote(inputPath)}`;
+    },
+    outsideCopyPaste: runKakouneOutsideTmuxCopyPaste,
+    insertLine: kakouneInsertLine,
+    visualYankLine: kakouneVisualYankLine,
+    normalPaste: kakouneNormalPaste,
+    pasteTmuxBuffer: kakounePasteTmuxBuffer,
+    writeBuffer: kakouneWriteBuffer,
+    quit: kakouneQuit,
+  },
 ];
+
+const EDITOR_PORT_OFFSETS: Record<Editor['kind'], number> = {
+  nvim: 0,
+  vim: 50,
+  emacs: 100,
+  helix: 150,
+  kakoune: 200,
+};
 
 function writeEditorInit(editor: Editor): EditorInit {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), editor.initPrefix));
   const initPath = path.join(dir, editor.initFilename);
   fs.writeFileSync(initPath, editor.initContent.replaceAll('__CACHE__', path.join(dir, 'clipboard.txt')));
+  if (editor.kind === 'kakoune') fs.writeFileSync(path.join(dir, 'buffer.txt'), '');
   return { dir, path: initPath };
 }
 
@@ -341,6 +396,21 @@ async function runHelixOutsideTmuxCopyPaste(initPath: string, outputPath: string
   } finally {
     try { proc.kill('SIGTERM'); } catch { /* already exited */ }
   }
+}
+
+function runKakouneOutsideTmuxCopyPaste(_initPath: string, outputPath: string, text: string): void {
+  fs.writeFileSync(outputPath, `${text}\n`);
+  execFileSync('kak', [
+    '-n',
+    '-ui',
+    'dummy',
+    '-f',
+    'xyp',
+    outputPath,
+  ], {
+    env: { ...process.env, TMUX: '' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
 }
 
 function installTerminalQueryResponses(proc: ChildProcess): void {
@@ -722,6 +792,56 @@ async function helixQuit(iso: IsolatedTmux, target: string): Promise<void> {
   await waitForPaneSettled();
 }
 
+async function kakouneCommand(iso: IsolatedTmux, target: string, command: string): Promise<void> {
+  sendKeys(iso, target, [':']);
+  sendLiteral(iso, target, command);
+  sendKeys(iso, target, ['Enter']);
+  await waitForPaneSettled();
+}
+
+async function kakouneSyncRegisterToTmux(iso: IsolatedTmux, target: string): Promise<void> {
+  await kakouneCommand(iso, target, 'nop %sh{printf %s "$kak_reg_dquote" | tmux load-buffer -w -}');
+}
+
+async function kakouneLoadTmuxBufferIntoRegister(iso: IsolatedTmux, target: string): Promise<void> {
+  await kakouneCommand(iso, target, 'set-register dquote %sh{tmux save-buffer - 2>/dev/null || true}');
+}
+
+async function kakouneInsertLine(iso: IsolatedTmux, target: string, text: string): Promise<void> {
+  sendKeys(iso, target, ['i']);
+  sendLiteral(iso, target, text);
+  sendKeys(iso, target, ['Escape']);
+  await waitForPaneSettled();
+}
+
+async function kakouneVisualYankLine(iso: IsolatedTmux, target: string): Promise<void> {
+  sendKeys(iso, target, ['x', 'y']);
+  await waitForPaneSettled();
+  await kakouneSyncRegisterToTmux(iso, target);
+}
+
+async function kakouneNormalPaste(iso: IsolatedTmux, target: string): Promise<void> {
+  await kakouneLoadTmuxBufferIntoRegister(iso, target);
+  sendKeys(iso, target, ['p']);
+  await waitForPaneSettled();
+}
+
+async function kakounePasteTmuxBuffer(iso: IsolatedTmux, target: string): Promise<void> {
+  sendKeys(iso, target, ['i']);
+  iso.tmux(['paste-buffer', '-t', target]);
+  await waitForPaneSettled();
+  sendKeys(iso, target, ['Escape']);
+  await waitForPaneSettled();
+}
+
+async function kakouneWriteBuffer(iso: IsolatedTmux, target: string, outputPath: string): Promise<void> {
+  await kakouneCommand(iso, target, `write! ${outputPath}`);
+}
+
+async function kakouneQuit(iso: IsolatedTmux, target: string): Promise<void> {
+  await kakouneCommand(iso, target, 'quit!');
+}
+
 async function expectEditorBufferContains(
   iso: IsolatedTmux,
   target: string,
@@ -806,9 +926,10 @@ async function maybeConnect(
 
 for (const editor of EDITORS) {
   test.describe(`${editor.label} clipboard matrix`, () => {
-    test.skip(!commandInPath(editor.command), `${editor.command} not found in PATH; skipping ${editor.label} clipboard matrix`);
+    const editorAvailable = editor.isAvailable ? editor.isAvailable() : commandInPath(editor.command);
+    test.skip(!editorAvailable, `${editor.command} not available; skipping ${editor.label} clipboard matrix`);
 
-    const editorPortOffset = editor.kind === 'nvim' ? 0 : editor.kind === 'vim' ? 50 : editor.kind === 'emacs' ? 100 : 150;
+    const editorPortOffset = EDITOR_PORT_OFFSETS[editor.kind];
     const editorText = (suffix: string) => `${editor.kind.toUpperCase()}_${suffix}`;
 
     test(`via tmux-web: copy in OS, paste in ${editor.label} with p`, async ({ page }, testInfo) => {
