@@ -8,7 +8,7 @@ import { createWsHandlers, type WsData } from './ws.js';
 import { cleanupAll as cleanupDrops, defaultDropStorage, type DropStorage } from './file-drop.js';
 import { RemoteAgentManager } from './remote-agent-manager.js';
 import { RemoteTmuxWebManager, parseRemoteHttpBaseUrls } from './remote-tmux-web.js';
-import { resolveListenPort } from './listen-port.js';
+import { serveWithResolvedPort } from './listen-port.js';
 import {
   decodePtyBytes,
   encodeFrame,
@@ -134,8 +134,7 @@ async function startLoopbackServer(opts: StdioAgentOptions): Promise<AgentServer
     remoteAgentManager,
   });
 
-  const listenPort = await resolveListenPort('127.0.0.1', 0);
-  const server = Bun.serve<WsData, never>({
+  const server = await serveWithResolvedPort<WsData, never>('127.0.0.1', 0, listenPort => ({
     hostname: '127.0.0.1',
     port: listenPort,
     fetch(req, srv) {
@@ -151,7 +150,7 @@ async function startLoopbackServer(opts: StdioAgentOptions): Promise<AgentServer
       return new Response('Internal Server Error', { status: 500 });
     },
     websocket: ws.websocket,
-  });
+  }));
 
   return {
     baseUrl: `http://${server.hostname}:${server.port}`,

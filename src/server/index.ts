@@ -14,7 +14,7 @@ import { embeddedAssets } from './assets-embedded.js';
 import { eventInputFromNodeReadable, runStdioAgent } from './stdio-agent.js';
 import { RemoteAgentManager } from './remote-agent-manager.js';
 import { RemoteTmuxWebManager, parseRemoteHttpBaseUrls } from './remote-tmux-web.js';
-import { resolveListenPort } from './listen-port.js';
+import { serveWithResolvedPort } from './listen-port.js';
 import pkg from '../../package.json' with { type: 'json' };
 import type { DropStorage } from './file-drop.js';
 
@@ -711,8 +711,7 @@ Options:
     });
   }
 
-  const listenPort = await resolveListenPort(host, port);
-  const server = Bun.serve<WsData, never>({
+  const server = await serveWithResolvedPort<WsData, never>(host, port, listenPort => ({
     hostname: host,
     port: listenPort,
     tls: tlsOpts,
@@ -730,7 +729,7 @@ Options:
       return new Response('Internal Server Error', { status: 500 });
     },
     websocket: ws.websocket,
-  });
+  }));
 
   const scheme = config.tls ? 'https' : 'http';
   console.log(`tmux-web listening on ${scheme}://${server.hostname}:${server.port}`);

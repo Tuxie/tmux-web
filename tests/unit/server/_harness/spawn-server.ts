@@ -5,7 +5,7 @@ import { createHttpHandler } from '../../../../src/server/http.ts';
 import { createWsHandlers, type WsData } from '../../../../src/server/ws.ts';
 import { createNullTmuxControl, type TmuxControl } from '../../../../src/server/tmux-control.ts';
 import { execFileAsync } from '../../../../src/server/exec.ts';
-import { resolveListenPort } from '../../../../src/server/listen-port.ts';
+import { serveWithResolvedPort } from '../../../../src/server/listen-port.ts';
 import type { DropStorage } from '../../../../src/server/file-drop.ts';
 import type { ServerConfig } from '../../../../src/shared/types.ts';
 
@@ -121,24 +121,12 @@ export async function startTestServer(opts: HarnessOpts = {}): Promise<Harness> 
     return handler(req, srv);
   };
 
-  let server: ReturnType<typeof Bun.serve<WsData, never>> | undefined;
-  let lastListenError: unknown;
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const listenPort = await resolveListenPort('127.0.0.1', 0);
-    try {
-      server = Bun.serve<WsData, never>({
-        hostname: '127.0.0.1',
-        port: listenPort,
-        fetch,
-        websocket: ws.websocket,
-      });
-      break;
-    } catch (error) {
-      if ((error as { code?: string }).code !== 'EADDRINUSE') throw error;
-      lastListenError = error;
-    }
-  }
-  if (!server) throw lastListenError ?? new Error('failed to bind test server');
+  const server = await serveWithResolvedPort<WsData, never>('127.0.0.1', 0, listenPort => ({
+    hostname: '127.0.0.1',
+    port: listenPort,
+    fetch,
+    websocket: ws.websocket,
+  }));
 
   config.port = server.port;
   const url = `http://127.0.0.1:${server.port}`;
