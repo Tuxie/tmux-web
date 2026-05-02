@@ -64,6 +64,43 @@ function shellSingleQuote(s: string): string {
 
 const NVIM_INIT = `vim.opt.clipboard = 'unnamedplus'
 vim.opt.mouse = 'a'
+
+local cache = ''
+
+local function copy_to_tmux(lines, regtype)
+  local text = table.concat(lines, '\\n')
+  if regtype == 'V' then
+    text = text .. '\\n'
+  end
+  cache = text
+  if vim.env.TMUX and vim.fn.executable('tmux') == 1 then
+    vim.fn.system({ 'tmux', 'load-buffer', '-w', '-' }, text)
+  end
+end
+
+local function paste_from_tmux()
+  local text = cache
+  if vim.env.TMUX and vim.fn.executable('tmux') == 1 then
+    local tmux_text = vim.fn.system({ 'tmux', 'save-buffer', '-' })
+    if vim.v.shell_error == 0 then
+      text = tmux_text
+    end
+  end
+  return { vim.split(text:gsub('\\n$', ''), '\\n', { plain = true }), 'v' }
+end
+
+vim.g.clipboard = {
+  name = 'tmux-web',
+  copy = {
+    ['+'] = copy_to_tmux,
+    ['*'] = copy_to_tmux,
+  },
+  paste = {
+    ['+'] = paste_from_tmux,
+    ['*'] = paste_from_tmux,
+  },
+  cache_enabled = 0,
+}
 `;
 
 const VIM_INIT = `" tmux-web clipboard provider for standard Vim.
@@ -166,6 +203,7 @@ interface Editor {
   initContent: string;
   copyAction: string;
   normalPasteAction: string;
+  sameEditorNormalPasteExpectedFailure?: string;
   isAvailable?: () => boolean;
   launchCommand(initPath: string): string;
   outsideCopyPaste(initPath: string, outputPath: string, text: string): void | Promise<void>;
@@ -191,8 +229,9 @@ const EDITORS: Editor[] = [
     initPrefix: 'tw-clip-matrix-nvim-',
     initFilename: 'init.lua',
     initContent: NVIM_INIT,
-    copyAction: 'visual select and y',
-    normalPasteAction: 'p',
+    copyAction: 'visual select and "+y',
+    normalPasteAction: '"+p',
+    sameEditorNormalPasteExpectedFailure: 'Neovim same-editor + register paste should duplicate the just-yanked text but currently does not.',
     launchCommand: (initPath) => `nvim --clean --cmd ${shellSingleQuote(`luafile ${initPath}`)}`,
     outsideCopyPaste: runNvimOutsideTmuxCopyPaste,
     insertLine: vimLikeInsertLine,
@@ -210,8 +249,9 @@ const EDITORS: Editor[] = [
     initPrefix: 'tw-clip-matrix-vim-',
     initFilename: 'init.vim',
     initContent: VIM_INIT,
-    copyAction: 'visual select and y',
-    normalPasteAction: 'p',
+    copyAction: 'visual select and "+y',
+    normalPasteAction: '"+p',
+    sameEditorNormalPasteExpectedFailure: 'Vim same-editor + register paste should duplicate the just-yanked text but currently does not.',
     isAvailable: vimClipboardProviderAvailable,
     launchCommand: (initPath) => `vim --clean -Nu ${shellSingleQuote(initPath)} -n`,
     outsideCopyPaste: runVimOutsideTmuxCopyPaste,
@@ -305,12 +345,26 @@ function writeEditorInit(editor: Editor): EditorInit {
   return { dir, path: initPath };
 }
 
+function removeDirRetry(dir: string): void {
+  const retryableCodes = new Set(['ENOTEMPTY', 'EBUSY', 'EPERM']);
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (!retryableCodes.has(code ?? '') || attempt === 4) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+    }
+  }
+}
+
 function runNvimOutsideTmuxCopyPaste(initPath: string, outputPath: string, text: string): void {
   const script = [
     `vim.api.nvim_buf_set_lines(0, 0, -1, false, { ${JSON.stringify(text)} })`,
     'vim.api.nvim_win_set_cursor(0, { 1, 0 })',
-    "vim.cmd('normal! 0v$y')",
-    "vim.cmd('normal! Gp')",
+    'vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes([[0v$"+y]], true, false, true), "nx", false)',
+    'vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes([[G"+p]], true, false, true), "nx", false)',
     `vim.cmd(${JSON.stringify(`silent! write! ${outputPath}`)})`,
     "vim.cmd('quitall!')",
   ].join('; ');
@@ -337,8 +391,8 @@ function runVimOutsideTmuxCopyPaste(initPath: string, outputPath: string, text: 
     '-es',
     '+set nomore',
     `+call setline(1, ${JSON.stringify(text)})`,
-    '+normal! 0v$y',
-    '+normal! Gp',
+    '+execute "normal! 0v$\\"+y"',
+    '+execute "normal! G\\"+p"',
     `+silent! write! ${outputPath}`,
     '+qa!',
   ], {
@@ -683,12 +737,13 @@ async function vimLikeInsertLine(iso: IsolatedTmux, target: string, text: string
 }
 
 async function vimLikeVisualYankLine(iso: IsolatedTmux, target: string): Promise<void> {
-  sendKeys(iso, target, ['0', 'v', '$', 'y']);
+  sendKeys(iso, target, ['0', 'v', '$']);
+  sendLiteral(iso, target, '"+y');
   await waitForPaneSettled();
 }
 
 async function vimLikeNormalPaste(iso: IsolatedTmux, target: string): Promise<void> {
-  sendKeys(iso, target, ['p']);
+  sendLiteral(iso, target, '"+p');
   await waitForPaneSettled();
 }
 
@@ -848,6 +903,7 @@ async function expectEditorBufferContains(
   target: string,
   outputPath: string,
   expected: string,
+  minOccurrences = 1,
 ): Promise<void> {
   const command = iso.tmux(['display-message', '-p', '-t', target, '#{pane_current_command}']).trim();
   const editor = EDITORS.find(candidate => candidate.commandName === command);
@@ -855,11 +911,23 @@ async function expectEditorBufferContains(
   await editor.writeBuffer(iso, target, outputPath);
   await expect.poll(() => {
     try {
-      return fs.readFileSync(outputPath, 'utf8');
+      return countOccurrences(fs.readFileSync(outputPath, 'utf8'), expected);
     } catch {
-      return '';
+      return 0;
     }
-  }, { timeout: 5_000 }).toContain(expected);
+  }, { timeout: 5_000 }).toBeGreaterThanOrEqual(minOccurrences);
+}
+
+function countOccurrences(text: string, needle: string): number {
+  if (!needle) return 0;
+  return text.split(needle).length - 1;
+}
+
+function markSameEditorNormalPasteExpectedFailure(editor: Editor): void {
+  test.fail(
+    !!editor.sameEditorNormalPasteExpectedFailure,
+    editor.sameEditorNormalPasteExpectedFailure ?? '',
+  );
 }
 
 async function copyCurrentPaneLineWithTmuxCopyMode(
@@ -893,10 +961,13 @@ async function pasteTmuxBufferIntoCatAndExpect(
   iso: IsolatedTmux,
   target: string,
   expected: string,
+  minOccurrences = 1,
 ): Promise<void> {
   iso.tmux(['paste-buffer', '-t', target]);
-  await expect.poll(() => iso.tmux(['capture-pane', '-p', '-t', target]), { timeout: 5_000 })
-    .toContain(expected);
+  await expect.poll(
+    () => countOccurrences(iso.tmux(['capture-pane', '-p', '-t', target]), expected),
+    { timeout: 5_000 },
+  ).toBeGreaterThanOrEqual(minOccurrences);
 }
 
 type Mode = 'tmux-web pty' | 'direct tmux';
@@ -948,7 +1019,7 @@ for (const editor of EDITORS) {
       } finally {
         if (server) killServer(server);
         iso.cleanup();
-        fs.rmSync(init.dir, { recursive: true, force: true });
+        removeDirRetry(init.dir);
       }
     });
 
@@ -970,7 +1041,7 @@ for (const editor of EDITORS) {
       } finally {
         if (server) killServer(server);
         iso.cleanup();
-        fs.rmSync(init.dir, { recursive: true, force: true });
+        removeDirRetry(init.dir);
       }
     });
 
@@ -987,11 +1058,12 @@ for (const editor of EDITORS) {
       } finally {
         if (server) killServer(server);
         iso.cleanup();
-        fs.rmSync(init.dir, { recursive: true, force: true });
+        removeDirRetry(init.dir);
       }
     });
 
     test(`outside tmux: copy in ${editor.label} with ${editor.copyAction}, paste in same ${editor.label} with ${editor.normalPasteAction}`, async () => {
+      markSameEditorNormalPasteExpectedFailure(editor);
       const init = writeEditorInit(editor);
       const out = path.join(init.dir, `outside-${editor.kind}.txt`);
       const text = editorText('OUTSIDE_TMUX_COPY');
@@ -999,13 +1071,13 @@ for (const editor of EDITORS) {
         await editor.outsideCopyPaste(init.path, out, text);
         await expect.poll(() => {
           try {
-            return fs.readFileSync(out, 'utf8');
+            return countOccurrences(fs.readFileSync(out, 'utf8'), text);
           } catch {
-            return '';
+            return 0;
           }
-        }, { timeout: 5_000 }).toContain(text);
+        }, { timeout: 5_000 }).toBeGreaterThanOrEqual(2);
       } finally {
-        fs.rmSync(init.dir, { recursive: true, force: true });
+        removeDirRetry(init.dir);
       }
     });
 
@@ -1027,7 +1099,7 @@ for (const editor of EDITORS) {
         } finally {
           if (server) killServer(server);
           iso.cleanup();
-          fs.rmSync(init.dir, { recursive: true, force: true });
+          removeDirRetry(init.dir);
         }
       });
 
@@ -1047,11 +1119,12 @@ for (const editor of EDITORS) {
         } finally {
           if (server) killServer(server);
           iso.cleanup();
-          fs.rmSync(init.dir, { recursive: true, force: true });
+          removeDirRetry(init.dir);
         }
       });
 
       test(`${mode}: copy in ${editor.label} with ${editor.copyAction}, paste in same ${editor.label} with ${editor.normalPasteAction}`, async ({ page }, testInfo) => {
+        markSameEditorNormalPasteExpectedFailure(editor);
         const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-${editor.kind}-same`);
         const init = writeEditorInit(editor);
         let server: Awaited<ReturnType<typeof startServer>> | undefined;
@@ -1062,11 +1135,11 @@ for (const editor of EDITORS) {
           server = await maybeConnect(mode, page, iso, testInfo, 'main', modeOffset + 4);
           await copyFromEditor(iso, 'main', editorText('COPY_SAME_P'));
           await editor.normalPaste(iso, 'main');
-          await expectEditorBufferContains(iso, 'main', out, editorText('COPY_SAME_P'));
+          await expectEditorBufferContains(iso, 'main', out, editorText('COPY_SAME_P'), 2);
         } finally {
           if (server) killServer(server);
           iso.cleanup();
-          fs.rmSync(init.dir, { recursive: true, force: true });
+          removeDirRetry(init.dir);
         }
       });
 
@@ -1081,11 +1154,11 @@ for (const editor of EDITORS) {
           server = await maybeConnect(mode, page, iso, testInfo, 'main', modeOffset + 5);
           await copyFromEditor(iso, 'main', editorText('COPY_SAME_TMUX'));
           await editor.pasteTmuxBuffer(iso, 'main');
-          await expectEditorBufferContains(iso, 'main', out, editorText('COPY_SAME_TMUX'));
+          await expectEditorBufferContains(iso, 'main', out, editorText('COPY_SAME_TMUX'), 2);
         } finally {
           if (server) killServer(server);
           iso.cleanup();
-          fs.rmSync(init.dir, { recursive: true, force: true });
+          removeDirRetry(init.dir);
         }
       });
 
@@ -1107,7 +1180,7 @@ for (const editor of EDITORS) {
         } finally {
           if (server) killServer(server);
           iso.cleanup();
-          fs.rmSync(init.dir, { recursive: true, force: true });
+          removeDirRetry(init.dir);
         }
       });
 
@@ -1125,7 +1198,7 @@ for (const editor of EDITORS) {
         } finally {
           if (server) killServer(server);
           iso.cleanup();
-          fs.rmSync(init.dir, { recursive: true, force: true });
+          removeDirRetry(init.dir);
         }
       });
 
@@ -1145,7 +1218,7 @@ for (const editor of EDITORS) {
         } finally {
           if (server) killServer(server);
           iso.cleanup();
-          fs.rmSync(init.dir, { recursive: true, force: true });
+          removeDirRetry(init.dir);
         }
       });
     }
@@ -1219,7 +1292,7 @@ for (const mode of ['tmux-web pty', 'direct tmux'] as const) {
       startShellSessionWithText(iso, 'main', 'TMUX_COPY_SAME_TMUX');
       server = await maybeConnect(mode, page, iso, testInfo, 'main', modeOffset + 1);
       await copyCurrentPaneLineWithTmuxCopyMode(iso, 'main:1', 'TMUX_COPY_SAME_TMUX');
-      await pasteTmuxBufferIntoCatAndExpect(iso, 'main', 'TMUX_COPY_SAME_TMUX');
+      await pasteTmuxBufferIntoCatAndExpect(iso, 'main', 'TMUX_COPY_SAME_TMUX', 2);
     } finally {
       if (server) killServer(server);
       iso.cleanup();
