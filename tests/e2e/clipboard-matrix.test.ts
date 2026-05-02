@@ -224,7 +224,7 @@ const EDITORS: Editor[] = [
     initPrefix: 'tw-clip-matrix-emacs-',
     initFilename: 'init.el',
     initContent: EMACS_INIT,
-    launchCommand: (initPath) => `emacs -nw -q -l ${shellSingleQuote(initPath)}`,
+    launchCommand: (initPath) => `emacs -nw -q --no-splash -l ${shellSingleQuote(initPath)}`,
     outsideCopyPaste: runEmacsOutsideTmuxCopyPaste,
     insertLine: emacsInsertLine,
     visualYankLine: emacsVisualYankLine,

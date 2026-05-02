@@ -18,3 +18,9 @@ test('Makefile has no bundled tmux build targets', () => {
   expect(makefile).not.toContain('vendor/libevent');
   expect(makefile).not.toContain('vendor/utf8proc');
 });
+
+test('Makefile rebuilds embedded xterm bundle when vendor/xterm.js HEAD changes', () => {
+  const makefile = readFileSync('Makefile', 'utf8');
+
+  expect(makefile).toMatch(/^dist\/client\/xterm\.js: .*\$\(VENDOR_XTERM_HEAD\)/m);
+});

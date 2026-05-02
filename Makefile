@@ -23,7 +23,7 @@ dev:
 
 # --- Build ---
 
-dist/client/xterm.js: $(SRCS_CLIENT)
+dist/client/xterm.js: $(SRCS_CLIENT) $(VENDOR_XTERM_HEAD)
 	$(BUN) bun-build.ts
 
 build: dist/client/xterm.js

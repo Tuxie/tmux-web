@@ -38,6 +38,17 @@ async function terminalBufferText(page: import('@playwright/test').Page): Promis
   });
 }
 
+async function waitForTmuxWebPtyClient(
+  isolatedTmux: ReturnType<typeof createIsolatedTmux>,
+  session: string,
+): Promise<void> {
+  await expect.poll(() => isolatedTmux.tmux([
+    'list-clients',
+    '-F',
+    '#{client_session} #{client_control_mode}',
+  ]), { timeout: 8000 }).toContain(`${session} 0`);
+}
+
 test('xterm.js answers Secondary DA probes on the input WebSocket path', async ({ page }) => {
   await boot(page);
 
@@ -137,6 +148,7 @@ async function expectProbeReplyFromRealTmux(
 
     await page.goto(`http://127.0.0.1:${REAL_TMUX_PORTS[kind]}/main`);
     await page.waitForFunction(() => !!(window as any).__adapter?.term, { timeout: 10000 });
+    await waitForTmuxWebPtyClient(isolatedTmux, 'main');
 
     const command = [
       shellSingleQuote(scriptPath),
