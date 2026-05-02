@@ -1,5 +1,5 @@
 /**
- * End-to-end clipboard matrix for tmux-web, real tmux, Vim/Neovim
+ * End-to-end clipboard matrix for tmux-web, real tmux, Emacs/Vim/Neovim
  * `clipboard=unnamedplus`, and the browser/OS clipboard bridge.
  *
  * All rows use createIsolatedTmux(), which loads the project tmux.conf with
@@ -107,8 +107,38 @@ let v:clipproviders['tmux-web'] = {
 set clipmethod^=tmux-web
 `;
 
+const EMACS_INIT = `
+(setq inhibit-startup-screen t)
+(setq make-backup-files nil)
+(setq auto-save-default nil)
+(setq select-enable-clipboard t)
+(setq tmux-web-clipboard-cache "")
+
+(defun tmux-web-copy (text)
+  (setq tmux-web-clipboard-cache text)
+  (when (and (getenv "TMUX") (executable-find "tmux"))
+    (let ((process-connection-type nil))
+      (with-temp-buffer
+        (insert text)
+        (call-process-region (point-min) (point-max)
+                             "tmux" nil nil nil
+                             "load-buffer" "-w" "-")))))
+
+(defun tmux-web-paste ()
+  (if (and (getenv "TMUX") (executable-find "tmux"))
+      (with-temp-buffer
+        (let ((status (call-process "tmux" nil t nil "save-buffer" "-")))
+          (if (eq status 0)
+              (buffer-string)
+            tmux-web-clipboard-cache)))
+    tmux-web-clipboard-cache))
+
+(setq interprogram-cut-function #'tmux-web-copy)
+(setq interprogram-paste-function #'tmux-web-paste)
+`;
+
 interface Editor {
-  kind: 'nvim' | 'vim';
+  kind: 'nvim' | 'vim' | 'emacs';
   label: string;
   command: string;
   commandName: string;
@@ -117,6 +147,12 @@ interface Editor {
   initContent: string;
   launchCommand(initPath: string): string;
   outsideCopyPaste(initPath: string, outputPath: string, text: string): void;
+  insertLine(iso: IsolatedTmux, target: string, text: string): Promise<void>;
+  visualYankLine(iso: IsolatedTmux, target: string): Promise<void>;
+  normalPaste(iso: IsolatedTmux, target: string): Promise<void>;
+  pasteTmuxBuffer(iso: IsolatedTmux, target: string): Promise<void>;
+  writeBuffer(iso: IsolatedTmux, target: string, outputPath: string): Promise<void>;
+  quit(iso: IsolatedTmux, target: string): Promise<void>;
 }
 
 interface EditorInit {
@@ -135,6 +171,12 @@ const EDITORS: Editor[] = [
     initContent: NVIM_INIT,
     launchCommand: (initPath) => `nvim --clean --cmd ${shellSingleQuote(`luafile ${initPath}`)}`,
     outsideCopyPaste: runNvimOutsideTmuxCopyPaste,
+    insertLine: vimLikeInsertLine,
+    visualYankLine: vimLikeVisualYankLine,
+    normalPaste: vimLikeNormalPaste,
+    pasteTmuxBuffer: vimLikeInsertModeTmuxPaste,
+    writeBuffer: vimLikeWriteBuffer,
+    quit: vimLikeQuit,
   },
   {
     kind: 'vim',
@@ -146,6 +188,29 @@ const EDITORS: Editor[] = [
     initContent: VIM_INIT,
     launchCommand: (initPath) => `vim --clean -Nu ${shellSingleQuote(initPath)} -n`,
     outsideCopyPaste: runVimOutsideTmuxCopyPaste,
+    insertLine: vimLikeInsertLine,
+    visualYankLine: vimLikeVisualYankLine,
+    normalPaste: vimLikeNormalPaste,
+    pasteTmuxBuffer: vimLikeInsertModeTmuxPaste,
+    writeBuffer: vimLikeWriteBuffer,
+    quit: vimLikeQuit,
+  },
+  {
+    kind: 'emacs',
+    label: 'emacs',
+    command: 'emacs',
+    commandName: 'emacs',
+    initPrefix: 'tw-clip-matrix-emacs-',
+    initFilename: 'init.el',
+    initContent: EMACS_INIT,
+    launchCommand: (initPath) => `emacs -nw -q -l ${shellSingleQuote(initPath)}`,
+    outsideCopyPaste: runEmacsOutsideTmuxCopyPaste,
+    insertLine: emacsInsertLine,
+    visualYankLine: emacsVisualYankLine,
+    normalPaste: emacsNormalPaste,
+    pasteTmuxBuffer: emacsPasteTmuxBuffer,
+    writeBuffer: emacsWriteBuffer,
+    quit: emacsQuit,
   },
 ];
 
@@ -192,6 +257,28 @@ function runVimOutsideTmuxCopyPaste(initPath: string, outputPath: string, text: 
     '+normal! Gp',
     `+silent! write! ${outputPath}`,
     '+qa!',
+  ], {
+    env: { ...process.env, TMUX: '' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+}
+
+function runEmacsOutsideTmuxCopyPaste(initPath: string, outputPath: string, text: string): void {
+  const script = [
+    '(with-temp-buffer',
+    `  (insert ${JSON.stringify(text)})`,
+    '  (kill-ring-save (point-min) (point-max))',
+    '  (goto-char (point-max))',
+    '  (yank)',
+    `  (write-region (point-min) (point-max) ${JSON.stringify(outputPath)} nil (quote silent)))`,
+  ].join('\n');
+  execFileSync('emacs', [
+    '--batch',
+    '-q',
+    '-l',
+    initPath,
+    '--eval',
+    script,
   ], {
     env: { ...process.env, TMUX: '' },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -362,24 +449,24 @@ async function launchEditorInExistingSession(
   await waitForPaneCommand(iso, target, editor.commandName);
 }
 
-async function editorInsertLine(iso: IsolatedTmux, target: string, text: string): Promise<void> {
+async function vimLikeInsertLine(iso: IsolatedTmux, target: string, text: string): Promise<void> {
   sendKeys(iso, target, ['i']);
   sendLiteral(iso, target, text);
   sendKeys(iso, target, ['Escape']);
   await waitForPaneSettled();
 }
 
-async function editorVisualYankLine(iso: IsolatedTmux, target: string): Promise<void> {
+async function vimLikeVisualYankLine(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, ['0', 'v', '$', 'y']);
   await waitForPaneSettled();
 }
 
-async function editorNormalPaste(iso: IsolatedTmux, target: string): Promise<void> {
+async function vimLikeNormalPaste(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, ['p']);
   await waitForPaneSettled();
 }
 
-async function editorInsertModeTmuxPaste(iso: IsolatedTmux, target: string): Promise<void> {
+async function vimLikeInsertModeTmuxPaste(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, ['i']);
   iso.tmux(['paste-buffer', '-t', target]);
   await waitForPaneSettled();
@@ -387,7 +474,7 @@ async function editorInsertModeTmuxPaste(iso: IsolatedTmux, target: string): Pro
   await waitForPaneSettled();
 }
 
-async function writeEditorBuffer(
+async function vimLikeWriteBuffer(
   iso: IsolatedTmux,
   target: string,
   outputPath: string,
@@ -398,13 +485,53 @@ async function writeEditorBuffer(
   await waitForPaneSettled();
 }
 
+async function vimLikeQuit(iso: IsolatedTmux, target: string): Promise<void> {
+  sendKeys(iso, target, ['Escape', ':', 'q', '!', 'Enter']);
+  await waitForPaneSettled();
+}
+
+async function emacsInsertLine(iso: IsolatedTmux, target: string, text: string): Promise<void> {
+  sendLiteral(iso, target, text);
+  await waitForPaneSettled();
+}
+
+async function emacsVisualYankLine(iso: IsolatedTmux, target: string): Promise<void> {
+  sendKeys(iso, target, ['C-a', 'C-Space', 'C-e', 'M-w']);
+  await waitForPaneSettled();
+}
+
+async function emacsNormalPaste(iso: IsolatedTmux, target: string): Promise<void> {
+  sendKeys(iso, target, ['C-y']);
+  await waitForPaneSettled();
+}
+
+async function emacsPasteTmuxBuffer(iso: IsolatedTmux, target: string): Promise<void> {
+  iso.tmux(['paste-buffer', '-t', target]);
+  await waitForPaneSettled();
+}
+
+async function emacsWriteBuffer(iso: IsolatedTmux, target: string, outputPath: string): Promise<void> {
+  sendKeys(iso, target, ['C-x', 'C-w']);
+  sendLiteral(iso, target, outputPath);
+  sendKeys(iso, target, ['Enter']);
+  await waitForPaneSettled();
+}
+
+async function emacsQuit(iso: IsolatedTmux, target: string): Promise<void> {
+  sendKeys(iso, target, ['C-x', 'C-c']);
+  await waitForPaneSettled();
+}
+
 async function expectEditorBufferContains(
   iso: IsolatedTmux,
   target: string,
   outputPath: string,
   expected: string,
 ): Promise<void> {
-  await writeEditorBuffer(iso, target, outputPath);
+  const command = iso.tmux(['display-message', '-p', '-t', target, '#{pane_current_command}']).trim();
+  const editor = EDITORS.find(candidate => candidate.commandName === command);
+  if (!editor) throw new Error(`Unknown editor command ${command}`);
+  await editor.writeBuffer(iso, target, outputPath);
   await expect.poll(() => {
     try {
       return fs.readFileSync(outputPath, 'utf8');
@@ -433,8 +560,11 @@ async function copyFromEditor(
   target: string,
   text: string,
 ): Promise<void> {
-  await editorInsertLine(iso, target, text);
-  await editorVisualYankLine(iso, target);
+  const command = iso.tmux(['display-message', '-p', '-t', target, '#{pane_current_command}']).trim();
+  const editor = EDITORS.find(candidate => candidate.commandName === command);
+  if (!editor) throw new Error(`Unknown editor command ${command}`);
+  await editor.insertLine(iso, target, text);
+  await editor.visualYankLine(iso, target);
   await expect.poll(() => showBufferOrEmpty(iso).trim(), { timeout: 5_000 }).toBe(text);
 }
 
@@ -478,7 +608,7 @@ for (const editor of EDITORS) {
   test.describe(`${editor.label} clipboard matrix`, () => {
     test.skip(!hasCommand(editor.command), `${editor.label} not available`);
 
-    const editorPortOffset = editor.kind === 'nvim' ? 0 : 50;
+    const editorPortOffset = editor.kind === 'nvim' ? 0 : editor.kind === 'vim' ? 50 : 100;
     const editorText = (suffix: string) => `${editor.kind.toUpperCase()}_${suffix}`;
 
     test(`via tmux-web: copy in OS, paste in ${editor.label} with p`, async ({ page }, testInfo) => {
@@ -491,7 +621,7 @@ for (const editor of EDITORS) {
         await waitForPaneSettled();
         server = await connectTmuxWeb(page, iso, testInfo, 'main', editorPortOffset, editorText('OS_TO_EDITOR_P'));
         await mirrorOsClipboardToTmuxBuffer(page, iso, editorText('OS_TO_EDITOR_P'));
-        await editorNormalPaste(iso, 'main');
+        await editor.normalPaste(iso, 'main');
         await expectEditorBufferContains(iso, 'main', out, editorText('OS_TO_EDITOR_P'));
       } finally {
         if (server) killServer(server);
@@ -510,10 +640,10 @@ for (const editor of EDITORS) {
         await waitForPaneSettled();
         server = await connectTmuxWeb(page, iso, testInfo, 'main', editorPortOffset + 2, editorText('OS_BROWSER_TO_EDITOR'));
         await waitForPaneCommand(iso, 'main', editor.commandName);
-        sendKeys(iso, 'main', ['i']);
+        if (editor.kind !== 'emacs') sendKeys(iso, 'main', ['i']);
         await browserPasteText(page, editorText('OS_BROWSER_TO_EDITOR'));
         await waitForPaneSettled();
-        sendKeys(iso, 'main', ['Escape']);
+        if (editor.kind !== 'emacs') sendKeys(iso, 'main', ['Escape']);
         await expectEditorBufferContains(iso, 'main', out, editorText('OS_BROWSER_TO_EDITOR'));
       } finally {
         if (server) killServer(server);
@@ -570,7 +700,7 @@ for (const editor of EDITORS) {
           server = await maybeConnect(mode, page, iso, testInfo, 'source', modeOffset);
           await copyCurrentPaneLineWithTmuxCopyMode(iso, 'source:1', editorText('TMUX_COPY_TO_EDITOR'));
           await launchEditorInExistingSession(iso, editor, 'source', init.path);
-          await editorNormalPaste(iso, 'source');
+          await editor.normalPaste(iso, 'source');
           await expectEditorBufferContains(iso, 'source', out, editorText('TMUX_COPY_TO_EDITOR'));
         } finally {
           if (server) killServer(server);
@@ -590,7 +720,7 @@ for (const editor of EDITORS) {
           await waitForPaneSettled();
           server = await maybeConnect(mode, page, iso, testInfo, 'source', modeOffset + 3);
           await copyCurrentPaneLineWithTmuxCopyMode(iso, 'source:1', editorText('TMUX_COPY_OTHER_EDITOR'));
-          await editorNormalPaste(iso, 'target');
+          await editor.normalPaste(iso, 'target');
           await expectEditorBufferContains(iso, 'target', out, editorText('TMUX_COPY_OTHER_EDITOR'));
         } finally {
           if (server) killServer(server);
@@ -609,7 +739,7 @@ for (const editor of EDITORS) {
           await waitForPaneSettled();
           server = await maybeConnect(mode, page, iso, testInfo, 'main', modeOffset + 4);
           await copyFromEditor(iso, 'main', editorText('COPY_SAME_P'));
-          await editorNormalPaste(iso, 'main');
+          await editor.normalPaste(iso, 'main');
           await expectEditorBufferContains(iso, 'main', out, editorText('COPY_SAME_P'));
         } finally {
           if (server) killServer(server);
@@ -628,7 +758,7 @@ for (const editor of EDITORS) {
           await waitForPaneSettled();
           server = await maybeConnect(mode, page, iso, testInfo, 'main', modeOffset + 5);
           await copyFromEditor(iso, 'main', editorText('COPY_SAME_TMUX'));
-          await editorInsertModeTmuxPaste(iso, 'main');
+          await editor.pasteTmuxBuffer(iso, 'main');
           await expectEditorBufferContains(iso, 'main', out, editorText('COPY_SAME_TMUX'));
         } finally {
           if (server) killServer(server);
@@ -648,10 +778,9 @@ for (const editor of EDITORS) {
           await launchEditorInExistingSession(iso, editor, 'main', init.path);
           server = await maybeConnect(mode, page, iso, testInfo, 'main', modeOffset + 6);
           await copyFromEditor(iso, 'main', editorText('COPY_RELAUNCH_P'));
-          sendKeys(iso, 'main', ['Escape', ':', 'q', '!', 'Enter']);
-          await waitForPaneSettled();
+          await editor.quit(iso, 'main');
           await launchEditorInExistingSession(iso, editor, 'main', init.path);
-          await editorNormalPaste(iso, 'main');
+          await editor.normalPaste(iso, 'main');
           await expectEditorBufferContains(iso, 'main', out, editorText('COPY_RELAUNCH_P'));
         } finally {
           if (server) killServer(server);
@@ -689,7 +818,7 @@ for (const editor of EDITORS) {
           await waitForPaneSettled();
           server = await maybeConnect(mode, page, iso, testInfo, 'source', modeOffset + 8);
           await copyFromEditor(iso, 'source', editorText('COPY_OTHER_EDITOR'));
-          await editorInsertModeTmuxPaste(iso, 'target');
+          await editor.pasteTmuxBuffer(iso, 'target');
           await expectEditorBufferContains(iso, 'target', out, editorText('COPY_OTHER_EDITOR'));
         } finally {
           if (server) killServer(server);
