@@ -1,5 +1,5 @@
 /**
- * End-to-end clipboard matrix for tmux-web, real tmux, Emacs/Vim/Neovim
+ * End-to-end clipboard matrix for tmux-web, real tmux, Emacs/Helix/Vim/Neovim
  * `clipboard=unnamedplus`, and the browser/OS clipboard bridge.
  *
  * All rows use createIsolatedTmux(), which loads the project tmux.conf with
@@ -137,8 +137,20 @@ const EMACS_INIT = `
 (setq interprogram-paste-function #'tmux-web-paste)
 `;
 
+const HELIX_CONFIG = `
+[editor]
+default-yank-register = "+"
+path-completion = false
+
+[editor.clipboard-provider.custom]
+yank = { command = "sh", args = ["-c", "if [ -n \\"$TMUX\\" ] && tmux save-buffer - 2>/dev/null; then :; else cat '__CACHE__' 2>/dev/null || true; fi"] }
+paste = { command = "sh", args = ["-c", "cat > '__CACHE__'; if [ -n \\"$TMUX\\" ]; then tmux load-buffer -w '__CACHE__' >/dev/null 2>&1 || true; fi"] }
+primary-yank = { command = "sh", args = ["-c", "if [ -n \\"$TMUX\\" ] && tmux save-buffer - 2>/dev/null; then :; else cat '__CACHE__' 2>/dev/null || true; fi"] }
+primary-paste = { command = "sh", args = ["-c", "cat > '__CACHE__'; if [ -n \\"$TMUX\\" ]; then tmux load-buffer -w '__CACHE__' >/dev/null 2>&1 || true; fi"] }
+`;
+
 interface Editor {
-  kind: 'nvim' | 'vim' | 'emacs';
+  kind: 'nvim' | 'vim' | 'emacs' | 'helix';
   label: string;
   command: string;
   commandName: string;
@@ -146,7 +158,7 @@ interface Editor {
   initFilename: string;
   initContent: string;
   launchCommand(initPath: string): string;
-  outsideCopyPaste(initPath: string, outputPath: string, text: string): void;
+  outsideCopyPaste(initPath: string, outputPath: string, text: string): void | Promise<void>;
   insertLine(iso: IsolatedTmux, target: string, text: string): Promise<void>;
   visualYankLine(iso: IsolatedTmux, target: string): Promise<void>;
   normalPaste(iso: IsolatedTmux, target: string): Promise<void>;
@@ -212,12 +224,32 @@ const EDITORS: Editor[] = [
     writeBuffer: emacsWriteBuffer,
     quit: emacsQuit,
   },
+  {
+    kind: 'helix',
+    label: 'helix',
+    command: 'hx',
+    commandName: 'hx',
+    initPrefix: 'tw-clip-matrix-helix-',
+    initFilename: 'config.toml',
+    initContent: HELIX_CONFIG,
+    launchCommand: (initPath) => {
+      const dir = path.dirname(initPath);
+      return `cd ${shellSingleQuote(dir)} && hx --config ${shellSingleQuote(initPath)} --log ${shellSingleQuote(path.join(dir, 'helix.log'))}`;
+    },
+    outsideCopyPaste: runHelixOutsideTmuxCopyPaste,
+    insertLine: helixInsertLine,
+    visualYankLine: helixVisualYankLine,
+    normalPaste: helixNormalPaste,
+    pasteTmuxBuffer: helixPasteTmuxBuffer,
+    writeBuffer: helixWriteBuffer,
+    quit: helixQuit,
+  },
 ];
 
 function writeEditorInit(editor: Editor): EditorInit {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), editor.initPrefix));
   const initPath = path.join(dir, editor.initFilename);
-  fs.writeFileSync(initPath, editor.initContent);
+  fs.writeFileSync(initPath, editor.initContent.replaceAll('__CACHE__', path.join(dir, 'clipboard.txt')));
   return { dir, path: initPath };
 }
 
@@ -283,6 +315,61 @@ function runEmacsOutsideTmuxCopyPaste(initPath: string, outputPath: string, text
     env: { ...process.env, TMUX: '' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+}
+
+async function runHelixOutsideTmuxCopyPaste(initPath: string, outputPath: string, text: string): Promise<void> {
+  const runDir = path.dirname(outputPath);
+  const cachePath = path.join(path.dirname(initPath), 'clipboard.txt');
+  const inputPath = path.join(runDir, 'outside-helix-input.txt');
+  fs.writeFileSync(inputPath, '');
+  const command = `cd ${shellSingleQuote(runDir)} && hx --config ${shellSingleQuote(initPath)} --log ${shellSingleQuote(path.join(runDir, 'helix.log'))} ${shellSingleQuote(path.basename(inputPath))}`;
+  const proc = spawn('script', ['-qfec', command, '/dev/null'], {
+    stdio: ['pipe', 'pipe', 'ignore'],
+    detached: true,
+    env: { ...process.env, TMUX: '' },
+  });
+  installTerminalQueryResponses(proc);
+  try {
+    await waitForProcessSettled();
+    await sendProcessKeys(proc, ['i']);
+    sendProcessLiteral(proc, text);
+    await sendProcessKeys(proc, ['Escape', 'x', 'y', 'p', '%', 'y']);
+    await waitForPaneSettled();
+    const yankedBuffer = fs.existsSync(cachePath) ? fs.readFileSync(cachePath, 'utf8') : '';
+    const occurrences = yankedBuffer.split(text).length - 1;
+    if (occurrences < 2) {
+      throw new Error(`Helix outside-tmux paste did not duplicate yanked text; clipboard contained ${JSON.stringify(yankedBuffer)}`);
+    }
+    fs.writeFileSync(outputPath, yankedBuffer);
+  } finally {
+    try { proc.kill('SIGTERM'); } catch { /* already exited */ }
+  }
+}
+
+function installTerminalQueryResponses(proc: ChildProcess): void {
+  proc.stdout?.on('data', (chunk: Buffer) => {
+    const text = chunk.toString('binary');
+    if (text.includes('\x1b[c')) proc.stdin?.write('\x1b[?62;4c');
+    if (text.includes('\x1b[>c')) proc.stdin?.write('\x1b[>0;276;0c');
+    if (text.includes('\x1b[?u')) proc.stdin?.write('\x1b[?0u');
+  });
+}
+
+async function waitForProcessSettled(): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, 1_500));
+}
+
+function sendProcessLiteral(proc: ChildProcess, text: string): void {
+  proc.stdin?.write(text);
+}
+
+async function sendProcessKeys(proc: ChildProcess, keys: string[]): Promise<void> {
+  for (const key of keys) {
+    if (key === 'Escape') proc.stdin?.write('\x1b');
+    else if (key === 'Enter') proc.stdin?.write('\r');
+    else proc.stdin?.write(key);
+    await new Promise(resolve => setTimeout(resolve, 120));
+  }
 }
 
 async function termReady(page: Page): Promise<void> {
@@ -522,6 +609,51 @@ async function emacsQuit(iso: IsolatedTmux, target: string): Promise<void> {
   await waitForPaneSettled();
 }
 
+async function helixInsertLine(iso: IsolatedTmux, target: string, text: string): Promise<void> {
+  sendKeys(iso, target, ['i']);
+  sendLiteral(iso, target, text);
+  sendKeys(iso, target, ['Escape']);
+  await waitForPaneSettled();
+}
+
+async function helixVisualYankLine(iso: IsolatedTmux, target: string): Promise<void> {
+  sendKeys(iso, target, ['x', 'y']);
+  await waitForPaneSettled();
+}
+
+async function helixNormalPaste(iso: IsolatedTmux, target: string): Promise<void> {
+  sendKeys(iso, target, ['p']);
+  await waitForPaneSettled();
+}
+
+async function helixPasteTmuxBuffer(iso: IsolatedTmux, target: string): Promise<void> {
+  sendKeys(iso, target, ['i']);
+  iso.tmux(['paste-buffer', '-t', target]);
+  await waitForPaneSettled();
+  sendKeys(iso, target, ['Escape']);
+  await waitForPaneSettled();
+}
+
+async function helixWriteBuffer(iso: IsolatedTmux, target: string, outputPath: string): Promise<void> {
+  const panePath = iso.tmux(['display-message', '-p', '-t', target, '#{pane_current_path}']).trim();
+  const filename = path.basename(outputPath);
+  const paneOutputPath = path.join(panePath, filename);
+  sendKeys(iso, target, [':']);
+  sendLiteral(iso, target, `write ${filename}`);
+  sendKeys(iso, target, ['Enter']);
+  await waitForPaneSettled();
+  if (paneOutputPath !== outputPath && fs.existsSync(paneOutputPath)) {
+    fs.copyFileSync(paneOutputPath, outputPath);
+  }
+}
+
+async function helixQuit(iso: IsolatedTmux, target: string): Promise<void> {
+  sendKeys(iso, target, [':']);
+  sendLiteral(iso, target, 'quit!');
+  sendKeys(iso, target, ['Enter']);
+  await waitForPaneSettled();
+}
+
 async function expectEditorBufferContains(
   iso: IsolatedTmux,
   target: string,
@@ -608,7 +740,7 @@ for (const editor of EDITORS) {
   test.describe(`${editor.label} clipboard matrix`, () => {
     test.skip(!hasCommand(editor.command), `${editor.label} not available`);
 
-    const editorPortOffset = editor.kind === 'nvim' ? 0 : editor.kind === 'vim' ? 50 : 100;
+    const editorPortOffset = editor.kind === 'nvim' ? 0 : editor.kind === 'vim' ? 50 : editor.kind === 'emacs' ? 100 : 150;
     const editorText = (suffix: string) => `${editor.kind.toUpperCase()}_${suffix}`;
 
     test(`via tmux-web: copy in OS, paste in ${editor.label} with p`, async ({ page }, testInfo) => {
@@ -674,7 +806,7 @@ for (const editor of EDITORS) {
       const out = path.join(init.dir, `outside-${editor.kind}.txt`);
       const text = editorText('OUTSIDE_TMUX_COPY');
       try {
-        editor.outsideCopyPaste(init.path, out, text);
+        await editor.outsideCopyPaste(init.path, out, text);
         await expect.poll(() => {
           try {
             return fs.readFileSync(out, 'utf8');

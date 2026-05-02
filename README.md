@@ -114,7 +114,7 @@ source-file -q ~/.config/tmux-web/tmux-web.conf
 
 Each path is silent if missing. General `tmux.conf` paths are sourced first so a single user config works everywhere; the `tmux-web*` paths come last so you can override anything specifically for the web frontend. Your existing tmux configuration keeps working; tmux-web simply ensures the required options are set first. You can also specify an alternative config to source using `--tmux-conf <path>`, which replaces the default `source-file` commands. To use a specific tmux executable, pass `--tmux <path>`.
 
-## Vim clipboard integration
+## Editor clipboard integration
 
 tmux-web's `set -s set-clipboard external` (set in the default `tmux.conf`) forwards OSC 52 clipboard sequences from pane applications to the browser.
 
@@ -210,6 +210,27 @@ Terminal Emacs also needs explicit clipboard plumbing. Add this to your Emacs in
 - `kill-ring-save` / `M-w` calls `interprogram-cut-function`, which loads the tmux buffer with `tmux load-buffer -w -`; tmux then emits the OSC 52 clipboard write that tmux-web mirrors to the browser/OS clipboard.
 - `yank` / `C-y` calls `interprogram-paste-function`, which reads the current tmux buffer with `tmux save-buffer -`.
 - Outside tmux, the in-process cache keeps normal same-Emacs kill/yank behavior working instead of breaking direct Emacs users.
+
+### Helix
+
+Helix needs a custom clipboard provider if you want plain `y` and `p` to use the tmux-web/tmux clipboard path consistently. Add this to `~/.config/helix/config.toml`:
+
+```toml
+[editor]
+default-yank-register = "+"
+
+[editor.clipboard-provider.custom]
+yank = { command = "sh", args = ["-c", 'cache=${XDG_CACHE_HOME:-$HOME/.cache}/tmux-web-helix-clipboard; if [ -n "$TMUX" ] && tmux save-buffer - 2>/dev/null; then :; else cat "$cache" 2>/dev/null || true; fi'] }
+paste = { command = "sh", args = ["-c", 'cache=${XDG_CACHE_HOME:-$HOME/.cache}/tmux-web-helix-clipboard; mkdir -p "${cache%/*}"; cat > "$cache"; if [ -n "$TMUX" ]; then tmux load-buffer -w "$cache" >/dev/null 2>&1 || true; fi'] }
+primary-yank = { command = "sh", args = ["-c", 'cache=${XDG_CACHE_HOME:-$HOME/.cache}/tmux-web-helix-clipboard; if [ -n "$TMUX" ] && tmux save-buffer - 2>/dev/null; then :; else cat "$cache" 2>/dev/null || true; fi'] }
+primary-paste = { command = "sh", args = ["-c", 'cache=${XDG_CACHE_HOME:-$HOME/.cache}/tmux-web-helix-clipboard; mkdir -p "${cache%/*}"; cat > "$cache"; if [ -n "$TMUX" ]; then tmux load-buffer -w "$cache" >/dev/null 2>&1 || true; fi'] }
+```
+
+- `default-yank-register = "+"` makes plain `y` and `p` use Helix's clipboard register instead of the internal yank register.
+- In Helix custom providers, `paste` receives text from editor yanks, while `yank` prints text back for editor pastes.
+- Inside tmux, copy uses `tmux load-buffer -w` so tmux emits the OSC 52 clipboard write that tmux-web mirrors to the browser/OS clipboard.
+- Inside tmux, paste uses `tmux save-buffer -` so `p` reads the current tmux buffer.
+- Outside tmux, the cache file keeps normal same-Helix `y` then `p` behavior working instead of breaking direct Helix users.
 
 ### Neovim
 
