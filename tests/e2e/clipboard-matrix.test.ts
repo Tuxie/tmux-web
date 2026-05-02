@@ -7,7 +7,7 @@
  * every row. No row mutates tmux or editor settings for a special case.
  */
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
-import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -22,13 +22,9 @@ import {
 test.skip(!hasTmux(), 'tmux not available');
 test.setTimeout(60_000);
 
-function hasCommand(command: string): boolean {
-  try {
-    execFileSync(command, ['--version'], { stdio: 'ignore' });
-    return true;
-  } catch {
-    return false;
-  }
+function commandInPath(command: string): boolean {
+  const result = spawnSync(command, ['--version'], { stdio: 'ignore' });
+  return !result.error || result.error.code !== 'ENOENT';
 }
 
 const PORT_BASE = 6122;
@@ -810,7 +806,7 @@ async function maybeConnect(
 
 for (const editor of EDITORS) {
   test.describe(`${editor.label} clipboard matrix`, () => {
-    test.skip(!hasCommand(editor.command), `${editor.label} not available`);
+    test.skip(!commandInPath(editor.command), `${editor.command} not found in PATH; skipping ${editor.label} clipboard matrix`);
 
     const editorPortOffset = editor.kind === 'nvim' ? 0 : editor.kind === 'vim' ? 50 : editor.kind === 'emacs' ? 100 : 150;
     const editorText = (suffix: string) => `${editor.kind.toUpperCase()}_${suffix}`;
