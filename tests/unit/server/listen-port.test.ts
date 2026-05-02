@@ -13,14 +13,20 @@ describe('resolveListenPort', () => {
 });
 
 describe('serveWithResolvedPort', () => {
-  test('starts a server on a resolved loopback port', async () => {
-    const server = await serveWithResolvedPort('127.0.0.1', 0, (port) => ({
-      hostname: '127.0.0.1',
-      port,
-      fetch: () => new Response('ok'),
-    }));
+  test('starts a server on a dynamic loopback port', async () => {
+    const builtPorts: number[] = [];
+    const server = await serveWithResolvedPort('127.0.0.1', 0, (port) => {
+      builtPorts.push(port);
+      return {
+        hostname: '127.0.0.1',
+        port,
+        fetch: () => new Response('ok'),
+      };
+    });
 
     try {
+      expect(builtPorts).toEqual([0]);
+      expect(server.port).toBeGreaterThan(0);
       const response = await fetch(`http://127.0.0.1:${server.port}/`);
       expect(response.status).toBe(200);
       expect(await response.text()).toBe('ok');

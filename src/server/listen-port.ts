@@ -33,7 +33,7 @@ export async function serveWithResolvedPort<WsData, Route extends string>(
   const serve = deps.serve ?? ((options: ServeOptions<WsData, Route>) => Bun.serve<WsData, Route>(options));
   let lastListenError: unknown;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const listenPort = await resolvePort(hostname, port);
+    const listenPort = port === 0 && !deps.resolvePort ? 0 : await resolvePort(hostname, port);
     try {
       return serve(buildOptions(listenPort));
     } catch (error) {
