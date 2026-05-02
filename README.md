@@ -126,6 +126,7 @@ Standard Vim needs an explicit clipboard provider. Use Vim 9.2 or newer built wi
 " tmux-web clipboard provider for standard Vim.
 " Requires Vim with +clipboard_provider and tmux with set-clipboard external.
 set clipboard=unnamedplus
+set mouse=a
 
 let g:tmux_web_clipboard_cache = ''
 
@@ -169,6 +170,7 @@ set clipmethod^=tmux-web
 ```
 
 - `set clipboard=unnamedplus` makes plain `y` and `p` use the `+` register.
+- `set mouse=a` lets Vim handle clicks, drags, and wheel events in all modes; tmux-web forwards mouse events to fullscreen TUIs instead of treating editor screens as tmux copy-mode surfaces.
 - `clipmethod^=tmux-web` tells Vim to use the custom provider for `+` and `*`.
 - Inside tmux, copy uses `tmux load-buffer -w -` so tmux also emits the OSC 52 clipboard write that tmux-web mirrors to the browser/OS clipboard.
 - Inside tmux, paste uses `tmux save-buffer -` so `p`, `"+p`, and `"*p` read the current tmux buffer.
@@ -238,13 +240,17 @@ Neovim ≥ 0.10 has built-in OSC 52 clipboard support in TUI mode. Add to `~/.co
 
 ```lua
 vim.opt.clipboard = 'unnamedplus'
+vim.opt.mouse = 'a'
 ```
 
 Or to `~/.config/nvim/init.vim`:
 
 ```vim
 set clipboard=unnamedplus
+set mouse=a
 ```
+
+- `mouse=a` lets Neovim handle clicks, drags, and wheel events in all modes; tmux-web forwards mouse events to fullscreen TUIs instead of treating editor screens as tmux copy-mode surfaces.
 
 No plugins or custom autocmds needed — Neovim detects the `Ms` terminfo capability that tmux-web provides and emits/receives OSC 52 sequences natively for both yank and paste.
 
