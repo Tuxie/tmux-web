@@ -164,6 +164,8 @@ interface Editor {
   initPrefix: string;
   initFilename: string;
   initContent: string;
+  copyAction: string;
+  normalPasteAction: string;
   isAvailable?: () => boolean;
   launchCommand(initPath: string): string;
   outsideCopyPaste(initPath: string, outputPath: string, text: string): void | Promise<void>;
@@ -189,6 +191,8 @@ const EDITORS: Editor[] = [
     initPrefix: 'tw-clip-matrix-nvim-',
     initFilename: 'init.lua',
     initContent: NVIM_INIT,
+    copyAction: 'visual select and y',
+    normalPasteAction: 'p',
     launchCommand: (initPath) => `nvim --clean --cmd ${shellSingleQuote(`luafile ${initPath}`)}`,
     outsideCopyPaste: runNvimOutsideTmuxCopyPaste,
     insertLine: vimLikeInsertLine,
@@ -206,6 +210,8 @@ const EDITORS: Editor[] = [
     initPrefix: 'tw-clip-matrix-vim-',
     initFilename: 'init.vim',
     initContent: VIM_INIT,
+    copyAction: 'visual select and y',
+    normalPasteAction: 'p',
     isAvailable: vimClipboardProviderAvailable,
     launchCommand: (initPath) => `vim --clean -Nu ${shellSingleQuote(initPath)} -n`,
     outsideCopyPaste: runVimOutsideTmuxCopyPaste,
@@ -224,6 +230,8 @@ const EDITORS: Editor[] = [
     initPrefix: 'tw-clip-matrix-emacs-',
     initFilename: 'init.el',
     initContent: EMACS_INIT,
+    copyAction: 'mark line and M-w',
+    normalPasteAction: 'C-y',
     launchCommand: (initPath) => `emacs -nw -q --no-splash -l ${shellSingleQuote(initPath)}`,
     outsideCopyPaste: runEmacsOutsideTmuxCopyPaste,
     insertLine: emacsInsertLine,
@@ -241,6 +249,8 @@ const EDITORS: Editor[] = [
     initPrefix: 'tw-clip-matrix-helix-',
     initFilename: 'config.toml',
     initContent: HELIX_CONFIG,
+    copyAction: 'select line with x and yank with y',
+    normalPasteAction: 'p',
     launchCommand: (initPath) => {
       const dir = path.dirname(initPath);
       return `cd ${shellSingleQuote(dir)} && XDG_CACHE_HOME=${shellSingleQuote(dir)} hx --config ${shellSingleQuote(initPath)} --log ${shellSingleQuote(path.join(dir, 'helix.log'))}`;
@@ -261,6 +271,8 @@ const EDITORS: Editor[] = [
     initPrefix: 'tw-clip-matrix-kak-',
     initFilename: 'kakrc',
     initContent: KAKOUNE_CONFIG,
+    copyAction: 'select line with x and yank with y',
+    normalPasteAction: 'p',
     isAvailable: kakouneAvailable,
     launchCommand: (initPath) => {
       const dir = path.dirname(initPath);
@@ -921,7 +933,7 @@ for (const editor of EDITORS) {
     const editorPortOffset = EDITOR_PORT_OFFSETS[editor.kind];
     const editorText = (suffix: string) => `${editor.kind.toUpperCase()}_${suffix}`;
 
-    test(`via tmux-web: copy in OS, paste in ${editor.label} with p`, async ({ page }, testInfo) => {
+    test(`via tmux-web: mirror OS clipboard to tmux buffer, paste in ${editor.label} with ${editor.normalPasteAction}`, async ({ page }, testInfo) => {
       const iso = createIsolatedTmux(`tw-clip-os-${editor.kind}`);
       const init = writeEditorInit(editor);
       let server: Awaited<ReturnType<typeof startServer>> | undefined;
@@ -940,7 +952,7 @@ for (const editor of EDITORS) {
       }
     });
 
-    test(`via tmux-web: copy in OS, paste in ${editor.label} with browser paste`, async ({ page }, testInfo) => {
+    test(`via tmux-web: paste browser ClipboardEvent text into ${editor.label}`, async ({ page }, testInfo) => {
       const iso = createIsolatedTmux(`tw-clip-os-browser-${editor.kind}`);
       const init = writeEditorInit(editor);
       let server: Awaited<ReturnType<typeof startServer>> | undefined;
@@ -962,7 +974,7 @@ for (const editor of EDITORS) {
       }
     });
 
-    test(`via tmux-web: copy in ${editor.label} with visual select and y, paste in OS`, async ({ page }, testInfo) => {
+    test(`via tmux-web: copy in ${editor.label} with ${editor.copyAction}, paste in OS`, async ({ page }, testInfo) => {
       const iso = createIsolatedTmux(`tw-clip-${editor.kind}-os`);
       const init = writeEditorInit(editor);
       let server: Awaited<ReturnType<typeof startServer>> | undefined;
@@ -979,7 +991,7 @@ for (const editor of EDITORS) {
       }
     });
 
-    test(`outside tmux: copy in ${editor.label} with visual select and y, paste in same ${editor.label} with p`, async () => {
+    test(`outside tmux: copy in ${editor.label} with ${editor.copyAction}, paste in same ${editor.label} with ${editor.normalPasteAction}`, async () => {
       const init = writeEditorInit(editor);
       const out = path.join(init.dir, `outside-${editor.kind}.txt`);
       const text = editorText('OUTSIDE_TMUX_COPY');
@@ -1000,7 +1012,7 @@ for (const editor of EDITORS) {
     for (const mode of ['tmux-web pty', 'direct tmux'] as const) {
       const modeOffset = (mode === 'tmux-web pty' ? 10 : 40) + editorPortOffset;
 
-      test(`${mode}: copy in tmux copy-mode, paste in ${editor.label} with p`, async ({ page }, testInfo) => {
+      test(`${mode}: copy in tmux copy-mode, paste in ${editor.label} with ${editor.normalPasteAction}`, async ({ page }, testInfo) => {
         const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-copy-${editor.kind}`);
         const init = writeEditorInit(editor);
         let server: Awaited<ReturnType<typeof startServer>> | undefined;
@@ -1019,7 +1031,7 @@ for (const editor of EDITORS) {
         }
       });
 
-      test(`${mode}: copy in tmux copy-mode, paste in ${editor.label} in another tmux session with p`, async ({ page }, testInfo) => {
+      test(`${mode}: copy in tmux copy-mode, paste in ${editor.label} in another tmux session with ${editor.normalPasteAction}`, async ({ page }, testInfo) => {
         const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-copy-other-${editor.kind}`);
         const init = writeEditorInit(editor);
         let server: Awaited<ReturnType<typeof startServer>> | undefined;
@@ -1039,7 +1051,7 @@ for (const editor of EDITORS) {
         }
       });
 
-      test(`${mode}: copy in ${editor.label} with visual select and y, paste in same ${editor.label} with p`, async ({ page }, testInfo) => {
+      test(`${mode}: copy in ${editor.label} with ${editor.copyAction}, paste in same ${editor.label} with ${editor.normalPasteAction}`, async ({ page }, testInfo) => {
         const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-${editor.kind}-same`);
         const init = writeEditorInit(editor);
         let server: Awaited<ReturnType<typeof startServer>> | undefined;
@@ -1058,7 +1070,7 @@ for (const editor of EDITORS) {
         }
       });
 
-      test(`${mode}: copy in ${editor.label} with visual select and y, paste in same ${editor.label} using tmux paste-buffer`, async ({ page }, testInfo) => {
+      test(`${mode}: copy in ${editor.label} with ${editor.copyAction}, paste in same ${editor.label} using tmux paste-buffer`, async ({ page }, testInfo) => {
         const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-${editor.kind}-tmux`);
         const init = writeEditorInit(editor);
         let server: Awaited<ReturnType<typeof startServer>> | undefined;
@@ -1077,7 +1089,7 @@ for (const editor of EDITORS) {
         }
       });
 
-      test(`${mode}: copy in ${editor.label} with visual select and y, paste in relaunched ${editor.label} with p in the same tmux session`, async ({ page }, testInfo) => {
+      test(`${mode}: copy in ${editor.label} with ${editor.copyAction}, paste in relaunched ${editor.label} with ${editor.normalPasteAction} in the same tmux session`, async ({ page }, testInfo) => {
         const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-${editor.kind}-relaunch`);
         const init = writeEditorInit(editor);
         let server: Awaited<ReturnType<typeof startServer>> | undefined;
@@ -1099,7 +1111,7 @@ for (const editor of EDITORS) {
         }
       });
 
-      test(`${mode}: copy in ${editor.label} with visual select and y, paste in a different tmux session with paste-buffer`, async ({ page }, testInfo) => {
+      test(`${mode}: copy in ${editor.label} with ${editor.copyAction}, paste in a different tmux session with paste-buffer`, async ({ page }, testInfo) => {
         const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-${editor.kind}-other`);
         const init = writeEditorInit(editor);
         let server: Awaited<ReturnType<typeof startServer>> | undefined;
@@ -1117,7 +1129,7 @@ for (const editor of EDITORS) {
         }
       });
 
-      test(`${mode}: copy in ${editor.label} with visual select and y, paste in ${editor.label} in a different tmux session using paste-buffer`, async ({ page }, testInfo) => {
+      test(`${mode}: copy in ${editor.label} with ${editor.copyAction}, paste in ${editor.label} in a different tmux session using paste-buffer`, async ({ page }, testInfo) => {
         const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-${editor.kind}-other-${editor.kind}`);
         const init = writeEditorInit(editor);
         let server: Awaited<ReturnType<typeof startServer>> | undefined;
@@ -1140,7 +1152,7 @@ for (const editor of EDITORS) {
   });
 }
 
-test('via tmux-web: copy in OS, paste with tmux paste-buffer', async ({ page }, testInfo) => {
+test('via tmux-web: mirror OS clipboard to tmux buffer, paste with tmux paste-buffer', async ({ page }, testInfo) => {
   const iso = createIsolatedTmux('tw-clip-os-tmux');
   let server: Awaited<ReturnType<typeof startServer>> | undefined;
   try {
@@ -1168,7 +1180,7 @@ test('via tmux-web: copy in tmux copy-mode, paste in OS', async ({ page }, testI
   }
 });
 
-test('via tmux-web: mouse-select pane text in tmux copy-mode, paste in OS', async ({ page }, testInfo) => {
+test('via tmux-web: mouse-select terminal text, paste in OS', async ({ page }, testInfo) => {
   const iso = createIsolatedTmux('tw-clip-mouse-copy-os');
   let server: Awaited<ReturnType<typeof startServer>> | undefined;
   try {
@@ -1182,7 +1194,7 @@ test('via tmux-web: mouse-select pane text in tmux copy-mode, paste in OS', asyn
   }
 });
 
-test('via tmux-web: mouse-select pane text in tmux copy-mode, paste in tmux', async ({ page }, testInfo) => {
+test('via tmux-web: mouse-select terminal text, paste in tmux', async ({ page }, testInfo) => {
   const iso = createIsolatedTmux('tw-clip-mouse-copy-tmux');
   let server: Awaited<ReturnType<typeof startServer>> | undefined;
   try {
