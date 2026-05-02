@@ -383,24 +383,26 @@ describe('desktop tmux-web launch helpers', () => {
 
   test('startTmuxWebServer timeout kills a pre-readiness child that ignores SIGTERM', async () => {
     const pidFile = `/tmp/tmux-web-timeout-pid-${crypto.randomUUID()}`;
+    const startupTimeoutMs = 1_000;
 
     await Bun.write(pidFile, '');
-    await expect(
-      startTmuxWebServer({
-        ...(await bunScriptLaunch(
-          `
-            await Bun.write(${JSON.stringify(pidFile)}, String(process.pid));
-            process.on('SIGTERM', () => {});
-            setInterval(() => {}, 1_000);
-          `,
-          50,
-        )),
-        closeGraceMs: 50,
-      }),
-    ).rejects.toThrow('tmux-web did not report readiness within 50ms');
+    const pendingServer = startTmuxWebServer({
+      ...(await bunScriptLaunch(
+        `
+          process.on('SIGTERM', () => {});
+          await Bun.write(${JSON.stringify(pidFile)}, String(process.pid));
+          setInterval(() => {}, 1_000);
+        `,
+        startupTimeoutMs,
+      )),
+      closeGraceMs: 50,
+    });
 
-    const pid = await waitForPidFile(pidFile);
-    await waitForPidExit(pid);
+    const pid = await waitForPidFile(pidFile, 3_000);
+    await expect(pendingServer).rejects.toThrow(
+      `tmux-web did not report readiness within ${startupTimeoutMs}ms`,
+    );
+    await waitForPidExit(pid, 3_000);
   });
 
   test('close terminates a child after readiness', async () => {
