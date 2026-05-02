@@ -1,10 +1,10 @@
 /**
- * End-to-end clipboard matrix for tmux-web, real tmux, Neovim
+ * End-to-end clipboard matrix for tmux-web, real tmux, Vim/Neovim
  * `clipboard=unnamedplus`, and the browser/OS clipboard bridge.
  *
  * All rows use createIsolatedTmux(), which loads the project tmux.conf with
- * only source-file lines stripped. All Neovim rows use the single NVIM_INIT
- * constant below. No row mutates tmux or Neovim settings for a special case.
+ * only source-file lines stripped. Each editor uses one shared init file for
+ * every row. No row mutates tmux or editor settings for a special case.
  */
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
@@ -22,16 +22,14 @@ import {
 test.skip(!hasTmux(), 'tmux not available');
 test.setTimeout(60_000);
 
-function hasNvim(): boolean {
+function hasCommand(command: string): boolean {
   try {
-    execFileSync('nvim', ['--version'], { stdio: 'ignore' });
+    execFileSync(command, ['--version'], { stdio: 'ignore' });
     return true;
   } catch {
     return false;
   }
 }
-
-test.skip(!hasNvim(), 'Neovim not available');
 
 const PORT_BASE = 6122;
 
@@ -61,15 +59,100 @@ vim.o.swapfile = false
 vim.o.shortmess = vim.o.shortmess .. 'I'
 `;
 
-interface NvimInit {
+const VIM_INIT = `
+set nocompatible
+set clipboard=unnamedplus
+set mouse=
+set noswapfile
+set shortmess+=I
+
+let g:tmux_web_clipboard_cache = ''
+
+function! TmuxWebClipboardAvailable() abort
+  return v:true
+endfunction
+
+function! TmuxWebClipboardCopy(reg, type, lines) abort
+  let l:text = join(a:lines, "\\n")
+  if a:type ==# 'V'
+    let l:text .= "\\n"
+  endif
+  let g:tmux_web_clipboard_cache = l:text
+  if exists('$TMUX') && executable('tmux')
+    call system(['tmux', 'load-buffer', '-w', '-'], l:text)
+  endif
+endfunction
+
+function! TmuxWebClipboardPaste(reg) abort
+  if exists('$TMUX') && executable('tmux')
+    let l:text = system(['tmux', 'save-buffer', '-'])
+    if !v:shell_error
+      return ['v', split(l:text, "\\n", 1)]
+    endif
+  endif
+  return ['v', split(g:tmux_web_clipboard_cache, "\\n", 1)]
+endfunction
+
+let v:clipproviders['tmux-web'] = {
+      \\ 'available': function('TmuxWebClipboardAvailable'),
+      \\ 'copy': {
+      \\   '+': function('TmuxWebClipboardCopy'),
+      \\   '*': function('TmuxWebClipboardCopy'),
+      \\ },
+      \\ 'paste': {
+      \\   '+': function('TmuxWebClipboardPaste'),
+      \\   '*': function('TmuxWebClipboardPaste'),
+      \\ },
+      \\ }
+set clipmethod^=tmux-web
+`;
+
+interface Editor {
+  kind: 'nvim' | 'vim';
+  label: string;
+  command: string;
+  commandName: string;
+  initPrefix: string;
+  initFilename: string;
+  initContent: string;
+  launchCommand(initPath: string): string;
+  outsideCopyPaste(initPath: string, outputPath: string, text: string): void;
+}
+
+interface EditorInit {
   dir: string;
   path: string;
 }
 
-function writeNvimInit(): NvimInit {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tw-clip-matrix-nvim-'));
-  const initPath = path.join(dir, 'init.lua');
-  fs.writeFileSync(initPath, NVIM_INIT);
+const EDITORS: Editor[] = [
+  {
+    kind: 'nvim',
+    label: 'nvim',
+    command: 'nvim',
+    commandName: 'nvim',
+    initPrefix: 'tw-clip-matrix-nvim-',
+    initFilename: 'init.lua',
+    initContent: NVIM_INIT,
+    launchCommand: (initPath) => `nvim --clean --cmd ${shellSingleQuote(`luafile ${initPath}`)}`,
+    outsideCopyPaste: runNvimOutsideTmuxCopyPaste,
+  },
+  {
+    kind: 'vim',
+    label: 'vim',
+    command: 'vim',
+    commandName: 'vim',
+    initPrefix: 'tw-clip-matrix-vim-',
+    initFilename: 'init.vim',
+    initContent: VIM_INIT,
+    launchCommand: (initPath) => `vim --clean -Nu ${shellSingleQuote(initPath)} -n`,
+    outsideCopyPaste: runVimOutsideTmuxCopyPaste,
+  },
+];
+
+function writeEditorInit(editor: Editor): EditorInit {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), editor.initPrefix));
+  const initPath = path.join(dir, editor.initFilename);
+  fs.writeFileSync(initPath, editor.initContent);
   return { dir, path: initPath };
 }
 
@@ -89,6 +172,26 @@ function runNvimOutsideTmuxCopyPaste(initPath: string, outputPath: string, text:
     `luafile ${initPath}`,
     '--cmd',
     `lua ${script}`,
+  ], {
+    env: { ...process.env, TMUX: '' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+}
+
+function runVimOutsideTmuxCopyPaste(initPath: string, outputPath: string, text: string): void {
+  execFileSync('vim', [
+    '--clean',
+    '--not-a-term',
+    '-Nu',
+    initPath,
+    '-n',
+    '-es',
+    '+set nomore',
+    `+call setline(1, ${JSON.stringify(text)})`,
+    '+normal! 0v$y',
+    '+normal! Gp',
+    `+silent! write! ${outputPath}`,
+    '+qa!',
   ], {
     env: { ...process.env, TMUX: '' },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -225,13 +328,13 @@ function startCatSession(iso: IsolatedTmux, session: string, text?: string): voi
   iso.tmux(['new-session', '-d', '-s', session, cmd]);
 }
 
-function startNvimSession(iso: IsolatedTmux, session: string, initPath: string): void {
+function startEditorSession(iso: IsolatedTmux, editor: Editor, session: string, initPath: string): void {
   iso.tmux([
     'new-session',
     '-d',
     '-s',
     session,
-    `nvim --clean --cmd ${shellSingleQuote(`luafile ${initPath}`)}`,
+    editor.launchCommand(initPath),
   ]);
 }
 
@@ -249,33 +352,34 @@ function startShellSessionWithText(iso: IsolatedTmux, session: string, text: str
   ]);
 }
 
-async function launchNvimInExistingSession(
+async function launchEditorInExistingSession(
   iso: IsolatedTmux,
+  editor: Editor,
   target: string,
   initPath: string,
 ): Promise<void> {
-  iso.tmux(['send-keys', '-t', target, `nvim --clean --cmd ${shellSingleQuote(`luafile ${initPath}`)}`, 'Enter']);
-  await waitForPaneCommand(iso, target, 'nvim');
+  iso.tmux(['send-keys', '-t', target, editor.launchCommand(initPath), 'Enter']);
+  await waitForPaneCommand(iso, target, editor.commandName);
 }
 
-async function nvimInsertLine(iso: IsolatedTmux, target: string, text: string): Promise<void> {
+async function editorInsertLine(iso: IsolatedTmux, target: string, text: string): Promise<void> {
   sendKeys(iso, target, ['i']);
   sendLiteral(iso, target, text);
   sendKeys(iso, target, ['Escape']);
   await waitForPaneSettled();
 }
 
-async function nvimVisualYankLine(iso: IsolatedTmux, target: string): Promise<void> {
+async function editorVisualYankLine(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, ['0', 'v', '$', 'y']);
   await waitForPaneSettled();
 }
 
-async function nvimNormalPaste(iso: IsolatedTmux, target: string): Promise<void> {
+async function editorNormalPaste(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, ['p']);
   await waitForPaneSettled();
 }
 
-async function nvimInsertModeTmuxPaste(iso: IsolatedTmux, target: string): Promise<void> {
+async function editorInsertModeTmuxPaste(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, ['i']);
   iso.tmux(['paste-buffer', '-t', target]);
   await waitForPaneSettled();
@@ -283,7 +387,7 @@ async function nvimInsertModeTmuxPaste(iso: IsolatedTmux, target: string): Promi
   await waitForPaneSettled();
 }
 
-async function writeNvimBuffer(
+async function writeEditorBuffer(
   iso: IsolatedTmux,
   target: string,
   outputPath: string,
@@ -294,13 +398,13 @@ async function writeNvimBuffer(
   await waitForPaneSettled();
 }
 
-async function expectNvimBufferContains(
+async function expectEditorBufferContains(
   iso: IsolatedTmux,
   target: string,
   outputPath: string,
   expected: string,
 ): Promise<void> {
-  await writeNvimBuffer(iso, target, outputPath);
+  await writeEditorBuffer(iso, target, outputPath);
   await expect.poll(() => {
     try {
       return fs.readFileSync(outputPath, 'utf8');
@@ -324,13 +428,13 @@ async function copyCurrentPaneLineWithTmuxCopyMode(
   await expect.poll(() => showBufferOrEmpty(iso).trim(), { timeout: 5_000 }).toBe(expected);
 }
 
-async function copyFromNvim(
+async function copyFromEditor(
   iso: IsolatedTmux,
   target: string,
   text: string,
 ): Promise<void> {
-  await nvimInsertLine(iso, target, text);
-  await nvimVisualYankLine(iso, target);
+  await editorInsertLine(iso, target, text);
+  await editorVisualYankLine(iso, target);
   await expect.poll(() => showBufferOrEmpty(iso).trim(), { timeout: 5_000 }).toBe(text);
 }
 
@@ -370,24 +474,232 @@ async function maybeConnect(
   return connectTmuxWeb(page, iso, testInfo, session, offset);
 }
 
-test('via tmux-web: copy in OS, paste in nvim with p', async ({ page }, testInfo) => {
-  const iso = createIsolatedTmux('tw-clip-os-nvim');
-  const init = writeNvimInit();
-  let server: Awaited<ReturnType<typeof startServer>> | undefined;
-  const out = path.join(init.dir, 'out.txt');
-  try {
-    startNvimSession(iso, 'main', init.path);
-    await waitForPaneSettled();
-    server = await connectTmuxWeb(page, iso, testInfo, 'main', 0, 'OS_TO_NVIM_P');
-    await mirrorOsClipboardToTmuxBuffer(page, iso, 'OS_TO_NVIM_P');
-    await nvimNormalPaste(iso, 'main');
-    await expectNvimBufferContains(iso, 'main', out, 'OS_TO_NVIM_P');
-  } finally {
-    if (server) killServer(server);
-    iso.cleanup();
-    fs.rmSync(init.dir, { recursive: true, force: true });
-  }
-});
+for (const editor of EDITORS) {
+  test.describe(`${editor.label} clipboard matrix`, () => {
+    test.skip(!hasCommand(editor.command), `${editor.label} not available`);
+
+    const editorPortOffset = editor.kind === 'nvim' ? 0 : 50;
+    const editorText = (suffix: string) => `${editor.kind.toUpperCase()}_${suffix}`;
+
+    test(`via tmux-web: copy in OS, paste in ${editor.label} with p`, async ({ page }, testInfo) => {
+      const iso = createIsolatedTmux(`tw-clip-os-${editor.kind}`);
+      const init = writeEditorInit(editor);
+      let server: Awaited<ReturnType<typeof startServer>> | undefined;
+      const out = path.join(init.dir, 'out.txt');
+      try {
+        startEditorSession(iso, editor, 'main', init.path);
+        await waitForPaneSettled();
+        server = await connectTmuxWeb(page, iso, testInfo, 'main', editorPortOffset, editorText('OS_TO_EDITOR_P'));
+        await mirrorOsClipboardToTmuxBuffer(page, iso, editorText('OS_TO_EDITOR_P'));
+        await editorNormalPaste(iso, 'main');
+        await expectEditorBufferContains(iso, 'main', out, editorText('OS_TO_EDITOR_P'));
+      } finally {
+        if (server) killServer(server);
+        iso.cleanup();
+        fs.rmSync(init.dir, { recursive: true, force: true });
+      }
+    });
+
+    test(`via tmux-web: copy in OS, paste in ${editor.label} with browser paste`, async ({ page }, testInfo) => {
+      const iso = createIsolatedTmux(`tw-clip-os-browser-${editor.kind}`);
+      const init = writeEditorInit(editor);
+      let server: Awaited<ReturnType<typeof startServer>> | undefined;
+      const out = path.join(init.dir, 'out.txt');
+      try {
+        startEditorSession(iso, editor, 'main', init.path);
+        await waitForPaneSettled();
+        server = await connectTmuxWeb(page, iso, testInfo, 'main', editorPortOffset + 2, editorText('OS_BROWSER_TO_EDITOR'));
+        await waitForPaneCommand(iso, 'main', editor.commandName);
+        sendKeys(iso, 'main', ['i']);
+        await browserPasteText(page, editorText('OS_BROWSER_TO_EDITOR'));
+        await waitForPaneSettled();
+        sendKeys(iso, 'main', ['Escape']);
+        await expectEditorBufferContains(iso, 'main', out, editorText('OS_BROWSER_TO_EDITOR'));
+      } finally {
+        if (server) killServer(server);
+        iso.cleanup();
+        fs.rmSync(init.dir, { recursive: true, force: true });
+      }
+    });
+
+    test(`via tmux-web: copy in ${editor.label} with visual select and y, paste in OS`, async ({ page }, testInfo) => {
+      const iso = createIsolatedTmux(`tw-clip-${editor.kind}-os`);
+      const init = writeEditorInit(editor);
+      let server: Awaited<ReturnType<typeof startServer>> | undefined;
+      try {
+        startEditorSession(iso, editor, 'main', init.path);
+        await waitForPaneSettled();
+        server = await connectTmuxWeb(page, iso, testInfo, 'main', editorPortOffset + 4);
+        await copyFromEditor(iso, 'main', editorText('COPY_TO_OS'));
+        await expectOsClipboard(page, editorText('COPY_TO_OS'));
+      } finally {
+        if (server) killServer(server);
+        iso.cleanup();
+        fs.rmSync(init.dir, { recursive: true, force: true });
+      }
+    });
+
+    test(`outside tmux: copy in ${editor.label} with visual select and y, paste in same ${editor.label} with p`, async () => {
+      const init = writeEditorInit(editor);
+      const out = path.join(init.dir, `outside-${editor.kind}.txt`);
+      const text = editorText('OUTSIDE_TMUX_COPY');
+      try {
+        editor.outsideCopyPaste(init.path, out, text);
+        await expect.poll(() => {
+          try {
+            return fs.readFileSync(out, 'utf8');
+          } catch {
+            return '';
+          }
+        }, { timeout: 5_000 }).toContain(text);
+      } finally {
+        fs.rmSync(init.dir, { recursive: true, force: true });
+      }
+    });
+
+    for (const mode of ['tmux-web pty', 'direct tmux'] as const) {
+      const modeOffset = (mode === 'tmux-web pty' ? 10 : 40) + editorPortOffset;
+
+      test(`${mode}: copy in tmux copy-mode, paste in ${editor.label} with p`, async ({ page }, testInfo) => {
+        const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-copy-${editor.kind}`);
+        const init = writeEditorInit(editor);
+        let server: Awaited<ReturnType<typeof startServer>> | undefined;
+        const out = path.join(init.dir, 'out.txt');
+        try {
+          startShellSessionWithText(iso, 'source', editorText('TMUX_COPY_TO_EDITOR'));
+          server = await maybeConnect(mode, page, iso, testInfo, 'source', modeOffset);
+          await copyCurrentPaneLineWithTmuxCopyMode(iso, 'source:1', editorText('TMUX_COPY_TO_EDITOR'));
+          await launchEditorInExistingSession(iso, editor, 'source', init.path);
+          await editorNormalPaste(iso, 'source');
+          await expectEditorBufferContains(iso, 'source', out, editorText('TMUX_COPY_TO_EDITOR'));
+        } finally {
+          if (server) killServer(server);
+          iso.cleanup();
+          fs.rmSync(init.dir, { recursive: true, force: true });
+        }
+      });
+
+      test(`${mode}: copy in tmux copy-mode, paste in ${editor.label} in another tmux session with p`, async ({ page }, testInfo) => {
+        const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-copy-other-${editor.kind}`);
+        const init = writeEditorInit(editor);
+        let server: Awaited<ReturnType<typeof startServer>> | undefined;
+        const out = path.join(init.dir, 'out.txt');
+        try {
+          startShellSessionWithText(iso, 'source', editorText('TMUX_COPY_OTHER_EDITOR'));
+          startEditorSession(iso, editor, 'target', init.path);
+          await waitForPaneSettled();
+          server = await maybeConnect(mode, page, iso, testInfo, 'source', modeOffset + 3);
+          await copyCurrentPaneLineWithTmuxCopyMode(iso, 'source:1', editorText('TMUX_COPY_OTHER_EDITOR'));
+          await editorNormalPaste(iso, 'target');
+          await expectEditorBufferContains(iso, 'target', out, editorText('TMUX_COPY_OTHER_EDITOR'));
+        } finally {
+          if (server) killServer(server);
+          iso.cleanup();
+          fs.rmSync(init.dir, { recursive: true, force: true });
+        }
+      });
+
+      test(`${mode}: copy in ${editor.label} with visual select and y, paste in same ${editor.label} with p`, async ({ page }, testInfo) => {
+        const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-${editor.kind}-same`);
+        const init = writeEditorInit(editor);
+        let server: Awaited<ReturnType<typeof startServer>> | undefined;
+        const out = path.join(init.dir, 'out.txt');
+        try {
+          startEditorSession(iso, editor, 'main', init.path);
+          await waitForPaneSettled();
+          server = await maybeConnect(mode, page, iso, testInfo, 'main', modeOffset + 4);
+          await copyFromEditor(iso, 'main', editorText('COPY_SAME_P'));
+          await editorNormalPaste(iso, 'main');
+          await expectEditorBufferContains(iso, 'main', out, editorText('COPY_SAME_P'));
+        } finally {
+          if (server) killServer(server);
+          iso.cleanup();
+          fs.rmSync(init.dir, { recursive: true, force: true });
+        }
+      });
+
+      test(`${mode}: copy in ${editor.label} with visual select and y, paste in same ${editor.label} using tmux paste-buffer`, async ({ page }, testInfo) => {
+        const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-${editor.kind}-tmux`);
+        const init = writeEditorInit(editor);
+        let server: Awaited<ReturnType<typeof startServer>> | undefined;
+        const out = path.join(init.dir, 'out.txt');
+        try {
+          startEditorSession(iso, editor, 'main', init.path);
+          await waitForPaneSettled();
+          server = await maybeConnect(mode, page, iso, testInfo, 'main', modeOffset + 5);
+          await copyFromEditor(iso, 'main', editorText('COPY_SAME_TMUX'));
+          await editorInsertModeTmuxPaste(iso, 'main');
+          await expectEditorBufferContains(iso, 'main', out, editorText('COPY_SAME_TMUX'));
+        } finally {
+          if (server) killServer(server);
+          iso.cleanup();
+          fs.rmSync(init.dir, { recursive: true, force: true });
+        }
+      });
+
+      test(`${mode}: copy in ${editor.label} with visual select and y, paste in relaunched ${editor.label} with p in the same tmux session`, async ({ page }, testInfo) => {
+        const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-${editor.kind}-relaunch`);
+        const init = writeEditorInit(editor);
+        let server: Awaited<ReturnType<typeof startServer>> | undefined;
+        const out = path.join(init.dir, 'out.txt');
+        try {
+          startShellSession(iso, 'main');
+          await waitForPaneSettled();
+          await launchEditorInExistingSession(iso, editor, 'main', init.path);
+          server = await maybeConnect(mode, page, iso, testInfo, 'main', modeOffset + 6);
+          await copyFromEditor(iso, 'main', editorText('COPY_RELAUNCH_P'));
+          sendKeys(iso, 'main', ['Escape', ':', 'q', '!', 'Enter']);
+          await waitForPaneSettled();
+          await launchEditorInExistingSession(iso, editor, 'main', init.path);
+          await editorNormalPaste(iso, 'main');
+          await expectEditorBufferContains(iso, 'main', out, editorText('COPY_RELAUNCH_P'));
+        } finally {
+          if (server) killServer(server);
+          iso.cleanup();
+          fs.rmSync(init.dir, { recursive: true, force: true });
+        }
+      });
+
+      test(`${mode}: copy in ${editor.label} with visual select and y, paste in a different tmux session with paste-buffer`, async ({ page }, testInfo) => {
+        const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-${editor.kind}-other`);
+        const init = writeEditorInit(editor);
+        let server: Awaited<ReturnType<typeof startServer>> | undefined;
+        try {
+          startEditorSession(iso, editor, 'source', init.path);
+          startCatSession(iso, 'target');
+          await waitForPaneSettled();
+          server = await maybeConnect(mode, page, iso, testInfo, 'source', modeOffset + 7);
+          await copyFromEditor(iso, 'source', editorText('COPY_OTHER_TMUX'));
+          await pasteTmuxBufferIntoCatAndExpect(iso, 'target', editorText('COPY_OTHER_TMUX'));
+        } finally {
+          if (server) killServer(server);
+          iso.cleanup();
+          fs.rmSync(init.dir, { recursive: true, force: true });
+        }
+      });
+
+      test(`${mode}: copy in ${editor.label} with visual select and y, paste in ${editor.label} in a different tmux session using paste-buffer`, async ({ page }, testInfo) => {
+        const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-${editor.kind}-other-${editor.kind}`);
+        const init = writeEditorInit(editor);
+        let server: Awaited<ReturnType<typeof startServer>> | undefined;
+        const out = path.join(init.dir, 'out.txt');
+        try {
+          startEditorSession(iso, editor, 'source', init.path);
+          startEditorSession(iso, editor, 'target', init.path);
+          await waitForPaneSettled();
+          server = await maybeConnect(mode, page, iso, testInfo, 'source', modeOffset + 8);
+          await copyFromEditor(iso, 'source', editorText('COPY_OTHER_EDITOR'));
+          await editorInsertModeTmuxPaste(iso, 'target');
+          await expectEditorBufferContains(iso, 'target', out, editorText('COPY_OTHER_EDITOR'));
+        } finally {
+          if (server) killServer(server);
+          iso.cleanup();
+          fs.rmSync(init.dir, { recursive: true, force: true });
+        }
+      });
+    }
+  });
+}
 
 test('via tmux-web: copy in OS, paste with tmux paste-buffer', async ({ page }, testInfo) => {
   const iso = createIsolatedTmux('tw-clip-os-tmux');
@@ -400,28 +712,6 @@ test('via tmux-web: copy in OS, paste with tmux paste-buffer', async ({ page }, 
   } finally {
     if (server) killServer(server);
     iso.cleanup();
-  }
-});
-
-test('via tmux-web: copy in OS, paste in nvim with browser paste', async ({ page }, testInfo) => {
-  const iso = createIsolatedTmux('tw-clip-os-browser-nvim');
-  const init = writeNvimInit();
-  let server: Awaited<ReturnType<typeof startServer>> | undefined;
-  const out = path.join(init.dir, 'out.txt');
-  try {
-    startNvimSession(iso, 'main', init.path);
-    await waitForPaneSettled();
-    server = await connectTmuxWeb(page, iso, testInfo, 'main', 2, 'OS_BROWSER_TO_NVIM');
-    await waitForPaneCommand(iso, 'main', 'nvim');
-    sendKeys(iso, 'main', ['i']);
-    await browserPasteText(page, 'OS_BROWSER_TO_NVIM');
-    await waitForPaneSettled();
-    sendKeys(iso, 'main', ['Escape']);
-    await expectNvimBufferContains(iso, 'main', out, 'OS_BROWSER_TO_NVIM');
-  } finally {
-    if (server) killServer(server);
-    iso.cleanup();
-    fs.rmSync(init.dir, { recursive: true, force: true });
   }
 });
 
@@ -439,61 +729,8 @@ test('via tmux-web: copy in tmux copy-mode, paste in OS', async ({ page }, testI
   }
 });
 
-test('via tmux-web: copy in nvim with visual select and y, paste in OS', async ({ page }, testInfo) => {
-  const iso = createIsolatedTmux('tw-clip-nvim-os');
-  const init = writeNvimInit();
-  let server: Awaited<ReturnType<typeof startServer>> | undefined;
-  try {
-    startNvimSession(iso, 'main', init.path);
-    await waitForPaneSettled();
-    server = await connectTmuxWeb(page, iso, testInfo, 'main', 4);
-    await copyFromNvim(iso, 'main', 'NVIM_COPY_TO_OS');
-    await expectOsClipboard(page, 'NVIM_COPY_TO_OS');
-  } finally {
-    if (server) killServer(server);
-    iso.cleanup();
-    fs.rmSync(init.dir, { recursive: true, force: true });
-  }
-});
-
-test('outside tmux: copy in nvim with visual select and y, paste in same nvim with p', async () => {
-  const init = writeNvimInit();
-  const out = path.join(init.dir, 'outside-nvim.txt');
-  try {
-    runNvimOutsideTmuxCopyPaste(init.path, out, 'NVIM_OUTSIDE_TMUX_COPY');
-    await expect.poll(() => {
-      try {
-        return fs.readFileSync(out, 'utf8');
-      } catch {
-        return '';
-      }
-    }, { timeout: 5_000 }).toContain('NVIM_OUTSIDE_TMUX_COPY');
-  } finally {
-    fs.rmSync(init.dir, { recursive: true, force: true });
-  }
-});
-
 for (const mode of ['tmux-web pty', 'direct tmux'] as const) {
   const modeOffset = mode === 'tmux-web pty' ? 10 : 40;
-
-  test(`${mode}: copy in tmux copy-mode, paste in nvim with p`, async ({ page }, testInfo) => {
-    const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-copy-nvim`);
-    const init = writeNvimInit();
-    let server: Awaited<ReturnType<typeof startServer>> | undefined;
-    const out = path.join(init.dir, 'out.txt');
-    try {
-      startShellSessionWithText(iso, 'source', 'TMUX_COPY_TO_NVIM');
-      server = await maybeConnect(mode, page, iso, testInfo, 'source', modeOffset);
-      await copyCurrentPaneLineWithTmuxCopyMode(iso, 'source:1', 'TMUX_COPY_TO_NVIM');
-      await launchNvimInExistingSession(iso, 'source', init.path);
-      await nvimNormalPaste(iso, 'source');
-      await expectNvimBufferContains(iso, 'source', out, 'TMUX_COPY_TO_NVIM');
-    } finally {
-      if (server) killServer(server);
-      iso.cleanup();
-      fs.rmSync(init.dir, { recursive: true, force: true });
-    }
-  });
 
   test(`${mode}: copy in tmux copy-mode, paste in the same tmux session with paste-buffer`, async ({ page }, testInfo) => {
     const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-copy-same`);
@@ -521,125 +758,6 @@ for (const mode of ['tmux-web pty', 'direct tmux'] as const) {
     } finally {
       if (server) killServer(server);
       iso.cleanup();
-    }
-  });
-
-  test(`${mode}: copy in tmux copy-mode, paste in nvim in another tmux session with p`, async ({ page }, testInfo) => {
-    const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-copy-other-nvim`);
-    const init = writeNvimInit();
-    let server: Awaited<ReturnType<typeof startServer>> | undefined;
-    const out = path.join(init.dir, 'out.txt');
-    try {
-      startShellSessionWithText(iso, 'source', 'TMUX_COPY_OTHER_NVIM');
-      startNvimSession(iso, 'target', init.path);
-      await waitForPaneSettled();
-      server = await maybeConnect(mode, page, iso, testInfo, 'source', modeOffset + 3);
-      await copyCurrentPaneLineWithTmuxCopyMode(iso, 'source:1', 'TMUX_COPY_OTHER_NVIM');
-      await nvimNormalPaste(iso, 'target');
-      await expectNvimBufferContains(iso, 'target', out, 'TMUX_COPY_OTHER_NVIM');
-    } finally {
-      if (server) killServer(server);
-      iso.cleanup();
-      fs.rmSync(init.dir, { recursive: true, force: true });
-    }
-  });
-
-  test(`${mode}: copy in nvim with visual select and y, paste in same nvim with p`, async ({ page }, testInfo) => {
-    const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-nvim-same`);
-    const init = writeNvimInit();
-    let server: Awaited<ReturnType<typeof startServer>> | undefined;
-    const out = path.join(init.dir, 'out.txt');
-    try {
-      startNvimSession(iso, 'main', init.path);
-      await waitForPaneSettled();
-      server = await maybeConnect(mode, page, iso, testInfo, 'main', modeOffset + 4);
-      await copyFromNvim(iso, 'main', 'NVIM_COPY_SAME_P');
-      await nvimNormalPaste(iso, 'main');
-      await expectNvimBufferContains(iso, 'main', out, 'NVIM_COPY_SAME_P');
-    } finally {
-      if (server) killServer(server);
-      iso.cleanup();
-      fs.rmSync(init.dir, { recursive: true, force: true });
-    }
-  });
-
-  test(`${mode}: copy in nvim with visual select and y, paste in same nvim using tmux paste-buffer`, async ({ page }, testInfo) => {
-    const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-nvim-tmux`);
-    const init = writeNvimInit();
-    let server: Awaited<ReturnType<typeof startServer>> | undefined;
-    const out = path.join(init.dir, 'out.txt');
-    try {
-      startNvimSession(iso, 'main', init.path);
-      await waitForPaneSettled();
-      server = await maybeConnect(mode, page, iso, testInfo, 'main', modeOffset + 5);
-      await copyFromNvim(iso, 'main', 'NVIM_COPY_SAME_TMUX');
-      await nvimInsertModeTmuxPaste(iso, 'main');
-      await expectNvimBufferContains(iso, 'main', out, 'NVIM_COPY_SAME_TMUX');
-    } finally {
-      if (server) killServer(server);
-      iso.cleanup();
-      fs.rmSync(init.dir, { recursive: true, force: true });
-    }
-  });
-
-  test(`${mode}: copy in nvim with visual select and y, paste in relaunched nvim with p in the same tmux session`, async ({ page }, testInfo) => {
-    const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-nvim-relaunch`);
-    const init = writeNvimInit();
-    let server: Awaited<ReturnType<typeof startServer>> | undefined;
-    const out = path.join(init.dir, 'out.txt');
-    try {
-      startShellSession(iso, 'main');
-      await waitForPaneSettled();
-      await launchNvimInExistingSession(iso, 'main', init.path);
-      server = await maybeConnect(mode, page, iso, testInfo, 'main', modeOffset + 6);
-      await copyFromNvim(iso, 'main', 'NVIM_COPY_RELAUNCH_P');
-      sendKeys(iso, 'main', ['Escape', ':', 'q', '!', 'Enter']);
-      await waitForPaneSettled();
-      await launchNvimInExistingSession(iso, 'main', init.path);
-      await nvimNormalPaste(iso, 'main');
-      await expectNvimBufferContains(iso, 'main', out, 'NVIM_COPY_RELAUNCH_P');
-    } finally {
-      if (server) killServer(server);
-      iso.cleanup();
-      fs.rmSync(init.dir, { recursive: true, force: true });
-    }
-  });
-
-  test(`${mode}: copy in nvim with visual select and y, paste in a different tmux session with paste-buffer`, async ({ page }, testInfo) => {
-    const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-nvim-other`);
-    const init = writeNvimInit();
-    let server: Awaited<ReturnType<typeof startServer>> | undefined;
-    try {
-      startNvimSession(iso, 'source', init.path);
-      startCatSession(iso, 'target');
-      await waitForPaneSettled();
-      server = await maybeConnect(mode, page, iso, testInfo, 'source', modeOffset + 7);
-      await copyFromNvim(iso, 'source', 'NVIM_COPY_OTHER_TMUX');
-      await pasteTmuxBufferIntoCatAndExpect(iso, 'target', 'NVIM_COPY_OTHER_TMUX');
-    } finally {
-      if (server) killServer(server);
-      iso.cleanup();
-      fs.rmSync(init.dir, { recursive: true, force: true });
-    }
-  });
-
-  test(`${mode}: copy in nvim with visual select and y, paste in nvim in a different tmux session using paste-buffer`, async ({ page }, testInfo) => {
-    const iso = createIsolatedTmux(`tw-clip-${mode === 'tmux-web pty' ? 'web' : 'direct'}-nvim-other-nvim`);
-    const init = writeNvimInit();
-    let server: Awaited<ReturnType<typeof startServer>> | undefined;
-    const out = path.join(init.dir, 'out.txt');
-    try {
-      startNvimSession(iso, 'source', init.path);
-      startNvimSession(iso, 'target', init.path);
-      await waitForPaneSettled();
-      server = await maybeConnect(mode, page, iso, testInfo, 'source', modeOffset + 8);
-      await copyFromNvim(iso, 'source', 'NVIM_COPY_OTHER_NVIM');
-      await nvimInsertModeTmuxPaste(iso, 'target');
-      await expectNvimBufferContains(iso, 'target', out, 'NVIM_COPY_OTHER_NVIM');
-    } finally {
-      if (server) killServer(server);
-      iso.cleanup();
-      fs.rmSync(init.dir, { recursive: true, force: true });
     }
   });
 }

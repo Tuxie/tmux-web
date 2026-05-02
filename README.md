@@ -116,31 +116,63 @@ Each path is silent if missing. General `tmux.conf` paths are sourced first so a
 
 ## Vim clipboard integration
 
-tmux-web's `set -s set-clipboard external` (set in the default `tmux.conf`) forwards OSC 52 clipboard sequences from pane applications to the browser. To make Vim's `y` / `"+y` / `"*y` land in the browser clipboard (and `"+p` read from it), add this to your `~/.vimrc`:
+tmux-web's `set -s set-clipboard external` (set in the default `tmux.conf`) forwards OSC 52 clipboard sequences from pane applications to the browser.
+
+### Vim
+
+Standard Vim needs an explicit clipboard provider. Use Vim 9.2 or newer built with `+clipboard_provider`, then add this to your `~/.vimrc`:
 
 ```vim
-" Minimal OSC 52 clipboard — requires tmux with set-clipboard set
-set clipboard=
+" tmux-web clipboard provider for standard Vim.
+" Requires Vim with +clipboard_provider and tmux with set-clipboard external.
+set clipboard=unnamedplus
 
-function! s:Osc52Yank() abort
-  let l:b64 = substitute(system('base64 -w0', @0), '\n\+$', '', '')
-  if empty(l:b64) | return | endif
-  let l:osc52 = "\e]52;c;" . l:b64 . "\x07"
-  call writefile([l:osc52], '/dev/tty', 'b')
+let g:tmux_web_clipboard_cache = ''
+
+function! TmuxWebClipboardAvailable() abort
+  return v:true
 endfunction
 
-augroup Osc52YankGroup
-  autocmd!
-  autocmd TextYankPost * call s:Osc52Yank()
-augroup END
+function! TmuxWebClipboardCopy(reg, type, lines) abort
+  let l:text = join(a:lines, "\n")
+  if a:type ==# 'V'
+    let l:text .= "\n"
+  endif
+  let g:tmux_web_clipboard_cache = l:text
+  if exists('$TMUX') && executable('tmux')
+    call system(['tmux', 'load-buffer', '-w', '-'], l:text)
+  endif
+endfunction
+
+function! TmuxWebClipboardPaste(reg) abort
+  if exists('$TMUX') && executable('tmux')
+    let l:text = system(['tmux', 'save-buffer', '-'])
+    if !v:shell_error
+      return ['v', split(l:text, "\n", 1)]
+    endif
+  endif
+  return ['v', split(g:tmux_web_clipboard_cache, "\n", 1)]
+endfunction
+
+let v:clipproviders['tmux-web'] = {
+      \ 'available': function('TmuxWebClipboardAvailable'),
+      \ 'copy': {
+      \   '+': function('TmuxWebClipboardCopy'),
+      \   '*': function('TmuxWebClipboardCopy'),
+      \ },
+      \ 'paste': {
+      \   '+': function('TmuxWebClipboardPaste'),
+      \   '*': function('TmuxWebClipboardPaste'),
+      \ },
+      \ }
+set clipmethod^=tmux-web
 ```
 
-- `TextYankPost` fires after any yank (`y`, `yy`, `"+y`, etc.) — the yanked text is in the `@0` register.
-- `system('base64 -w0', @0)` runs base64 with the yanked text on stdin, returning a single-line base64 string.
-- `writefile(…, '/dev/tty', 'b')` writes the raw `\e]52;c;<base64>\x07` OSC 52 sequence to the controlling terminal, which tmux intercepts and forwards to tmux-web.
-- The `clipboard=` line prevents Vim's built-in `+`/`*` register logic from interfering.
-
-On macOS replace `base64 -w0` with `base64 -b 0` (or use `openssl base64`).
+- `set clipboard=unnamedplus` makes plain `y` and `p` use the `+` register.
+- `clipmethod^=tmux-web` tells Vim to use the custom provider for `+` and `*`.
+- Inside tmux, copy uses `tmux load-buffer -w -` so tmux also emits the OSC 52 clipboard write that tmux-web mirrors to the browser/OS clipboard.
+- Inside tmux, paste uses `tmux save-buffer -` so `p`, `"+p`, and `"*p` read the current tmux buffer.
+- Outside tmux, the small in-process cache keeps normal same-Vim `y` then `p` behavior working instead of breaking direct Vim users.
 
 ### Neovim
 
