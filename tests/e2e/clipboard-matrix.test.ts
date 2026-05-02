@@ -377,6 +377,67 @@ async function termReady(page: Page): Promise<void> {
   await expect(page.locator('#terminal .xterm')).toBeVisible({ timeout: 12_000 });
 }
 
+async function waitForTerminalText(
+  page: Page,
+  substring: string,
+  timeout = 8_000,
+): Promise<void> {
+  await page.waitForFunction((needle: string) => {
+    const term = (window as any).__adapter?.term;
+    if (!term) return false;
+    for (let i = 0; i < term.rows; i++) {
+      const line = term.buffer.active.getLine(i);
+      if (line?.translateToString(true)?.includes(needle)) return true;
+    }
+    return false;
+  }, substring, { timeout });
+}
+
+async function mouseSelectTerminalText(page: Page, text: string): Promise<void> {
+  const coords = await page.evaluate((needle: string) => {
+    const term = (window as any).__adapter?.term;
+    if (!term) throw new Error('terminal adapter not found');
+
+    let row = -1;
+    let column = -1;
+    for (let i = 0; i < term.rows; i++) {
+      const line = term.buffer.active.getLine(i)?.translateToString(true) ?? '';
+      column = line.indexOf(needle);
+      if (column !== -1) {
+        row = i;
+        break;
+      }
+    }
+    if (row === -1 || column === -1) throw new Error(`terminal text not found: ${needle}`);
+
+    const dims = term._core._renderService.dimensions;
+    const cellWidth = dims.css.cell.width;
+    const cellHeight = dims.css.cell.height;
+    const canvas: HTMLElement | null = document.querySelector('#terminal canvas');
+    if (!canvas) throw new Error('xterm canvas not found');
+    const rect = canvas.getBoundingClientRect();
+
+    return {
+      startX: rect.left + (column + 0.5) * cellWidth,
+      startY: rect.top + (row + 0.5) * cellHeight,
+      endX: rect.left + (column + needle.length - 0.5) * cellWidth,
+      endY: rect.top + (row + 0.5) * cellHeight,
+    };
+  }, text);
+
+  await page.mouse.move(coords.startX, coords.startY);
+  await page.mouse.down();
+  for (let i = 1; i <= 10; i++) {
+    const fraction = i / 10;
+    await page.mouse.move(
+      coords.startX + (coords.endX - coords.startX) * fraction,
+      coords.startY + (coords.endY - coords.startY) * fraction,
+    );
+    await page.waitForTimeout(25);
+  }
+  await page.mouse.up();
+}
+
 async function waitForTmuxWebPtyClient(iso: IsolatedTmux, session: string): Promise<void> {
   await expect.poll(() => iso.tmux([
     'list-clients',
@@ -984,6 +1045,21 @@ test('via tmux-web: copy in tmux copy-mode, paste in OS', async ({ page }, testI
     server = await connectTmuxWeb(page, iso, testInfo, 'main', 3);
     await copyCurrentPaneLineWithTmuxCopyMode(iso, 'main:1', 'TMUX_COPY_TO_OS');
     await expectOsClipboard(page, 'TMUX_COPY_TO_OS');
+  } finally {
+    if (server) killServer(server);
+    iso.cleanup();
+  }
+});
+
+test('via tmux-web: mouse-select pane text in tmux copy-mode, paste in OS', async ({ page }, testInfo) => {
+  const iso = createIsolatedTmux('tw-clip-mouse-copy-os');
+  let server: Awaited<ReturnType<typeof startServer>> | undefined;
+  try {
+    startShellSessionWithText(iso, 'main', 'TMUX_MOUSE_TO_OS');
+    server = await connectTmuxWeb(page, iso, testInfo, 'main', 5);
+    await waitForTerminalText(page, 'TMUX_MOUSE_TO_OS');
+    await mouseSelectTerminalText(page, 'TMUX_MOUSE_TO_OS');
+    await expectOsClipboard(page, 'TMUX_MOUSE_TO_OS');
   } finally {
     if (server) killServer(server);
     iso.cleanup();

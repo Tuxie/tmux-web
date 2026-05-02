@@ -2,8 +2,8 @@
 
 ## Symptoms
 
-`clipboard-emacs.test.ts` test 1 ("C-x o copies region to browser clipboard")
-fails: Emacs' custom `osc52-copy` function (bound to `C-x o`) calls
+A historical standalone Emacs clipboard e2e failed: Emacs' custom
+`osc52-copy` function (bound to `C-x o`) calls
 `send-string-to-terminal` with a valid OSC 52 escape sequence, but neither
 tmux's paste buffer (`show-buffer` empty) nor the browser clipboard
 (`navigator.clipboard.writeText` spy empty) receives the content.
@@ -84,8 +84,11 @@ configuration instead of rewriting it per test.
   paste test is the representative editor `p` path for browser/OS
   clipboard input.
 
-The focused clipboard specs now pass in parallel:
+The real-tmux clipboard integration coverage now lives in
+`tests/e2e/clipboard-matrix.test.ts`, including Emacs, Neovim, Vim, Helix,
+tmux copy-mode, browser paste, OS clipboard mirroring, and browser mouse
+selection. The focused matrix passes with:
 
 ```bash
-bun x playwright test tests/e2e/clipboard-nvim-keyboard.test.ts tests/e2e/clipboard-tmux-copy-mode.test.ts tests/e2e/clipboard-vim-mouse.test.ts tests/e2e/clipboard-emacs.test.ts
+bun x playwright test tests/e2e/clipboard-matrix.test.ts
 ```
