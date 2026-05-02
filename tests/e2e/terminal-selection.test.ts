@@ -3,13 +3,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { type ChildProcess } from 'child_process';
-import { mockApis, injectWsSpy, waitForWsOpen, startServer, killServer } from './helpers.js';
-
-async function openMenu(page: import('@playwright/test').Page): Promise<void> {
-  await page.mouse.move(640, 10);
-  await page.click('#btn-menu');
-  await expect(page.locator('#menu-dropdown')).toBeVisible();
-}
+import { mockApis, injectWsSpy, waitForWsOpen, startServer, killServer, openSettingsMenu } from './helpers.js';
 
 test.describe('terminal surface: xterm only', () => {
   test.beforeEach(async ({ page }) => {
@@ -17,11 +11,6 @@ test.describe('terminal surface: xterm only', () => {
     await mockApis(page, ['main'], []);
     await page.goto('/main');
     await waitForWsOpen(page);
-  });
-
-  test('page loads xterm without a terminal query parameter', async ({ page }) => {
-    await expect(page.locator('#terminal .xterm')).toBeVisible({ timeout: 10000 });
-    expect(page.url()).not.toContain('?terminal=');
   });
 
   test('/api/terminal-versions reports xterm only', async ({ page }) => {
@@ -56,7 +45,7 @@ test.describe('terminal surface: real server defaults', () => {
     await expect(page.locator('#terminal .xterm')).toBeVisible({ timeout: 10000 });
     expect(page.url()).toBe(`${base}/main`);
 
-    await openMenu(page);
+    await openSettingsMenu(page);
     await expect(page.locator('#inp-terminal')).toHaveCount(0);
   });
 });

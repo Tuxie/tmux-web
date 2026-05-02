@@ -6,17 +6,14 @@
  * Cluster 09 (frontend-a11y), finding F1.
  */
 import { test, expect } from '@playwright/test';
-import { mockApis, injectWsSpy, waitForWsOpen } from './helpers.js';
+import { mockApis, injectWsSpy, waitForWsOpen, openSettingsMenu } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await injectWsSpy(page);
   await mockApis(page, ['main'], []);
   await page.goto('/main');
   await waitForWsOpen(page);
-  // Reveal the topbar so the menu button is clickable
-  await page.mouse.move(640, 10);
-  await page.click('#btn-menu');
-  await expect(page.locator('#menu-dropdown')).toBeVisible();
+  await openSettingsMenu(page);
 });
 
 // One row per static-menu form control labelled in index.html. Pairs the

@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { execFileSync, spawn, type ChildProcess } from 'child_process';
 import fs from 'fs';
 import os from 'os';
@@ -183,6 +183,12 @@ export function killServer(proc: ChildProcess | undefined): void {
 /** Inject raw terminal data into the page as if received from the server. */
 export async function writeToTerminal(page: Page, text: string): Promise<void> {
   await page.evaluate((t) => (window as any).__mockWsReceive(t), text);
+}
+
+export async function openSettingsMenu(page: Page): Promise<void> {
+  await page.mouse.move(640, 10);
+  await page.click('#btn-menu');
+  await expect(page.locator('#menu-dropdown')).toBeVisible();
 }
 
 /**

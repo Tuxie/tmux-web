@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { injectWsSpy, mockApis, waitForWsOpen } from './helpers.js';
+import { injectWsSpy, mockApis, waitForWsOpen, openSettingsMenu } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await injectWsSpy(page);
@@ -32,11 +32,10 @@ test.beforeEach(async ({ page }) => {
   });
   await page.goto('/main');
   await waitForWsOpen(page);
-  await page.mouse.move(640, 10);
 });
 
 test('configuration window manages remote servers', async ({ page }) => {
-  await page.click('#btn-menu');
+  await openSettingsMenu(page);
   await page.click('#btn-config-window');
 
   const dialog = page.locator('.tw-config-window');
@@ -47,10 +46,11 @@ test('configuration window manages remote servers', async ({ page }) => {
   const box = await dialog.boundingBox();
   expect(Math.round(box!.width)).toBeCloseTo(Math.round(page.viewportSize()!.width * 0.9), 1);
   expect(Math.round(box!.height)).toBeCloseTo(Math.round(page.viewportSize()!.height * 0.9), 1);
-  await expect(dialog.locator('.tw-config-server-row')).toContainText('Dev');
-  await expect(dialog.locator('.tw-config-server-row')).toContainText('dev.example.com');
+  const devRow = dialog.locator('.tw-config-server-row', { hasText: 'Dev' });
+  await expect(devRow).toContainText('Dev');
+  await expect(devRow).toContainText('dev.example.com');
 
-  await dialog.locator('button', { hasText: 'Add server' }).click();
+  await dialog.locator('button', { hasText: 'New server' }).click();
   await dialog.locator('[name="name"]').fill('Prod');
   await dialog.locator('[name="host"]').fill('prod.example.com');
   await dialog.locator('[name="port"]').fill('443');

@@ -5,8 +5,8 @@ Several e2e suites start their own dedicated server on a fixed port alongside th
 | Port  | File                                       | Notes |
 |-------|--------------------------------------------|-------|
 | 4023  | shared Playwright server                   | `playwright.config.ts` |
-| 4050  | tests/e2e/font-selection.test.ts           |       |
 | 4060  | reserved                                   | menu-settings-open (deferred) |
+| 4071  | tests/e2e/font-change-rendering.test.ts    |       |
 | 4098  | tests/e2e/tls.test.ts                      | HTTP (no-TLS) variant |
 | 4099  | tests/e2e/tls.test.ts                      | HTTPS (TLS) variant |
 | 4100  | tests/e2e/terminal-selection.test.ts       |       |

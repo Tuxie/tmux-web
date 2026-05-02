@@ -8,7 +8,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { type ChildProcess } from 'child_process';
-import { mockApis, mockSessionStore, injectWsSpy, waitForWsOpen, startServer, killServer, type SessionStoreMock } from './helpers.js';
+import { mockApis, mockSessionStore, injectWsSpy, waitForWsOpen, startServer, killServer, openSettingsMenu, type SessionStoreMock } from './helpers.js';
 import { FX, fixtureSessionSettings } from './fixture-themes.js';
 
 const PORT_XTERM = 4071;
@@ -32,6 +32,10 @@ async function getAdapterMetrics(page: import('@playwright/test').Page): Promise
   });
 }
 
+async function getXtermFontFamily(page: import('@playwright/test').Page): Promise<string> {
+  return page.evaluate(() => (window as any).__adapter?.term?.options?.fontFamily ?? '');
+}
+
 function readSessionSettings(store: SessionStoreMock, session = 'main'): Record<string, unknown> {
   return (store.get().sessions[session] ?? {}) as unknown as Record<string, unknown>;
 }
@@ -48,13 +52,7 @@ async function openMenuAndChangeFont(
   store: SessionStoreMock,
   newFont: string,
 ): Promise<void> {
-  await page.mouse.move(640, 10);
-  await page.waitForFunction(
-    () => !document.getElementById('topbar')?.classList.contains('hidden'),
-    { timeout: 5000 },
-  );
-  await page.click('#btn-menu');
-  await expect(page.locator('#menu-dropdown')).toBeVisible();
+  await openSettingsMenu(page);
 
   // Wait for font list to populate
   await page.waitForFunction(
@@ -111,6 +109,13 @@ test.describe('font change rendering: xterm', () => {
   });
 
   test('font change updates xterm options and persisted settings without reloading', async ({ page }) => {
+    await page.waitForFunction(
+      (font) => document.fonts.check(`18px "${font}"`),
+      FX.fonts.primary,
+      { timeout: 5000 },
+    );
+    expect(await getXtermFontFamily(page)).toContain(FX.fonts.primary);
+
     const otherFont = await getOtherBundledFont(page);
     expect(otherFont).toBeTruthy();
 

@@ -3,7 +3,7 @@
  * regardless of how it was closed or what the user did inside it.
  */
 import { test, expect } from '@playwright/test';
-import { mockApis, injectWsSpy, waitForWsOpen } from './helpers.js';
+import { mockApis, injectWsSpy, waitForWsOpen, openSettingsMenu } from './helpers.js';
 
 /** Press a key and confirm it reached the terminal via WebSocket within 2 s. */
 async function expectTerminalFocused(page: import('@playwright/test').Page, key = 'z'): Promise<void> {
@@ -21,13 +21,10 @@ test.beforeEach(async ({ page }) => {
   await mockApis(page, ['main'], []);
   await page.goto('/main');
   await waitForWsOpen(page);
-  // Reveal the topbar so the menu button is clickable
-  await page.mouse.move(640, 10);
 });
 
 test('terminal focused after closing menu via button toggle', async ({ page }) => {
-  await page.click('#btn-menu');
-  await expect(page.locator('#menu-dropdown')).toBeVisible();
+  await openSettingsMenu(page);
 
   await page.click('#btn-menu'); // close
   await expect(page.locator('#menu-dropdown')).toBeHidden();
@@ -36,8 +33,7 @@ test('terminal focused after closing menu via button toggle', async ({ page }) =
 });
 
 test('terminal focused after closing menu by clicking outside', async ({ page }) => {
-  await page.click('#btn-menu');
-  await expect(page.locator('#menu-dropdown')).toBeVisible();
+  await openSettingsMenu(page);
 
   // Click in the terminal area, away from the menu
   await page.mouse.click(400, 400);
@@ -47,8 +43,7 @@ test('terminal focused after closing menu by clicking outside', async ({ page })
 });
 
 test('terminal focused after interacting with font-size input then closing menu', async ({ page }) => {
-  await page.click('#btn-menu');
-  await expect(page.locator('#menu-dropdown')).toBeVisible();
+  await openSettingsMenu(page);
 
   // Interact with the font-size number input (focus stays there with our fix)
   await page.click('#inp-fontsize');
@@ -65,8 +60,7 @@ test('terminal focused after interacting with font-size input then closing menu'
 });
 
 test('terminal focused after interacting with font picker then closing menu', async ({ page }) => {
-  await page.click('#btn-menu');
-  await expect(page.locator('#menu-dropdown')).toBeVisible();
+  await openSettingsMenu(page);
 
   // Font picker is a custom dropdown; clicking the trigger opens it.
   await page.click('#inp-font-bundled-btn');
@@ -80,8 +74,7 @@ test('terminal focused after interacting with font picker then closing menu', as
 });
 
 test('terminal focused after toggling autohide checkbox', async ({ page }) => {
-  await page.click('#btn-menu');
-  await expect(page.locator('#menu-dropdown')).toBeVisible();
+  await openSettingsMenu(page);
 
   await page.click('#chk-autohide');
 
