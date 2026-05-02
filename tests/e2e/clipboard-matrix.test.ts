@@ -100,6 +100,14 @@ async function termReady(page: Page): Promise<void> {
   await expect(page.locator('#terminal .xterm')).toBeVisible({ timeout: 12_000 });
 }
 
+async function waitForTmuxWebPtyClient(iso: IsolatedTmux, session: string): Promise<void> {
+  await expect.poll(() => iso.tmux([
+    'list-clients',
+    '-F',
+    '#{client_session} #{client_control_mode}',
+  ]), { timeout: 8_000 }).toContain(`${session} 0`);
+}
+
 async function installClipboard(page: Page, initialText = ''): Promise<void> {
   await page.addInitScript((text: string) => {
     (window as any).__clipboardWrites = [] as string[];
@@ -146,6 +154,8 @@ async function connectTmuxWeb(
   ]);
   await page.goto(`http://127.0.0.1:${p}/${session}`);
   await termReady(page);
+  await waitForTmuxWebPtyClient(iso, session);
+  await waitForPaneSettled();
   expect(iso.tmux(['show-options', '-s', '-g', 'set-clipboard']).trim())
     .toBe('set-clipboard external');
   return server;
@@ -578,24 +588,14 @@ for (const mode of ['tmux-web pty', 'direct tmux'] as const) {
     let server: Awaited<ReturnType<typeof startServer>> | undefined;
     const out = path.join(init.dir, 'out.txt');
     try {
-      if (mode === 'direct tmux') {
-        startShellSession(iso, 'main');
-        await waitForPaneSettled();
-        await launchNvimInExistingSession(iso, 'main', init.path);
-      } else {
-        startNvimSession(iso, 'main', init.path);
-        await waitForPaneSettled();
-      }
+      startShellSession(iso, 'main');
+      await waitForPaneSettled();
+      await launchNvimInExistingSession(iso, 'main', init.path);
       server = await maybeConnect(mode, page, iso, testInfo, 'main', modeOffset + 6);
       await copyFromNvim(iso, 'main', 'NVIM_COPY_RELAUNCH_P');
       sendKeys(iso, 'main', ['Escape', ':', 'q', '!', 'Enter']);
       await waitForPaneSettled();
-      if (mode === 'direct tmux') {
-        await launchNvimInExistingSession(iso, 'main', init.path);
-      } else {
-        iso.tmux(['respawn-pane', '-k', '-t', 'main:1', `nvim --clean --cmd ${shellSingleQuote(`luafile ${init.path}`)}`]);
-        await waitForPaneCommand(iso, 'main', 'nvim');
-      }
+      await launchNvimInExistingSession(iso, 'main', init.path);
       await nvimNormalPaste(iso, 'main');
       await expectNvimBufferContains(iso, 'main', out, 'NVIM_COPY_RELAUNCH_P');
     } finally {
