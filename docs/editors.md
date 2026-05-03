@@ -1,6 +1,6 @@
 # Editor integration
 
-tmux-web's default `tmux.conf` sets `set -s set-clipboard on`, so tmux accepts OSC 52 clipboard writes from pane applications into its own paste buffer and also forwards them to the browser. The browser clipboard is mirrored back into the tmux paste buffer on connect and focus. Editors still differ in how their normal paste commands read that buffer; the notes below call out where `"+p`, `p`, or `C-y` works and where `tmux paste-buffer` remains the compatible path.
+tmux-web's default `tmux.conf` sets `set -s set-clipboard on`, so tmux accepts OSC 52 clipboard writes from pane applications into its own paste buffer and also forwards them to the browser. The browser clipboard is mirrored back into the tmux paste buffer on connect and focus. Editors still differ in how their normal paste commands read that buffer; the notes below call out where plain `y` / `p` or `C-y` works and where `tmux paste-buffer` remains the compatible path.
 
 Mouse settings matter too. tmux-web forwards mouse events to fullscreen alternative-screen TUIs, so when an editor enables mouse support, clicks, drags, and wheel events are handled by the editor instead of being treated as tmux copy-mode selection.
 
@@ -10,20 +10,23 @@ Standard Vim 9.2 or newer can use its bundled OSC 52 provider. Add this to your 
 
 ```vim
 " Use Vim's bundled OSC 52 provider.
-set clipboard=unnamedplus
 set mouse=a
-let g:osc52_force_avail = 1
-let g:osc52_disable_paste = 1
-packadd osc52
-set clipmethod=osc52
+if $TMUX != ''
+  set clipboard=unnamedplus
+  let g:osc52_force_avail = 1
+  let g:osc52_disable_paste = 1
+  packadd osc52
+  set clipmethod=osc52
+endif
 ```
 
-- `set clipboard=unnamedplus` makes plain `y` and `p` use the `+` register.
+- Inside tmux, `set clipboard=unnamedplus` makes plain `y` and `p` use the `+` register.
+- Outside tmux, plain `y` and `p` keep using Vim's normal internal register behavior.
 - `set mouse=a` lets Vim handle clicks, drags, and wheel events in all modes.
 - `packadd osc52` loads Vim's bundled OSC 52 provider.
 - `clipmethod=osc52` tells Vim to use that provider for `+` and `*`.
 - `g:osc52_disable_paste` keeps Vim from issuing OSC 52 read requests; use tmux paste-buffer for tmux-buffer paste in Vim unless you choose to install a custom Vim clipboard provider.
-- Same-Vim `"+y` then `"+p` works from Vim's own register state. Pasting a tmux buffer copied elsewhere with `"+p` is a known failure with this minimal config.
+- Same-Vim visual select then `y` / `p` works from Vim's own register state. Pasting a tmux buffer copied elsewhere with `p` is a known failure with this minimal config.
 
 ## Emacs
 
@@ -105,12 +108,13 @@ if vim.env.TMUX then
     cache_enabled = 0,
   }
   vim.g.termfeatures = { osc52 = false }
+  vim.opt.clipboard = 'unnamedplus'
 end
-vim.opt.clipboard = 'unnamedplus'
 vim.opt.mouse = 'a'
 ```
 
-- `clipboard=unnamedplus` makes plain `y` and `p` use the `+` register.
+- Inside tmux, `clipboard=unnamedplus` makes plain `y` and `p` use the `+` register.
+- Outside tmux, plain `y` and `p` keep using Neovim's normal internal register behavior.
 - `mouse=a` lets Neovim handle clicks, drags, and wheel events in all modes.
 - The `vim.g.clipboard` command table uses Neovim's clipboard provider API without custom functions.
 - `vim.g.termfeatures = { osc52 = false }` keeps Neovim's separate terminal OSC 52 path from bypassing tmux's paste buffer.

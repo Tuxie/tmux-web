@@ -76,18 +76,20 @@ const NVIM_INIT = `if vim.env.TMUX then
     cache_enabled = 0,
   }
   vim.g.termfeatures = { osc52 = false }
+  vim.opt.clipboard = 'unnamedplus'
 end
-vim.opt.clipboard = 'unnamedplus'
 vim.opt.mouse = 'a'
 `;
 
 const VIM_INIT = `" Use Vim's bundled OSC 52 provider.
-set clipboard=unnamedplus
 set mouse=a
-let g:osc52_force_avail = 1
-let g:osc52_disable_paste = 1
-packadd osc52
-set clipmethod=osc52
+if $TMUX != ''
+  set clipboard=unnamedplus
+  let g:osc52_force_avail = 1
+  let g:osc52_disable_paste = 1
+  packadd osc52
+  set clipmethod=osc52
+endif
 `;
 
 const EMACS_INIT = `;; Use tmux's paste buffer as Emacs' terminal clipboard.
@@ -136,6 +138,7 @@ interface Editor {
   initFilename: string;
   initContent: string;
   copyAction: string;
+  outsideCopyAction?: string;
   normalPasteAction: string;
   editorCopyExpectedFailure?: string;
   outsideNormalPasteExpectedFailure?: string;
@@ -165,9 +168,9 @@ const EDITORS: Editor[] = [
     initPrefix: 'tw-clip-matrix-nvim-',
     initFilename: 'init.lua',
     initContent: NVIM_INIT,
-    copyAction: 'visual select and "+y',
-    normalPasteAction: '"+p',
-    outsideNormalPasteExpectedFailure: 'Neovim has no OS clipboard provider in the headless outside-tmux test environment.',
+    copyAction: 'visual select and y',
+    outsideCopyAction: 'yy',
+    normalPasteAction: 'p',
     launchCommand: (initPath) => `nvim --clean -u ${shellSingleQuote(initPath)}`,
     outsideCopyPaste: runNvimOutsideTmuxCopyPaste,
     insertLine: vimLikeInsertLine,
@@ -185,9 +188,9 @@ const EDITORS: Editor[] = [
     initPrefix: 'tw-clip-matrix-vim-',
     initFilename: 'init.vim',
     initContent: VIM_INIT,
-    copyAction: 'visual select and "+y',
-    normalPasteAction: '"+p',
-    outsideNormalPasteExpectedFailure: 'Vim uses copy-only OSC 52 in this fixture; outside tmux there is no tmux buffer to paste from.',
+    copyAction: 'visual select and y',
+    outsideCopyAction: 'yy',
+    normalPasteAction: 'p',
     normalPasteExpectedFailure: 'Vim has no built-in tmux-buffer paste provider; its bundled OSC 52 provider is copy-only here to avoid bypassing tmux with OSC 52 reads.',
     isAvailable: vimClipboardProviderAvailable,
     launchCommand: (initPath) => `vim --clean -Nu ${shellSingleQuote(initPath)} -n`,
@@ -297,46 +300,46 @@ function removeDirRetry(dir: string): void {
   }
 }
 
-function runNvimOutsideTmuxCopyPaste(initPath: string, outputPath: string, text: string): void {
-  const script = [
-    `vim.api.nvim_buf_set_lines(0, 0, -1, false, { ${JSON.stringify(text)} })`,
-    'vim.api.nvim_win_set_cursor(0, { 1, 0 })',
-    'vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes([[0v$"+y]], true, false, true), "nx", false)',
-    'vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes([[G"+p]], true, false, true), "nx", false)',
-    `vim.cmd(${JSON.stringify(`silent! write! ${outputPath}`)})`,
-    "vim.cmd('quitall!')",
-  ].join('; ');
-  execFileSync('nvim', [
-    '--headless',
+async function runVimLikeOutsideTmuxCopyPaste(command: string, initFlag: string[], initPath: string, outputPath: string, text: string): Promise<void> {
+  fs.writeFileSync(outputPath, '');
+  const editorCommand = [
+    command,
     '--clean',
-    '-u',
-    initPath,
-    '--cmd',
-    `lua ${script}`,
-  ], {
+    ...initFlag,
+    shellSingleQuote(initPath),
+    shellSingleQuote(outputPath),
+  ].join(' ');
+  const proc = spawn('script', ['-qfec', editorCommand, '/dev/null'], {
+    stdio: ['pipe', 'pipe', 'ignore'],
+    detached: true,
     env: { ...process.env, TMUX: '' },
-    stdio: ['ignore', 'pipe', 'pipe'],
   });
+  installTerminalQueryResponses(proc);
+  try {
+    await waitForProcessSettled();
+    await sendProcessKeys(proc, ['i']);
+    sendProcessLiteral(proc, text);
+    await sendProcessKeys(proc, ['Escape']);
+    await waitForProcessSettled();
+    await sendProcessKeys(proc, ['y', 'y', 'p']);
+    await waitForProcessSettled();
+    await sendProcessKeys(proc, ['Escape', ':']);
+    sendProcessLiteral(proc, 'wq');
+    await sendProcessKeys(proc, ['Enter']);
+    await waitForProcessSettled();
+  } finally {
+    if (!proc.killed) {
+      try { proc.kill('SIGTERM'); } catch { /* already exited */ }
+    }
+  }
 }
 
-function runVimOutsideTmuxCopyPaste(initPath: string, outputPath: string, text: string): void {
-  execFileSync('vim', [
-    '--clean',
-    '--not-a-term',
-    '-Nu',
-    initPath,
-    '-n',
-    '-es',
-    '+set nomore',
-    `+call setline(1, ${JSON.stringify(text)})`,
-    '+execute "normal! 0v$\\"+y"',
-    '+execute "normal! G\\"+p"',
-    `+silent! write! ${outputPath}`,
-    '+qa!',
-  ], {
-    env: { ...process.env, TMUX: '' },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+function runNvimOutsideTmuxCopyPaste(initPath: string, outputPath: string, text: string): Promise<void> {
+  return runVimLikeOutsideTmuxCopyPaste('nvim', ['-u'], initPath, outputPath, text);
+}
+
+function runVimOutsideTmuxCopyPaste(initPath: string, outputPath: string, text: string): Promise<void> {
+  return runVimLikeOutsideTmuxCopyPaste('vim', ['-Nu'], initPath, outputPath, text);
 }
 
 function runEmacsOutsideTmuxCopyPaste(initPath: string, outputPath: string, text: string): void {
@@ -675,15 +678,14 @@ async function vimLikeInsertLine(iso: IsolatedTmux, target: string, text: string
 }
 
 async function vimLikeVisualYankLine(iso: IsolatedTmux, target: string): Promise<void> {
-  sendKeys(iso, target, ['0', 'v', '$']);
-  sendLiteral(iso, target, '"+y');
+  sendKeys(iso, target, ['0', 'v', '$', 'y']);
   await waitForPaneSettled();
 }
 
 async function vimLikeNormalPaste(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, ['Escape', 'G', '$']);
   await waitForPaneSettled();
-  sendLiteral(iso, target, '"+p');
+  sendKeys(iso, target, ['p']);
   await waitForPaneSettled();
 }
 
@@ -1019,7 +1021,7 @@ for (const editor of EDITORS) {
       }
     });
 
-    test(`outside tmux: copy in ${editor.label} with ${editor.copyAction}, paste in same ${editor.label} with ${editor.normalPasteAction}`, async () => {
+    test(`outside tmux: copy in ${editor.label} with ${editor.outsideCopyAction ?? editor.copyAction}, paste in same ${editor.label} with ${editor.normalPasteAction}`, async () => {
       const init = writeEditorInit(editor);
       const out = path.join(init.dir, `outside-${editor.kind}.txt`);
       const text = editorText('OUTSIDE_TMUX_COPY');
