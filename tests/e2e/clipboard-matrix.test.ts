@@ -340,17 +340,20 @@ async function runVimLikeOutsideTmuxCopyPaste(command: string, initFlag: string[
   });
   installTerminalQueryResponses(proc);
   try {
-    await waitForProcessSettled();
+    await waitForProcessSettled(1_000);
     await sendProcessKeys(proc, ['i']);
     sendProcessLiteral(proc, text);
     await sendProcessKeys(proc, ['Escape']);
-    await waitForProcessSettled();
+    await waitForProcessSettled(500);
     await sendProcessKeys(proc, ['y', 'y', 'p']);
-    await waitForProcessSettled();
+    await waitForProcessSettled(500);
     await sendProcessKeys(proc, ['Escape', ':']);
     sendProcessLiteral(proc, 'wq');
     await sendProcessKeys(proc, ['Enter']);
-    await waitForProcessSettled();
+    await Promise.race([
+      new Promise<void>(r => proc.on('exit', r)),
+      new Promise<void>(r => setTimeout(r, 5_000)),
+    ]);
   } finally {
     if (!proc.killed) {
       try { proc.kill('SIGTERM'); } catch { /* already exited */ }
@@ -402,12 +405,12 @@ async function runHelixOutsideTmuxCopyPaste(initPath: string, outputPath: string
   });
   installTerminalQueryResponses(proc);
   try {
-    await waitForProcessSettled();
+    await waitForProcessSettled(1_000);
     await sendProcessKeys(proc, ['i']);
     sendProcessLiteral(proc, text);
     await sendProcessKeys(proc, ['Escape', 'x', 'y', 'p', '%', 'y']);
-    await waitForPaneSettled();
-    const yankedBuffer = fs.existsSync(cachePath) ? fs.readFileSync(cachePath, 'utf8') : '';
+    await expect.poll(() => fs.existsSync(cachePath) ? fs.readFileSync(cachePath, 'utf8') : '', { timeout: 5_000 }).toContain(text);
+    const yankedBuffer = fs.readFileSync(cachePath, 'utf8');
     const occurrences = yankedBuffer.split(text).length - 1;
     if (occurrences < 2) {
       throw new Error(`Helix outside-tmux paste did not duplicate yanked text; clipboard contained ${JSON.stringify(yankedBuffer)}`);
@@ -442,8 +445,8 @@ function installTerminalQueryResponses(proc: ChildProcess): void {
   });
 }
 
-async function waitForProcessSettled(): Promise<void> {
-  await new Promise(resolve => setTimeout(resolve, 1_500));
+async function waitForProcessSettled(ms = 1_500): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function sendProcessLiteral(proc: ChildProcess, text: string): void {
@@ -455,7 +458,9 @@ async function sendProcessKeys(proc: ChildProcess, keys: string[]): Promise<void
     if (key === 'Escape') proc.stdin?.write('\x1b');
     else if (key === 'Enter') proc.stdin?.write('\r');
     else proc.stdin?.write(key);
-    await new Promise(resolve => setTimeout(resolve, 120));
+    if (key === 'Escape' || key === 'Enter') {
+      await new Promise(resolve => setTimeout(resolve, 120));
+    }
   }
 }
 
@@ -514,14 +519,7 @@ async function mouseSelectTerminalText(page: Page, text: string): Promise<void> 
 
   await page.mouse.move(coords.startX, coords.startY);
   await page.mouse.down();
-  for (let i = 1; i <= 10; i++) {
-    const fraction = i / 10;
-    await page.mouse.move(
-      coords.startX + (coords.endX - coords.startX) * fraction,
-      coords.startY + (coords.endY - coords.startY) * fraction,
-    );
-    await page.waitForTimeout(25);
-  }
+  await page.mouse.move(coords.endX, coords.endY, { steps: 5 });
   await page.mouse.up();
 }
 
@@ -590,7 +588,7 @@ async function connectTmuxWeb(
   await page.goto(`http://127.0.0.1:${p}/${session}`);
   await termReady(page);
   await waitForTmuxWebPtyClient(iso, session);
-  await waitForPaneSettled();
+  await waitForPaneSettled(500);
   expect(iso.tmux(['show-options', '-s', '-g', 'set-clipboard']).trim())
     .toBe('set-clipboard on');
   return server;
@@ -623,8 +621,8 @@ async function browserPasteText(page: Page, text: string): Promise<void> {
   }, text);
 }
 
-async function waitForPaneSettled(): Promise<void> {
-  await new Promise(resolve => setTimeout(resolve, 800));
+async function waitForPaneSettled(ms = 800): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function waitForPaneCommand(
@@ -703,27 +701,23 @@ async function vimLikeInsertLine(iso: IsolatedTmux, target: string, text: string
   sendKeys(iso, target, ['i']);
   sendLiteral(iso, target, text);
   sendKeys(iso, target, ['Escape']);
-  await waitForPaneSettled();
+  await waitForPaneSettled(100);
 }
 
 async function vimLikeVisualYankLine(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, ['0', 'v', '$', 'y']);
-  await waitForPaneSettled();
 }
 
 async function vimLikeNormalPaste(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, ['Escape', 'G', '$']);
-  await waitForPaneSettled();
+  await waitForPaneSettled(200);
   sendKeys(iso, target, ['p']);
-  await waitForPaneSettled();
 }
-
 async function vimLikeInsertModeTmuxPaste(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, ['i']);
   iso.tmux(['paste-buffer', '-t', target]);
-  await waitForPaneSettled();
+  await waitForPaneSettled(100);
   sendKeys(iso, target, ['Escape']);
-  await waitForPaneSettled();
 }
 
 async function vimLikeWriteBuffer(
@@ -734,69 +728,61 @@ async function vimLikeWriteBuffer(
   sendKeys(iso, target, ['Escape', ':']);
   sendLiteral(iso, target, `silent! write! ${outputPath}`);
   sendKeys(iso, target, ['Enter']);
-  await waitForPaneSettled();
 }
-
 async function vimLikeQuit(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, ['Escape', ':', 'q', '!', 'Enter']);
-  await waitForPaneSettled();
+  await waitForPaneSettled(200);
 }
 
 async function emacsInsertLine(iso: IsolatedTmux, target: string, text: string): Promise<void> {
   sendLiteral(iso, target, text);
-  await waitForPaneSettled();
+  await waitForPaneSettled(100);
 }
 
 async function emacsVisualYankLine(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, ['C-a', 'C-Space', 'C-e', 'M-w']);
-  await waitForPaneSettled();
 }
 
 async function emacsNormalPaste(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, ['C-y']);
-  await waitForPaneSettled();
 }
 
 async function emacsPasteTmuxBuffer(iso: IsolatedTmux, target: string): Promise<void> {
   iso.tmux(['paste-buffer', '-t', target]);
-  await waitForPaneSettled();
+  await waitForPaneSettled(100);
 }
 
 async function emacsWriteBuffer(iso: IsolatedTmux, target: string, outputPath: string): Promise<void> {
   sendKeys(iso, target, ['C-x', 'C-w']);
   sendLiteral(iso, target, outputPath);
   sendKeys(iso, target, ['Enter']);
-  await waitForPaneSettled();
 }
 
 async function emacsQuit(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, ['C-x', 'C-c']);
-  await waitForPaneSettled();
+  await waitForPaneSettled(200);
 }
 
 async function helixInsertLine(iso: IsolatedTmux, target: string, text: string): Promise<void> {
   sendKeys(iso, target, ['i']);
   sendLiteral(iso, target, text);
   sendKeys(iso, target, ['Escape']);
-  await waitForPaneSettled();
+  await waitForPaneSettled(100);
 }
 
 async function helixVisualYankLine(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, ['x', 'y']);
-  await waitForPaneSettled();
 }
 
 async function helixNormalPaste(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, ['p']);
-  await waitForPaneSettled();
 }
 
 async function helixPasteTmuxBuffer(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, ['i']);
   iso.tmux(['paste-buffer', '-t', target]);
-  await waitForPaneSettled();
+  await waitForPaneSettled(100);
   sendKeys(iso, target, ['Escape']);
-  await waitForPaneSettled();
 }
 
 async function helixWriteBuffer(iso: IsolatedTmux, target: string, outputPath: string): Promise<void> {
@@ -806,7 +792,6 @@ async function helixWriteBuffer(iso: IsolatedTmux, target: string, outputPath: s
   sendKeys(iso, target, [':']);
   sendLiteral(iso, target, `write ${filename}`);
   sendKeys(iso, target, ['Enter']);
-  await waitForPaneSettled();
   if (paneOutputPath !== outputPath && fs.existsSync(paneOutputPath)) {
     fs.copyFileSync(paneOutputPath, outputPath);
   }
@@ -816,14 +801,13 @@ async function helixQuit(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, [':']);
   sendLiteral(iso, target, 'quit!');
   sendKeys(iso, target, ['Enter']);
-  await waitForPaneSettled();
+  await waitForPaneSettled(200);
 }
 
 async function kakouneCommand(iso: IsolatedTmux, target: string, command: string): Promise<void> {
   sendKeys(iso, target, [':']);
   sendLiteral(iso, target, command);
   sendKeys(iso, target, ['Enter']);
-  await waitForPaneSettled();
 }
 
 async function kakouneSyncRegisterToTmux(iso: IsolatedTmux, target: string): Promise<void> {
@@ -838,27 +822,24 @@ async function kakouneInsertLine(iso: IsolatedTmux, target: string, text: string
   sendKeys(iso, target, ['i']);
   sendLiteral(iso, target, text);
   sendKeys(iso, target, ['Escape']);
-  await waitForPaneSettled();
+  await waitForPaneSettled(100);
 }
 
 async function kakouneVisualYankLine(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, ['x', 'y']);
-  await waitForPaneSettled();
   await kakouneSyncRegisterToTmux(iso, target);
 }
 
 async function kakouneNormalPaste(iso: IsolatedTmux, target: string): Promise<void> {
   await kakouneLoadTmuxBufferIntoRegister(iso, target);
   sendKeys(iso, target, ['p']);
-  await waitForPaneSettled();
 }
 
 async function kakounePasteTmuxBuffer(iso: IsolatedTmux, target: string): Promise<void> {
   sendKeys(iso, target, ['i']);
   iso.tmux(['paste-buffer', '-t', target]);
-  await waitForPaneSettled();
+  await waitForPaneSettled(100);
   sendKeys(iso, target, ['Escape']);
-  await waitForPaneSettled();
 }
 
 async function kakouneWriteBuffer(iso: IsolatedTmux, target: string, outputPath: string): Promise<void> {
@@ -875,7 +856,7 @@ async function vimLikeInsertLineBrowser(page: Page, text: string): Promise<void>
   await page.keyboard.press('i');
   await page.keyboard.type(text);
   await page.keyboard.press('Escape');
-  await waitForPaneSettled();
+  await waitForPaneSettled(300);
 }
 
 async function vimLikeVisualYankLineBrowser(page: Page): Promise<void> {
@@ -883,28 +864,26 @@ async function vimLikeVisualYankLineBrowser(page: Page): Promise<void> {
   await page.keyboard.press('v');
   await page.keyboard.press('$');
   await page.keyboard.press('y');
-  await waitForPaneSettled();
 }
 
 async function vimLikeNormalPasteBrowser(page: Page): Promise<void> {
   await page.keyboard.press('Escape');
   await page.keyboard.press('G');
   await page.keyboard.press('$');
-  await waitForPaneSettled();
+  await waitForPaneSettled(200);
   await page.keyboard.press('p');
-  await waitForPaneSettled();
 }
 
 async function vimLikeQuitBrowser(page: Page): Promise<void> {
   await page.keyboard.press('Escape');
   await page.keyboard.type(':q!');
   await page.keyboard.press('Enter');
-  await waitForPaneSettled();
+  await waitForPaneSettled(200);
 }
 
 async function emacsInsertLineBrowser(page: Page, text: string): Promise<void> {
   await page.keyboard.type(text);
-  await waitForPaneSettled();
+  await waitForPaneSettled(300);
 }
 
 async function emacsVisualYankLineBrowser(page: Page): Promise<void> {
@@ -912,68 +891,62 @@ async function emacsVisualYankLineBrowser(page: Page): Promise<void> {
   await page.keyboard.press('Control+ ');
   await page.keyboard.press('Control+e');
   await page.keyboard.press('Alt+w');
-  await waitForPaneSettled();
 }
 
 async function emacsNormalPasteBrowser(page: Page): Promise<void> {
   await page.keyboard.press('Control+y');
-  await waitForPaneSettled();
 }
 
 async function emacsQuitBrowser(page: Page): Promise<void> {
   await page.keyboard.press('Control+x');
   await page.keyboard.press('Control+c');
-  await waitForPaneSettled();
+  await waitForPaneSettled(200);
 }
 
 async function helixInsertLineBrowser(page: Page, text: string): Promise<void> {
   await page.keyboard.press('i');
   await page.keyboard.type(text);
   await page.keyboard.press('Escape');
-  await waitForPaneSettled();
+  await waitForPaneSettled(300);
 }
 
 async function helixVisualYankLineBrowser(page: Page): Promise<void> {
   await page.keyboard.press('x');
   await page.keyboard.press('y');
-  await waitForPaneSettled();
 }
 
 async function helixNormalPasteBrowser(page: Page): Promise<void> {
   await page.keyboard.press('p');
-  await waitForPaneSettled();
 }
 
 async function helixQuitBrowser(page: Page): Promise<void> {
   await page.keyboard.press(':');
   await page.keyboard.type('quit!');
   await page.keyboard.press('Enter');
-  await waitForPaneSettled();
+  await waitForPaneSettled(200);
 }
 
 async function kakouneInsertLineBrowser(page: Page, text: string): Promise<void> {
   await page.keyboard.press('i');
   await page.keyboard.type(text);
   await page.keyboard.press('Escape');
-  await waitForPaneSettled();
+  await waitForPaneSettled(300);
 }
 
 async function kakouneVisualYankLineBrowser(page: Page): Promise<void> {
   await page.keyboard.press('x');
   await page.keyboard.press('y');
-  await waitForPaneSettled();
 }
 
 async function kakouneNormalPasteBrowser(page: Page): Promise<void> {
   await page.keyboard.press('p');
-  await waitForPaneSettled();
 }
 
 async function kakouneQuitBrowser(page: Page): Promise<void> {
   await page.keyboard.press(':');
   await page.keyboard.type('quit!');
   await page.keyboard.press('Enter');
-  await waitForPaneSettled();
+  await waitForPaneSettled(200);
 }
 
 async function expectEditorBufferContains(
@@ -1165,11 +1138,11 @@ async function pasteTmuxBufferMode(
   if (isWebMode(mode)) {
     await focusTerminal(page);
     if (editor.kind !== 'emacs') await page.keyboard.press('i');
-    await waitForPaneSettled();
+    await waitForPaneSettled(100);
     iso.tmux(['paste-buffer', '-t', target]);
-    await waitForPaneSettled();
+    await waitForPaneSettled(100);
     if (editor.kind !== 'emacs') await page.keyboard.press('Escape');
-    await waitForPaneSettled();
+    await waitForPaneSettled(200);
   } else {
     await editor.pasteTmuxBuffer(iso, target);
   }
@@ -1212,7 +1185,7 @@ async function maybeConnect(
 ): Promise<ChildProcess | undefined> {
   if (mode === 'direct tmux') {
     const client = startExternalTmuxClient(iso, session);
-    await waitForPaneSettled();
+    await waitForPaneSettled(200);
     return client;
   }
   return connectTmuxWeb(page, iso, testInfo, session, offset);
@@ -1233,7 +1206,7 @@ for (const editor of EDITORS) {
       const out = path.join(init.dir, 'out.txt');
       try {
         startEditorSession(iso, editor, 'main', init.path);
-        await waitForPaneSettled();
+        await waitForPaneSettled(100);
         server = await connectTmuxWeb(page, iso, testInfo, 'main', editorPortOffset, editorText('OS_TO_EDITOR_P'));
         await mirrorOsClipboardToTmuxBuffer(page, iso, editorText('OS_TO_EDITOR_P'));
         markNormalPasteExpectedFailure(editor);
@@ -1253,16 +1226,16 @@ for (const editor of EDITORS) {
       const out = path.join(init.dir, 'out.txt');
       try {
         startEditorSession(iso, editor, 'main', init.path);
-        await waitForPaneSettled();
+        await waitForPaneSettled(100);
         server = await connectTmuxWeb(page, iso, testInfo, 'main', editorPortOffset + 2, editorText('OS_BROWSER_TO_EDITOR'));
         await waitForPaneCommand(iso, 'main', editor.commandName);
         await focusTerminal(page);
         if (editor.kind !== 'emacs') await page.keyboard.press('i');
-        await waitForPaneSettled();
+        await waitForPaneSettled(100);
         await browserPasteText(page, editorText('OS_BROWSER_TO_EDITOR'));
-        await waitForPaneSettled();
+        await waitForTerminalText(page, editorText('OS_BROWSER_TO_EDITOR'), 8_000);
         if (editor.kind !== 'emacs') await page.keyboard.press('Escape');
-        await waitForPaneSettled();
+        await waitForPaneSettled(300);
         await expectEditorBufferContains(iso, 'main', out, editorText('OS_BROWSER_TO_EDITOR'));
       } finally {
         if (server) killServer(server);
@@ -1277,7 +1250,7 @@ for (const editor of EDITORS) {
       let server: Awaited<ReturnType<typeof startServer>> | undefined;
       try {
         startEditorSession(iso, editor, 'main', init.path);
-        await waitForPaneSettled();
+        await waitForPaneSettled(100);
         server = await connectTmuxWeb(page, iso, testInfo, 'main', editorPortOffset + 4);
         await copyFromEditorWeb(page, iso, editor, 'main', editorText('COPY_TO_OS'), () => markEditorCopyExpectedFailure(editor));
         await expectOsClipboard(page, editorText('COPY_TO_OS'));
@@ -1338,7 +1311,7 @@ for (const editor of EDITORS) {
         try {
           startShellSessionWithText(iso, 'source', editorText('TMUX_COPY_OTHER_EDITOR'));
           startEditorSession(iso, editor, 'target', init.path);
-          await waitForPaneSettled();
+          await waitForPaneSettled(100);
           server = await maybeConnect(mode, page, iso, testInfo, 'source', modeOffset + 3);
           await copyCurrentPaneLineWithTmuxCopyMode(iso, 'source:1', editorText('TMUX_COPY_OTHER_EDITOR'));
           markNormalPasteExpectedFailure(editor);
@@ -1358,7 +1331,7 @@ for (const editor of EDITORS) {
         const out = path.join(init.dir, 'out.txt');
         try {
           startEditorSession(iso, editor, 'main', init.path);
-          await waitForPaneSettled();
+          await waitForPaneSettled(100);
           server = await maybeConnect(mode, page, iso, testInfo, 'main', modeOffset + 4);
           await copyFromEditorMode(page, iso, editor, mode, 'main', editorText('COPY_SAME_P'), () => markEditorCopyExpectedFailure(editor));
           await normalPasteMode(page, iso, editor, mode, 'main');
@@ -1377,7 +1350,7 @@ for (const editor of EDITORS) {
         const out = path.join(init.dir, 'out.txt');
         try {
           startEditorSession(iso, editor, 'main', init.path);
-          await waitForPaneSettled();
+          await waitForPaneSettled(100);
           server = await maybeConnect(mode, page, iso, testInfo, 'main', modeOffset + 5);
           await copyFromEditorMode(page, iso, editor, mode, 'main', editorText('COPY_SAME_TMUX'), () => markEditorCopyExpectedFailure(editor));
           await pasteTmuxBufferMode(page, iso, editor, mode, 'main');
@@ -1396,7 +1369,7 @@ for (const editor of EDITORS) {
         const out = path.join(init.dir, 'out.txt');
         try {
           startShellSession(iso, 'main');
-          await waitForPaneSettled();
+          await waitForPaneSettled(200);
           await launchEditorInExistingSession(iso, editor, 'main', init.path);
           server = await maybeConnect(mode, page, iso, testInfo, 'main', modeOffset + 6);
           await copyFromEditorMode(page, iso, editor, mode, 'main', editorText('COPY_RELAUNCH_P'), () => markEditorCopyExpectedFailure(editor));
@@ -1419,7 +1392,7 @@ for (const editor of EDITORS) {
         try {
           startEditorSession(iso, editor, 'source', init.path);
           startCatSession(iso, 'target');
-          await waitForPaneSettled();
+          await waitForPaneSettled(100);
           server = await maybeConnect(mode, page, iso, testInfo, 'source', modeOffset + 7);
           await copyFromEditorMode(page, iso, editor, mode, 'source', editorText('COPY_OTHER_TMUX'), () => markEditorCopyExpectedFailure(editor));
           await pasteTmuxBufferIntoCatAndExpect(iso, 'target', editorText('COPY_OTHER_TMUX'));
@@ -1438,7 +1411,7 @@ for (const editor of EDITORS) {
         try {
           startEditorSession(iso, editor, 'source', init.path);
           startEditorSession(iso, editor, 'target', init.path);
-          await waitForPaneSettled();
+          await waitForPaneSettled(100);
           server = await maybeConnect(mode, page, iso, testInfo, 'source', modeOffset + 8);
           await copyFromEditorMode(page, iso, editor, mode, 'source', editorText('COPY_OTHER_EDITOR'), () => markEditorCopyExpectedFailure(editor));
           await pasteTmuxBufferMode(page, iso, editor, mode, 'target');
