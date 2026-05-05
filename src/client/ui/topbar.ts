@@ -510,7 +510,7 @@ export class Topbar {
           placeholder: 'name',
           onSubmit: (name) => {
             close();
-            const clean = name.replace(/[^a-zA-Z0-9_\-./]/g, '');
+            const clean = name.replace(/[^a-zA-Z0-9_\-.\ ]/g, '');
             if (!clean) return;
             if (!this.guardOnline('create session')) return;
             this.opts.onSwitchSession?.(clean);

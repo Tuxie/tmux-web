@@ -3,17 +3,17 @@ import fc from 'fast-check';
 import { sanitizeSession } from '../../src/server/pty.ts';
 
 /** sanitizeSession's contract:
- *   - output only contains [A-Za-z0-9_\-./]
+ *   - output only contains [A-Za-z0-9_\-./ ] (space is allowed since v1.10.0)
  *   - output never contains `..`
  *   - output never starts or ends with `/`
  *   - output defaults to "main" when the cleaned input would be empty
  *   - NEVER throws
  */
 describe('sanitizeSession — invariants hold for any Unicode input', () => {
-  test('output charset is [A-Za-z0-9_\\-./]', () => {
+  test('output charset is [A-Za-z0-9_\\-./ ]', () => {
     fc.assert(fc.property(fc.string(), (raw) => {
       const out = sanitizeSession(raw);
-      expect(/^[A-Za-z0-9_\-./]*$/.test(out)).toBe(true);
+      expect(/^[A-Za-z0-9_\-./ ]*$/.test(out)).toBe(true);
     }), { numRuns: 500 });
   });
 
@@ -34,7 +34,7 @@ describe('sanitizeSession — invariants hold for any Unicode input', () => {
   test('output defaults to "main" when cleaned input is empty', () => {
     fc.assert(fc.property(
       // Strings that reduce to empty after cleaning: only specials.
-      fc.stringMatching(/^[^A-Za-z0-9_\-./]*$/),
+      fc.stringMatching(/^[^A-Za-z0-9_\-./ ]*$/),
       (raw) => {
         expect(sanitizeSession(raw)).toBe('main');
       },
@@ -53,7 +53,7 @@ describe('sanitizeSession — invariants hold for any Unicode input', () => {
       (encoded) => {
         // Just assert no throw + invariants.
         const out = sanitizeSession(encoded);
-        expect(/^[A-Za-z0-9_\-./]*$/.test(out)).toBe(true);
+        expect(/^[A-Za-z0-9_\-./ ]*$/.test(out)).toBe(true);
       },
     ), { numRuns: 200 });
   });

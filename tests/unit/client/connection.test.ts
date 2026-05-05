@@ -363,8 +363,17 @@ describe('sessionFromPath', () => {
     expect(sessionFromPath('/r/prod/main')).toBe('main');
   });
 
-  it('preserves encoded remote route session names', () => {
-    expect(sessionFromPath('/r/prod/dev%20work')).toBe('dev%20work');
+  it('decodes percent-encoded remote route session names', () => {
+    expect(sessionFromPath('/r/prod/dev%20work')).toBe('dev work');
+  });
+
+  it('decodes percent-encoded local session names', () => {
+    expect(sessionFromPath('/eZebra%202000')).toBe('eZebra 2000');
+  });
+
+  it('handles non-encoded session names with spaces', () => {
+    // location.pathname can be decoded in browsers — spaces arrive as literal spaces
+    expect(sessionFromPath('/eZebra 2000')).toBe('eZebra 2000');
   });
 
   it('falls back to main for root', () => {

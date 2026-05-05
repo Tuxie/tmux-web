@@ -21,7 +21,7 @@ export function sanitizeSession(raw: string): string {
   try { decoded = decodeURIComponent(raw || 'main'); }
   catch { decoded = raw || 'main'; }
   const cleaned = decoded
-    .replace(/[^a-zA-Z0-9_\-./]/g, '')
+    .replace(/[^a-zA-Z0-9_\-.\ /]/g, '')
     .replace(/\.{2,}/g, '')
     .replace(/^\/+|\/+$/g, '');
   return cleaned || 'main';

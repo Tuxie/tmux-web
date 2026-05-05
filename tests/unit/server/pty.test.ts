@@ -2,8 +2,8 @@ import { describe, it, test, expect } from 'bun:test';
 import { buildPtyCommand, buildPtyEnv, sanitizeSession } from '../../../src/server/pty.js';
 
 describe('sanitizeSession', () => {
-  it('strips dangerous characters', () => {
-    expect(sanitizeSession('foo;rm -rf /')).toBe('foorm-rf');
+  it('strips dangerous characters but preserves spaces', () => {
+    expect(sanitizeSession('foo;rm -rf /')).toBe('foorm -rf ');
   });
   it('strips multiple special characters in one input', () => {
     expect(sanitizeSession('foo;bar`baz$qux')).toBe('foobarbazqux');
@@ -36,8 +36,8 @@ describe('sanitizeSession', () => {
   it('allows slashes in middle of path', () => {
     expect(sanitizeSession('path/to/session')).toBe('path/to/session');
   });
-  it('decodes URI components', () => {
-    expect(sanitizeSession('hello%20world')).toBe('helloworld');
+  it('decodes URI components and preserves decoded spaces', () => {
+    expect(sanitizeSession('hello%20world')).toBe('hello world');
   });
   it('decodes percent-encoded special chars and then strips them', () => {
     expect(sanitizeSession('foo%3Bbar')).toBe('foobar');
@@ -50,6 +50,14 @@ describe('sanitizeSession', () => {
     expect(sanitizeSession('%X')).toBe('X');
     expect(sanitizeSession('%%')).toBe('main');
     expect(sanitizeSession('foo%bar')).toBe('foobar');
+  });
+
+  it('preserves spaces in session names', () => {
+    expect(sanitizeSession('eZebra 2000')).toBe('eZebra 2000');
+  });
+
+  it('preserves spaces with other allowed chars', () => {
+    expect(sanitizeSession('my project v2.0')).toBe('my project v2.0');
   });
 });
 
@@ -80,11 +88,11 @@ describe('buildPtyCommand', () => {
     const cmd = buildPtyCommand({ testMode: false, session: 'foo;rm', tmuxConfPath: '/tmp/t.conf', tmuxBin: 'tmux' });
     expect(cmd.args.at(-1)).toBe('foorm');
   });
-  it('sanitizes multiple dangerous chars in session', () => {
+  it('sanitizes multiple dangerous chars in session preserving spaces', () => {
     const cmd = buildPtyCommand({
       testMode: false, session: 'dev;rm -rf', tmuxConfPath: '/t.conf', tmuxBin: 'tmux',
     });
-    expect(cmd.args.at(-1)).toBe('devrm-rf');
+    expect(cmd.args.at(-1)).toBe('devrm -rf');
   });
   it('defaults empty session to "main"', () => {
     const cmd = buildPtyCommand({ testMode: false, session: '', tmuxConfPath: '/tmp/t.conf', tmuxBin: 'tmux' });

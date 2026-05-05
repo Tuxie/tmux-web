@@ -108,10 +108,14 @@ export function remoteHostFromPath(pathname: string): string | null {
 
 export function sessionFromPath(pathname: string): string {
   const parts = pathname.split('/');
+  let raw: string;
   if (remoteHostFromPath(pathname)) {
-    return parts.slice(3).join('/') || 'main';
+    raw = parts.slice(3).join('/') || 'main';
+  } else {
+    raw = pathname.replace(/^\/+|\/+$/g, '') || 'main';
   }
-  return pathname.replace(/^\/+|\/+$/g, '') || 'main';
+  try { return decodeURIComponent(raw); }
+  catch { return raw; }
 }
 
 export function remotePathForSession(currentPathname: string, session: string): string {
